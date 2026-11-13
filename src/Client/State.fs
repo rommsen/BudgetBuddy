@@ -29,20 +29,6 @@ type Model = {
     Ledger: Components.Ledger.Types.Model
     Budget: Components.Budget.Types.Model
 
-    // Quick Add page form state — lifted out of SyncFlow (ynab-q7k3m). `None`
-    // until the page is first opened; reset to a fresh form on each visit and
-    // after a successful save.
-    QuickAdd: QuickAddFormState option
-
-    // Deduplicated templates from the Quick-Add account's recent bookings
-    // (ynab-t4n8p), loaded once per page visit. RemoteData so a failed/empty
-    // read degrades gracefully — no templates shown, form still usable.
-    QuickAddTemplates: RemoteData<QuickAddTemplate list>
-
-    // Die Kategorien für Quick Add, beim Start und beim Betreten der Seite geladen. Lagen bis
-    // banking-import-d0fey im Sync-Ablauf. Ein spätes Scheitern behält eine geladene Liste.
-    QuickAddCategories: RemoteData<YnabCategory list>
-
     // Die Übersicht samt Konten der Seitenleiste (design-system-k6kfw).
     Overview: Components.Overview.Types.Model
 
@@ -93,8 +79,6 @@ type Msg =
     | OpenBudgetOverdrawn
     /// „Abrufen“ im Kopf der Übersicht: das Sheet „Abrufen“ öffnet und startet, wenn keine Sitzung läuft.
     | FetchFromBank
-    | LoadQuickAddCategories
-    | QuickAddCategoriesLoaded of Result<YnabCategory list, YnabError>
     /// Ein Eintrag aus „Zu tun“ der Übersicht (ledger-s1weh): das Ziel öffnen, vorbereitet.
     | OpenOverviewTodo of Components.Overview.Types.TodoTarget
     /// „+ Buchung“ auf der Übersicht: das Erfassen aus dem Kassenbuch öffnen, die Übersicht bleibt stehen.
@@ -104,17 +88,6 @@ type Msg =
     /// Der Pin-Knopf im Kategorie-Detail (budgeting-w9yt4): anpinnen oder lösen, mit Toast.
     | TogglePinFromInspector of categoryId: System.Guid * name: string
 
-    // Quick Add (manual transaction entry → YNAB), lifted from SyncFlow (ynab-q7k3m)
-    | OpenQuickAdd
-    | CloseQuickAdd
-    | UpdateQuickAdd of QuickAddFormState
-    | SubmitQuickAdd
-    | QuickAddSaved of Result<unit, string>
-
-    // Quick Add templates (recurring cash bookings, ynab-t4n8p)
-    | LoadQuickAddTemplates
-    | QuickAddTemplatesLoaded of Result<QuickAddTemplate list, string>
-    | PrefillQuickAdd of QuickAddTemplate
 
 // ============================================
 // Helper Functions
@@ -130,21 +103,6 @@ let autoDismissAfterMs = 5000
 /// (the usual `perform`-swallows-exceptions caveat does not apply).
 let private delayed (ms: int) (msg: Msg) : Cmd<Msg> =
     Cmd.OfAsync.perform (fun () -> async { do! Async.Sleep ms }) () (fun _ -> msg)
-
-/// A blank Quick Add form dated today. Used when first opening the page and to
-/// reset the form after a successful save so another entry can follow at once.
-let private freshQuickAddForm () : QuickAddFormState =
-    {
-        AmountText = ""
-        IsOutflow = true
-        Payee = ""
-        CategoryId = ""
-        DateText = DateTime.Now.ToString("yyyy-MM-dd")
-        Memo = ""
-        ShowCategoryPicker = false
-        IsSaving = false
-        Error = None
-    }
 
 /// Übersetzt die Beschreibung einer Toast-Aktion in die Nachricht des Bausteins, der
 /// sie ausführt. Rein, damit "Rückgängig" ohne Proxy testbar ist.
@@ -270,27 +228,6 @@ let rec pageLoadCmd (page: Page) : Cmd<Msg> =
     | Review ->
         // Die Schlange wird bei jedem Betreten neu gelesen (ledger-v6s7c).
         Cmd.map LedgerMsg (Cmd.ofMsg Components.Ledger.Types.ReviewOpened)
-    | QuickAdd ->
-        // Open a fresh form and make sure the category picker has data
-        // (categories are loaded at startup; retry in case that failed or
-        // this is a deep link). Also load the recent-booking templates once
-        // per visit (ynab-t4n8p).
-        Cmd.batch [
-            Cmd.ofMsg OpenQuickAdd
-            Cmd.ofMsg LoadQuickAddTemplates
-            Cmd.ofMsg LoadQuickAddCategories
-        ]
-
-/// Soll ein Ladefehler der Quick-Add-Kategorien erscheinen? Die Kategorien laden beim App-Start auf jeder
-/// Seite, ihr Fehler gehört aber nur dorthin, wo sie gebraucht werden. Das Betreten dieser
-/// Seiten lädt neu und meldet es dann. Ein noch sichtbarer gleicher Toast reicht, sonst stapelt
-/// schnelles Wechseln bei dauerhaftem Fehler je Besuch einen weiteren (ynab-sync-k3vq8).
-let shouldShowLoadFailure (page: Page) (message: string) (toasts: Toast list) : bool =
-    let pageUsesData =
-        match page with
-        | QuickAdd -> true
-        | _ -> false
-    pageUsesData && not (toasts |> List.exists (fun toast -> toast.Message = message && not toast.Exiting))
 
 // ============================================
 // Route einer Buchung (budgeting-m1bce)
@@ -426,7 +363,6 @@ let isPageReady (model: Model) : bool =
         && notLoading model.Overview.Pins
     | LedgerRules -> notLoading model.Rules.Rules
     | Settings -> notLoading model.Settings.Settings
-    | QuickAdd -> notLoading model.QuickAddTemplates
     | Ledger -> ledgerReady ()
     | LedgerEntry _ -> ledgerReady () && model.Ledger.PendingRouteEntry.IsNone
     | Budget -> notLoading model.Budget.Month
@@ -469,17 +405,12 @@ let isInputActive (model: Model) : bool =
         || ledger.BatchRunning.IsSome
     let rulesActive = model.Rules.Panel.IsSome
     let settingsActive = model.Settings.EditingSection.IsSome
-    let quickAddActive =
-        match model.QuickAdd with
-        | None -> false
-        | Some form ->
-            form.IsSaving
-            || [ form.AmountText; form.Payee; form.Memo; form.CategoryId ]
-               |> List.exists (fun text -> not (String.IsNullOrWhiteSpace text))
+    // Eine angefangene "Neue Buchung" (ledger-ea70s, vorher der Schutz von Quick Add).
+    let captureActive = ledger.Capture |> Option.exists Components.Ledger.Capture.inputStarted
     // Ein offenes Sheet „Abrufen“ oder ein laufender Abruf: ein Neuladen verlöre Push-TAN oder Ergebnis.
     let fetchActive =
         model.Fetch.IsOpen || model.Fetch.Phase <> Components.Fetch.Types.FetchIdle
-    ledgerActive || rulesActive || settingsActive || quickAddActive || fetchActive
+    ledgerActive || rulesActive || settingsActive || captureActive || fetchActive
     || Components.Budget.Moves.inputActive model.Budget
 
 /// Der Hinweis "Neue Version, neu laden": ein Info-Toast mit Aktion, der nicht nach 5 s
@@ -541,9 +472,6 @@ let init () : Model * Cmd<Msg> =
         Rules = rulesModel
         Ledger = ledgerModel
         Budget = Components.Budget.State.init ()
-        QuickAdd = None
-        QuickAddTemplates = NotAsked
-        QuickAddCategories = NotAsked
         Overview = Components.Overview.Types.init
         SettingsReturn = Overview
     }
@@ -555,8 +483,11 @@ let init () : Model * Cmd<Msg> =
 
     let cmd = Cmd.batch [
         Cmd.map SettingsMsg settingsCmd  // Load settings on startup - needed for categories
-        Cmd.ofMsg LoadQuickAddCategories
         initialPageCmd
+        // Ein altes Lesezeichen auf Quick Add öffnet die Neue Buchung auf der Übersicht (ledger-ea70s).
+        let segments = Routing.currentSegments ()
+        if Routing.opensCapture segments then
+            Cmd.ofMsg (UrlChanged segments)
         // Die Seitenleiste zeigt die Konten auf jeder Seite. Die Übersicht lädt sie selbst mit, das Kassenbuch
         // auch (`syncNavAccounts` füllt die Seitenleiste); sonst luden sie doppelt.
         if initialLoadsSidebarAccounts initialPage then
@@ -664,6 +595,13 @@ let rec updateWith (ports: UpdatePorts) (msg: Msg) (model: Model) : Model * Cmd<
         ]
 
     // UrlChanged is the single place where page state actually changes
+    // Der alte Pfad von Quick Add (ledger-ea70s): die Übersicht mit offener Neuen Buchung, die URL wird ersetzt,
+    // damit „Zurück“ nicht wieder hierher führt.
+    | UrlChanged segments when Routing.opensCapture segments ->
+        let onOverview, pageCmd = updateWith ports (UrlChanged []) model
+        let withCapture, captureCmd = updateWith ports CaptureFromOverview onOverview
+        withCapture, Cmd.batch [ pageCmd; captureCmd; Cmd.navigate ("/", HistoryMode.ReplaceState) ]
+
     | UrlChanged segments ->
         let page = Routing.parseUrl segments
         // Only update if page actually changed (avoids unnecessary re-renders)
@@ -819,41 +757,6 @@ let rec updateWith (ports: UpdatePorts) (msg: Msg) (model: Model) : Model * Cmd<
         let model' = { model with Fetch = fetchModel' }
         let externalCmd = fetchExternalCmd model' externalMsg
         model', Cmd.batch [ Cmd.map FetchMsg fetchCmd; externalCmd ]
-
-    | LoadQuickAddCategories when RemoteData.isLoading model.QuickAddCategories ->
-        // Der laufende Abruf liefert dasselbe.
-        model, Cmd.none
-
-    | LoadQuickAddCategories ->
-        let loadCategoriesAsync () = async {
-            let! settings = Retry.reading Api.settings.getSettings ()
-            match settings.Ynab with
-            | Some ynab ->
-                match ynab.DefaultBudgetId with
-                | Some budgetId -> return! Retry.reading Api.ynab.getCategories budgetId
-                | None -> return Error (YnabError.Unauthorized "Kein Standard-Budget eingerichtet")
-            | None -> return Error (YnabError.Unauthorized "YNAB ist nicht eingerichtet")
-        }
-        { model with QuickAddCategories = Loading },
-        Cmd.OfAsync.either
-            loadCategoriesAsync
-            ()
-            QuickAddCategoriesLoaded
-            (fun ex -> QuickAddCategoriesLoaded (Error (YnabError.NetworkError ex.Message)))
-
-    | QuickAddCategoriesLoaded (Ok categories) ->
-        { model with QuickAddCategories = Success categories }, Cmd.none
-
-    | QuickAddCategoriesLoaded (Error error) ->
-        // `Unauthorized` trägt hier auch "nicht eingerichtet" aus dem Ladeweg.
-        let text =
-            match error with
-            | YnabError.Unauthorized message -> message
-            | other -> ynabErrorText other
-        let message = $"Kategorien konnten nicht geladen werden: {text}"
-        { model with QuickAddCategories = RemoteData.lateFailure text model.QuickAddCategories },
-        (if shouldShowLoadFailure model.CurrentPage message model.Toasts then Cmd.ofMsg (ShowToast (message, ToastError))
-         else Cmd.none)
 
     // ============================================
     // Rules Component
@@ -1069,7 +972,7 @@ let rec updateWith (ports: UpdatePorts) (msg: Msg) (model: Model) : Model * Cmd<
               match ledger.Balances with
               | Success _ | Loading -> ()
               | _ -> LedgerMsg Components.Ledger.Types.LoadBalances ]
-        let model', cmd = updateWith ports (LedgerMsg Components.Ledger.Types.OpenCapture) model
+        let model', cmd = updateWith ports (LedgerMsg Components.Ledger.Types.OpenCaptureUnfiltered) model
         model', Cmd.batch (cmd :: (loads |> List.map Cmd.ofMsg))
 
     | FetchFromBank ->
@@ -1093,77 +996,6 @@ let rec updateWith (ports: UpdatePorts) (msg: Msg) (model: Model) : Model * Cmd<
             | Components.Budget.Types.ShowCategoryAdmin -> Cmd.ofMsg (NavigateTo BudgetCategories)
 
         { model with Budget = budgetModel' }, Cmd.batch [ Cmd.map BudgetMsg budgetCmd; externalCmd ]
-
-    // ============================================
-    // Quick Add (manual transaction entry → YNAB)
-    // ============================================
-    // Lifted out of the SyncFlow component (ynab-q7k3m). The submit behaviour is
-    // unchanged: the request carries no account id, and the server pushes it onto
-    // the configured Quick-Add account without an ImportId (ADR 0004).
-    | OpenQuickAdd ->
-        { model with QuickAdd = Some (freshQuickAddForm ()) }, Cmd.none
-
-    | CloseQuickAdd ->
-        { model with QuickAdd = None }, Cmd.none
-
-    | UpdateQuickAdd form ->
-        { model with QuickAdd = Some form }, Cmd.none
-
-    | SubmitQuickAdd ->
-        match model.QuickAdd with
-        | None -> model, Cmd.none
-        | Some form ->
-            match buildQuickAddRequest form with
-            | Error validationError ->
-                { model with QuickAdd = Some { form with Error = Some validationError } }, Cmd.none
-            | Ok request ->
-                let cmd =
-                    Cmd.OfAsync.either
-                        Api.ynab.addManualTransaction
-                        request
-                        (fun result -> QuickAddSaved (result |> Result.mapError ynabErrorText))
-                        (fun ex -> QuickAddSaved (Error ex.Message))
-                { model with QuickAdd = Some { form with IsSaving = true; Error = None } }, cmd
-
-    | QuickAddSaved (Ok ()) ->
-        // Stay on the page and reset to a fresh form so the next cash entry can
-        // follow immediately; surface success as a toast.
-        let model', toastCmd = addToast "Transaktion in YNAB gespeichert" ToastSuccess model
-        { model' with QuickAdd = Some (freshQuickAddForm ()) }, toastCmd
-
-    | QuickAddSaved (Error message) ->
-        match model.QuickAdd with
-        | Some form ->
-            { model with QuickAdd = Some { form with IsSaving = false; Error = Some message } }, Cmd.none
-        | None ->
-            addToast message ToastError model
-
-    // ============================================
-    // Quick Add Templates (recurring cash bookings, ynab-t4n8p)
-    // ============================================
-    // One extra YNAB read per page visit (rate-limit conscious): load the recent
-    // bookings of the Quick-Add account, dedup server-side, and offer them as
-    // one-tap prefills. RemoteData so a failure/empty read just hides the chips.
-    | LoadQuickAddTemplates ->
-        let cmd =
-            Cmd.OfAsync.either
-                (Retry.reading Api.ynab.getRecentQuickAddTemplates)
-                ()
-                (fun result -> QuickAddTemplatesLoaded (result |> Result.mapError ynabErrorText))
-                (fun ex -> QuickAddTemplatesLoaded (Error ex.Message))
-        { model with QuickAddTemplates = Loading }, cmd
-
-    | QuickAddTemplatesLoaded (Ok templates) ->
-        { model with QuickAddTemplates = Success templates }, Cmd.none
-
-    | QuickAddTemplatesLoaded (Error message) ->
-        { model with QuickAddTemplates = RemoteData.lateFailure message model.QuickAddTemplates }, Cmd.none
-
-    | PrefillQuickAdd template ->
-        // Fill every field from the template; the date stays today (form default).
-        // Nothing is posted — Roman reviews, adjusts and taps Speichern himself.
-        let baseForm = model.QuickAdd |> Option.defaultValue (freshQuickAddForm ())
-        { model with QuickAdd = Some (applyTemplateToForm template baseForm) }, Cmd.none
 
 /// Der Live-Port: der Abruf über den Remoting-Proxy mit Wiederholung bei Netzfehlern. Die
 /// Lambda greift erst beim Aufruf auf `Api.ynab` zu, nicht beim Bau des Ports.

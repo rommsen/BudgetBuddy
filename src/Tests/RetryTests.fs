@@ -147,9 +147,8 @@ let tests =
                   "Components/Rules/State.fs", [ "getAllRules"; "testRule" ]
                   // ledger-r8h19: beide Kategorien-Abrufe (Regeln, Kassenbuch) laufen über den Port
                   // `GetCategories`, umhüllt einmal in `livePorts`.
-                  // banking-import-d0fey: die Kategorien für Quick Add (Einstellungen, dann Kategorien) lagen im
-                  // Sync-Ablauf und stehen jetzt im Root.
-                  "State.fs", [ "getCategories"; "getRecentQuickAddTemplates"; "getSettings"; "getCategories" ]
+                  // ledger-ea70s: mit Quick Add entfielen dessen Vorlagen und Kategorien im Root.
+                  "State.fs", [ "getCategories" ]
                   "Components/Ledger/State.fs",
                   [ "getLedgerAccounts"; "getLedgerAccounts"; "getLastMirrorRun"; "getLenaFlagSettings"
                     "getLedgerAccountBalances"; "getLedgerEntriesPage"; "getLedgerEntriesPage"; "getLedgerEntriesPage"

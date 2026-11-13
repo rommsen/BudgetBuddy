@@ -89,12 +89,10 @@ let private rootModel (page: Page) : State.Model =
       Toasts = []
       Pwa = Pwa.initialState
       Settings = settingsModel
-      Fetch = Components.Fetch.Types.init; QuickAddCategories = NotAsked
+      Fetch = Components.Fetch.Types.init
       Rules = rulesModel
       Ledger = ledgerModel
       Budget = Components.Budget.Types.init ()
-      QuickAdd = None
-      QuickAddTemplates = NotAsked
       Overview = Components.Overview.Types.init
       SettingsReturn = Overview }
 
@@ -197,14 +195,14 @@ let transitionTests =
         testCase "Der Start lädt die Zahl an der Übersicht auf jeder anderen Seite, die Übersicht lädt sie selbst" <| fun () ->
             for page, loads in
                 [ Overview, false; Ledger, true; LedgerEntry accountId, true
-                  Budget, true; Settings, true; LedgerRules, true; QuickAdd, true ] do
+                  Budget, true; Settings, true; LedgerRules, true ] do
                 Expect.equal (State.initialLoadsOverviewCount page) loads (string page)
 
         // Review-Fund: beim Start auf einer Kassenbuch-Seite luden Übersicht und Kassenbuch die Konten doppelt.
         testCase "Der Start lädt die Konten der Seitenleiste nur, wo die Seite sie nicht selbst lädt" <| fun () ->
             for page, loads in
                 [ Overview, false; Ledger, false; LedgerEntry accountId, false
-                  Budget, true; Settings, true; LedgerRules, true; QuickAdd, true ] do
+                  Budget, true; Settings, true; LedgerRules, true ] do
                 Expect.equal (State.initialLoadsSidebarAccounts page) loads (string page)
 
         testCase "Die Seiten-Navigation merkt die Seite vor den Einstellungen" <| fun () ->

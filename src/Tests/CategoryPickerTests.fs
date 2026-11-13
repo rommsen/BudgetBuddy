@@ -331,7 +331,8 @@ let private tests =
                 let src = readDs "CategoryPicker.fs"
                 Expect.stringContains src "FilterPopover.view" "Popover"
                 Expect.stringContains src "BottomSheet.view sheetProps" "Sheet"
-                Expect.stringContains src "BottomSheet.viewLayered sheetProps" "Sheet über dem Detail"
+                // ledger-ea70s: kein gestapeltes Sheet mehr, aus einem offenen Sheet ersetzt `sheetContent` den Inhalt.
+                Expect.isFalse (src.Contains "viewLayered") "kein Sheet über dem Sheet"
                 // Popover, Popover der Auswahl (ledger-w29y6), Sheet und Inhalt eines offenen Sheets (categorization-n3sxw)
                 // rendern denselben Content.
                 Expect.equal (src.Split("Content {").Length - 1) 4 "alle Hüllen rendern denselben Content"

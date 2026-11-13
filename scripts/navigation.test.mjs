@@ -44,13 +44,13 @@ const places = (page) => page.locator('nav[aria-label="Orte"]').filter({ visible
 const current = async (nav) => nav.locator('[aria-current="page"]').innerText();
 
 test("[flow:navigation] Leiste, Rail und Seitenleiste führen zu den Orten, ein Konto ins Kassenbuch, das Zahnrad in die Einstellungen", async () => {
-  // Handy 412 px: Leiste unten mit vier Einträgen, Übersicht markiert.
+  // Handy 412 px: Leiste unten mit drei Einträgen (Quick Add entfiel mit ledger-ea70s), Übersicht markiert.
   {
     const { context, page } = await openAt(412, 915, true);
     try {
       const nav = places(page);
       assert.equal(await nav.count(), 1, "genau eine Navigation sichtbar");
-      assert.deepEqual((await nav.getByRole("button").allInnerTexts()).map((t) => t.trim()), ["Übersicht", "Kassenbuch", "Budget", "Quick Add"]);
+      assert.deepEqual((await nav.getByRole("button").allInnerTexts()).map((t) => t.trim()), ["Übersicht", "Kassenbuch", "Budget"]);
       assert.equal((await current(nav)).trim(), "Übersicht");
       await nav.getByRole("button", { name: "Budget" }).click();
       await page.waitForURL(/#\/budget$/);

@@ -44,6 +44,8 @@ test("[flow:buchung-erfassen] Handy: ein Zuletzt-Chip füllt das Formular, Buchu
     const sheet = page.locator(".bottom-sheet.active", { hasText: "Neue Buchung" });
     await sheet.locator('[data-testid="capture-recent"]').waitFor();
 
+    // ledger-ea70s: ohne Kontofilter ist das Quick-Add-Konto (Bar) vorbelegt; die Regel prüft LedgerCaptureClientTests.
+    await sheet.locator('[data-testid="capture-account"]', { hasText: "Bar" }).waitFor();
     await sheet.getByRole("button", { name: "Bäckerei Lange · 8,60" }).tap();
     const amount = sheet.locator('[data-testid="capture-amount"] input');
     await amount.fill("9,20");
@@ -61,5 +63,44 @@ test("[flow:buchung-erfassen] Handy: ein Zuletzt-Chip füllt das Formular, Buchu
     assert.equal(request.AccountId, calls.barId, "Konto aus dem Chip");
   } finally {
     await context.close();
+  }
+});
+
+// ledger-ea70s: wie vorher Quick Add steht am PC der Fokus beim Öffnen im Betrag, am Handy nicht (die Tastatur verdeckte
+// sonst Zuletzt und Konto). Nur der Browser kennt den Fokus (`autoFocus` beim Einhängen).
+test("[fokus] Neue Buchung: am PC Fokus im Betrag, am Handy kein Autofokus", async () => {
+  const amountFocused = (page) =>
+    page.evaluate(() => document.activeElement === document.querySelector('[data-testid="capture-amount"] input'));
+  {
+    const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    try {
+      const page = await context.newPage();
+      page.setDefaultTimeout(30000);
+      await mockCapture(page);
+      await page.goto(`http://127.0.0.1:${frontendPort}/#/ledger`, { waitUntil: "load" });
+      await waitForPageLoaded(page, "/ledger");
+      await page.getByRole("button", { name: "Neue Buchung" }).locator("visible=true").first().click();
+      await page.locator('[data-testid="capture-amount"] input').waitFor();
+      await page.waitForFunction(
+        () => document.activeElement === document.querySelector('[data-testid="capture-amount"] input')
+      );
+    } finally {
+      await context.close();
+    }
+  }
+  {
+    const context = await browser.newContext({ viewport: { width: 412, height: 915 }, hasTouch: true, isMobile: true });
+    try {
+      const page = await context.newPage();
+      page.setDefaultTimeout(30000);
+      await mockCapture(page);
+      await page.goto(`http://127.0.0.1:${frontendPort}/#/ledger`, { waitUntil: "load" });
+      await waitForPageLoaded(page, "/ledger");
+      await page.locator(".ledger-capture-fab").getByRole("button").tap();
+      await page.locator('.bottom-sheet.active [data-testid="capture-amount"] input').waitFor();
+      assert.equal(await amountFocused(page), false, "am Handy kein Autofokus");
+    } finally {
+      await context.close();
+    }
   }
 });

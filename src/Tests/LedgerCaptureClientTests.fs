@@ -25,7 +25,7 @@ let private template : LedgerBookingTemplate =
     { AccountId = tagesgeld; Payee = "Wochenmarkt"; Target = Some (BookOnCategory food); Amount = 23m; IsOutflow = true }
 
 let private defaults : LedgerBookingDefaults =
-    { Today = today; ImportAccountId = Some giro; LastUsedAccountId = Some tagesgeld; Recent = [ template ] }
+    { Today = today; ImportAccountId = Some giro; LastUsedAccountId = Some tagesgeld; QuickAddAccountId = None; Recent = [ template ] }
 
 let private account id name ynab : LedgerAccountView =
     { Id = id; Name = name; Kind = LedgerBankAccount; YnabAccountId = Some ynab; Closed = false }
@@ -102,6 +102,46 @@ let openTests =
 
         testCase "ohne Filter-Konto gilt das zuletzt genutzte" <| fun () ->
             Expect.equal (formOf (opened (Some AllAccounts))).AccountId (Some tagesgeld) "zuletzt genutzt"
+
+        // ledger-ea70s: ohne Kontofilter (Alle Konten, Übersicht) das Quick-Add-Konto, sonst das zuletzt genutzte.
+        testCase "ohne Filter-Konto gilt das Quick-Add-Konto vor dem zuletzt genutzten" <| fun () ->
+            let withQuickAdd = { defaults with QuickAddAccountId = Some bar }
+            let form filter =
+                baseModel filter |> step OpenCapture |> step (CaptureDefaultsLoaded (Ok withQuickAdd)) |> formOf
+            Expect.equal (form (Some AllAccounts)).AccountId (Some bar) "Alle Konten"
+            Expect.equal (form None).AccountId (Some bar) "ohne Filter"
+            Expect.equal (form (Some (OneAccount tagesgeld))).AccountId (Some tagesgeld) "ein gefiltertes Konto geht vor"
+
+        testCase "ein nicht buchbares Quick-Add-Konto belegt nichts vor, es gilt das zuletzt genutzte" <| fun () ->
+            let withImport = { defaults with QuickAddAccountId = Some giro }
+            let form = baseModel (Some AllAccounts) |> step OpenCapture |> step (CaptureDefaultsLoaded (Ok withImport)) |> formOf
+            Expect.equal form.AccountId (Some tagesgeld) "zuletzt genutzt"
+
+        testCase "auf der Übersicht zählt ein Kontofilter des Kassenbuchs nicht" <| fun () ->
+            let withQuickAdd = { defaults with QuickAddAccountId = Some bar }
+            let model =
+                baseModel (Some (OneAccount tagesgeld))
+                |> step OpenCaptureUnfiltered
+                |> step (CaptureDefaultsLoaded (Ok withQuickAdd))
+            Expect.equal (formOf model).AccountId (Some bar) "Quick-Add-Konto statt des Filters"
+
+        testCase "kommen die Konten nach der Vorbelegung, wird auch das Quick-Add-Konto nachgesetzt" <| fun () ->
+            let withQuickAdd = { defaults with QuickAddAccountId = Some bar }
+            let model =
+                { baseModel None with TransferTargets = NotAsked }
+                |> step OpenCapture
+                |> step (CaptureDefaultsLoaded (Ok withQuickAdd))
+            Expect.isNone (formOf model).AccountId "noch keine wählbaren Konten"
+            Expect.equal (formOf (step (TransferTargetsLoaded (Ok budget)) model)).AccountId (Some bar) "nachgesetzt"
+
+        testCase "ein Zuletzt-Chip belegt das Konto des Chips, auch über dem Quick-Add-Konto" <| fun () ->
+            let withQuickAdd = { defaults with QuickAddAccountId = Some bar }
+            let model =
+                baseModel None
+                |> step OpenCapture
+                |> step (CaptureDefaultsLoaded (Ok withQuickAdd))
+                |> step (ApplyCaptureTemplate template)
+            Expect.equal (formOf model).AccountId (Some tagesgeld) "Konto des Chips"
 
         testCase "steht der Filter auf dem Import-Konto, wird es nicht vorbelegt" <| fun () ->
             Expect.equal (formOf (opened (Some (OneAccount giro)))).AccountId (Some tagesgeld) "nie das Import-Konto"
@@ -534,6 +574,31 @@ let overviewDialogTests =
         testCase "Esc bei offener Kontoliste schließt nur die Liste" <| fun () ->
             let model = opened None |> step (OpenCapturePicker Components.Ledger.Capture.CaptureAccountPicker) |> escape
             Expect.isNone (captureOf model).Picker "Liste zu"
+
+        // ledger-ea70s: im Sheet ersetzen die Auswahlen den Inhalt; nach Wahl oder Schließen stehen die Eingaben noch da.
+        testCase "Auswahl öffnen und schließen oder wählen lässt Betrag, Payee und Memo stehen" <| fun () ->
+            let filled =
+                opened None
+                |> step (SetCaptureAmount "8,60")
+                |> step (SetCapturePayee "Bäckerei")
+                |> step (SetCaptureMemo "Brötchen")
+            let kept (model: Model) =
+                let f = formOf model
+                f.AmountText, f.Payee, f.Memo
+            let closed = filled |> step (OpenCapturePicker Components.Ledger.Capture.CaptureTargetPicker) |> step CloseCapturePicker
+            Expect.equal (kept closed) ("8,60", "Bäckerei", "Brötchen") "nach Schließen"
+            let chosen =
+                filled
+                |> step (OpenCapturePicker Components.Ledger.Capture.CaptureTargetPicker)
+                |> step (ChooseCaptureTarget (Some (BookOnCategory food)))
+            Expect.equal (kept chosen) ("8,60", "Bäckerei", "Brötchen") "nach der Wahl"
+            Expect.isNone (captureOf chosen).Picker "zurück im Formular"
+            let account =
+                filled
+                |> step (OpenCapturePicker Components.Ledger.Capture.CaptureAccountPicker)
+                |> step (ChooseCaptureAccount bar)
+            Expect.equal (kept account) ("8,60", "Bäckerei", "Brötchen") "nach der Kontowahl"
+            Expect.isNone (captureOf account).Picker "zurück im Formular"
 
         testCase "Esc ohne offene Auswahl schließt das Formular" <| fun () ->
             Expect.isNone (escape (opened None)).Capture "Formular zu"

@@ -755,15 +755,21 @@ let defaultsTests =
     let tag = Guid.NewGuid()
     let imp = Guid.NewGuid()
     testList "Buchung erfassen: Vorbelegung (ledger-at63w)" [
-        testCase "das Konto kommt aus dem Kassenbuch-Filter" <| fun () ->
-            Expect.equal (defaultBookingAccount (Some tag) (Some bar) [ bar; tag ]) (Some tag) "Filter"
+        testCase "das Konto kommt aus dem Kassenbuch-Filter, auch vor dem Quick-Add-Konto" <| fun () ->
+            Expect.equal (defaultBookingAccount (Some tag) (Some bar) (Some bar) [ bar; tag ]) (Some tag) "Filter"
 
-        testCase "ohne wählbares Filter-Konto gilt das zuletzt genutzte" <| fun () ->
-            Expect.equal (defaultBookingAccount None (Some bar) [ bar; tag ]) (Some bar) "ohne Filter"
-            Expect.equal (defaultBookingAccount (Some imp) (Some bar) [ bar; tag ]) (Some bar) "Filter auf dem Import-Konto"
+        // ledger-ea70s: ohne Filter (Alle Konten, Übersicht) das Quick-Add-Konto, wenn es buchbar ist.
+        testCase "ohne Filter gilt das Quick-Add-Konto vor dem zuletzt genutzten" <| fun () ->
+            Expect.equal (defaultBookingAccount None (Some bar) (Some tag) [ bar; tag ]) (Some bar) "Quick-Add-Konto"
+            Expect.equal (defaultBookingAccount (Some imp) (Some bar) (Some tag) [ bar; tag ]) (Some bar) "Filter auf dem Import-Konto"
+
+        testCase "ohne Quick-Add-Konto oder ohne buchbares gilt das zuletzt genutzte" <| fun () ->
+            Expect.equal (defaultBookingAccount None None (Some bar) [ bar; tag ]) (Some bar) "nicht eingestellt"
+            Expect.equal (defaultBookingAccount None (Some imp) (Some bar) [ bar; tag ]) (Some bar) "Quick-Add-Konto nicht buchbar"
+            Expect.equal (defaultBookingAccount (Some imp) None (Some bar) [ bar; tag ]) (Some bar) "Filter auf dem Import-Konto"
 
         testCase "das Import-Konto wird nie vorbelegt" <| fun () ->
-            Expect.equal (defaultBookingAccount (Some imp) (Some imp) [ bar; tag ]) None "nie das Import-Konto"
+            Expect.equal (defaultBookingAccount (Some imp) (Some imp) (Some imp) [ bar; tag ]) None "nie das Import-Konto"
 
         testCase "wählbar sind offene Budget-Konten mit YNAB ohne das Import-Konto" <| fun () ->
             let y () = YnabAccountId (Guid.NewGuid())
@@ -792,7 +798,7 @@ let defaultsTests =
                   { entryWith bar "Tankstelle" -60m None with DeletedInYnab = true }
                   entryWith bar "Tankstelle" -60m None
                   entryWith bar "Kiosk" -2m None ]
-            let defaults = Ledger.QueryHandlers.bookingDefaultsOf today (Some imp) newestFirst
+            let defaults = Ledger.QueryHandlers.bookingDefaultsOf today (Some imp) (Some tag) newestFirst
             Expect.equal
                 (defaults.Recent |> List.map (fun t -> t.Payee, t.Amount, t.IsOutflow))
                 [ "Bäckerei Lange", 8.60m, true; "Wochenmarkt", 23m, true; "Tankstelle", 60m, true ]
@@ -800,6 +806,7 @@ let defaultsTests =
             Expect.equal defaults.Recent.Head.Target (Some (BookOnCategory food.CategoryId)) "Kategorie im Chip"
             Expect.equal defaults.LastUsedAccountId (Some bar) "zuletzt genutztes Konto"
             Expect.equal defaults.ImportAccountId (Some imp) "Import-Konto"
+            Expect.equal defaults.QuickAddAccountId (Some tag) "Quick-Add-Konto"
 
         testCase "ein Übertrag im Chip trägt das Zielkonto und den Payee davor" <| fun () ->
             let target = YnabAccountId (Guid.NewGuid())
@@ -807,7 +814,7 @@ let defaultsTests =
                 { entryWith bar "Transfer : Tagesgeld" -100m None with
                     TransferAccountId = Some target
                     PayeeBeforeTransfer = Some "Sparen" }
-            let defaults = Ledger.QueryHandlers.bookingDefaultsOf today None [ transfer ]
+            let defaults = Ledger.QueryHandlers.bookingDefaultsOf today None None [ transfer ]
             Expect.equal
                 (defaults.Recent |> List.map (fun t -> t.Payee, t.Target))
                 [ "Sparen", Some (BookAsTransfer target) ]
@@ -822,6 +829,31 @@ let defaultsTests =
                 |> Async.RunSynchronously
             Expect.equal defaults.Today (DateTime(2026, 11, 8)) "schon der 8. in Berlin"
             Expect.isNone defaults.ImportAccountId "ohne Einstellung kein Import-Konto"
+            Expect.isNone defaults.QuickAddAccountId "ohne Einstellung kein Quick-Add-Konto"
+
+        // ledger-ea70s: die Vorbelegung nennt das Kassenbuch-Konto zum Quick-Add-Konto aus den Settings.
+        testCase "das Quick-Add-Konto aus den Settings wird zum gespiegelten Kassenbuch-Konto" <| fun () ->
+            initializeLedgerSchema ()
+            let accounts = freshAccounts ()
+            let (YnabAccountId barY) = accounts.BarYnab
+            let setting key =
+                async.Return (if key = Ledger.QueryHandlers.quickAddAccountSettingKey then Some (string barY) else None)
+            let zone = TimeZoneInfo.FindSystemTimeZoneById "Europe/Berlin"
+            let defaults =
+                Ledger.QueryHandlers.getLedgerBookingDefaultsWith setting zone (DateTime(2026, 11, 7, 10, 0, 0, DateTimeKind.Utc))
+                |> Async.RunSynchronously
+            let (LedgerAccountId bar) = accounts.Bar
+            Expect.equal defaults.QuickAddAccountId (Some bar) "Bar"
+
+        testCase "ein Quick-Add-Konto ohne Spiegel im Kassenbuch belegt nichts vor" <| fun () ->
+            initializeLedgerSchema ()
+            let setting key =
+                async.Return (if key = Ledger.QueryHandlers.quickAddAccountSettingKey then Some (string (Guid.NewGuid())) else None)
+            let zone = TimeZoneInfo.FindSystemTimeZoneById "Europe/Berlin"
+            let defaults =
+                Ledger.QueryHandlers.getLedgerBookingDefaultsWith setting zone (DateTime(2026, 11, 7, 10, 0, 0, DateTimeKind.Utc))
+                |> Async.RunSynchronously
+            Expect.isNone defaults.QuickAddAccountId "nicht gespiegelt"
     ]
 
 [<Tests>]

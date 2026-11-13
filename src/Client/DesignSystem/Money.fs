@@ -401,7 +401,8 @@ let accountListRowWith (label: string) (value: ReactElement) (isActive: bool) (o
     Html.button [
         prop.onClick (fun _ -> onClick ())
         prop.className (
-            "w-full flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-left transition-colors border-l-2 "
+            // Am Handy 48 px Trefferfläche (Konto-Auswahl im Sheet, ledger-ea70s), ab md die kompakte Liste.
+            $"w-full flex items-center justify-between gap-3 rounded-lg px-3 py-2 {Tokens.TouchTargets.mobileMinHeight} md:min-h-0 text-left transition-colors border-l-2 "
             // Aktiv: erhoehte Flaeche + Akzentlinie links, dieselbe Kombination
             // wie `Table.row`s `IsSelected`-Zeile (`bg-accent/10 border-l-2
             // border-l-accent`) — Tokens statt der Hex-Literale aus dem

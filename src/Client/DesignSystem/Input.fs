@@ -79,6 +79,8 @@ type TextInputProps = {
     AriaInvalid: bool
     /// Das Feld ist die Eingabe einer Combobox (Payee-Auswahl, Suche im Sheet „Angepinnt“). `None` für ein schlichtes Feld.
     Combobox: ComboboxAria option
+    /// Fokus beim Einhängen (`autoFocus`). Der Aufrufer entscheidet, etwa nur am PC (`Viewport.isFinePointer`).
+    AutoFocus: bool
 }
 
 let textInputDefaults = {
@@ -99,6 +101,7 @@ let textInputDefaults = {
     DescribedBy = None
     AriaInvalid = false
     Combobox = None
+    AutoFocus = false
 }
 
 /// Setzt `text` das Inline-`fontSize 16` (iOS-Zoom-Schutz)? Nur Medium. Small trägt
@@ -126,6 +129,7 @@ let text (props: TextInputProps) =
         prop.placeholder props.Placeholder
         prop.disabled props.Disabled
         if props.ReadOnly then prop.readOnly true
+        if props.AutoFocus then prop.autoFocus true
         match props.OnFocus with
         | Some handler -> prop.onFocus handler
         | None -> ()

@@ -414,8 +414,21 @@ let inspectorSheet (pin: InspectorPin option) (model: Model) (shown: BudgetGroup
           Title = title
           Subtitle = subtitle
           Footer = None }
-    match sheetCategory model with
-    | Some (selected, month, (category, groupName)) ->
+    match sheetCategory model, model.TabMoney with
+    // Die Gegenseite beim Verschieben: die Auswahl ersetzt den Inhalt des Sheets (§7.15, ledger-ea70s), Wahl oder
+    // Schließen führen zurück. Betrag und Modus stehen im Modell und bleiben.
+    | Some (_, month, _), Some tab when model.Tab = MoneyTab && tab.Transfer.PickerOpen ->
+        let picker = counterpartPickerProps model month tab dispatch
+        BottomSheet.inspector
+            { IsOpen = true
+              OnClose = picker.OnClose
+              Title = CategoryPicker.sheetTitle []
+              Subtitle = None
+              Footer = None }
+            []
+            []
+            [ CategoryPicker.sheetContent picker ]
+    | Some (selected, month, (category, groupName)), _ ->
         BottomSheet.inspector
             (props category.Name (Some $"{groupName} · {monthLabel month.Month}") true)
             (sheetStepper model shown dispatch @ [ pinButton pin category ])
@@ -427,7 +440,7 @@ let inspectorSheet (pin: InspectorPin option) (model: Model) (shown: BudgetGroup
                   prop.className "-mx-5"
                   prop.children [ inspectorContent model month selected category dispatch ]
               ] ]
-    | None -> BottomSheet.inspector (props "" None false) [] [] []
+    | None, _ -> BottomSheet.inspector (props "" None false) [] [] []
 
 /// Das Panel ab 1024 px. Der Hinweis steht ohne Auswahl da, die Höhe bleibt gleich. Beim Blättern
 /// bleibt der Inhalt stehen. Lädt der Monat bei bestehender Auswahl, steht ein Skeleton da. Scheitert

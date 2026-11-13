@@ -27,12 +27,11 @@ let private baseModel () : State.Model =
         Toasts = []
         Pwa = Pwa.initialState
         Settings = settingsModel
-        Fetch = Components.Fetch.Types.init; QuickAddCategories = NotAsked
+        Fetch = Components.Fetch.Types.init
         Rules = rulesModel
         Ledger = ledgerModel
         Budget = Components.Budget.State.init ()
-        QuickAdd = None
-        QuickAddTemplates = NotAsked; Overview = Components.Overview.Types.init; SettingsReturn = Types.Page.Overview
+        Overview = Components.Overview.Types.init; SettingsReturn = Types.Page.Overview
     }
 
 let private withLedger (f: Components.Ledger.Types.Model -> Components.Ledger.Types.Model) (m: State.Model) =
@@ -40,17 +39,22 @@ let private withLedger (f: Components.Ledger.Types.Model -> Components.Ledger.Ty
 
 let private waiting (m: State.Model) = { m with Pwa = { m.Pwa with UpdateWaiting = true } }
 
-let private blankForm : QuickAddFormState = {
-    AmountText = ""
-    IsOutflow = true
-    Payee = ""
-    CategoryId = ""
-    DateText = "2026-10-24"
-    Memo = ""
-    ShowCategoryPicker = false
-    IsSaving = false
-    Error = None
-}
+/// Ein offenes Formular "Neue Buchung" mit geladener Vorbelegung und vorbelegtem Konto, sonst leer
+/// (ledger-ea70s: der Schutz vor dem Neuladen kam von Quick Add hierher).
+let private blankCapture : Components.Ledger.Capture.CaptureState =
+    let today = DateTime(2026, 10, 24)
+    { Components.Ledger.Capture.opening with
+        Defaults =
+            Success
+                { Today = today
+                  ImportAccountId = None
+                  LastUsedAccountId = None
+                  QuickAddAccountId = None
+                  Recent = [] }
+        Form = { Components.Ledger.Capture.emptyForm today with AccountId = Some (Guid.Parse "0195e900-0000-7000-8000-000000000001") } }
+
+let private withCapture (change: Components.Ledger.Capture.CaptureState -> Components.Ledger.Capture.CaptureState) (m: State.Model) =
+    { m with Ledger = { m.Ledger with Capture = Some (change blankCapture) } }
 
 let private anEntry : Shared.Domain.LedgerEntryView = {
     Id = Guid.Parse "0195f900-0000-7000-8000-000000000001"
@@ -161,6 +165,13 @@ let updateTests =
             Expect.isTrue after.Pwa.NoticeShown "NoticeShown"
             Expect.equal (List.length (noticeToasts after)) 1 "ein Hinweis-Toast"
             Expect.isEmpty cmd "kein Cmd, vor allem kein Auto-Dismiss nach 5 s"
+        // ledger-ea70s: der Schutz von Quick Add gilt jetzt für "Neue Buchung".
+        testCase "PwaUpdateWaiting mit eingetipptem Betrag in Neue Buchung zeigt den Hinweis und lädt nicht" <| fun () ->
+            let model = baseModel () |> withCapture (fun c -> { c with Form = { c.Form with AmountText = "4,50" } })
+            let after, _ = State.update State.PwaUpdateWaiting model
+            Expect.isFalse after.Pwa.Reloading "Reloading bleibt false"
+            Expect.equal (List.length (noticeToasts after)) 1 "ein Hinweis-Toast"
+            Expect.equal (after.Ledger.Capture |> Option.map (fun c -> c.Form.AmountText)) (Some "4,50") "Betrag bleibt"
         testCase "ein zweites PwaUpdateWaiting fügt keinen zweiten Hinweis hinzu" <| fun () ->
             let model = baseModel () |> withLedger (fun l -> { l with DetailFor = Some anEntry })
             let once, _ = State.update State.PwaUpdateWaiting model
@@ -257,13 +268,18 @@ let inputActiveTests =
         active "Kassenbuch: Sammellauf Lena" (withLedger (fun l -> { l with BatchRunning = Some LenaBatchRun }))
         active "Einstellungen: EditingSection" (fun m ->
             { m with Settings = { m.Settings with EditingSection = Some Components.Settings.Types.YnabSection } })
-        active "Schnellerfassung: Betrag ausgefüllt" (fun m -> { m with QuickAdd = Some { blankForm with AmountText = "4,50" } })
-        active "Schnellerfassung: Payee ausgefüllt" (fun m -> { m with QuickAdd = Some { blankForm with Payee = "Bäcker" } })
-        active "Schnellerfassung: Memo ausgefüllt" (fun m -> { m with QuickAdd = Some { blankForm with Memo = "x" } })
-        active "Schnellerfassung: Kategorie ausgefüllt" (fun m -> { m with QuickAdd = Some { blankForm with CategoryId = Guid.NewGuid().ToString() } })
-        active "Schnellerfassung: IsSaving" (fun m -> { m with QuickAdd = Some { blankForm with IsSaving = true } })
-        testCase "Schnellerfassung: leeres Formular ist keine Eingabe" <| fun () ->
-            Expect.isFalse (State.isInputActive { baseModel () with QuickAdd = Some blankForm }) "leer"
+        // Neue Buchung (ledger-ea70s): eine angefangene Eingabe schützt vor dem Neuladen wie vorher Quick Add.
+        active "Neue Buchung: Betrag ausgefüllt" (withCapture (fun c -> { c with Form = { c.Form with AmountText = "4,50" } }))
+        active "Neue Buchung: Payee ausgefüllt" (withCapture (fun c -> { c with Form = { c.Form with Payee = "Bäcker" } }))
+        active "Neue Buchung: Memo ausgefüllt" (withCapture (fun c -> { c with Form = { c.Form with Memo = "x" } }))
+        active "Neue Buchung: Ziel selbst gewählt" (withCapture (fun c ->
+            { c with Form = { c.Form with Target = Some (Shared.Domain.BookOnCategory (Shared.Domain.YnabCategoryId (Guid.NewGuid()))); TargetChosen = true } }))
+        active "Neue Buchung: Buchung anlegen läuft" (withCapture (fun c -> { c with Saving = true }))
+        testCase "Neue Buchung: ein offenes Formular mit nur der Vorbelegung ist keine Eingabe" <| fun () ->
+            Expect.isFalse (State.isInputActive (withCapture id (baseModel ()))) "vorbelegt, sonst leer"
+        testCase "Neue Buchung: ein Betrag nur aus Leerzeichen ist keine Eingabe" <| fun () ->
+            let model = withCapture (fun c -> { c with Form = { c.Form with AmountText = "  " } }) (baseModel ())
+            Expect.isFalse (State.isInputActive model) "leer"
         active "Abrufen: das Sheet ist offen" (fun m -> { m with Fetch = { m.Fetch with IsOpen = true } })
         active "Abrufen: ein Start läuft" (fun m -> { m with Fetch = { m.Fetch with Phase = Components.Fetch.Types.FetchStarting None } })
         active "Abrufen: TAN-Bestätigung läuft" (fun m -> { m with Fetch = { m.Fetch with Phase = Components.Fetch.Types.FetchConfirmingTan } })

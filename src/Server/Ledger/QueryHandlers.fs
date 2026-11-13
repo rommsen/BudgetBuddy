@@ -985,10 +985,17 @@ let bookingTemplateOf (entry: Entry) : LedgerBookingTemplate option =
               IsOutflow = entry.Amount.Amount < 0m })
 
 /// Die Vorbelegung aus den erfassten Buchungen (neueste zuerst): das Konto der jüngsten nicht
-/// gelöschten, die Zuletzt-Chips (`recentBookingTemplates`), dazu heute und das Import-Konto. Rein.
-let bookingDefaultsOf (today: DateTime) (importAccountId: Guid option) (capturedNewestFirst: Entry list) : LedgerBookingDefaults =
+/// gelöschten, die Zuletzt-Chips (`recentBookingTemplates`), dazu heute, das Import-Konto und das
+/// Quick-Add-Konto. Rein.
+let bookingDefaultsOf
+    (today: DateTime)
+    (importAccountId: Guid option)
+    (quickAddAccountId: Guid option)
+    (capturedNewestFirst: Entry list)
+    : LedgerBookingDefaults =
     { Today = today.Date
       ImportAccountId = importAccountId
+      QuickAddAccountId = quickAddAccountId
       LastUsedAccountId =
         capturedNewestFirst
         |> List.tryFind (fun e -> not e.DeletedInYnab)
@@ -1028,7 +1035,13 @@ let getLedgerBookingDefaultsWith
         let! entries = Ledger.Persistence.loadEntries ids
         let captured = ids |> List.choose (fun id -> Map.tryFind id entries)
         let importId = importAccount |> Option.map (fun a -> let (LedgerAccountId id) = a.Id in id)
-        return bookingDefaultsOf today importId captured
+        // Ohne Einstellung oder Spiegel kein Quick-Add-Konto: das Formular nimmt dann das zuletzt genutzte.
+        let! quickAdd = resolveQuickAddAccountWith setting
+        let quickAddId =
+            match quickAdd with
+            | Ok account -> let (LedgerAccountId id) = account.LedgerAccountId in Some id
+            | Error _ -> None
+        return bookingDefaultsOf today importId quickAddId captured
     }
 
 /// Die Kategorie einer Regel für diesen Payee (Payee-Text, Memo leer), wie beim Import die erste

@@ -361,12 +361,10 @@ let private rootModel (page: Page) : State.Model =
       Toasts = []
       Pwa = Pwa.initialState
       Settings = settingsModel
-      Fetch = Components.Fetch.Types.init; QuickAddCategories = NotAsked
+      Fetch = Components.Fetch.Types.init
       Rules = rulesModel
       Ledger = ledgerModel
       Budget = Components.Budget.Types.init ()
-      QuickAdd = None
-      QuickAddTemplates = NotAsked
       Overview = Components.Overview.Types.init
       SettingsReturn = Overview }
 

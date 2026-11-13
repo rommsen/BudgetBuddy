@@ -1204,7 +1204,7 @@ let private withCaptureDefaultAccount (model: Model) : Model =
         match capture.Defaults with
         | Success defaults ->
             let form =
-                Capture.withDefaultAccount defaults (captureFilterAccount model) (captureAccountIds model defaults) capture.Form
+                Capture.withDefaultAccount defaults capture.FilterAccount (captureAccountIds model defaults) capture.Form
             { model with Capture = Some { capture with Form = form } }
         | _ -> model
     | None -> model
@@ -3214,7 +3214,8 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         | Some editor when not (rowBusy CategoryLock model editor.EntryId) -> { model with SplitEditor = None }, Cmd.none, NoOp
         | _ -> model, Cmd.none, NoOp
 
-    | OpenCapture ->
+    | OpenCapture
+    | OpenCaptureUnfiltered ->
         match model.Capture with
         | Some _ -> model, Cmd.none, NoOp
         | None ->
@@ -3222,8 +3223,12 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
                 match model.TransferTargets with
                 | Success _ | Loading -> Cmd.none
                 | _ -> Cmd.ofMsg RunLoadTransferTargets
+            let filterAccount =
+                match msg with
+                | OpenCapture -> captureFilterAccount model
+                | _ -> None
             { closeDetail model with
-                Capture = Some Capture.opening
+                Capture = Some { Capture.opening with FilterAccount = filterAccount }
                 CategoryPickerFor = None
                 CategorySuggestions = []
                 CategoryCard = None },
@@ -3258,7 +3263,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         // baute sie das Formular neu und leerte die Eingaben.
         | Some capture, _ when RemoteData.isSuccess capture.Defaults -> model, Cmd.none, NoOp
         | Some capture, Ok defaults ->
-            let form = Capture.formFromDefaults defaults (captureFilterAccount model) (captureAccountIds model defaults)
+            let form = Capture.formFromDefaults defaults capture.FilterAccount (captureAccountIds model defaults)
             { model with Capture = Some { capture with Defaults = Success defaults; Form = form } }, Cmd.none, NoOp
         | Some capture, Error message ->
             { model with Capture = Some { capture with Defaults = Failure message } }, Cmd.none, NoOp

@@ -1,7 +1,7 @@
 ---
 id: ledger-ea70s
 title: "Ein Erfassen: Quick Add hört auf, ein eigener Ort zu sein; „+ Buchung“ in Kassenbuch und Übersicht mit kluger Vorbelegung"
-status: doing
+status: done
 type: feature
 context: ledger
 created: 2026-11-11
@@ -132,3 +132,36 @@ Neue Buchung `Components/Ledger/Capture.fs`, `State.fs:3217-3445`, `View.fs:3794
 (Split), `:4185` (Neue Buchung), `Budget/MovesView.fs:236`, Styleguide-Demos `Styleguide/View.fs:1488, 1892`.
 Baut der Schnitt eine Seite um, fliegen ihre `[flow]`-, `[tastatur]`-, `[fokus]`- und `[scroll]`-Tests raus und werden gegen
 die Muster aus dem Styleguide neu geschrieben, je Flow einer. Quick Add hatte keine.
+
+## Outcome
+
+„+ Buchung“ ist der eine Weg zu erfassen (ADR 0087 Punkt 9). `./verify.sh`: VERIFY: PASS (dotnet 4977 grün, node 339 grün, Build, beide Wächter).
+
+**Quick Add entfällt**
+- Navigation zeigt nur Übersicht, Kassenbuch, Budget (`src/Client/DesignSystem/Navigation.fs`, Leiste unten jetzt `grid-cols-3`; `Types.Place` ohne `QuickAddPlace`, `Page` ohne `QuickAdd`). Styleguide §5 Navigation ohne den Satz „samt Quick Add bis ledger-ea70s“.
+- `#/quickadd`: `Routing.parseUrl ["quickadd"]` = Übersicht, `Routing.opensCapture` erkennt den alten Pfad; `UrlChanged` öffnet dann die Neue Buchung (`CaptureFromOverview`) und ersetzt die URL durch `/` (`src/Client/State.fs`), auch beim Start (`init`).
+- Entfernt: `src/Client/Views/QuickAddPage.fs`, Root-Zustand `QuickAdd`/`QuickAddTemplates`/`QuickAddCategories` samt Nachrichten und Ladeweg, `QuickAddFormState`/`buildQuickAddRequest`/`applyTemplateToForm` (`Types.fs`), CSS `.qa-*` und `.layer-2`; Server `YnabApi.addManualTransaction`, `getRecentQuickAddTemplates`, `Server.Api.QuickAddPorts`/`addManualTransactionWith`/`quickAddPortsOn`, `Ledger.CommandHandlers.addQuickAdd`, `Shared.Domain.QuickAddTemplate`/`recentQuickAddTemplates`/`amountFromMilliunits`. Vorher per grep über `src/` und `scripts/` geprüft: kein weiterer Aufrufer (Bob nutzt `addCashBookingWith` und `resolveQuickAddAccount`, unverändert). Bleiben: `setQuickAddAccount`, `ynab_quickadd_account_id`, Actor `QuickAdd`, `/bot/`.
+- Tests: `src/Tests/QuickAddTests.fs` gelöscht; die Fälle für weiter genutzten Code (`manualTransactionMilliunits`, `validateManualTransaction`, `buildManualTransactionBody`, `parseAmountInput`, `formatAmountForInput`) stehen unverändert in `src/Tests/ManualTransactionTests.fs`. Gelöscht mit dem Code: die Quick-Add-Fälle in `LedgerCashBookingTests.fs` (Kategorie-Auflösung von `addQuickAdd`, Adapter `addManualTransactionWith`, Einzel-Post von Quick Add; der Einzel-Post ohne import_id bleibt über den Fall „Neue Buchung sendet über den echten Einzel-Post“ belegt), Zeilen der Negativtabelle, Wiring-Zeilen und Gegenbeweise in `StructureGuardTests.fs`, `RetryTests`-Inventar, `AppReadinessTests`, Routing-Zeilen. Diese Tests sind entfallen, weil ihr Produktionscode entfiel, nicht weil ein anderer Test sie abdeckt (Doktrin Punkt 8, Umzugsfall trifft nicht zu).
+
+**Kluge Vorbelegung**
+- `LedgerBookingDefaults.QuickAddAccountId` (neues Pflichtfeld, `src/Shared/Domain.fs`): der Server löst `ynab_quickadd_account_id` über `resolveQuickAddAccountWith` zum gespiegelten Kassenbuch-Konto auf (`getLedgerBookingDefaultsWith`, `src/Server/Ledger/QueryHandlers.fs`), sonst `None`. Fixture `scripts/ledger-capture-fixture.mjs` nachgezogen (Quick-Add-Konto Bar, zuletzt genutzt Tagesgeld).
+- `defaultBookingAccount filter quickAdd lastUsed selectable`: Filter, sonst Quick-Add-Konto, sonst zuletzt genutzt, nur buchbare Konten, nie das Import-Konto. Das Formular hält den Filter beim Öffnen fest (`CaptureState.FilterAccount`); `OpenCaptureUnfiltered` (Übersicht) ignoriert einen Kontofilter des Kassenbuchs. Zuletzt-Chip belegt das Konto des Chips.
+- Fokus im Betrag am PC (`Input.TextInputProps.AutoFocus = Viewport.isFinePointer ()`), am Handy nicht.
+- `Capture.inputStarted` (Betrag, Payee, Memo, selbst gewähltes Ziel, laufendes Anlegen) zählt zu `isInputActive`.
+- Nach „Buchung anlegen“ unverändert: schließt, Toast mit Konto, Betrag, „Rückgängig“.
+
+**Kategorie-Auswahl ersetzt den Inhalt (§7.15)**
+- Neue Buchung (`captureSheetView`, auch die Konto-Auswahl wie Skizze `capAcct`, Unterzeile „Für die neue Buchung“), Kategorie im Buchungs-Detail und Ziel einer Split-Zeile (`detailSheetView`), Geld verschieben (`InspectorView.inspectorSheet` mit `MovesView.counterpartPickerProps`). Schließen führt zurück, die Eingaben stehen im Modell und bleiben.
+- Entfernt: `CategoryPicker.sheetLayered`, `BottomSheet.categoryPicker`, `categoryPickerLayered`, `BottomSheet.viewLayered`. `/styleguide` §19 zeigt jetzt `CategoryPicker.sheet` (Karte `components-categorypicker` bleibt für den Export), Split-Demo mit `sheet`. `styleguide.md` §2, §5, §7.15 (Stacking) ohne „bis Etappe 3“.
+- Schließen-Knopf aller BottomSheets: `Icons.x` statt Inline-SVG, Trefferfläche 48 px (`.sheet-close`). Ein Account-Picker in `BottomSheet.fs` existiert nicht mehr (nichts zu entfernen).
+- Sweep-Funde behoben: „Versteckt (n)“ im CategoryPicker und `Money.accountListRowWith` haben am Handy 48 px (`TouchTargets.mobileMinHeight md:min-h-0`). Die Ausnahme für Invariante 5 im Zustand `kassenbuch-erfassen-konten-laden` (Schleier der zweiten Ebene) ist entfallen.
+
+**Datum und Memo**: am Handy untereinander (`grid-cols-1 md:grid-cols-2`), ab 768 px nebeneinander; der Sweep meldet im Dialog am PC nichts. Regressionszustand `kassenbuch-erfassen-memo-unter-datum` (412 px) mit Kommentar zum Bug ledger-yhemh; gegen den alten Stand (`grid grid-cols-2`) gebaut war er rot („Memo oben 1391, Datum unten 1475“).
+
+**Tests**: .NET: Vorbelegung (`LedgerBookingCaptureTests`, `LedgerCaptureClientTests`), Umleitung und Filter auf der Übersicht (`OverviewTodoTests`, `RoutingTests`), Schutz vor dem Neuladen (`PwaTests`), Auswahl-Rundweg erhält Eingaben. Gegenprobe: vier Mutanten (Quick-Add-Zweig in `defaultBookingAccount`, `inputStarted`, Umleitung `opensCapture`, `OpenCaptureUnfiltered` mit Filter) machten je mindestens einen Test rot. Browser: `[fokus]` in `scripts/ledger-capture.test.mjs` (rot mit `AutoFocus = false`), `[flow:buchung-erfassen]` prüft das vorbelegte Quick-Add-Konto; Sweep-Zustände `kassenbuch-erfassen-kategorie`, `kassenbuch-erfassen-konto`, `kassenbuch-detail-kategorie` (412 px), `budget-picker` prüft am Handy genau ein Sheet. `move-money.test.mjs` und `navigation.test.mjs` angepasst. `.claude/rules/css-animation-safety.md`: toter Pfad `src/Client/Views/**` entfernt (Harness-Wächter).
+
+**Neben der Skizze verglichen** (BB-Screenshots in `/private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/d250a963-1a28-4e39-9a28-515aaa6a7b77/scratchpad/ea70s-shots/`: `handy-kassenbuch-neue-buchung.png`, `handy-uebersicht-neue-buchung.png`, `handy-neue-buchung-zuletzt.png`, `handy-kassenbuch-konto.png`, `handy-uebersicht-konto.png`, `handy-kassenbuch-kategorie.png`, `handy-uebersicht-kategorie.png`, `pc-kassenbuch-neue-buchung.png`, `pc-uebersicht-neue-buchung.png`, `pc-neue-buchung-zuletzt.png`, `pc-kassenbuch-konto.png`, `pc-uebersicht-konto.png`, `pc-kassenbuch-kategorie.png`, `pc-uebersicht-kategorie.png`, dazu `handy-detail-kategorie.png`, `handy-geld-verschieben-kategorie.png`, `handy-split-ziel.png`; Skizze in `/private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/6d389406-c915-4195-8b34-eccfb6980fcd/scratchpad/ea70s/proto/`). Abweichungen nur die genannten: (a) Übersicht am PC als Dialog; (b) Konto mit Saldo, Heute/Gestern, Kategorie mit Übertrag, Feldfehler, Rückgängig; (c) Memo unter Datum am Handy; (d) DS-Bausteine, darunter der Sheet-Kopf „Konto wählen“ (wie „Kategorie wählen“) statt „Konto“ der Skizze.
+
+**README-Delta** (Gate `readme-delta-check`, Exit 0): „Barbuchung“ und „Buchung erfassen (Neue Buchung)“ ersetzt. Ganz nachlesen: BuchungÜbernehmen (README Key commands) nachgezogen, vom Conductor direkt im Bullet statt über einen Nachtrag-Bullet (der alte Satz zu `addQuickAdd` ist raus); BuchungErfassen passt. Außerdem nachgezogen: `sheetLayered` in „Kategorie ändern im Detail“ und „Übertrag in BB setzen“ (ledger), Kategorie-Picker (design-system), `getRecentQuickAddTemplates` bei `Retry.reading` (infrastructure).
+
+Hinweis: beim Umbenennen der Testdatei lief versehentlich einmal `git rm --cached src/Tests/QuickAddTests.fs`; der Index ist mit `git restore --staged` auf den Ausgangsstand zurückgesetzt (keine gestagte Änderung im Worktree). Offen: [human-eye] Romans Blick am Handy und am PC.

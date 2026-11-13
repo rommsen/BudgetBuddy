@@ -187,7 +187,7 @@ let todoStateTests =
             Expect.equal (navCount 3 Client.DesignSystem.Navigation.Overview) (Some 3) "Übersicht"
             Expect.equal (navCount 1 Client.DesignSystem.Navigation.Overview) (Some 1) "eine"
             Expect.equal (navCount 0 Client.DesignSystem.Navigation.Overview) None "null: kein Zähler"
-            for page in [ Client.DesignSystem.Navigation.Ledger; Client.DesignSystem.Navigation.Budget; Client.DesignSystem.Navigation.QuickAdd ] do
+            for page in [ Client.DesignSystem.Navigation.Ledger; Client.DesignSystem.Navigation.Budget ] do
                 Expect.equal (navCount 3 page) None (string page)
 
         // Review-Fund: Antworten waren nicht an ihre Anfrage gebunden. Überlappten Betreten und `CountsNeeded` (Start,
@@ -242,12 +242,10 @@ let private rootModel (page: Page) : State.Model =
       Toasts = []
       Pwa = Pwa.initialState
       Settings = settingsModel
-      Fetch = Components.Fetch.Types.init; QuickAddCategories = NotAsked
+      Fetch = Components.Fetch.Types.init
       Rules = rulesModel
       Ledger = ledgerModel
       Budget = Components.Budget.Types.init ()
-      QuickAdd = None
-      QuickAddTemplates = NotAsked
       Overview = Components.Overview.Types.init
       SettingsReturn = Overview }
 
@@ -477,6 +475,26 @@ let captureTests =
             let loaded = { rootModel Overview with Ledger = { (rootModel Overview).Ledger with Accounts = Success { Accounts = []; DefaultAccountId = None } } }
             let _, again = State.update State.CaptureFromOverview loaded
             Expect.isFalse (dispatched again |> List.contains (State.LedgerMsg Components.Ledger.Types.LoadAccounts)) "geladene Konten nicht noch einmal"
+
+        // ledger-ea70s: die Übersicht hat keinen Kontofilter; ein Filter aus dem Kassenbuch zählt dort nicht.
+        testCase "Auf der Übersicht öffnet das Formular ohne den Kontofilter des Kassenbuchs" <| fun () ->
+            let root = rootModel Overview
+            let filtered = { root with Ledger = { root.Ledger with SelectedFilter = Some (Components.Ledger.Types.OneAccount entryId) } }
+            let model, _ = State.update State.CaptureFromOverview filtered
+            Expect.equal (model.Ledger.Capture |> Option.map (fun c -> c.FilterAccount)) (Some None) "ohne Filter"
+
+        // ledger-ea70s: Quick Add ist kein Ort mehr, ein altes Lesezeichen geht nicht ins Leere.
+        testCase "Der alte Pfad von Quick Add öffnet die Übersicht mit offener Neuen Buchung" <| fun () ->
+            let root = rootModel Ledger
+            let filtered = { root with Ledger = { root.Ledger with SelectedFilter = Some (Components.Ledger.Types.OneAccount entryId) } }
+            let model, _ = State.update (State.UrlChanged [ "quickadd" ]) filtered
+            Expect.equal model.CurrentPage Overview "Übersicht"
+            Expect.equal (model.Ledger.Capture |> Option.map (fun c -> c.FilterAccount)) (Some None) "Neue Buchung offen, ohne Filter"
+
+        testCase "Der alte Pfad von Quick Add beim Start auf der Übersicht öffnet die Neue Buchung" <| fun () ->
+            let model, _ = State.update (State.UrlChanged [ "quickadd" ]) (rootModel Overview)
+            Expect.equal model.CurrentPage Overview "Übersicht"
+            Expect.isSome model.Ledger.Capture "Neue Buchung offen"
 
         testCase "Nach dem Anlegen bleibt man auf der Übersicht, auch am PC; die Rückmeldung nennt Konto und Betrag" <| fun () ->
             let opened, _ = State.update State.CaptureFromOverview (rootModel Overview)

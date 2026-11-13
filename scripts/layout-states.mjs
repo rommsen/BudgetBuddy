@@ -695,8 +695,8 @@ export const STATES = [
       await page.locator('[data-testid="transfer-to"]:visible').click();
       await page.locator('[role="option"]:visible').filter({ hasText: LONG_CATEGORY }).last().click();
       await page.locator('[data-testid="transfer-to"]:visible').getByText(LONG_CATEGORY).waitFor();
-      // Das Picker-Sheet schluckt den nächsten Klick (ADR 0005): warten, bis es zu ist.
-      await page.locator(".bottom-sheet.layer-2.active").waitFor({ state: "detached" }).catch(() => {});
+      // Die Auswahl ersetzt den Inhalt des Sheets (§7.15, ledger-ea70s): warten, bis der Inhalt zurück ist.
+      await page.locator('[data-testid="transfer-amount"] input:visible').waitFor();
     },
   },
   // budgeting-gffps, budgeting-nfrds: der Kategorie-Picker als Sheet am Handy (16 px Suche) und als Popover
@@ -715,6 +715,9 @@ export const STATES = [
       await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
       await page.locator('[data-testid="transfer-to"]:visible').click();
       await page.locator('[role="option"]:visible').first().waitFor();
+      // ledger-ea70s: am Handy ersetzt die Auswahl den Inhalt des Inspektor-Sheets (§7.15), kein zweites Sheet.
+      if (mobile && (await page.locator(".bottom-sheet.active").count()) !== 1)
+        throw new Error("Die Auswahl beim Verschieben liegt als zweites Sheet über dem Inspektor");
     },
     // Am PC hat das Popover einen Fuß, am Handy wählt ein Tipp im Sheet ohne Knopf.
     primary: (page, { mobile }) => (mobile ? null : page.locator('[data-testid="category-picker-footer-hint"]:visible')),
@@ -1296,6 +1299,72 @@ export const STATES = [
       reach: (page) => page.locator(".bottom-sheet.active").first().getByRole("button", { name: "Buchung anlegen", exact: true }),
     },
   },
+  // Bug ledger-yhemh (in ledger-ea70s): am Handy standen Datum (mit „Heute“, „Gestern“ und Kalender) und Memo
+  // nebeneinander im festen Zwei-Spalten-Raster, das Memo war zu schmal. Jetzt steht Memo unter dem Datum; der
+  // Zustand bricht ab, wenn das Memo-Feld wieder neben dem Datum beginnt.
+  {
+    name: "kassenbuch-erfassen-memo-unter-datum",
+    route: "/ledger",
+    widths: [412],
+    mock: async (page) => {
+      await mockApp(page);
+      await mockCapture(page, { catchAll: false });
+    },
+    open: async (page) => {
+      await page.locator(".ledger-capture-fab").getByRole("button").waitFor();
+      await page.locator(".ledger-capture-fab").getByRole("button").tap();
+      const sheet = page.locator(".bottom-sheet.active");
+      await sheet.locator('[data-testid="capture-date"]').waitFor();
+      // Beide Rechtecke im selben Frame: das Sheet fährt noch ein, getrennte Messungen lägen verschoben.
+      const pos = await page.evaluate(() => {
+        const sheet = document.querySelector(".bottom-sheet.active");
+        const date = sheet?.querySelector('[data-testid="capture-date"]')?.getBoundingClientRect();
+        const memo = sheet?.querySelector('input[placeholder="optional"]')?.getBoundingClientRect();
+        return date && memo ? { dateBottom: date.bottom, memoTop: memo.top } : null;
+      });
+      if (!pos) throw new Error("Datum oder Memo in Neue Buchung nicht gefunden");
+      if (pos.memoTop < pos.dateBottom)
+        throw new Error(`Memo steht am Handy neben dem Datum statt darunter (Memo oben ${pos.memoTop}, Datum unten ${pos.dateBottom})`);
+    },
+    primary: (page) => page.locator(".bottom-sheet.active").first().getByRole("button", { name: "Buchung anlegen", exact: true }),
+  },
+  // ledger-ea70s: die Kategorie-Auswahl der Neuen Buchung ersetzt am Handy den Inhalt des Sheets (§7.15), kein
+  // zweites Sheet darüber. Jede Zeile antippbar, die Suche mit 16 px.
+  {
+    name: "kassenbuch-erfassen-kategorie",
+    route: "/ledger",
+    widths: [412],
+    mock: async (page) => {
+      await mockApp(page);
+      await mockCapture(page, { catchAll: false });
+    },
+    open: async (page) => {
+      await page.locator(".ledger-capture-fab").getByRole("button").waitFor();
+      await page.locator(".ledger-capture-fab").getByRole("button").tap();
+      await page.locator('.bottom-sheet.active [data-testid="capture-target"]').tap();
+      await page.locator('.bottom-sheet.active [role="option"]').first().waitFor();
+      if ((await page.locator(".bottom-sheet.active").count()) !== 1)
+        throw new Error("Die Kategorie-Auswahl der Neuen Buchung liegt als zweites Sheet über dem Formular");
+    },
+  },
+  // ledger-ea70s: die Konto-Auswahl der Neuen Buchung ersetzt am Handy ebenso den Inhalt (Skizze `capAcct`).
+  {
+    name: "kassenbuch-erfassen-konto",
+    route: "/ledger",
+    widths: [412],
+    mock: async (page) => {
+      await mockApp(page);
+      await mockCapture(page, { catchAll: false });
+    },
+    open: async (page) => {
+      await page.locator(".ledger-capture-fab").getByRole("button").waitFor();
+      await page.locator(".ledger-capture-fab").getByRole("button").tap();
+      await page.locator('.bottom-sheet.active [data-testid="capture-account"]').tap();
+      await page.locator('.bottom-sheet.active [data-testid="capture-account-list"]').getByText("Tagesgeld ING").waitFor();
+      if ((await page.locator(".bottom-sheet.active").count()) !== 1)
+        throw new Error("Die Konto-Auswahl der Neuen Buchung liegt als zweites Sheet über dem Formular");
+    },
+  },
   // Bug ledger-vf6z5: "Buchung anlegen" mit leerem Betrag sammelte den Fehler am Formularende, das Betragsfeld bekam
   // weder Fokus noch `aria-invalid`. Jetzt steht die Meldung unter dem Feld, das Feld hat den Fokus und verweist per
   // `aria-describedby` darauf; geht die Tastatur danach auf, rollt die Meldung ins Bild (Muster
@@ -1350,13 +1419,8 @@ export const STATES = [
     name: "kassenbuch-erfassen-konten-laden",
     route: "/ledger",
     widths: HANDY_WIDTHS,
-    // Die Konto-Auswahl ist mit nur der Ladezeile niedrig, die Mitte des Formulars darunter trifft den Schleier
-    // (`.overlay.layer-2`) der zweiten Ebene. Invariante 5 zählt nur `.bottom-sheet.active` und `[data-layer]` als
-    // Ebene, nicht deren Schleier. Kann-Sammlung infrastructure.
-    exceptions: [
-      { width: 320, inv: 5, selector: 'div "Neue Buchung' },
-      { width: 390, inv: 5, selector: 'div "Neue Buchung' },
-    ],
+    // Seit ledger-ea70s ersetzt die Konto-Auswahl den Inhalt des Sheets; der Schleier der zweiten Ebene, der die
+    // Ausnahme für Invariante 5 brauchte, ist weg.
     mock: async (page) => {
       await mockApp(page);
       await mockCapture(page, { catchAll: false });
@@ -1391,6 +1455,20 @@ export const STATES = [
     // Ende den haftenden Tabellenkopf um 4 px und die feste Tastatur-Leiste um 9 px. Erster Zustand mit dem Panel am
     // PC; Kann-Sammlung ledger (ledger-at63w).
     exceptions: [{ width: 1440, inv: 6, selector: '[data-testid="ledger-detail-panel"] und div' }],
+  },
+  // ledger-ea70s: die Kategorie-Auswahl im Buchungs-Detail ersetzt am Handy den Inhalt des Sheets (§7.15).
+  {
+    name: "kassenbuch-detail-kategorie",
+    route: "/ledger",
+    widths: [412],
+    mock: mockLedger,
+    open: async (page) => {
+      const sheet = await openLedgerDetail(page, "Bauhaus");
+      await sheet.locator('[data-testid="detail-category-arrow"]').tap();
+      await page.locator(".bottom-sheet.active", { hasText: "Ziel wählen" }).locator('[role="option"]').first().waitFor();
+      if ((await page.locator(".bottom-sheet.active").count()) !== 1)
+        throw new Error("Die Kategorie-Auswahl im Detail liegt als zweites Sheet über dem Detail");
+    },
   },
   // Regression c819eeb (Toast hinter dem Detail-Sheet): nach dem Kategoriewechsel liegt der Toast oben.
   {

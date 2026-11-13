@@ -2279,8 +2279,11 @@ type Msg =
     // ============================================
     // Neue Buchung (ledger-at63w)
     // ============================================
-    /// "+ Buchung": öffnet das Formular und lädt die Vorbelegung.
+    /// "+ Buchung": öffnet das Formular und lädt die Vorbelegung. Ein Konto im Filter des Kassenbuchs ist vorbelegt.
     | OpenCapture
+    /// "+ Buchung" auf der Übersicht (ledger-ea70s): wie `OpenCapture`, aber ohne Kontofilter, das Quick-Add-Konto
+    /// ist vorbelegt.
+    | OpenCaptureUnfiltered
     | CloseCapture
     | RunLoadCaptureDefaults
     /// "Erneut versuchen" nach einer gescheiterten Vorbelegung.

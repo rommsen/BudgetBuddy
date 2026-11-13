@@ -50,6 +50,9 @@ type CaptureState = {
     /// ankommt (ledger-s1weh): dort bleibt man auf der Seite. Der Rahmen setzt es mit der Antwort
     /// (`State.captureAnsweredOn`), es hängt nicht an der Seite, auf der das Formular geöffnet wurde.
     ShowsCreatedEntry: bool
+    /// Das Konto des Kassenbuch-Filters beim Öffnen (ledger-ea70s): auf der Übersicht und bei "Alle Konten" keines,
+    /// dann gilt das Quick-Add-Konto.
+    FilterAccount: Guid option
 }
 
 /// Der Satz zu einem Betrag, der nicht leer und nicht lesbar ist. Neue Buchung, Filter (Betrag von und bis) und die
@@ -107,17 +110,18 @@ let opening : CaptureState = {
     AccountError = None
     ServerErrors = []
     ShowsCreatedEntry = true
+    FilterAccount = None
 }
 
 /// Das Formular nach dem Laden der Vorbelegung: heute (Berliner Kalender) und das vorbelegte
-/// Konto (Filter, sonst zuletzt genutzt, nie das Import-Konto). Rein.
+/// Konto (Filter, sonst Quick-Add-Konto, sonst zuletzt genutzt, nie das Import-Konto). Rein.
 let formFromDefaults
     (defaults: LedgerBookingDefaults)
     (filterAccount: Guid option)
     (selectable: Guid list)
     : CaptureForm =
     { emptyForm defaults.Today with
-        AccountId = defaultBookingAccount filterAccount defaults.LastUsedAccountId selectable }
+        AccountId = defaultBookingAccount filterAccount defaults.QuickAddAccountId defaults.LastUsedAccountId selectable }
 
 /// Setzt das Konto nach, wenn noch keines gewählt ist (die wählbaren Konten kommen nach der
 /// Vorbelegung an). Ein gewähltes Konto bleibt. Rein.
@@ -129,7 +133,7 @@ let withDefaultAccount
     : CaptureForm =
     match form.AccountId with
     | Some _ -> form
-    | None -> { form with AccountId = defaultBookingAccount filterAccount defaults.LastUsedAccountId selectable }
+    | None -> { form with AccountId = defaultBookingAccount filterAccount defaults.QuickAddAccountId defaults.LastUsedAccountId selectable }
 
 /// Der Betrag eines Chips im Eingabeformat ("8,60"). Rein.
 let amountText (amount: decimal) : string =
@@ -211,3 +215,14 @@ let signedAmount (form: CaptureForm) : decimal option =
     match captureRequest form with
     | Ok request -> Some (if request.IsOutflow then -request.Amount else request.Amount)
     | Error _ -> None
+
+/// Hat Roman im Formular etwas angefangen, das ein Neuladen verlöre (ledger-ea70s, vorher der Schutz von Quick Add)?
+/// Betrag, Payee, Memo oder ein selbst gewähltes Ziel, oder "Buchung anlegen" läuft. Die Vorbelegung allein zählt
+/// nicht. Rein.
+let inputStarted (capture: CaptureState) : bool =
+    let filled (text: string) = not (String.IsNullOrWhiteSpace text)
+    capture.Saving
+    || filled capture.Form.AmountText
+    || filled capture.Form.Payee
+    || filled capture.Form.Memo
+    || capture.Form.TargetChosen

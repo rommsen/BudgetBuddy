@@ -145,9 +145,6 @@ type Page =
     | LedgerRules
     | Settings
     | Styleguide
-    /// Manual transaction entry (Quick Add) as a first-class, sync-flow-independent
-    /// page reachable from the main navigation (ynab-q7k3m).
-    | QuickAdd
     /// Das Kassenbuch: Buchungen und Stand je Konto, Historie je Buchung
     /// (ledger-q5w9c).
     | Ledger
@@ -178,12 +175,10 @@ let pageKey (page: Page) : string =
     if isLedgerPage page || page = LedgerRules then "Ledger" else page.ToString()
 
 /// Die Orte der Navigation (Styleguide §7.4, ADR 0087 Punkt 9): Übersicht, Kassenbuch und Budget.
-/// Quick Add steht als vierter Eintrag, bis `ledger-ea70s` (Ein Erfassen) es ablöst.
 type Place =
     | OverviewPlace
     | LedgerPlace
     | BudgetPlace
-    | QuickAddPlace
 
 /// Der Ort, unter dem eine Seite hängt und der in der Navigation markiert ist. Einstellungen und
 /// Styleguide hängen an keinem Ort, sie liegen hinter dem Zahnrad. Die Regeln sind ein Tab im Kassenbuch.
@@ -198,7 +193,6 @@ let placeOf (page: Page) : Place option =
     | BudgetHistory
     | BudgetTargetCheck
     | BudgetCategories -> Some BudgetPlace
-    | QuickAdd -> Some QuickAddPlace
     | Settings
     | Styleguide -> None
 
@@ -208,7 +202,6 @@ let placePage (place: Place) : Page =
     | OverviewPlace -> Overview
     | LedgerPlace -> Ledger
     | BudgetPlace -> Budget
-    | QuickAddPlace -> QuickAdd
 
 /// Die Seite, zu der „Zurück“ aus den Einstellungen führt: die zuletzt offene Seite außerhalb der
 /// Einstellungen. Der Styleguide hängt unter den Einstellungen und ändert das Ziel nicht.
@@ -233,7 +226,6 @@ let backLabel (page: Page) : string =
     | BudgetHistory -> "Zurück zur Budget-Historie"
     | BudgetTargetCheck -> "Zurück zu Targets prüfen"
     | BudgetCategories -> "Zurück zu den Kategorien"
-    | QuickAdd -> "Zurück zu Quick Add"
     | Settings -> "Zurück zu den Einstellungen"
     | Styleguide -> "Zurück zum Styleguide"
 
@@ -244,7 +236,7 @@ let backTarget (page: Page) (settingsReturnPage: Page) : BackTarget option =
     match page with
     | Styleguide -> toPage Settings
     | Settings -> toPage settingsReturnPage
-    | Overview | Review | Ledger | LedgerRules | LedgerEntry _ | Budget | BudgetHistory | BudgetTargetCheck | BudgetCategories | QuickAdd -> None
+    | Overview | Review | Ledger | LedgerRules | LedgerEntry _ | Budget | BudgetHistory | BudgetTargetCheck | BudgetCategories -> None
 
 /// URL routing helpers for hash-based navigation
 module Routing =
@@ -265,7 +257,9 @@ module Routing =
         | ["ledger"; "rules"] -> LedgerRules
         | ["settings"] -> Settings
         | ["styleguide"] -> Styleguide
-        | ["quickadd"] -> QuickAdd
+        // Quick Add ist kein Ort mehr (ledger-ea70s): ein altes Lesezeichen führt auf die Übersicht, wo
+        // `opensCapture` die Neue Buchung öffnet.
+        | ["quickadd"] -> Overview
         | ["ledger"] -> Ledger
         | ["ledger"; "entry"; id] -> parseEntryRoute id
         | ["budget"] -> Budget
@@ -283,7 +277,6 @@ module Routing =
         | LedgerRules -> ["ledger"; "rules"]
         | Settings -> ["settings"]
         | Styleguide -> ["styleguide"]
-        | QuickAdd -> ["quickadd"]
         | Ledger -> ["ledger"]
         | LedgerEntry entryId -> ["ledger"; "entry"; string entryId]
         | Budget -> ["budget"]
@@ -291,6 +284,14 @@ module Routing =
         | BudgetTargetCheck -> ["budget"; "target-check"]
         | BudgetCategories -> ["budget"; "categories"]
         | Review -> ["review"]
+
+    /// Öffnet der Pfad "Neue Buchung" auf der Übersicht? Nur der alte Pfad von Quick Add (ledger-ea70s).
+    let opensCapture (segments: string list) : bool =
+        segments = ["quickadd"]
+
+    /// Die Segmente der aktuellen URL.
+    let currentSegments () : string list =
+        Router.currentUrl ()
 
     /// Get current page from URL (for initialization)
     let currentPage () : Page =
@@ -409,32 +410,8 @@ module Toast =
         toasts |> List.filter (fun t -> t.Id <> id)
 
 // ============================================
-// Quick Add (manual transaction entry → YNAB)
+// Beträge im Eingabefeld
 // ============================================
-// Lifted out of the SyncFlow component (ynab-q7k3m): Quick Add is now a
-// top-level page, so its form state and pure helpers live in the shared client
-// Types module. `parseAmountInput` is also used by the SyncFlow split editor
-// (`parseSplitAmount`), so this is its natural shared home. Submit behaviour is
-// unchanged — the request carries no account id; the server pushes onto the
-// configured Quick-Add account, without an ImportId (ADR 0004).
-
-/// Form state for the Quick Add page (manual transaction entry → YNAB)
-type QuickAddFormState = {
-    /// Raw user input; parsed leniently (both "4,50" and "4.50" are valid)
-    AmountText: string
-    /// true = expense (default), false = income
-    IsOutflow: bool
-    Payee: string
-    /// Selected category id as string; "" = no category
-    CategoryId: string
-    /// ISO date (yyyy-MM-dd), as produced by <input type="date">
-    DateText: string
-    Memo: string
-    /// Category picker (elevated sheet layer) open on top of the page
-    ShowCategoryPicker: bool
-    IsSaving: bool
-    Error: string option
-}
 
 /// Parses a user-entered amount, accepting German comma decimals ("4,50")
 /// as well as "4.50". Hand-rolled to behave identically under .NET and Fable
@@ -454,33 +431,6 @@ let parseAmountInput (text: string) : decimal option =
         Some (decimal (int whole) + decimal (int fracPadded) / 100m)
     | _ -> None
 
-/// Builds the API request from the Quick Add form. Pure — unit-testable.
-let buildQuickAddRequest (form: QuickAddFormState) : Result<Shared.Domain.ManualTransactionRequest, string> =
-    match parseAmountInput form.AmountText with
-    | None -> Error "Bitte einen gültigen Betrag eingeben"
-    | Some amount when amount <= 0m -> Error "Der Betrag muss größer als 0 sein"
-    | Some amount ->
-        // Payee is optional — YNAB allows payee-less transactions
-        match System.DateTime.TryParse(form.DateText) with
-        | false, _ -> Error "Bitte ein gültiges Datum wählen"
-        | true, date ->
-            let categoryId =
-                match System.Guid.TryParse(form.CategoryId) with
-                | true, guid -> Some (Shared.Domain.YnabCategoryId guid)
-                | false, _ -> None
-
-            let request : Shared.Domain.ManualTransactionRequest = {
-                Amount = amount
-                IsOutflow = form.IsOutflow
-                PayeeName = form.Payee.Trim()
-                CategoryId = categoryId
-                Date = date
-                Memo =
-                    if System.String.IsNullOrWhiteSpace form.Memo then None
-                    else Some (form.Memo.Trim())
-            }
-            Ok request
-
 /// Formats a decimal amount as a 2-decimal, comma-separated string ("4,50").
 /// Hand-rolled to be culture-independent (identical under .NET and Fable) and to
 /// round-trip through `parseAmountInput`, which accepts both "," and ".".
@@ -489,18 +439,3 @@ let formatAmountForInput (amount: decimal) : string =
     let cents = int (Shared.Domain.roundHalfUp (abs amount * 100m))
     sprintf "%d,%02d" (cents / 100) (cents % 100)
 
-/// Prefills a Quick Add form from a recent-transaction template (ynab-t4n8p).
-/// The date is left untouched — the form already defaults to today, and a
-/// prefilled entry must be dated today, never the source transaction's date.
-/// Nothing is posted here: every value stays editable until Roman taps Speichern.
-/// Pure — unit-testable.
-let applyTemplateToForm (template: Shared.Domain.QuickAddTemplate) (form: QuickAddFormState) : QuickAddFormState =
-    let (Shared.Domain.YnabCategoryId categoryGuid) = template.CategoryId
-    { form with
-        AmountText = formatAmountForInput template.Amount
-        IsOutflow = template.IsOutflow
-        Payee = template.PayeeName |> Option.defaultValue ""
-        CategoryId = categoryGuid.ToString()
-        Memo = template.Memo |> Option.defaultValue ""
-        ShowCategoryPicker = false
-        Error = None }

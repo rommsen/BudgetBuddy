@@ -26,8 +26,6 @@ type BottomSheetProps = {
 type private BottomSheetInternalProps = {
     Props: BottomSheetProps
     Children: ReactElement list
-    /// Overlay und Sheet auf der erhöhten Ebene, damit das Sheet über einem anderen liegt
-    Elevated: bool
     /// Feste Höhe (`.fixed-height`), damit das Sheet beim Wechsel des Inhalts nicht springt.
     FixedHeight: bool
     /// Hält beim Ausfahren den letzten Inhalt (`inspector`, `viewHeld`): zu ist es nicht bedienbar.
@@ -36,30 +34,6 @@ type private BottomSheetInternalProps = {
     HeaderActions: ReactElement list
     /// Fester Bereich zwischen Kopf und scrollendem Inhalt.
     Pinned: ReactElement list
-}
-
-/// One selectable category in the picker.
-/// `Label` is the full "Group: Name" string (grouped/filtered/displayed by it).
-/// `Available` is the category's current YNAB Available; when present the picker
-/// renders it right-aligned and colour-coded (green >0 / red <0 / muted =0).
-/// `None` keeps the plain row (e.g. contexts where a budget value is meaningless).
-type CategoryPickerOption = {
-    Id: string
-    Label: string
-    Available: Shared.Domain.Money option
-}
-
-type private CategoryPickerInternalProps = {
-    IsOpen: bool
-    PayeeName: string
-    Categories: CategoryPickerOption list
-    SuggestedCategories: string list
-    RecentCategories: string list
-    OnSelect: string -> unit
-    OnClose: unit -> unit
-    /// Renders overlay/sheet on the elevated z-layer so the picker can open
-    /// on top of another bottom sheet (e.g. the Quick Add form)
-    Elevated: bool
 }
 
 /// Eine Rückfrage im Sheet (budgeting-r3wq8): `confirmDanger` als Gegenstück zu `Modal.confirmDanger`,
@@ -139,20 +113,6 @@ let optionRow (label: string) (isSelected: bool) (onClick: unit -> unit) : React
         ]
     ]
 
-let private closeIcon () : ReactElement =
-    Svg.svg [
-        svg.width 14
-        svg.height 14
-        svg.viewBox (0, 0, 24, 24)
-        svg.custom ("fill", "none")
-        svg.custom ("stroke", "currentColor")
-        svg.custom ("strokeWidth", "2.5")
-        svg.custom ("strokeLinecap", "round")
-        svg.children [
-            Svg.path [ svg.d "M18 6L6 18M6 6l12 12" ]
-        ]
-    ]
-
 /// Locks page scrolling while the sheet is open (restores on close/unmount).
 let private useBodyScrollLock (isOpen: bool) =
     React.useEffect (
@@ -172,7 +132,6 @@ let private BottomSheetInternal (input: BottomSheetInternalProps) =
     let children = input.Children
 
     let activeClass = if props.IsOpen then " active" else ""
-    let layerClass = if input.Elevated then " layer-2" else ""
     let heightClass = if input.FixedHeight then " fixed-height" else ""
 
     useBodyScrollLock props.IsOpen
@@ -182,7 +141,7 @@ let private BottomSheetInternal (input: BottomSheetInternalProps) =
             prop.children [
                 // Overlay
                 Html.div [
-                    prop.className ("overlay" + layerClass + activeClass)
+                    prop.className ("overlay" + activeClass)
                     prop.onClick (fun e ->
                         e.stopPropagation()
                         props.OnClose()
@@ -191,7 +150,7 @@ let private BottomSheetInternal (input: BottomSheetInternalProps) =
 
                 // Bottom sheet container
                 Html.div [
-                    prop.className ("bottom-sheet" + layerClass + heightClass + activeClass)
+                    prop.className ("bottom-sheet" + heightClass + activeClass)
                     // Zu oder beim Ausfahren: nicht bedienbar, für den Screenreader nicht da.
                     if input.Held && not props.IsOpen then
                         prop.custom ("inert", "true")
@@ -232,7 +191,7 @@ let private BottomSheetInternal (input: BottomSheetInternalProps) =
                                     prop.className "sheet-close"
                                     prop.ariaLabel "Schließen"
                                     prop.onClick (fun _ -> props.OnClose())
-                                    prop.children [ closeIcon () ]
+                                    prop.children [ Client.DesignSystem.Icons.x Client.DesignSystem.Icons.XS Client.DesignSystem.Icons.Default ]
                                 ]
                             ]
                         ]
@@ -266,7 +225,7 @@ let private BottomSheetInternal (input: BottomSheetInternalProps) =
 /// Renders a bottom sheet with overlay, drag handle, header and scrollable body.
 /// The sheet and overlay are always in the DOM; visibility is toggled via the `.active` CSS class.
 let view (props: BottomSheetProps) (children: ReactElement list) : ReactElement =
-    BottomSheetInternal { Props = props; Children = children; Elevated = false; FixedHeight = false; Held = false; HeaderActions = []; Pinned = [] }
+    BottomSheetInternal { Props = props; Children = children; FixedHeight = false; Held = false; HeaderActions = []; Pinned = [] }
 
 type private HeldContent = {
     Title: string
@@ -307,7 +266,6 @@ let private HeldSheet (props: BottomSheetProps, fixedHeight: bool, headerActions
     BottomSheetInternal
         { Props = { props with Title = shown.Title; Subtitle = shown.Subtitle; Footer = shown.Footer }
           Children = shown.Children
-          Elevated = false
           FixedHeight = fixedHeight
           Held = true
           HeaderActions = shown.HeaderActions
@@ -331,267 +289,6 @@ let inspector
 /// sonst geht der gehaltene Inhalt verloren.
 let viewHeld (props: BottomSheetProps) (children: ReactElement list) : ReactElement =
     HeldSheet (props, false, [], [], children)
-
-/// Wie `view`, aber auf der erhöhten Ebene (`layer-2`): das Sheet öffnet über einem anderen
-/// Sheet, zum Beispiel der Kategorie-Picker über dem Buchungs-Detail.
-let viewLayered (props: BottomSheetProps) (children: ReactElement list) : ReactElement =
-    BottomSheetInternal { Props = props; Children = children; Elevated = true; FixedHeight = false; Held = false; HeaderActions = []; Pinned = [] }
-
-// ---------------------------------------------------------------------------
-// Category Picker (specialised bottom sheet)
-// ---------------------------------------------------------------------------
-
-[<ReactComponent>]
-let private CategoryPickerInternal (input: CategoryPickerInternalProps) =
-    let searchText, setSearchText = React.useState ""
-
-    let layerClass = if input.Elevated then " layer-2" else ""
-    let activeClass = if input.IsOpen then " active" else ""
-
-    useBodyScrollLock input.IsOpen
-
-    // Wraps onSelect: clear search, arm the ghost-click guard (the sheet is
-    // about to close — any late synthetic click must not reach the list
-    // behind it), give light haptic feedback where supported.
-    let selectAndClose catId =
-        Viewport.swallowNextClick 350
-        Viewport.vibrate 8
-        setSearchText ""
-        input.OnSelect catId
-
-    let closeAndClear () =
-        Viewport.swallowNextClick 350
-        setSearchText ""
-        input.OnClose()
-
-    // Group categories by YNAB group prefix "GroupName: CategoryName"
-    let groupCategories (cats: CategoryPickerOption list) =
-        cats
-        |> List.groupBy (fun c ->
-            match c.Label.IndexOf(": ") with
-            | -1 -> ""
-            | idx -> c.Label.Substring(0, idx).Trim()
-        )
-
-    // Filter categories by search text (case-insensitive)
-    let filteredCategories =
-        if System.String.IsNullOrWhiteSpace searchText then
-            input.Categories
-        else
-            let searchLower = searchText.ToLowerInvariant()
-            input.Categories
-            |> List.filter (fun c ->
-                c.Label.ToLowerInvariant().Contains(searchLower))
-
-    let groupedCategories = groupCategories filteredCategories
-
-    // Find category name by id for chip display
-    let categoryNameById (catId: string) =
-        input.Categories
-        |> List.tryFind (fun c -> c.Id = catId)
-        |> Option.map (fun c -> c.Label)
-        |> Option.defaultValue catId
-
-    // Extract display name (part after "GroupName: " or full name)
-    let displayName (name: string) =
-        match name.IndexOf(": ") with
-        | -1 -> name
-        | idx -> name.Substring(idx + 2).Trim()
-
-    renderToBody (
-        Html.div [
-            prop.children [
-                // Overlay
-                Html.div [
-                    prop.className ("overlay" + layerClass + activeClass)
-                    prop.onClick (fun e ->
-                        e.stopPropagation()
-                        closeAndClear()
-                    )
-                ]
-
-                // Bottom sheet
-                Html.div [
-                    prop.className ("bottom-sheet" + layerClass + activeClass)
-                    prop.onClick (fun e -> e.stopPropagation())
-                    prop.children [
-                        // Drag handle
-                        Html.div [ prop.className "sheet-handle" ]
-
-                        // Header (with explicit close button — the grabber
-                        // alone is not a discoverable/accessible dismiss)
-                        Html.div [
-                            prop.className "sheet-header"
-                            prop.children [
-                                Html.div [
-                                    prop.children [
-                                        Html.h3 [ prop.text "Kategorie wählen" ]
-                                        if input.PayeeName <> "" then
-                                            Html.p [ prop.text input.PayeeName ]
-                                    ]
-                                ]
-                                Html.button [
-                                    prop.className "sheet-close"
-                                    prop.ariaLabel "Schließen"
-                                    prop.onClick (fun _ -> closeAndClear())
-                                    prop.children [ closeIcon () ]
-                                ]
-                            ]
-                        ]
-
-                        // Search — pinned outside the scrollable body so it
-                        // stays visible above the keyboard while the list
-                        // scrolls underneath. Only mounted while open so
-                        // autoFocus re-triggers on each open.
-                        if input.IsOpen then
-                            Html.div [
-                                prop.className "sheet-search"
-                                prop.children [
-                                    Html.input [
-                                        prop.type' "text"
-                                        prop.placeholder "Kategorie suchen…"
-                                        prop.value searchText
-                                        prop.onChange setSearchText
-                                        // Autofocus only on mouse/trackpad devices:
-                                        // on touch it would summon the keyboard
-                                        // before the user even sees the suggestions.
-                                        prop.autoFocus (Viewport.isFinePointer())
-                                    ]
-                                ]
-                            ]
-
-                        // Body - only mount content when open
-                        Html.div [
-                            prop.className "sheet-body"
-                            prop.children [
-                                if input.IsOpen then
-                                    // Suggested section
-                                    if not input.SuggestedCategories.IsEmpty && System.String.IsNullOrWhiteSpace searchText then
-                                        Html.div [
-                                            prop.className "sheet-section"
-                                            prop.children [
-                                                sectionTitle "Vorgeschlagen"
-                                                Html.div [
-                                                    prop.className "suggestion-chips"
-                                                    prop.children [
-                                                        for i, catId in input.SuggestedCategories |> List.indexed do
-                                                            chipButton
-                                                                (categoryNameById catId)
-                                                                (i = 0)
-                                                                (fun () -> selectAndClose catId)
-                                                    ]
-                                                ]
-                                            ]
-                                        ]
-
-                                    // Recent section
-                                    if not input.RecentCategories.IsEmpty && System.String.IsNullOrWhiteSpace searchText then
-                                        Html.div [
-                                            prop.className "sheet-section"
-                                            prop.children [
-                                                sectionTitle "Zuletzt verwendet"
-                                                Html.div [
-                                                    prop.className "suggestion-chips"
-                                                    prop.children [
-                                                        for catId in input.RecentCategories do
-                                                            chipButton
-                                                                (categoryNameById catId)
-                                                                false
-                                                                (fun () -> selectAndClose catId)
-                                                    ]
-                                                ]
-                                            ]
-                                        ]
-
-                                    // All categories (grouped). Der Kopf "Alle Kategorien" steht nur,
-                                    // wenn darüber Vorgeschlagen oder Zuletzt verwendet erscheint.
-                                    let isSearching = not (System.String.IsNullOrWhiteSpace searchText)
-                                    Html.div [
-                                        prop.className "sheet-section"
-                                        prop.children [
-                                            if PickerParts.showAllCategoriesHeader
-                                                (not input.SuggestedCategories.IsEmpty)
-                                                (not input.RecentCategories.IsEmpty)
-                                                isSearching then
-                                                sectionTitle "Alle Kategorien"
-
-                                            for (groupName, items) in groupedCategories do
-                                                Html.div [
-                                                    prop.className "category-group"
-                                                    prop.children [
-                                                        if groupName <> "" then
-                                                            PickerParts.groupHeader groupName
-                                                        for c in items do
-                                                            PickerParts.row
-                                                                "category-item"
-                                                                [
-                                                                    prop.key c.Id
-                                                                    // Keep focus (and keyboard) on the search
-                                                                    // input, prevents a blur-induced layout
-                                                                    // shift between tap and click.
-                                                                    prop.onMouseDown (fun e -> e.preventDefault())
-                                                                    prop.onClick (fun e ->
-                                                                        e.stopPropagation()
-                                                                        selectAndClose c.Id)
-                                                                ]
-                                                                (PickerParts.name (displayName c.Label))
-                                                                (c.Available |> Option.map (fun m -> m.Amount, m.Currency))
-                                                    ]
-                                                ]
-                                        ]
-                                    ]
-                            ]
-                        ]
-                    ]
-                ]
-            ]
-        ]
-    )
-
-/// Specialised category picker bottom sheet.
-/// Categories are `CategoryPickerOption` records. The `Label` ("Group: Name") drives
-/// grouping/filtering; an optional `Available` renders right-aligned and colour-coded.
-let categoryPicker
-    (isOpen: bool)
-    (payeeName: string)
-    (categories: CategoryPickerOption list)
-    (suggestedCategories: string list)
-    (recentCategories: string list)
-    (onSelect: string -> unit)
-    (onClose: unit -> unit)
-    : ReactElement =
-    CategoryPickerInternal {
-        IsOpen = isOpen
-        PayeeName = payeeName
-        Categories = categories
-        SuggestedCategories = suggestedCategories
-        RecentCategories = recentCategories
-        OnSelect = onSelect
-        OnClose = onClose
-        Elevated = false
-    }
-
-/// Category picker on the elevated z-layer — for opening on top of another
-/// bottom sheet (e.g. from the Quick Add form).
-let categoryPickerLayered
-    (isOpen: bool)
-    (payeeName: string)
-    (categories: CategoryPickerOption list)
-    (suggestedCategories: string list)
-    (recentCategories: string list)
-    (onSelect: string -> unit)
-    (onClose: unit -> unit)
-    : ReactElement =
-    CategoryPickerInternal {
-        IsOpen = isOpen
-        PayeeName = payeeName
-        Categories = categories
-        SuggestedCategories = suggestedCategories
-        RecentCategories = recentCategories
-        OnSelect = onSelect
-        OnClose = onClose
-        Elevated = true
-    }
 
 // ---------------------------------------------------------------------------
 // Rückfrage im Sheet

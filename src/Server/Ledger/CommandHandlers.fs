@@ -1207,45 +1207,6 @@ let addCashBooking
     : Async<YnabResult<EntryId>> =
     addCashBookingWith addCashExpense actor now entryId push triggerMirror booking
 
-/// Quick Add (ledger-bk3q8): löst die gewählte Kategorie-Id vor dem Ereignis zu einer
-/// `CategoryRef` auf und bucht dann als Barbuchung mit Actor `QuickAdd`. Scheitert die
-/// Auflösung, bricht Quick Add mit dem Satz von `resolveCategory` ab (`RefusedByBb`):
-/// kein Ereignis, kein Push. Vorher entstand die Buchung dann still ohne Kategorie,
-/// während YNAB die Id bekam. `request` ist schon an der API-Grenze geprüft.
-let addQuickAdd
-    (now: DateTime)
-    (entryId: EntryId)
-    (resolveCategory: YnabCategoryId -> Async<Result<CategoryRef, string>>)
-    (push: ManualTransactionRequest -> Async<YnabResult<string>>)
-    (triggerMirror: unit -> unit)
-    (accountId: LedgerAccountId)
-    (request: ManualTransactionRequest)
-    : Async<YnabResult<EntryId>> =
-    async {
-        let! category =
-            match request.CategoryId with
-            | None -> async.Return (Ok None)
-            | Some categoryId ->
-                async {
-                    let! resolved = resolveCategory categoryId
-                    return resolved |> Result.map Some
-                }
-
-        match category with
-        | Error reason -> return Error (YnabError.RefusedByBb reason)
-        | Ok category ->
-            let booking = {
-                AccountId = accountId
-                Date = request.Date
-                Amount = request.Amount
-                IsOutflow = request.IsOutflow
-                Payee = request.PayeeName
-                Memo = request.Memo
-                Category = category
-            }
-            return! addCashBooking QuickAdd now entryId push triggerMirror booking
-    }
-
 // ============================================
 // Erneut senden: Push einer nicht verknüpften Buchung (ledger-cks06, ADR 0021)
 // ============================================

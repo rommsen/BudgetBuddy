@@ -112,7 +112,6 @@
 
     <!-- Main application -->
     <Compile Include="State.fs" />
-    <Compile Include="Views/QuickAddPage.fs" />
     <Compile Include="View.fs" />
     <Compile Include="App.fs" />
   </ItemGroup>

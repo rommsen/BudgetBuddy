@@ -81,7 +81,9 @@ export async function mockCapture(page, { catchAll = true } = {}) {
     json(r, {
       Today: berlinToday(),
       ImportAccountId: GIRO,
-      LastUsedAccountId: BAR,
+      // ledger-ea70s: ohne Kontofilter ist das Quick-Add-Konto (Bar) vorbelegt, nicht das zuletzt genutzte.
+      LastUsedAccountId: TAGESGELD,
+      QuickAddAccountId: BAR,
       Recent: [
         chip(BAR, "Bäckerei Lange", 8.6, { BookOnCategory: { YnabCategoryId: CATEGORY_IDS.lebensmittel } }),
         chip(BAR, "Wochenmarkt", 23, { BookOnCategory: { YnabCategoryId: CATEGORY_IDS.lebensmittel } }),

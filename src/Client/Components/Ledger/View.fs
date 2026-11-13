@@ -1717,8 +1717,6 @@ let private categoryField (dispatch: Msg -> unit) (model: Model) (entry: LedgerE
     let arrowMsg = categoryArrowMsg model entry
     let onArrow = fun () -> arrowMsg |> Option.iter dispatch
     let pickerProps = detailPickerProps dispatch model entry
-    let sheetSubtitle =
-        $"{payeeLabel entry} · {Money.formatAmountText false true entry.Amount.Amount entry.Amount.Currency}"
     React.fragment [
         Html.div [
             // Das Popover hängt unter dieser Zeile (`position: relative`, wie bei den Chips).
@@ -1742,7 +1740,8 @@ let private categoryField (dispatch: Msg -> unit) (model: Model) (entry: LedgerE
                     ))
                 match categoryPickerPlacement model.DetailForm with
                 | PickerPopover -> CategoryPicker.popoverInPanel pickerOpen pickerProps
-                | PickerSheet -> CategoryPicker.sheetLayered pickerOpen (Some sheetSubtitle) pickerProps
+                // Im Sheet ersetzt die Auswahl den Inhalt (`detailSheetView`, §7.15).
+                | PickerSheet -> ()
             ]
         ]
         match categoryCardLinesFor model entry with
@@ -2071,8 +2070,8 @@ let private splitTargetPickerProps
         OnClose = fun () -> dispatch CloseSplitPicker }
 
 /// Der Inhalt des Editors, für Panel und Sheet derselbe: Summe, Zeilen, "Zeile hinzufügen". Der
-/// Ziel-Picker je Zeile (Kategorie oder Konto) ist am PC ein Popover unter der Zeile, am Handy ein
-/// zweites Sheet über dem Detail (ADR 0005).
+/// Ziel-Picker je Zeile (Kategorie oder Konto) ist am PC ein Popover unter der Zeile, am Handy ersetzt er
+/// den Inhalt des Sheets (`detailSheetView`, §7.15).
 let private splitEditorBody
     (dispatch: Msg -> unit)
     (model: Model)
@@ -2120,24 +2119,7 @@ let private splitEditorBody
               (fun () ->
                   dispatch (
                       StartSplitCashback (SplitLogic.cashbackTarget model.QuickAddAccountId (transferTargetsFor model entry))
-                  ))
-      match placement with
-      | PickerSheet ->
-          let pickerIndex =
-              match editor.Picker with
-              | SplitLogic.SplitTargetPickerFor i -> i
-              | SplitLogic.NoSplitPicker -> 0
-          match List.tryItem pickerIndex editor.Lines with
-          | Some line ->
-              let subtitle =
-                  $"{payeeLabel entry} · {Money.formatAmountText false true entry.Amount.Amount entry.Amount.Currency}"
-              yield
-                  CategoryPicker.sheetLayered
-                      (editor.Picker = SplitLogic.SplitTargetPickerFor pickerIndex)
-                      (Some subtitle)
-                      (splitTargetPickerProps dispatch model entry pickerIndex line)
-          | None -> ()
-      | PickerPopover -> () ]
+                  )) ]
 
 /// Der Editor im offenen Detail dieser Buchung, sonst `None`.
 let splitEditorFor (model: Model) (entry: LedgerEntryView) : SplitLogic.SplitEditorState option =
@@ -2331,29 +2313,52 @@ let private detailSheetView (dispatch: Msg -> unit) (model: Model) (open': bool)
     let amountEdit = entry |> Option.bind (amountEditOf model)
     // Die Payee-Auswahl ersetzt ebenso den Inhalt (§7.15, ledger-fxt09).
     let payeeEdit = entry |> Option.bind (payeeEditOf model)
+    // Auch die Kategorie-Auswahl des Details und das Ziel einer Split-Zeile ersetzen den Inhalt (§7.15,
+    // ledger-ea70s); Wahl oder Schließen führen zurück, der Entwurf steht im Modell und bleibt.
+    let categoryPicker =
+        entry
+        |> Option.bind (fun e ->
+            match editor with
+            | Some ed ->
+                match ed.Picker with
+                | SplitLogic.SplitTargetPickerFor index ->
+                    List.tryItem index ed.Lines |> Option.map (splitTargetPickerProps dispatch model e index)
+                | SplitLogic.NoSplitPicker -> None
+            | None when model.CategoryPickerFor = Some e.Id && amountEdit.IsNone && payeeEdit.IsNone ->
+                Some (detailPickerProps dispatch model e)
+            | None -> None)
     BottomSheet.view
         { IsOpen = open' && entry.IsSome
           OnClose =
             (fun () ->
-                dispatch (
-                    if payeeEdit.IsSome then CancelPayeeEdit
-                    elif amountEdit.IsSome then CancelAmountEdit
-                    elif editor.IsSome then CloseSplitEditor
-                    else CloseDetail
-                ))
+                match categoryPicker with
+                | Some picker -> picker.OnClose ()
+                | None ->
+                    dispatch (
+                        if payeeEdit.IsSome then CancelPayeeEdit
+                        elif amountEdit.IsSome then CancelAmountEdit
+                        elif editor.IsSome then CloseSplitEditor
+                        else CloseDetail
+                    ))
           Title =
-            (if payeeEdit.IsSome then "Payee"
-             elif amountEdit.IsSome then "Betrag"
-             elif editor.IsSome then "Aufteilen"
-             else "Buchung")
+            (match categoryPicker with
+             | Some picker -> CategoryPicker.sheetTitle picker.Accounts
+             | None ->
+                 if payeeEdit.IsSome then "Payee"
+                 elif amountEdit.IsSome then "Betrag"
+                 elif editor.IsSome then "Aufteilen"
+                 else "Buchung")
           Subtitle =
             (match entry, editor with
+             | Some e, _ when categoryPicker.IsSome ->
+                 Some $"{payeeLabel e} · {Money.formatAmountText false true e.Amount.Amount e.Amount.Currency}"
              | Some e, _ when payeeEdit.IsSome -> Some (payeeLabel e)
              | Some e, _ when amountEdit.IsSome -> Some (payeeLabel e)
              | Some e, Some _ -> Some $"{payeeLabel e} · {formatDateFull e.Date}"
              | _ -> None)
           Footer =
             (match entry, amountEdit, editor with
+             | _ when categoryPicker.IsSome -> None
              | _ when payeeEdit.IsSome -> None
              | Some e, Some _, _ -> Some [ amountFooter dispatch model e ]
              | _, None, Some ed ->
@@ -2363,6 +2368,7 @@ let private detailSheetView (dispatch: Msg -> unit) (model: Model) (open': bool)
         // Der Inhalt steht nur im DOM, solange das Sheet offen ist: ein geschlossenes Sheet bliebe
         // sonst als verstecktes Doppel neben dem Panel stehen.
         [ match entry, amountEdit, editor with
+          | Some _, _, _ when open' && categoryPicker.IsSome -> CategoryPicker.sheetContent categoryPicker.Value
           | Some entry, _, _ when open' && payeeEdit.IsSome ->
               PayeePicker.view (payeePickerProps dispatch model entry payeeEdit.Value (Viewport.isFinePointer ()))
           | Some entry, Some edit, _ when open' ->
@@ -3884,7 +3890,8 @@ let private captureAccountList (dispatch: Msg -> unit) (model: Model) (capture: 
     ]
 
 /// Wo das Formular steht: im Panel rechts (Kassenbuch am PC), im Dialog (Übersicht am PC, ledger-s1weh) oder im
-/// Sheet. Im Panel und im Dialog öffnen Konto und Kategorie an Ort und Stelle, im Sheet als Sheet darüber.
+/// Sheet. Im Panel und im Dialog öffnen Konto und Kategorie an Ort und Stelle, im Sheet ersetzen sie den Inhalt
+/// (§7.15, ledger-ea70s).
 type private CapturePlace =
     | CaptureInPanel
     | CaptureInDialog
@@ -3892,7 +3899,7 @@ type private CapturePlace =
 
 /// Die Felder des Formulars von oben nach unten wie im Prototyp: Ausgabe/Einnahme, Betrag,
 /// Zuletzt, Konto, Kategorie oder Konto, Payee, Datum und Memo, dazu Fehler. `place`: im Panel
-/// öffnen die Auswahlen im Panel, am Handy als Sheet über dem Formular.
+/// öffnen die Auswahlen im Panel, im Sheet ersetzen sie den Inhalt (`captureSheetView`).
 let private captureFields (dispatch: Msg -> unit) (model: Model) (capture: Capture.CaptureState) (place: CapturePlace) : ReactElement list =
     let form = capture.Form
     let account = captureAccountOf model form
@@ -3917,6 +3924,9 @@ let private captureFields (dispatch: Msg -> unit) (model: Model) (capture: Captu
                         Size = Input.Large
                         InputMode = Some "decimal"
                         AriaLabel = Some "Betrag"
+                        // Am PC beim Öffnen gleich tippen (wie vorher Quick Add, ledger-ea70s); am Handy kein
+                        // Autofokus, die Tastatur verdeckte sonst Zuletzt und Konto.
+                        AutoFocus = Viewport.isFinePointer ()
                         DescribedBy = (if amountInvalid then Some Capture.amountErrorId else None)
                         AriaInvalid = amountInvalid
                         ClassName = Some (Input.amountFieldClass true amountInvalid) }
@@ -4018,8 +4028,10 @@ let private captureFields (dispatch: Msg -> unit) (model: Model) (capture: Captu
             ]
         ]
 
+        // Am Handy steht Memo unter dem Datum (ledger-yhemh, in ledger-ea70s): nebeneinander war das Memo zu schmal.
+        // Ab md nebeneinander wie in der Skizze.
         Html.div [
-            prop.className "grid grid-cols-2 gap-3"
+            prop.className "grid grid-cols-1 gap-3 md:grid-cols-2"
             prop.children [
                 Html.div [
                     prop.className "flex min-w-0 flex-col gap-1.5"
@@ -4061,8 +4073,8 @@ let private captureFields (dispatch: Msg -> unit) (model: Model) (capture: Captu
                 Html.label [
                     prop.className "flex min-w-0 flex-col gap-1.5"
                     prop.children [
-                        // Gleich hoch wie die Zeile "Datum" mit "Heute" und "Gestern", damit die Felder bündig stehen.
-                        Html.div [ prop.className "flex items-center min-h-[48px] md:min-h-9"; prop.children [ label "Memo" ] ]
+                        // Ab md gleich hoch wie die Zeile "Datum" mit "Heute" und "Gestern", damit die Felder bündig stehen.
+                        Html.div [ prop.className "flex items-center md:min-h-9"; prop.children [ label "Memo" ] ]
                         Input.text
                             { Input.textInputDefaults with
                                 Value = form.Memo
@@ -4148,46 +4160,52 @@ let private capturePanelView (dispatch: Msg -> unit) (model: Model) (capture: Ca
               ]
           ] ]
 
-/// Das Formular als Sheet (Handy, schmales Fenster). Die Auswahl von Konto und Kategorie liegt als
-/// Sheet darüber (eine Ebene, wie der Picker im Detail).
+/// Die Unterzeile der Auswahlen aus dem Formular im Sheet (Skizze `capAcct`).
+let captureChoiceSubtitle = "Für die neue Buchung"
+
+/// Das Formular als Sheet (Handy, schmales Fenster). Die Auswahl von Konto und Kategorie ersetzt den Inhalt des
+/// Sheets (§7.15, ledger-ea70s); Wahl oder Schließen führt zum Formular zurück, die Eingaben stehen im Modell und
+/// bleiben.
 let private captureSheetView (dispatch: Msg -> unit) (model: Model) (capture: Capture.CaptureState option) (open': bool) : ReactElement =
     let isOpen = open' && capture.IsSome
-    React.fragment [
-        BottomSheet.view
-            { IsOpen = isOpen
-              OnClose = fun () -> dispatch CloseCapture
-              Title = captureTitle
-              Subtitle = None
-              Footer =
-                capture
-                |> Option.map (fun c ->
-                    [ Html.div [
-                          prop.className "grid w-full grid-cols-2 gap-3"
-                          prop.children [ captureCancelButton dispatch c true; captureSubmitButton dispatch c true ]
-                      ] ]) }
-            [ match capture with
-              | Some c when isOpen ->
+    let picker = capture |> Option.bind (fun c -> if isOpen then c.Picker else None)
+    BottomSheet.view
+        { IsOpen = isOpen
+          OnClose = fun () -> dispatch (if picker.IsSome then CloseCapturePicker else CloseCapture)
+          Title =
+            (match picker, capture with
+             | Some Capture.CaptureAccountPicker, _ -> captureAccountPickerTitle
+             | Some Capture.CaptureTargetPicker, Some c -> CategoryPicker.sheetTitle (capturePickerProps dispatch model c.Form).Accounts
+             | _ -> captureTitle)
+          Subtitle = (if picker.IsSome then Some captureChoiceSubtitle else None)
+          Footer =
+            match picker, capture with
+            | None, Some c ->
+                Some [ Html.div [
+                           prop.className "grid w-full grid-cols-2 gap-3"
+                           prop.children [ captureCancelButton dispatch c true; captureSubmitButton dispatch c true ]
+                       ] ]
+            | _ -> None }
+        [ match capture with
+          | Some c when isOpen ->
+              match c.Picker with
+              | Some Capture.CaptureAccountPicker ->
+                  // Nach der Wahl steht das Formular an derselben Stelle: ein später synthetischer Klick soll dort
+                  // nichts treffen (ADR 0005, wie `CategoryPicker.sheetContent`).
+                  let choosing msg =
+                      match msg with
+                      | ChooseCaptureAccount _ -> Viewport.swallowNextClick 350
+                      | _ -> ()
+                      dispatch msg
+                  captureAccountList choosing model c
+              | Some Capture.CaptureTargetPicker -> CategoryPicker.sheetContent (capturePickerProps dispatch model c.Form)
+              | None ->
                   Html.div [
                       prop.custom ("data-testid", "capture-form")
                       prop.className "flex flex-col gap-4"
                       prop.children (captureBody dispatch model c CaptureInSheet)
                   ]
-              | _ -> () ]
-        match capture with
-        | Some c when isOpen ->
-            BottomSheet.viewLayered
-                { IsOpen = (c.Picker = Some Capture.CaptureAccountPicker)
-                  OnClose = fun () -> dispatch CloseCapturePicker
-                  Title = captureAccountPickerTitle
-                  Subtitle = None
-                  Footer = None }
-                [ if c.Picker = Some Capture.CaptureAccountPicker then captureAccountList dispatch model c ]
-            CategoryPicker.sheetLayered
-                (c.Picker = Some Capture.CaptureTargetPicker)
-                None
-                (capturePickerProps dispatch model c.Form)
-        | _ -> ()
-    ]
+          | _ -> () ]
 
 /// Die Form des Formulars außerhalb des Kassenbuchs (ledger-s1weh): ab 1024 px (`panelViewport`, dieselbe Schwelle
 /// wie das Panel im Kassenbuch, §7.6) ein Dialog in der Mitte, darunter das Sheet.

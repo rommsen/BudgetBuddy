@@ -1,9 +1,10 @@
 module LedgerCashBookingTests
 
-// Barbuchung für Quick Add und Bob (ledger-bk3q8): die reine Push-Funktion einer
-// Kassenbuch-Buchung (`planEntryPush`), der gemeinsame Befehl (`cashBookingParts`,
-// `addCashBooking`), Quick Add mit Kategorie-Auflösung (`addQuickAdd`), die Lesefunktionen
-// für Quick-Add-Konto und Kategorie und die Adapter mit Ports in `Server.Api`. Kein Fall
+// Barbuchung für Bob (ledger-bk3q8): die reine Push-Funktion einer Kassenbuch-Buchung
+// (`planEntryPush`), der gemeinsame Befehl (`cashBookingParts`, `addCashBooking`), die
+// Lesefunktionen für Quick-Add-Konto und Kategorie und die Adapter mit Ports in `Server.Api`.
+// Die Seite Quick Add samt `addQuickAdd` ist mit ledger-ea70s entfallen; der Actor `QuickAdd`
+// bleibt für bestehende Ereignisse. Kein Fall
 // erreicht YNAB: jeder YNAB-Aufruf ist eine Fälschung, die mitzählt.
 
 open System
@@ -397,101 +398,8 @@ let categoryResolutionTests =
     ]
 
 // ============================================
-// Quick Add: Kategorie vor dem Ereignis auflösen (Bug: Kategorie ging still verloren)
-// ============================================
-
-let private quickAddRequest (categoryId: YnabCategoryId option) : ManualTransactionRequest = {
-    Amount = 12.50m
-    IsOutflow = true
-    PayeeName = $"bk3q8-{Guid.NewGuid()}"
-    CategoryId = categoryId
-    Date = day
-    Memo = None
-}
-
-[<Tests>]
-let quickAddTests =
-    let testCase name body = testCase name (fun () -> initialize (); body ())
-
-    testSequenced
-    <| testList "Ledger Quick Add (Kategorie)" [
-        testCase "scheitert das Laden der Kategorie, bucht Quick Add nicht und pusht nicht" <| fun () ->
-            // ledger-bk3q8, Bug: scheiterte der Abruf der Kategorien (etwa Rate-Limit), stand
-            // die Buchung ohne Kategorie im Kassenbuch, an YNAB ging sie mit der Id.
-            let entryId = newEntryId ()
-            let requests, push = recordingPush (Ok "ynab-nie")
-            let resolve _ = async.Return (Error categoryLoadFailedText)
-            let result =
-                addQuickAdd at entryId resolve push noTrigger (freshAccount ()) (quickAddRequest (Some (freshCategory "x").CategoryId))
-                |> Async.RunSynchronously
-            Expect.equal result (Error (YnabError.RefusedByBb categoryLoadFailedText)) "Abbruch mit deutschem Satz"
-            Expect.isEmpty (eventTypesOf entryId) "kein CashExpenseAdded"
-            Expect.isEmpty requests "kein Push"
-
-        testCase "eine Kategorie-Id, die keine Quelle kennt, wird ohne Ereignis und ohne Push abgelehnt" <| fun () ->
-            // ledger-bk3q8, Bug: eine unbekannte Id wurde zu "ohne Kategorie", gepusht wurde die Id.
-            let entryId = newEntryId ()
-            let requests, push = recordingPush (Ok "ynab-nie")
-            let sources = CategorySources(Map.empty, Ok [])
-            let result =
-                addQuickAdd at entryId sources.Resolve push noTrigger (freshAccount ()) (quickAddRequest (Some (freshCategory "x").CategoryId))
-                |> Async.RunSynchronously
-            Expect.equal result (Error (YnabError.RefusedByBb categoryUnknownText)) "abgelehnt"
-            Expect.isEmpty (eventTypesOf entryId) "kein Ereignis"
-            Expect.isEmpty requests "kein Push"
-
-        testCase "mit gültiger Kategorie tragen Kassenbuch und Push dieselbe Kategorie" <| fun () ->
-            let entryId = newEntryId ()
-            let category = freshCategory "Kaffee"
-            let requests, push = recordingPush (Ok $"ynab-{Guid.NewGuid()}")
-            let resolve id = async.Return (if id = category.CategoryId then Ok category else Error categoryUnknownText)
-            let result =
-                addQuickAdd at entryId resolve push noTrigger (freshAccount ()) (quickAddRequest (Some category.CategoryId))
-                |> Async.RunSynchronously
-            Expect.equal result (Ok entryId) "gebucht"
-            let stored = loadEntry entryId |> Async.RunSynchronously |> Option.get
-            Expect.equal stored.Category (Some category) "Id und Name im Kassenbuch"
-            Expect.equal stored.Amount.Amount -12.50m "Ausgabe negativ im Kassenbuch"
-            Expect.equal (requests |> Seq.map (fun r -> r.CategoryId, r.Amount, r.IsOutflow) |> List.ofSeq) [ Some category.CategoryId, 12.50m, true ] "dieselbe Id, positiv als Abfluss"
-            Expect.equal (eventsOf entryId |> List.map (fun r -> r.Event.Actor)) [ QuickAdd; QuickAdd ] "Actor Quick Add"
-
-        testCase "ohne Kategorie stehen Kassenbuch und Push ohne Kategorie, eine Einnahme positiv" <| fun () ->
-            let entryId = newEntryId ()
-            let requests, push = recordingPush (Ok $"ynab-{Guid.NewGuid()}")
-            let resolve _ = async.Return (Error "darf nicht gefragt werden")
-            let request = { quickAddRequest None with IsOutflow = false }
-            addQuickAdd at entryId resolve push noTrigger (freshAccount ()) request |> Async.RunSynchronously |> ignore
-            let stored = loadEntry entryId |> Async.RunSynchronously |> Option.get
-            Expect.isNone stored.Category "ohne Kategorie im Kassenbuch"
-            Expect.equal stored.Amount.Amount 12.50m "Einnahme positiv"
-            Expect.equal (requests |> Seq.map (fun r -> r.CategoryId, r.IsOutflow) |> List.ofSeq) [ None, false ] "ohne Kategorie als Zufluss"
-    ]
-
-// ============================================
 // Adapter mit Ports (`Server.Api`)
 // ============================================
-
-/// Quick-Add-Umgebung mit gefälschtem YNAB, die ihre Aufrufe zählt.
-type private QuickAddProbe(settings: (string * string) list) =
-    let pushes = ResizeArray<YnabAccountId * ManualTransactionRequest>()
-    let mutable categoryLoads = 0
-    let entryId = newEntryId ()
-    member _.EntryId = entryId
-    member _.Pushes = pushes
-    member _.CategoryLoads = categoryLoads
-    member _.Ports : Server.Api.QuickAddPorts = {
-        Setting = settingsFrom settings
-        LoadYnabCategories =
-            fun _ _ ->
-                categoryLoads <- categoryLoads + 1
-                async.Return (Ok [])
-        Push =
-            fun _ _ account request ->
-                pushes.Add((account, request))
-                async.Return (Ok $"ynab-{Guid.NewGuid()}")
-        NewEntryId = fun () -> entryId
-        TriggerMirror = noTrigger
-    }
 
 let private fakeYnab = [ "ynab_token", "token-kuenstlich"; "ynab_default_budget_id", "budget-kuenstlich" ]
 
@@ -501,37 +409,6 @@ let adapterTests =
 
     testSequenced
     <| testList "Ledger Barbuchung (Adapter mit Ports)" [
-        testCase "Quick Add ohne gespiegeltes Kassenbuch-Konto: Fehler, kein Ereignis, kein Push" <| fun () ->
-            let probe = QuickAddProbe(fakeYnab @ [ quickAddAccountSettingKey, Guid.NewGuid().ToString() ])
-            let result = Server.Api.addManualTransactionWith probe.Ports at (quickAddRequest None) |> Async.RunSynchronously
-            // Verhindert den Bug, dass der feste Satz als `AccountNotFound` verpackt war und der Nutzer
-            // nur "Konto in YNAB nicht gefunden" sah (Review rv/backend).
-            Expect.equal (result |> Result.mapError ynabErrorText) (Error quickAddAccountNotMirroredText) "fester Satz beim Nutzer"
-            Expect.isEmpty (eventTypesOf probe.EntryId) "kein Ereignis"
-            Expect.isEmpty probe.Pushes "kein Push"
-
-        testCase "Quick Add ohne Standard-Budget: der Nutzer liest den Satz zur fehlenden Einstellung" <| fun () ->
-            // Verhindert den Bug, dass der Satz als `BudgetNotFound` verpackt war und als
-            // "Budget in YNAB nicht gefunden" ankam (Review rv/backend).
-            let probe = QuickAddProbe([ "ynab_token", "token-kuenstlich"; quickAddAccountSettingKey, Guid.NewGuid().ToString() ])
-            let result = Server.Api.addManualTransactionWith probe.Ports at (quickAddRequest None) |> Async.RunSynchronously
-            Expect.equal (result |> Result.mapError ynabErrorText) (Error "Kein Standard-Budget konfiguriert (Settings)") "Satz beim Nutzer"
-            Expect.isEmpty probe.Pushes "kein Push"
-
-        testCase "Quick Add nimmt den Kategorienamen aus den gespiegelten Stammdaten und pusht auf das Quick-Add-Konto" <| fun () ->
-            let account = mirroredAccount ()
-            let (YnabAccountId guid) = ynabIdOf account
-            let category = freshCategory $"Kaffee-{Guid.NewGuid()}"
-            upsertCategories [ ynabCategory category ] |> Async.RunSynchronously
-            let probe = QuickAddProbe(fakeYnab @ [ quickAddAccountSettingKey, guid.ToString() ])
-            let result = Server.Api.addManualTransactionWith probe.Ports at (quickAddRequest (Some category.CategoryId)) |> Async.RunSynchronously
-            Expect.equal result (Ok ()) "gebucht"
-            let stored = loadEntry probe.EntryId |> Async.RunSynchronously |> Option.get
-            Expect.equal stored.Category (Some category) "Name aus den Stammdaten"
-            Expect.equal stored.AccountId account.Id "Kassenbuch-Konto des Quick-Add-Kontos"
-            Expect.equal probe.CategoryLoads 0 "YNAB-Kategorien nicht geladen"
-            Expect.equal (probe.Pushes |> Seq.map (fun (a, r) -> a, r.CategoryId) |> List.ofSeq) [ ynabIdOf account, Some category.CategoryId ] "Push auf das Quick-Add-Konto"
-
         testCase "Import-Push und erzwungener Import ohne gespiegeltes Kassenbuch-Konto: Fehler vor jedem Schreiben" <| fun () ->
             let setting = settingsFrom (fakeYnab @ [ "ynab_default_account_id", Guid.NewGuid().ToString() ])
             match Server.Api.importTargetWith setting 3 |> Async.RunSynchronously with
@@ -620,32 +497,6 @@ let liveSinglePostTests =
         // Regression ledger-ay81j: YNAB glich eine Barbuchung mit import_id wie einen Bankimport gegen
         // eine eine Woche ältere Handbuchung gleichen Betrags ab und verbarg sie. Vor dem Fix trug jeder
         // dieser Rümpfe `import_id` `BB:<EntryId>`.
-        testCase "Quick Add sendet über den echten Einzel-Post ohne import_id" <| fun () ->
-            let account = mirroredAccount ()
-            let (YnabAccountId guid) = ynabIdOf account
-            let handler = new PostRecorder()
-            use http = new System.Net.Http.HttpClient(handler)
-            let entryId = newEntryId ()
-            let ports = {
-                Server.Api.quickAddPortsOn http with
-                    Setting = settingsFrom (fakeYnab @ [ quickAddAccountSettingKey, guid.ToString() ])
-                    LoadYnabCategories = fun _ _ -> async.Return (Ok [])
-                    NewEntryId = fun () -> entryId
-                    TriggerMirror = noTrigger
-            }
-            let result = Server.Api.addManualTransactionWith ports at (quickAddRequest None) |> Async.RunSynchronously
-            Expect.equal result (Ok ()) "gebucht"
-            Expect.equal (handler.Bodies |> Seq.map hasImportId |> List.ofSeq) [ false ] "ein Post ohne import_id"
-            Expect.stringContains handler.Urls[0] "/budgets/budget-kuenstlich/transactions" "Budget aus den Settings"
-            Expect.equal handler.Authorizations[0] "Bearer token-kuenstlich" "Token im Header"
-            match (eventsOf entryId).Head.Event.Body with
-            | CashExpenseAdded p -> Expect.isNone p.ImportId "keine import_id im Ereignis"
-            | other -> failtest $"CashExpenseAdded erwartet: {other}"
-            Expect.isEmpty
-                (linksForEntry entryId |> Async.RunSynchronously |> List.filter (fun l -> l.System = ImportIdSystem))
-                "keine importid-Verknüpfung"
-            Expect.equal (findEntryByLink YnabSystem handler.CreatedIds[0] |> Async.RunSynchronously) (Some entryId) "über die Antwort verknüpft"
-
         testCase "Neue Buchung sendet über den echten Einzel-Post ohne import_id, auch mit Übertrag" <| fun () ->
             let bar, tagesgeld = mirroredAccount (), mirroredAccount ()
             let handler = new PostRecorder()

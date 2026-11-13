@@ -142,14 +142,14 @@ test("[flow:geld-verschieben] Handy: Zeile wählen, Abgeben, Gegenseite suchen, 
     assert.ok(await submit.isDisabled(), "ohne Gegenseite gesperrt");
 
     await page.locator('[data-testid="transfer-to"]').click();
-    const firstOption = page.locator('.bottom-sheet.layer-2 [role="option"]').first();
+    const firstOption = page.locator('.bottom-sheet.active [role="option"]').first();
     await firstOption.waitFor();
     assert.match(await text(firstOption), /Zu verteilen.*35,45 €/, "Zu verteilen steht ganz oben, mit Betrag");
-    const options = await page.locator('.bottom-sheet.layer-2 [role="option"]').allInnerTexts();
+    const options = await page.locator('.bottom-sheet.active [role="option"]').allInnerTexts();
     assert.ok(!options.some((o) => o.includes("Lebensmittel afd8h")), "X ist nicht wählbar");
 
-    await page.locator('.bottom-sheet.layer-2 input').fill("urlaub");
-    await page.locator('.bottom-sheet.layer-2 [role="option"]').filter({ hasText: "Urlaub afd8h" }).click();
+    await page.locator('.bottom-sheet.active input').fill("urlaub");
+    await page.locator('.bottom-sheet.active [role="option"]').filter({ hasText: "Urlaub afd8h" }).click();
 
     await page.locator('[data-testid="transfer-amount"] input').fill("20");
     assert.match(await text(page.locator('[data-testid="transfer-from"]')), /von Lebensmittel afd8h 60,00 €/);
@@ -181,7 +181,7 @@ test("[flow:verschiebung-erneut-senden] Fehlgeschlagener PATCH: der Hinweis steh
     await openMoveFor(page, "Lebensmittel afd8h");
     await amountOf20(page);
     await page.locator('[data-testid="transfer-to"]').click();
-    await page.locator('.bottom-sheet.layer-2 [role="option"]').filter({ hasText: "Urlaub afd8h" }).click();
+    await page.locator('.bottom-sheet.active [role="option"]').filter({ hasText: "Urlaub afd8h" }).click();
     await afterPicker(page);
     await page.locator('[data-testid="transfer-submit"] button').click();
     await page.getByText(/Nicht vollständig verschoben: Rate-Limit/).first().waitFor();

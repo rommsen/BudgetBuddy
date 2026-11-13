@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 8
 - **Todo:** 0
-- **Doing:** 2
-- **Done:** 135
+- **Doing:** 1
+- **Done:** 136
 <!-- task-counts:end -->
 
 ### Todo
@@ -23,11 +23,11 @@ research touching this BC, and concept synthesis pages.
 ### Doing
 <!-- doing-list:start -->
 - **ledger-hg5m5** — "Regel aus der Buchung: „Regel anlegen“ im Detail und beim Durchgehen, dazu ein Angebot nach einer Kategorie-Änderung, vorbelegt mit Payee und Kategorie" (feature) — `doing/ledger-hg5m5-regel-angebot-nach-kategorie-aenderung.md`
-- **ledger-ea70s** — "Ein Erfassen: Quick Add hört auf, ein eigener Ort zu sein; „+ Buchung“ in Kassenbuch und Übersicht mit kluger Vorbelegung" (feature) — `doing/ledger-ea70s-ein-erfassen.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)
 <!-- done-list:start -->
+- **ledger-ea70s** — "Ein Erfassen: Quick Add hört auf, ein eigener Ort zu sein; „+ Buchung“ in Kassenbuch und Übersicht mit kluger Vorbelegung" (feature) — `done/ledger-ea70s-ein-erfassen.md`
 - **ledger-ay81j** — "In BB erfasste Buchungen gehen ohne import_id an YNAB, der Spiegel verknüpft offene Erfassungen nach Konto, Tag, Betrag und Payee" (bug) — `done/ledger-ay81j-ynab-gleicht-barbuchungen-ab.md`
 - **ledger-nnd2f** — "Der Spiegel legt nur noch zusammen, wenn YNAB einen Comdirect-Import mit einem Übertrag abgeglichen hat; eine verschluckte Barbuchung bleibt im Kassenbuch stehen (Ledger/Domain.fs mergeObservedInYnab)" (bug) — `done/ledger-nnd2f-zusammenlegen-nur-bei-uebertraegen.md`
 - **ledger-nkwqb** — "Von YNAB abgeglichene Buchung bleibt im Kassenbuch doppelt: der Spiegel liest matched_transaction_id nicht und legt die zusammengelegte Buchung nicht still (Ledger/Domain.fs, Ledger/CommandHandlers.fs)" (bug) — `done/ledger-nkwqb-abgleich-in-ynab-und-uebertrag-als-duplikat.md`

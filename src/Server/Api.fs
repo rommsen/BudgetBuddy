@@ -389,76 +389,6 @@ let settingsApi : SettingsApi = {
 }
 
 // ============================================
-// Quick Add (ledger-tdnpk, ledger-bk3q8)
-// ============================================
-
-/// Die Umgebung von Quick Add: Einstellungen, die beiden YNAB-Aufrufe (Kategorien als
-/// Rückfall, Push), die Id der neuen Buchung und der Spiegel-Auslöser. Tests setzen hier
-/// Fälschungen ein, damit kein Fall YNAB erreicht.
-type QuickAddPorts = {
-    Setting: string -> Async<string option>
-    LoadYnabCategories: string -> YnabBudgetId -> Async<YnabResult<YnabCategory list>>
-    /// Der Einzel-Post ohne `import_id` (ledger-ay81j, in BB erfasst): Token, Budget, Konto, Request.
-    Push: string -> YnabBudgetId -> YnabAccountId -> ManualTransactionRequest -> Async<YnabResult<string>>
-    NewEntryId: unit -> Ledger.Events.EntryId
-    TriggerMirror: unit -> unit
-}
-
-/// Quick Add nach der Prüfung an der API-Grenze: Token und Budget, das Quick-Add-Konto
-/// (`Ledger.QueryHandlers.resolveQuickAddAccountWith`), dann `Ledger.CommandHandlers.addQuickAdd`
-/// mit der Kategorie-Auflösung aus den gespiegelten Stammdaten, YNAB nur als Rückfall
-/// (ledger-bk3q8). Ohne gespiegeltes Kassenbuch-Konto gibt es kein Ereignis und keinen
-/// Push (ADR 0021).
-let addManualTransactionWith (ports: QuickAddPorts) (now: DateTime) (validRequest: ManualTransactionRequest) : Async<YnabResult<unit>> =
-    async {
-        let! tokenOpt = ports.Setting "ynab_token"
-        let! budgetOpt = ports.Setting "ynab_default_budget_id"
-
-        match tokenOpt, budgetOpt with
-        | None, _ -> return Error (YnabError.Unauthorized "No YNAB token configured")
-        // Fehlende Einstellungen sind eine Ablehnung durch BB, kein YNAB-Fehler: `RefusedByBb`
-        // bringt den Satz unverändert zum Nutzer.
-        | _, None -> return Error (YnabError.RefusedByBb "Kein Standard-Budget konfiguriert (Settings)")
-        | Some token, Some budgetId ->
-            // Bewusst nicht das Konto des Bank-Imports: Barbuchungen haben ihr eigenes Konto.
-            match! Ledger.QueryHandlers.resolveQuickAddAccountWith ports.Setting with
-            | Error reason -> return Error (YnabError.RefusedByBb reason)
-            | Ok account ->
-                let budget = YnabBudgetId budgetId
-                let resolveCategory =
-                    Ledger.QueryHandlers.resolveCategoryRefWith
-                        Ledger.Persistence.loadCategoryNames
-                        (fun () -> ports.LoadYnabCategories token budget)
-                let push request = ports.Push token budget account.YnabAccountId request
-
-                match!
-                    Ledger.CommandHandlers.addQuickAdd
-                        now
-                        (ports.NewEntryId ())
-                        resolveCategory
-                        push
-                        ports.TriggerMirror
-                        account.LedgerAccountId
-                        validRequest
-                with
-                | Ok _entryId -> return Ok ()
-                | Error err -> return Error err
-    }
-
-/// Die Umgebung für Quick Add mit dem `HttpClient` des Einzel-Posts (ledger-ay81j): der Push geht
-/// ohne `import_id`, ohne Flag und ohne Übertrag hinaus.
-let quickAddPortsOn (http: System.Net.Http.HttpClient) : QuickAddPorts = {
-    Setting = Persistence.Settings.getSetting
-    LoadYnabCategories = YnabClient.getCategories
-    Push = YnabClient.createTransactionOn http None None None
-    NewEntryId = Ledger.Events.newEntryId
-    TriggerMirror = Ledger.CommandHandlers.triggerMirrorInBackground
-}
-
-/// Die Umgebung des laufenden Servers für Quick Add.
-let liveQuickAddPorts : QuickAddPorts = quickAddPortsOn YnabClient.sharedHttpClient
-
-// ============================================
 // Buchung im Kassenbuch erfassen (ledger-at63w)
 // ============================================
 
@@ -716,38 +646,6 @@ let ynabApi : YnabApi = {
             return Ok ()
         with ex ->
             return Error (YnabError.NetworkError $"Failed to save Quick Add account: {ex.Message}")
-    }
-
-    addManualTransaction = fun request -> async {
-        match Validation.validateManualTransaction (liveBerlinDay ()) request with
-        | Error errors ->
-            // BB lehnt selbst ab, YNAB wurde nicht gefragt (ledger-q4m7z).
-            return Error (YnabError.RefusedByBb (String.concat ", " errors))
-        | Ok validRequest -> return! addManualTransactionWith liveQuickAddPorts DateTime.UtcNow validRequest
-    }
-
-    getRecentQuickAddTemplates = fun () -> async {
-        let! tokenOpt = Persistence.Settings.getSetting "ynab_token"
-        let! budgetOpt = Persistence.Settings.getSetting "ynab_default_budget_id"
-        let! accountOpt = Persistence.Settings.getSetting "ynab_quickadd_account_id"
-
-        match tokenOpt, budgetOpt, accountOpt with
-        | Some token, Some budgetId, Some accountIdStr ->
-            match System.Guid.TryParse accountIdStr with
-            // Misconfigured account id → no templates, but never crash the page.
-            | false, _ -> return Ok []
-            | true, accountGuid ->
-                // One read per page visit; ~90 days back is plenty of history for
-                // recurring cash bookings while staying well within YNAB's rate
-                // limit (~200 req/h). The dedup/projection is pure (Domain).
-                match! YnabClient.getAccountTransactions token (YnabBudgetId budgetId) (YnabAccountId accountGuid) (liveBerlinDay ()) 90 with
-                | Ok transactions -> return Ok (recentQuickAddTemplates 5 transactions)
-                | Error err -> return Error err
-        | _ ->
-            // Not configured (no token / budget / Quick-Add account) → no
-            // templates. Mirror ADR 0004's no-fallback stance: never invent an
-            // account; the form stays fully usable without templates.
-            return Ok []
     }
 }
 

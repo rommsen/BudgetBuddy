@@ -190,7 +190,25 @@ let private fixedSide (testId: string) (label: string) (side: TransferEnd option
 
 let private choosePrompt = "Kategorie wählen"
 
-/// Die wählbare Seite. Am Handy geht der Picker über dem Inspektor auf, im Panel als Popover.
+/// Der Picker der Gegenseite, im Panel als Popover, am Handy als Inhalt des Inspektor-Sheets (`InspectorView`).
+let counterpartPickerProps (model: Model) (month: BudgetMonth) (tab: MoneyTabState) (dispatch: Msg -> unit) : CategoryPicker.CategoryPickerProps =
+    { Categories = pickerCategories month tab.CategoryId
+      Current = None
+      Suggested = []
+      Recent = recentCounterparts model
+      Accounts = []
+      CurrentAccount = None
+      AccountsLoad = CategoryPicker.PickerReady
+      OfferWithout = false
+      ToBeBudgeted = Some month.ToBeBudgeted
+      StandLabel = None
+      LoadState = CategoryPicker.PickerReady
+      OnRetry = ignore
+      OnSelect = fun choice -> counterpartOf choice |> Option.iter (PickCounterpart >> dispatch)
+      OnClose = fun () -> dispatch ClosePicker }
+
+/// Die wählbare Seite. Im Panel geht der Picker als Popover auf, am Handy ersetzt er den Inhalt des Sheets
+/// (§7.15, ledger-ea70s): `InspectorView.inspectorSheet`.
 let private counterpartSide
     (model: Model)
     (month: BudgetMonth)
@@ -200,21 +218,6 @@ let private counterpartSide
     (side: TransferEnd option)
     (dispatch: Msg -> unit)
     =
-    let pickerProps : CategoryPicker.CategoryPickerProps =
-        { Categories = pickerCategories month tab.CategoryId
-          Current = None
-          Suggested = []
-          Recent = recentCounterparts model
-          Accounts = []
-          CurrentAccount = None
-          AccountsLoad = CategoryPicker.PickerReady
-          OfferWithout = false
-          ToBeBudgeted = Some month.ToBeBudgeted
-          StandLabel = None
-          LoadState = CategoryPicker.PickerReady
-          OnRetry = ignore
-          OnSelect = fun choice -> counterpartOf choice |> Option.iter (PickCounterpart >> dispatch)
-          OnClose = fun () -> dispatch ClosePicker }
     let sideName = side |> Option.map (fun s -> s.Label) |> Option.defaultValue choosePrompt
     Html.div [
         prop.className "relative"
@@ -231,9 +234,7 @@ let private counterpartSide
             ]
             // ADR 0043: zur Renderzeit genau eine Hülle.
             if Viewport.isInspectorPanelViewport () then
-                CategoryPicker.popoverInPanelRevealed tab.Transfer.PickerOpen pickerProps
-            else
-                CategoryPicker.sheetLayered tab.Transfer.PickerOpen None pickerProps
+                CategoryPicker.popoverInPanelRevealed tab.Transfer.PickerOpen (counterpartPickerProps model month tab dispatch)
         ]
     ]
 

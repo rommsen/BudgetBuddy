@@ -89,21 +89,10 @@ type YnabApi = {
     /// Purpose: All Comdirect transactions import to this YNAB account.
     setDefaultAccount: YnabAccountId -> Async<YnabResult<unit>>
 
-    /// Persists the account used for Quick Add entries (e.g. the cash account).
+    /// Persists the Quick-Add account (e.g. the cash account): Bobs Barbuchungen landen dort, und
+    /// "Neue Buchung" belegt es ohne Kontofilter vor (ledger-ea70s).
     /// Purpose: Manual entries must not land in the bank-import account.
     setQuickAddAccount: YnabAccountId -> Async<YnabResult<unit>>
-
-    /// Creates a single manually entered transaction directly in YNAB (Quick Add).
-    /// Purpose: Cash expenses entered on the phone without a bank sync session.
-    /// Uses the configured default budget + Quick Add account; validation errors surface as RefusedByBb.
-    addManualTransaction: ManualTransactionRequest -> Async<YnabResult<unit>>
-
-    /// Fetches up to 5 deduplicated Quick-Add templates from the most recent
-    /// transactions of the configured Quick-Add account (dedup key: Payee +
-    /// amount + category). Purpose: one-tap prefill of recurring cash entries on
-    /// the Quick Add page. Returns an empty list (never an error) when the
-    /// Quick-Add account/budget is not configured, so the page degrades gracefully.
-    getRecentQuickAddTemplates: unit -> Async<YnabResult<QuickAddTemplate list>>
 }
 
 // ============================================

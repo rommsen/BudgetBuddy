@@ -659,8 +659,6 @@ let private apiWirings =
       // Der Berliner Kalendertag (infrastructure-p747v): ein Prozess-Tag oder ein fester Tag kompilierte
       // an jeder dieser Stellen, und der Testlauf steht selbst auf Europe/Berlin.
       @"\bliveBerlinDay\s*\(\)\s*:\s*DateTime\s*=\s*Ledger\.Bot\.Domain\.berlinDayOf\s+liveBerlinZone\.Value\s+DateTime\.UtcNow\s*(?:\n\s*\n|\z)"
-      @"\bValidation\.validateManualTransaction\s+\(liveBerlinDay\s*\(\)\)\s+request\b"
-      @"\bgetAccountTransactions\s+token\s+\(YnabBudgetId\s+budgetId\)\s+\(YnabAccountId\s+accountGuid\)\s+\(liveBerlinDay\s*\(\)\)\s+90\b"
       @"\bgetAccountTransactions\s+token\s+\(YnabBudgetId\s+budgetId\)\s+\(YnabAccountId\s+accountIdGuid\)\s+\(liveBerlinDay\s*\(\)\)\s+days\b"
       @"\bToday\s*=\s*liveBerlinDay\b"
       // Abruf mit Buchen (banking-import-d0fey, ADR 0093): `fetchAndBook`, `startSyncWith` und `confirmTanWith` sind
@@ -689,14 +687,8 @@ let private apiWirings =
       @"\bFetchMonths\s*=\s*fun\s+token\s+budgetId\s*->\s*YnabClient\.getMonths\s+token\s+budgetId\s*\n\s*FetchMonth\s*=\s*fun\s+token\s+budgetId\s+monthKey\s*->\s*YnabClient\.getMonth\s+token\s+budgetId\s+monthKey\b"
       @"\bLoadTakenOver\s*=\s*Budgeting\.Persistence\.loadTakenOverMonths\b"
       @"\bEnsureTakenOver\s*=\s*Server\.Budgeting\.CommandHandlers\.ensureTakenOver\b"
-      // Quick Add, Erneut senden und Import-Ziel (ledger-bk3q8): die `*With`-Wege sind mit Fake-Ports getestet,
-      // die Ports des Servers erreichen YNAB nur im laufenden Dienst.
-      @"\bOk\s+validRequest\s*->\s*return!\s+addManualTransactionWith\s+liveQuickAddPorts\s+DateTime\.UtcNow\s+validRequest\s*\}"
-      // Seit ledger-ay81j Fabriken über dem `HttpClient` des Einzel-Posts: der Push ohne import_id ist mit
-      // Fake-Handler am Rumpf belegt (LedgerCashBookingTests), hier nur, dass der Server die Fabrik mit dem
-      // gemeinsamen Client und den echten Einstellungen nutzt.
-      @"\bquickAddPortsOn\s*\(http:\s*System\.Net\.Http\.HttpClient\)\s*:\s*QuickAddPorts\s*=\s*\{\s*Setting\s*=\s*Persistence\.Settings\.getSetting\s+LoadYnabCategories\s*=\s*YnabClient\.getCategories\s+Push\s*=\s*YnabClient\.createTransactionOn\s+http\s+None\s+None\s+None\s+NewEntryId\s*=\s*Ledger\.Events\.newEntryId\s+TriggerMirror\s*=\s*Ledger\.CommandHandlers\.triggerMirrorInBackground\s*\}"
-      @"\bliveQuickAddPorts\s*:\s*QuickAddPorts\s*=\s*quickAddPortsOn\s+YnabClient\.sharedHttpClient\s*(?:\n\s*\n|\z)"
+      // Erneut senden und Import-Ziel (ledger-bk3q8): die `*With`-Wege sind mit Fake-Ports getestet, die Ports des
+      // Servers erreichen YNAB nur im laufenden Dienst. Quick Add samt Ports ist mit ledger-ea70s entfallen.
       @"\bentryPush\s*\(\)\s*:\s*Async<Ledger\.CommandHandlers\.EntryPush>\s*=\s*entryPushWith\s+Persistence\.Settings\.getSetting\s+\(YnabClient\.createTransactionOn\s+YnabClient\.sharedHttpClient\)\s*(?:\n\s*\n|\z)"
       // Buchung erfassen und Rückgängig (ledger-at63w): `addLedgerBookingWith`, `discardCapturedBookingWith` und die
       // Abfragen sind mit Fake-Ports getestet, die Ports des Servers erreichen YNAB nur im laufenden Dienst.
@@ -851,8 +843,6 @@ let hostedServiceGuardTests =
                   "getBankConnectionStatus = fun () -> async.Return (ComdirectAuthSession.connectionStatus ())\n"
                   "disconnectBank = fun () -> BankImport.disconnectBankWith liveImportPorts ComdirectAuthSession.disconnect\n"
                   "let private liveBerlinDay () : DateTime =\n    Ledger.Bot.Domain.berlinDayOf liveBerlinZone.Value DateTime.UtcNow\n\n"
-                  "Validation.validateManualTransaction (liveBerlinDay ()) request\n"
-                  "YnabClient.getAccountTransactions token (YnabBudgetId budgetId) (YnabAccountId accountGuid) (liveBerlinDay ()) 90\n"
                   "YnabClient.getAccountTransactions token (YnabBudgetId budgetId) (YnabAccountId accountIdGuid) (liveBerlinDay ()) days\n"
                   "Today = liveBerlinDay\n"
                   "LoadYnabTransactions = loadYnabTransactionsForImport\n"
@@ -865,9 +855,6 @@ let hostedServiceGuardTests =
                   "let liveBudgetApi (setting: string -> Async<string option>) (berlinZone: TimeZoneInfo) : BudgetApi =\n    budgetApiWith setting livePort liveFramePort (fun () -> DateTime.UtcNow) berlinZone\n\n"
                   "let budgetApi (berlinZone: TimeZoneInfo) : BudgetApi =\n    liveBudgetApi Persistence.Settings.getSetting berlinZone\n\n"
                   "|> Remoting.fromValue (budgetApi berlinZone)\n"
-                  "| Ok validRequest -> return! addManualTransactionWith liveQuickAddPorts DateTime.UtcNow validRequest\n    }\n"
-                  "let quickAddPortsOn (http: System.Net.Http.HttpClient) : QuickAddPorts = {\n    Setting = Persistence.Settings.getSetting\n    LoadYnabCategories = YnabClient.getCategories\n    Push = YnabClient.createTransactionOn http None None None\n    NewEntryId = Ledger.Events.newEntryId\n    TriggerMirror = Ledger.CommandHandlers.triggerMirrorInBackground\n}\n"
-                  "let liveQuickAddPorts : QuickAddPorts = quickAddPortsOn YnabClient.sharedHttpClient\n\n"
                   "let private entryPush () : Async<Ledger.CommandHandlers.EntryPush> =\n    entryPushWith Persistence.Settings.getSetting (YnabClient.createTransactionOn YnabClient.sharedHttpClient)\n\n"
                   "addLedgerBooking = fun request -> addLedgerBookingWith liveLedgerBookingPorts (liveBerlinDay ()) DateTime.UtcNow request\n"
                   "discardCapturedBooking = fun entryId -> discardCapturedBookingWith liveLedgerBookingPorts DateTime.UtcNow entryId\n"
@@ -913,8 +900,6 @@ let hostedServiceGuardTests =
                   "disconnectBankWith liveImportPorts ComdirectAuthSession.disconnect", "disconnectBankWith liveImportPorts (fun () -> async.Return ())", "Trennen löscht nichts"
                   "berlinDayOf liveBerlinZone.Value DateTime.UtcNow", "berlinDayOf TimeZoneInfo.Utc DateTime.UtcNow", "Tag in UTC"
                   "Ledger.Bot.Domain.berlinDayOf liveBerlinZone.Value DateTime.UtcNow", "DateTime.UtcNow.Date", "Tag ohne Zone"
-                  "validateManualTransaction (liveBerlinDay ())", "validateManualTransaction DateTime.Today", "Quick Add auf dem Prozess-Tag"
-                  "(YnabAccountId accountGuid) (liveBerlinDay ()) 90", "(YnabAccountId accountGuid) DateTime.Today 90", "Vorlagen auf dem Prozess-Tag"
                   "(YnabAccountId accountIdGuid) (liveBerlinDay ()) days", "(YnabAccountId accountIdGuid) DateTime.Today days", "YNAB-Abgleich auf dem Prozess-Tag"
                   "Today = liveBerlinDay", "Today = fun () -> DateTime.Today", "Bank-Import auf dem Prozess-Tag"
                   "LoadYnabTransactions = loadYnabTransactionsForImport", "LoadYnabTransactions = (fun _ -> async.Return (Some []))", "Abruf ohne YNAB-Abgleich"
@@ -957,14 +942,10 @@ let hostedServiceGuardTests =
                   "fun token budgetId monthKey -> YnabClient.getMonth", "fun token budgetId monthKey -> fakeMonth", "Übernahme-Monat ohne YNAB"
                   "Budgeting.Persistence.loadTakenOverMonths", "(fun () -> async.Return (Ok Set.empty))", "nichts gilt als übernommen"
                   "Server.Budgeting.CommandHandlers.ensureTakenOver", "(fun _ _ _ -> async.Return (Ok AlreadyTakenOver))", "Übernahme ohne Übernahme"
-                  "addManualTransactionWith liveQuickAddPorts", "addManualTransactionWith fakeQuickAddPorts", "Quick Add mit anderen Ports"
-                  "DateTime.UtcNow validRequest", "DateTime.MinValue validRequest", "Quick Add mit fester Uhr"
-                  "    Setting = Persistence.Settings.getSetting\n    LoadYnabCategories", "    Setting = (fun _ -> async.Return None)\n    LoadYnabCategories", "Quick Add ohne Settings"
-                  "LoadYnabCategories = YnabClient.getCategories", "LoadYnabCategories = (fun _ _ -> async.Return (Ok []))", "Quick Add ohne YNAB-Kategorien"
-                  "Push = YnabClient.createTransactionOn http None None None", "Push = (fun _ _ _ _ -> async.Return (Ok \"x\"))", "Quick Add ohne Push"
-                  "quickAddPortsOn YnabClient.sharedHttpClient", "quickAddPortsOn fakeHttp", "Quick Add mit anderem Client"
-                  "NewEntryId = Ledger.Events.newEntryId", "NewEntryId = (fun () -> festeId)", "Quick Add mit fester Id"
-                  "TriggerMirror = Ledger.CommandHandlers.triggerMirrorInBackground", "TriggerMirror = ignore", "Quick Add ohne Spiegel"
+                  "    Setting = Persistence.Settings.getSetting\n    LoadYnabCategories", "    Setting = (fun _ -> async.Return None)\n    LoadYnabCategories", "Erfassen ohne Settings"
+                  "LoadYnabCategories = YnabClient.getCategories", "LoadYnabCategories = (fun _ _ -> async.Return (Ok []))", "Erfassen ohne YNAB-Kategorien"
+                  "NewEntryId = Ledger.Events.newEntryId", "NewEntryId = (fun () -> festeId)", "Erfassen mit fester Id"
+                  "TriggerMirror = Ledger.CommandHandlers.triggerMirrorInBackground", "TriggerMirror = ignore", "Erfassen ohne Spiegel"
                   "entryPushWith Persistence.Settings.getSetting (YnabClient.createTransactionOn YnabClient.sharedHttpClient)", "entryPushWith Persistence.Settings.getSetting fakeCreate", "Erneut senden ohne YNAB"
                   "(YnabClient.createTransactionOn YnabClient.sharedHttpClient)", "(YnabClient.createTransactionOn fakeHttp)", "Erneut senden mit anderem Client"
                   "entryPushWith Persistence.Settings.getSetting", "entryPushWith (fun _ -> async.Return None)", "Erneut senden ohne Settings"

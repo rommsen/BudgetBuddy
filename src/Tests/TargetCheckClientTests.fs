@@ -132,12 +132,11 @@ let private rootModel (pageNow: Page) (budget: Model) : State.Model =
       Toasts = []
       Pwa = Pwa.initialState
       Settings = settingsModel
-      Fetch = Components.Fetch.Types.init; QuickAddCategories = NotAsked
+      Fetch = Components.Fetch.Types.init
       Rules = rulesModel
       Ledger = ledgerModel
       Budget = budget
-      QuickAdd = None
-      QuickAddTemplates = NotAsked; Overview = Components.Overview.Types.init; SettingsReturn = Types.Page.Overview }
+      Overview = Components.Overview.Types.init; SettingsReturn = Types.Page.Overview }
 
 let private dispatched (cmd: Elmish.Cmd<State.Msg>) : State.Msg list =
     let collected = ResizeArray<State.Msg>()

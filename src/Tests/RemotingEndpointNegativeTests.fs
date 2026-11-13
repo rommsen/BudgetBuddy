@@ -207,17 +207,6 @@ let private rows : Row list = [
         restoringSetting "ynab_quickadd_account_id" (fun () ->
             let result = ynabApi.setQuickAddAccount (YnabAccountId (Guid.NewGuid())) |> run
             Expect.isOk result "angenommen") }
-    { Endpoint = "YnabApi.addManualTransaction"; Case = "Betrag 0 und leerer Empfänger werden abgelehnt"
-      Run = fun () ->
-        // Eine unbekannte Kategorie-Id prüft `LedgerCashBookingTests.fs` mit Ports (ledger-bk3q8).
-        ynabApi.addManualTransaction
-            { Amount = 0m; IsOutflow = true; PayeeName = ""; CategoryId = None; Date = DateTime.Today; Memo = None }
-        |> run |> expectError "Buchung" }
-    { Endpoint = "YnabApi.getRecentQuickAddTemplates"; Case = "ohne Einrichtung leere Liste"
-      Run = fun () ->
-        match ynabApi.getRecentQuickAddTemplates () |> run with
-        | Ok templates -> Expect.isEmpty templates "keine Vorlagen"
-        | Error _ -> () }
 
     // ---------------- RulesApi ----------------
     { Endpoint = "RulesApi.getAllRules"; Case = "Leerzustand ohne Absturz"

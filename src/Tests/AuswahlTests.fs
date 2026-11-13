@@ -36,8 +36,9 @@ let private tests =
         ]
 
         testList "Picker-Bausteine" [
-            test "CategoryMultiSelect und BottomSheet nutzen Zeile und Gruppenkopf, nicht Money.available" {
-                for file in [ "CategoryMultiSelect.fs"; "BottomSheet.fs" ] do
+            // ledger-ea70s: der Picker im BottomSheet ist entfallen, der eine Einzel-Picker ist `CategoryPicker`.
+            test "CategoryMultiSelect und CategoryPicker nutzen Zeile und Gruppenkopf, nicht Money.available" {
+                for file in [ "CategoryMultiSelect.fs"; "CategoryPicker.fs" ] do
                     let src = readDs file
                     Expect.isTrue (contains "PickerParts.row" src) $"{file}: PickerParts.row"
                     Expect.isTrue (contains "PickerParts.groupHeader" src) $"{file}: PickerParts.groupHeader"

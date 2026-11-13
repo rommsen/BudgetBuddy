@@ -301,12 +301,11 @@ let private routingTests =
                   Toasts = []
                   Pwa = Pwa.initialState
                   Settings = settingsModel
-                  Fetch = Components.Fetch.Types.init; QuickAddCategories = NotAsked
+                  Fetch = Components.Fetch.Types.init
                   Rules = rulesModel
                   Ledger = ledgerModel
                   Budget = { Components.Budget.Types.init () with Month = month }
-                  QuickAdd = None
-                  QuickAddTemplates = NotAsked; Overview = Components.Overview.Types.init; SettingsReturn = Types.Page.Overview }
+                  Overview = Components.Overview.Types.init; SettingsReturn = Types.Page.Overview }
             Expect.isFalse (State.isPageReady (model Loading)) "lädt"
             Expect.isTrue (State.isPageReady (model (Success monthK7wmd))) "geladen"
             Expect.isTrue (State.isPageReady (model (Failure "x"))) "Fehler ist auch fertig"

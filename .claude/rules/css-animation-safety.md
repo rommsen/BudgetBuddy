@@ -1,7 +1,6 @@
 ---
 paths:
   - "src/Client/styles.css"
-  - "src/Client/Views/**"
 ---
 
 # CSS Animation Safety

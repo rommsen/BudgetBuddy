@@ -8,8 +8,8 @@ open Client.DesignSystem.Icons
 // Orte (Styleguide §7.4, ADR 0087 Punkt 9, design-system-k6kfw)
 // ============================================
 //
-// Drei Orte: Übersicht, Kassenbuch, Budget. Quick Add steht als vierter Eintrag, bis `ledger-ea70s`
-// (Ein Erfassen) es ablöst. Die Einstellungen liegen hinter dem Zahnrad.
+// Drei Orte: Übersicht, Kassenbuch, Budget. Erfasst wird über „+ Buchung“ in Übersicht und Kassenbuch
+// (ledger-ea70s). Die Einstellungen liegen hinter dem Zahnrad.
 //   - unter 768 px: Leiste unten (Prototyp `nav`, `.nav`)
 //   - 768 bis 1023 px: schmale Rail links ohne Konten (Abweichung vom Prototyp, Roman 2026-11-11)
 //   - ab 1024 px: Seitenleiste links mit Marke, Orten, Konten und Einstellungen (Prototyp `sidebar`, `.side`)
@@ -19,7 +19,6 @@ type NavPage =
     | Overview
     | Ledger
     | Budget
-    | QuickAdd
 
 type NavItem = {
     Page: NavPage
@@ -31,7 +30,6 @@ let navItems: NavItem list = [
     { Page = Overview; Label = "Übersicht"; Icon = home }
     { Page = Ledger; Label = "Kassenbuch"; Icon = book }
     { Page = Budget; Label = "Budget"; Icon = pie }
-    { Page = QuickAdd; Label = "Quick Add"; Icon = plus }
 ]
 
 /// Der Stand einer Kontozeile der Seitenleiste.
@@ -101,7 +99,7 @@ let private bottomItem (props: Props) (item: NavItem) =
         ]
     ]
 
-let private bottomBarClass = $"grid grid-cols-4 border-t border-border-default {Backgrounds.dark}"
+let private bottomBarClass = $"grid grid-cols-3 border-t border-border-default {Backgrounds.dark}"
 
 /// Leiste unten am Handy: gleich breite Spalten, Symbol 22 px über Beschriftung 12 px, 60 px plus Safe-Area.
 let bottomBar (props: Props) =

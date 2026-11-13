@@ -9,7 +9,7 @@ module Tests.AppReadinessTests
 // für die Transaktionen).
 //
 // Baut das Modell ohne `State.init` (das die Browser-URL liest und Fable-only ist),
-// nach dem Muster von `QuickAddTests.modelWithForm`.
+// nach dem Muster der Modell-Bauer in den Client-Tests.
 
 open Expecto
 open Types
@@ -23,12 +23,11 @@ let private baseModel (page: Page) : State.Model =
         Toasts = []
         Pwa = Pwa.initialState
         Settings = settingsModel
-        Fetch = Components.Fetch.Types.init; QuickAddCategories = NotAsked
+        Fetch = Components.Fetch.Types.init
         Rules = rulesModel
         Ledger = ledgerModel
         Budget = Components.Budget.State.init ()
-        QuickAdd = None
-        QuickAddTemplates = NotAsked; Overview = Components.Overview.Types.init; SettingsReturn = Types.Page.Overview
+        Overview = Components.Overview.Types.init; SettingsReturn = Types.Page.Overview
     }
 
 [<Tests>]
@@ -139,12 +138,4 @@ let appReadinessTests =
                             Settings = Loading
                             YnabBudgets = Loading } }
             Expect.isFalse (State.isPageReady model) "Settings lädt noch"
-
-        testCase "QuickAdd ist NICHT bereit, solange QuickAddTemplates noch lädt" <| fun () ->
-            let model = { baseModel QuickAdd with QuickAddTemplates = Loading }
-            Expect.isFalse (State.isPageReady model) "QuickAddTemplates lädt noch"
-
-        testCase "QuickAdd ist bereit, wenn QuickAddTemplates geladen sind" <| fun () ->
-            let model = { baseModel QuickAdd with QuickAddTemplates = Success [] }
-            Expect.isTrue (State.isPageReady model) "QuickAddTemplates ist fertig geladen"
     ]

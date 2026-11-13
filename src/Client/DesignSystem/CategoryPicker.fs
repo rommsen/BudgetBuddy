@@ -664,7 +664,8 @@ let private Content (input: ContentProps) =
                             prop.children [
                                 Html.button [
                                     prop.type' "button"
-                                    prop.className $"w-full flex items-center justify-between py-2 {Colors.textSecondary} {FontSizes.xs} font-semibold"
+                                    // Am Handy 48 px Trefferfläche wie jede Zeile im Sheet (§4, ledger-ea70s), ab md kompakt.
+                                    prop.className $"w-full flex items-center justify-between py-2 {TouchTargets.mobileMinHeight} md:min-h-0 {Colors.textSecondary} {FontSizes.xs} font-semibold"
                                     prop.onMouseDown (fun e -> e.preventDefault ())
                                     prop.onClick (fun _ -> setHiddenExpanded (not hiddenExpanded))
                                     prop.children [
@@ -785,7 +786,7 @@ let popoverInPanelRevealed (isOpen: bool) (props: CategoryPickerProps) : ReactEl
         { IsOpen = isOpen; OnClose = props.OnClose; WidthClassName = "w-full" }
         (popoverChildren props)
 
-let private sheetWith (elevated: bool) (markCurrent: bool) (isOpen: bool) (subtitle: string option) (props: CategoryPickerProps) : ReactElement =
+let private sheetWith (markCurrent: bool) (isOpen: bool) (subtitle: string option) (props: CategoryPickerProps) : ReactElement =
     // Das Sheet schließt gleich: ein später synthetischer Klick soll nicht die Liste dahinter
     // treffen (ADR 0005, Click-Commit).
     let closing =
@@ -808,12 +809,12 @@ let private sheetWith (elevated: bool) (markCurrent: bool) (isOpen: bool) (subti
     let children =
         [ if isOpen then
               Content { Picker = closing; FocusSearch = Viewport.isFinePointer (); ListClass = ""; MarkCurrent = markCurrent; FooterHint = None } ]
-    if elevated then BottomSheet.viewLayered sheetProps children
-    else BottomSheet.view sheetProps children
+    BottomSheet.view sheetProps children
 
 /// Der Inhalt des Pickers für ein offenes Sheet, dessen Inhalt er ersetzt (§7.15, Sheets werden nicht gestapelt).
 /// Titel und Schließen stellt das Sheet. Nach der Wahl kehrt das Sheet zu seinem Inhalt zurück; ein später
-/// synthetischer Klick soll dort nichts treffen (ADR 0005). Erster Nutzer: das Sheet einer Regel (categorization-n3sxw).
+/// synthetischer Klick soll dort nichts treffen (ADR 0005). Nutzer: das Sheet einer Regel (categorization-n3sxw),
+/// Neue Buchung, Kategorie und Split im Buchungs-Detail, Geld verschieben im Budget (ledger-ea70s).
 let sheetContent (props: CategoryPickerProps) : ReactElement =
     let returning =
         { props with
@@ -824,20 +825,16 @@ let sheetContent (props: CategoryPickerProps) : ReactElement =
                     props.OnSelect choice }
     Content { Picker = returning; FocusSearch = Viewport.isFinePointer (); ListClass = ""; MarkCurrent = true; FooterHint = None }
 
-/// Hülle für das Handy: BottomSheet mit Titel "Kategorie wählen" und optionaler Unterzeile
-/// (zum Beispiel Payee und Betrag).
+/// Hülle für das Handy, wenn kein anderes Sheet offen ist: BottomSheet mit Titel "Kategorie wählen" und
+/// optionaler Unterzeile (zum Beispiel Payee und Betrag). Aus einem offenen Sheet heraus `sheetContent`.
 let sheet (isOpen: bool) (subtitle: string option) (props: CategoryPickerProps) : ReactElement =
-    sheetWith false true isOpen subtitle props
-
-/// Wie `sheet`, aber auf der erhöhten Ebene, damit der Picker über dem Detail-Sheet liegt
-let sheetLayered (isOpen: bool) (subtitle: string option) (props: CategoryPickerProps) : ReactElement =
-    sheetWith true true isOpen subtitle props
+    sheetWith true isOpen subtitle props
 
 /// Das Sheet für die Auswahl am Handy (ledger-w29y6): wie `sheet`, aber ohne Haken, denn
 /// mehrere Buchungen haben keine gemeinsame aktuelle Kategorie. Die Unterzeile nennt Zahl
 /// und Summe der Auswahl.
 let selectionSheet (isOpen: bool) (subtitle: string option) (props: CategoryPickerProps) : ReactElement =
-    sheetWith false false isOpen subtitle props
+    sheetWith false isOpen subtitle props
 
 // ============================================
 // Karte "Budget nach dem Wechsel"

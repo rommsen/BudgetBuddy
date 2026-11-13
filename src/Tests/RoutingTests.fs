@@ -17,7 +17,6 @@ let private routes : (Page * string list) list =
       LedgerRules, [ "ledger"; "rules" ]
       Settings, [ "settings" ]
       Styleguide, [ "styleguide" ]
-      QuickAdd, [ "quickadd" ]
       Ledger, [ "ledger" ]
       LedgerEntry entryId, [ "ledger"; "entry"; string entryId ]
       Budget, [ "budget" ]
@@ -50,6 +49,14 @@ let routingTests =
             Expect.equal (Routing.parseUrl [ "rules" ]) LedgerRules "alter Pfad"
             Expect.equal (placeOf (Routing.parseUrl [ "rules" ])) (Some LedgerPlace) "Kassenbuch markiert"
 
+        // ledger-ea70s: Quick Add ist kein Ort mehr. Der alte Pfad führt auf die Übersicht und öffnet dort die
+        // Neue Buchung (`opensCapture`, das Öffnen prüft `captureTests` in OverviewTodoTests).
+        testCase "Der alte Pfad von Quick Add führt auf die Übersicht und öffnet die Neue Buchung" <| fun () ->
+            Expect.equal (Routing.parseUrl [ "quickadd" ]) Overview "Übersicht"
+            Expect.isTrue (Routing.opensCapture [ "quickadd" ]) "öffnet die Neue Buchung"
+            Expect.isFalse (Routing.opensCapture []) "die Übersicht selbst nicht"
+            Expect.isFalse (Routing.opensCapture [ "ledger" ]) "das Kassenbuch nicht"
+
         testCase "Ein unbekannter Pfad landet auf der Übersicht" <| fun () ->
             Expect.equal (Routing.parseUrl [ "unbekannt" ]) Overview "ein Segment"
             Expect.equal (Routing.parseUrl [ "foo"; "bar"; "baz" ]) Overview "mehrere Segmente"
@@ -68,14 +75,13 @@ let placeTests =
                   BudgetHistory, Some BudgetPlace
                   BudgetTargetCheck, Some BudgetPlace
                   BudgetCategories, Some BudgetPlace
-                  QuickAdd, Some QuickAddPlace
                   Settings, None
                   Styleguide, None ]
             for page, place in expected do
                 Expect.equal (placeOf page) place (caseName page)
 
         testCase "Ein Ort führt zu seiner Seite und markiert sich dort selbst" <| fun () ->
-            for place in [ OverviewPlace; LedgerPlace; BudgetPlace; QuickAddPlace ] do
+            for place in [ OverviewPlace; LedgerPlace; BudgetPlace ] do
                 Expect.equal (placeOf (placePage place)) (Some place) (string place)
     ]
 
@@ -91,7 +97,6 @@ let backTargetTests =
                   LedgerEntry entryId, None
                   LedgerRules, None
                   Budget, None
-                  QuickAdd, None
                   // Die Budget-Unterseiten führen ihr Zurück selbst (Browser-Schritt oder Budget-Seite).
                   BudgetHistory, None
                   BudgetTargetCheck, None

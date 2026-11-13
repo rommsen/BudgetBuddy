@@ -1451,50 +1451,63 @@ let private demoCategoryData : (string * string * string * decimal) list = [
     "versicherung", "Fixkosten", "Versicherung", -15.50m
 ]
 
-/// Kategorienauswahl-Demo (design-system-y6gkd): `BottomSheet.categoryPicker` mit
-/// erfundenen Beispieldaten. Zeigt in einem offenen Sheet beide Zustände, die Roman
-/// im Kassenbuch nutzt (Ablauf 4 "Kategorie ändern", ledger-xbrht): oben die Chips
-/// "Vorgeschlagen"/"Zuletzt verwendet", darunter die Gruppenliste mit Available
-/// rechts (positiv/negativ/null) und Suchfeld. Die Kategorien sind erfundene,
-/// plausible Beispiele, keine aus Romans echtem Budget.
+/// Kategorienauswahl-Demo (design-system-y6gkd): das Sheet von `CategoryPicker` mit erfundenen Beispieldaten,
+/// Vorschläge, Zuletzt verwendet und die Gruppenliste mit Available rechts. Der alte Picker
+/// `BottomSheet.categoryPicker` ist mit ledger-ea70s entfallen; die Karte `components-categorypicker` zeigt den
+/// einen Picker, den alle Stellen nutzen.
 [<ReactComponent>]
 let private CategoryPickerDemo () =
     let isOpen, setOpen = React.useState false
     let chosen, setChosen = React.useState ""
 
-    let categories : BottomSheet.CategoryPickerOption list =
+    let guidOf (i: int) = Guid.Parse ("00000000-0000-0000-0000-" + (string (1900 + i)).PadLeft(12, '0'))
+    let categories : YnabCategory list =
         demoCategoryData
-        |> List.map (fun (id, group, name, amount) ->
-            { Id = id; Label = $"{group}: {name}"; Available = Some { Amount = amount; Currency = "EUR" } })
+        |> List.mapi (fun i (_, group, name, amount) ->
+            { Id = YnabCategoryId (guidOf (i + 1))
+              Name = name
+              GroupName = group
+              Available = Some { Amount = amount; Currency = "EUR" }
+              Hidden = false })
+    let nameOf (id: YnabCategoryId option) =
+        categories |> List.tryFind (fun c -> Some c.Id = id) |> Option.map (fun c -> c.Name) |> Option.defaultValue ""
+    let props : CategoryPicker.CategoryPickerProps =
+        { Categories = categories
+          Current = None
+          Suggested = [ YnabCategoryId (guidOf 1); YnabCategoryId (guidOf 2) ]
+          Recent = [ YnabCategoryId (guidOf 4) ]
+          Accounts = []
+          CurrentAccount = None
+          AccountsLoad = CategoryPicker.PickerReady
+          OfferWithout = true
+          ToBeBudgeted = None
+          StandLabel = None
+          LoadState = CategoryPicker.PickerReady
+          OnRetry = ignore
+          OnSelect =
+            CategoryPicker.categoryChoice (fun choice ->
+                setChosen (nameOf choice)
+                setOpen false)
+          OnClose = fun () -> setOpen false }
 
     section "19. Kategorienauswahl (Kategorie ändern)" [
         note "Kategorie ändern im Kassenbuch (Ablauf 4, ledger-xbrht): Vorschläge und Zuletzt \
-              verwendet zuerst, darunter alle Kategorien nach Gruppe mit Available rechts (grün \
-              positiv, rot negativ, gedämpft null). Derselbe Picker wie im echten Flow, kein \
-              eigens gebautes Mockup. ADR 0004, ADR 0005, styleguide.md §7.1/§7.2."
+              verwendet zuerst, darunter alle Kategorien nach Gruppe mit Available rechts. Am Handy \
+              als Sheet; aus einem offenen Sheet heraus ersetzt der Picker dessen Inhalt (sheetContent, \
+              §7.15). ADR 0004, ADR 0005, styleguide.md §7.1/§7.2."
         row [
             // data-ds-card-trigger: Export-Skript öffnet den Picker über diesen stabilen
-            // Selektor, bevor es components-categorypicker.html schreibt.
-            // CategoryPickerInternal portalt (wie BottomSheet) nach document.body, ein
-            // umschließendes data-ds-card würde den Picker also nicht mit erfassen.
+            // Selektor, bevor es components-categorypicker.html schreibt. Das Sheet portalt
+            // nach document.body, ein umschließendes data-ds-card würde es nicht erfassen.
             Html.span [
                 prop.custom ("data-ds-card-trigger", "components-categorypicker")
                 prop.custom ("data-ds-card-name", "Kategorienauswahl")
-                prop.custom ("data-ds-card-subtitle", "Sheet mit Chips für Vorschläge und Zuletzt verwendet sowie Gruppenliste mit Available")
+                prop.custom ("data-ds-card-subtitle", "Sheet mit Vorschlägen, Zuletzt verwendet und Gruppenliste mit Available")
                 prop.children [ Button.secondary "Kategorie wählen" (fun () -> setOpen true) ]
             ]
             if chosen <> "" then Badge.info chosen
         ]
-        BottomSheet.categoryPicker
-            isOpen
-            "REWE Markt"
-            categories
-            [ "lebensmittel"; "freizeit" ]
-            [ "miete" ]
-            (fun catId ->
-                setChosen catId
-                setOpen false)
-            (fun () -> setOpen false)
+        CategoryPicker.sheet isOpen (Some "REWE Markt") props
     ]
 
 /// Kategorie-Picker mit Einfachauswahl (design-system-gffps): Popover (PC) und Sheet (Handy)
@@ -1682,7 +1695,7 @@ let private CategoryPickerSingleDemo () =
         ]
         CategoryPicker.sheet sheetOpen (Some "REWE Markt · -42,10 €") (pickerProps (fun () -> setSheetOpen false))
         subTitle "Auswahl ersetzt den Inhalt des Sheets"
-        note "sheetContent: aus einem offenen Sheet heraus ersetzt der Picker dessen Inhalt, Titel und Schließen stellt das Sheet. Nach der Wahl oder beim Schließen kehrt das Sheet zu seinem Inhalt zurück. Zielzustand gegenüber sheetLayered (§7.15)."
+        note "sheetContent: aus einem offenen Sheet heraus ersetzt der Picker dessen Inhalt, Titel und Schließen stellt das Sheet. Nach der Wahl oder beim Schließen kehrt das Sheet zu seinem Inhalt zurück (§7.15). So arbeiten Neue Buchung, Buchungs-Detail, Split und Geld verschieben."
         Html.span [
             prop.custom ("data-ds-demo", "category-picker-sheet-content-trigger")
             prop.children [ Button.secondary "Sheet einer Regel öffnen (Handy)" (fun () -> setRuleSheetOpen true) ]
@@ -1857,8 +1870,8 @@ let private SplitEditorDemo () =
               einzigen Zeile gesperrt. Speichern ist erst bei Rest 0,00 € aktiv, Zeile hinzufügen \
               dann ausgegraut. Ein abgelehntes Speichern steht über Speichern im Fuß, kein Toast. Genau eine primäre Aktion (Speichern). Das Ziel einer Zeile wählt ein \
               einziger Picker: Kategorien und darunter der Abschnitt Übertrag auf Konto, die Suche läuft \
-              über beides, das Präfix Konto: zeigt nur Konten. Am PC als Popover, am Handy als zweites \
-              Sheet. ADR 0005, ADR 0006, ADR 0049."
+              über beides, das Präfix Konto: zeigt nur Konten. Am PC als Popover, am Handy ersetzt er den \
+              Inhalt des Sheets (sheetContent, §7.15). ADR 0005, ADR 0006, ADR 0049."
         Html.div [
             prop.custom ("data-ds-demo", "split-editor")
             prop.className "max-w-md rounded-xl border border-border-subtle overflow-hidden"
@@ -1889,7 +1902,7 @@ let private SplitEditorDemo () =
             ]
             if chosenTarget <> "" then Badge.info chosenTarget
         ]
-        CategoryPicker.sheetLayered targetSheetOpen None (targetProps (fun () -> setTargetSheetOpen false))
+        CategoryPicker.sheet targetSheetOpen None (targetProps (fun () -> setTargetSheetOpen false))
         Html.div [
             prop.custom ("data-ds-demo", "split-editor-mobile-save")
             prop.className "max-w-sm"
@@ -2038,7 +2051,7 @@ let private SegmentedDemo () =
     let segment label =
         Segmented.segment label (active = label) (fun () -> setActive label)
     section "23b. Segmented, Schritte und Zeilen von und nach" [
-        note "Umschalter mit aria-pressed, aktiv im Akzent. Schritte halten den Fokus im Feld daneben, Segmente mit KeepsFocus auch. Die wählbare Zeile öffnet am Handy sheetLayered, im Panel CategoryPicker.popoverInPanelRevealed. styleguide.md §5."
+        note "Umschalter mit aria-pressed, aktiv im Akzent. Schritte halten den Fokus im Feld daneben, Segmente mit KeepsFocus auch. Die wählbare Zeile ersetzt am Handy den Inhalt des Sheets (sheetContent), im Panel CategoryPicker.popoverInPanelRevealed. styleguide.md §5."
         Html.div [
             prop.custom ("data-ds-card", "components-segmented")
             prop.custom ("data-ds-card-name", "Segmented")

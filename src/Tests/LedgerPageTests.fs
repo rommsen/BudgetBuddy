@@ -1411,7 +1411,7 @@ let private erstlaufTests =
             // `Styleguide` ist reine Galerie und laedt bewusst nichts.
             let datentragend =
                 [ Types.Page.LedgerRules; Types.Page.Settings
-                  Types.Page.Ledger; Types.Page.QuickAdd ]
+                  Types.Page.Ledger ]
             for page in datentragend do
                 let msgs = dispatched (State.pageLoadCmd page)
                 Expect.isNonEmpty msgs $"%A{page} muss beim Betreten etwas laden"
@@ -1472,12 +1472,11 @@ let private rootModel (page: Types.Page) : State.Model =
         Toasts = []
         Pwa = Pwa.initialState
         Settings = settingsModel
-        Fetch = Components.Fetch.Types.init; QuickAddCategories = NotAsked
+        Fetch = Components.Fetch.Types.init
         Rules = rulesModel
         Ledger = ledgerModel
         Budget = Components.Budget.State.init ()
-        QuickAdd = None
-        QuickAddTemplates = NotAsked; Overview = Components.Overview.Types.init; SettingsReturn = Types.Page.Overview
+        Overview = Components.Overview.Types.init; SettingsReturn = Types.Page.Overview
     }
 
 let private visibilityTests =
@@ -3621,13 +3620,6 @@ let private staleAnswerTests =
             let shown = { freshModel () with TransferTargets = Success [] }
             Expect.equal (update (TransferTargetsLoaded (Error "x")) shown).TransferTargets (Success []) "bleibt"
             Expect.equal (update (TransferTargetsLoaded (Error "x")) { shown with TransferTargets = Loading }).TransferTargets (Failure "x") "ohne Stand gilt der Fehler"
-
-        testCase "Ein spätes Scheitern ersetzt fertige Quick-Add-Vorlagen nicht" <| fun () ->
-            let shown = { rootModel Types.Page.Ledger with QuickAddTemplates = Success [] }
-            let kept, _ = State.update (State.QuickAddTemplatesLoaded (Error "x")) shown
-            Expect.equal kept.QuickAddTemplates (Success []) "bleiben"
-            let failed, _ = State.update (State.QuickAddTemplatesLoaded (Error "x")) { shown with QuickAddTemplates = Loading }
-            Expect.equal failed.QuickAddTemplates (Failure "x") "ohne Stand gilt der Fehler"
     ]
 
 // Tab „Regeln“ im Kassenbuch (categorization-n3sxw): Scrollstand der Buchungen im Modell und der Kopf je Tab.

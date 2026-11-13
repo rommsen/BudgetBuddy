@@ -16,14 +16,12 @@ let private toNavPage (place: Place) : Navigation.NavPage =
     | OverviewPlace -> Navigation.Overview
     | LedgerPlace -> Navigation.Ledger
     | BudgetPlace -> Navigation.Budget
-    | QuickAddPlace -> Navigation.QuickAdd
 
 let private fromNavPage (navPage: Navigation.NavPage) : Page =
     match navPage with
     | Navigation.Overview -> Overview
     | Navigation.Ledger -> Ledger
     | Navigation.Budget -> Budget
-    | Navigation.QuickAdd -> QuickAdd
 
 /// Die Kontozeilen der Seitenleiste: „Alle Konten“ und jedes Konto, dieselben Karten wie im Kassenbuch.
 /// Markiert ist das gewählte Konto nur, solange das Kassenbuch offen ist. Laden, Fehler und leere Liste nach
@@ -151,14 +149,6 @@ let view (model: Model) (dispatch: Msg -> unit) =
                                     (back ())
                                     model.Settings
                                     (SettingsMsg >> dispatch)
-                            | QuickAdd ->
-                                // Standalone Quick Add page. Categories load at startup;
-                                // templates are the recent Quick-Add bookings (ynab-t4n8p).
-                                Views.QuickAddPage.view
-                                    model.QuickAdd
-                                    (RemoteData.toOption model.QuickAddCategories |> Option.defaultValue [])
-                                    model.QuickAddTemplates
-                                    dispatch
                             | Review ->
                                 Components.Ledger.View.ReviewPage
                                     model.Ledger

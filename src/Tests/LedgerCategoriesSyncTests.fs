@@ -35,12 +35,11 @@ let private baseModel (page: Page) : State.Model =
         Toasts = []
         Pwa = Pwa.initialState
         Settings = settingsModel
-        Fetch = Components.Fetch.Types.init; QuickAddCategories = NotAsked
+        Fetch = Components.Fetch.Types.init
         Rules = rulesModel
         Ledger = ledgerModel
         Budget = Components.Budget.State.init ()
-        QuickAdd = None
-        QuickAddTemplates = NotAsked; Overview = Components.Overview.Types.init; SettingsReturn = Types.Page.Overview
+        Overview = Components.Overview.Types.init; SettingsReturn = Types.Page.Overview
     }
 
 let private settingsWithBudget : AppSettingsView = {

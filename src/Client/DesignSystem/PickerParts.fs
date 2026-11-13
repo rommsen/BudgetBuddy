@@ -1,6 +1,6 @@
 /// Gemeinsame Bausteine der Kategorie-Auswahlen (design-system-zahv9, ADR 0049):
 /// Zeile, Gruppenkopf, Suchfeld und Footer. `CategoryMultiSelect` (Popover, Mehrfach)
-/// und `BottomSheet.categoryPicker` (Sheet, Einfach) bauen beide darauf auf. Das
+/// und `CategoryPicker` (Einfach) bauen beide darauf auf. Das
 /// Verhalten (Checkbox und Übernehmen, Tippen und Schließen, ADR-0005-Mechanik)
 /// bleibt bei den Aufrufern.
 module Client.DesignSystem.PickerParts
