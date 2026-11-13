@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-11-13 19:04 -- Modeling / Refined: infrastructure-ewasy - README-Delta-Gate meldet alten Wortlaut
+
+**Type:** Modeling / Refine
+**BC:** infrastructure
+**Status after:** todo
+**Summary:** Kriterium 7 in scripts/readme-delta-check.mjs: seltene Backtick-Begriffe und „…“-Sätze aus einem ersetzten expected, die woanders stehen bleiben, ergeben Exit 1; Ausweg --keep mit Grund im OUTCOME; Liste „ganz nachlesen“ für Key commands, Key events und Ereignisse. Entschieden (Roman, 2026-11-13): Exit 1 mit --keep. Anlass: learn nach ledger-ay81j.
+
+---
+
 ## 2026-11-13 19:02 -- Review-Lauf: 248b089a..HEAD (ledger-ay81j)
 
 **Type:** Review / Review-Lauf

@@ -8,8 +8,8 @@ created: 2026-11-08
 completed:
 depends_on: []
 blocks: []
-tags: [captured]
-related_adrs: []
+tags: [laufend, harness]
+related_adrs: [0040]
 related_research: []
 prior_art: []
 ---
@@ -22,12 +22,51 @@ und im Protokoll als "README-Bullets Push-Fehlschlag und Schreib-Sperre nennen d
 nachgezogen".
 
 ## What
-`scripts/readme-delta-check.mjs` bekommt ein siebtes Kriterium: Begriffe in Backticks und Sätze in „…“, die ein
-replace aus `expected` entfernt und die nicht im `body` stehen, dürfen sonst in der README nicht mehr vorkommen.
-Sonst Exit 1 mit Fundstelle. Gegenbeweis in der zugehörigen `.test.mjs`.
+`scripts/readme-delta-check.mjs` bekommt ein siebtes Kriterium „alter Wortlaut bleibt stehen“ und eine Liste „ganz
+nachlesen“. Entschieden (Roman, 2026-11-13): Treffer lassen das Gate durchfallen (Exit 1), mit einem bewussten Ausweg
+`--keep`.
+
+### Kriterium 7 (Exit 1)
+Für jedes `replace`-Op des Deltas:
+- **Kandidaten** sind die Begriffe in Backticks und die Sätze in „…“ aus `expected`, die in keinem `body` des ganzen Deltas
+  vorkommen (über alle Ops und Abschnitte).
+- **Selten** ist ein Backtick-Begriff, der in der README nach dem Anwenden des ganzen Deltas höchstens dreimal steht.
+  Häufige Begriffe (etwa `import_id`) sind keine Treffer. Ein „…“-Satz zählt immer, egal wie oft.
+- **Treffer:** ein seltener Kandidat oder ein „…“-Satz, der in der README nach dem Anwenden noch irgendwo steht (ganze Datei:
+  alle Abschnitte, auch `## Key commands`, `## Key events`, `## Ereignisse`, Open questions, Bullets ohne fetten Kopf).
+  Vergleich nach `collapseWs`, also über Zeilenumbrüche hinweg.
+- Ausgabe je Treffer: Begriff, das Op (Abschnitt und Anker), Zeilennummer(n) der Fundstelle in der README nach dem Anwenden.
+  Exit 1 mit dem Grund „alter Wortlaut bleibt stehen“.
+- **`--keep "<begriff>"`** (mehrfach erlaubt) nimmt einen Begriff bewusst aus. Das Gate druckt jeden genutzten `--keep`. Ein
+  `--keep`, das keinen Treffer abdeckt, ist eine ungültige Eingabe (Exit 2), damit keine toten Ausnahmen liegen bleiben.
+
+### Liste „ganz nachlesen“ (immer, ohne Einfluss auf den Exit-Code)
+Jeder Eintrag unter `## Key commands`, `## Key events` und `## Ereignisse` (Bullet mit kursivem oder Backtick-Kopf), der
+einen seltenen Backtick-Begriff mit dem `expected` oder `body` eines `replace` teilt, steht mit Kopf und Zeilennummer in
+einer Liste. Grund: ledger-ay81j Iteration 2, *PushErneutSenden* beschrieb das alte Verhalten umformuliert, ohne
+gemeinsamen seltenen Begriff mit dem ersetzten Satz, aber mit dem gemeinsamen Befehl `retryPushToYnab`.
+
+### Doku
+- Der Hilfetext des Skripts nennt Kriterium 7, `--keep` und die Liste.
+- `CLAUDE.md`, Abschnitt README-Deltas: Die Prosa-Regel zum Grep über die ganze README wird durch einen Satz zum neuen
+  Kriterium ersetzt. Dazu: Jeder `--keep` steht mit Grund im OUTCOME, jeder Eintrag der Liste „ganz nachlesen“ steht im
+  OUTCOME mit „passt“ oder „nachgezogen“.
 
 ## Acceptance criteria
-- [ ] To be defined during refinement.
+- [ ] Kriterium 7: ein Delta, das einen Bullet mit einem seltenen Backtick-Begriff ersetzt, der woanders in der README stehen
+      bleibt, ergibt Exit 1 mit Begriff und Zeilennummer. Gegenfall: derselbe Begriff steht im `body` eines Ops, Exit 0.
+- [ ] Ein „…“-Satz aus `expected`, der woanders stehen bleibt, ergibt Exit 1, auch wenn er über einen Zeilenumbruch läuft.
+- [ ] Häufige Begriffe (mehr als dreimal nach dem Anwenden) ergeben keinen Treffer.
+- [ ] `--keep "<begriff>"` nimmt genau diesen Treffer aus und wird ausgegeben. Ein `--keep` ohne Treffer ergibt Exit 2.
+- [ ] Die Liste „ganz nachlesen“ nennt Key commands, Key events und Ereignisse mit gemeinsamem seltenen Backtick-Begriff,
+      mit Kopf und Zeilennummer, und ändert den Exit-Code nicht.
+- [ ] Gegenbeweise in `scripts/readme-delta-check.test.mjs` mit erfundenen README-Fixtures, je Kriterium ein Treffer und ein
+      Gegenfall. Ein Fixture bildet den Fall ledger-ay81j Iteration 1 nach (Begriff bleibt in einem anderen Bullet), eines
+      Iteration 2 (Key command mit gemeinsamem Befehl landet in der Liste).
+- [ ] Die echte ledger-README auf `main` mit einem leeren Delta (`[]`) ergibt Exit 0, ohne Ausgabe in der Liste.
+- [ ] Hilfetext und `CLAUDE.md` (Abschnitt README-Deltas) beschreiben Kriterium 7, `--keep` und die Liste. Die Kopplung von
+      Skriptpfad und Text in CLAUDE.md bleibt grün.
+- [ ] `./verify.sh` meldet `VERIFY: PASS`.
 
 ## Notes
 Captured via `quick-capture` on 2026-11-08 aus dem `learn`-Lauf nach dem Review-Lauf e83f2d00..ad18f0c9, raw,
@@ -44,3 +83,9 @@ die Buchung eine trägt“: umformuliert, kein gemeinsamer seltener Begriff. Fol
   (kursiv oder in Backticks) im `expected` oder `body` eines replace vorkommt, wird mit Zeilennummer als
   „ganz nachlesen“ ausgegeben. Der Worker nennt im OUTCOME je Eintrag „passt“ oder „nachgezogen“.
 - Damit wird die Task vom Kann- zum Alltagsfall: drei Verifier-Iterationen kosten mehr als der Wächter.
+
+Verfeinert 2026-11-13: Kriterium mit Exit 1 und `--keep` (Roman). Schwelle „selten“ = höchstens dreimal nach dem
+Anwenden; der Worker darf sie begründet anpassen, wenn die echten READMEs (ledger, budgeting) sonst Fehlalarme liefern, und
+nennt das im OUTCOME. Ort im Skript: neben `evaluateOp`, Auswertung nach dem Anwenden aller Ops; `collapseWs` und
+`findBulletBlocks` gibt es schon. Durchsetzung: das Gate selbst (Agentheim ADR 0059, mechanize-or-drop), die Prosa in CLAUDE.md
+beschreibt nur noch den Aufruf.
