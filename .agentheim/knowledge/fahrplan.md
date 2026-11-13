@@ -3,7 +3,7 @@
 Stand 2026-11-07. Grundlage: ADR 0086, `vision.md` Abschnitt „What success looks like“.
 
 ## Stand
-Zuletzt aktualisiert: 2026-11-13, nach work-Lauf ledger-nkwqb und banking-import-pknvp.
+Zuletzt aktualisiert: 2026-11-13, nach work-Lauf und Review ledger-ay81j.
 
 - **Etappe 1 · Bedeutungen:** erledigt, 5 von 5 (Skizze und Prototyp, Layout-Sweep, Muster im
   Styleguide, Designwert-Tests aufgeräumt, Palette 2 im Token-Layer). Romans Blick auf dak16 neben
@@ -96,7 +96,16 @@ Zuletzt aktualisiert: 2026-11-13, nach work-Lauf ledger-nkwqb und banking-import
 - **Deployt 2026-11-13 (248b089a):** ledger-nkwqb, banking-import-pknvp, ledger-nnd2f samt Review-Fix. Health-Check grün.
   Erster Spiegel-Lauf in der Produktion geprüft: Vollabruf-Marker gesetzt, zwei Zusammenlegungen, alle Kontostände gleich
   YNAB. Roman: sieht gut aus.
-- **Nächster Schritt:** ledger-ay81j verfeinern (Geld), dann Schnitt 6
+- **Work-Lauf ledger-ay81j (2026-11-13):** in BB erfasste Buchungen (Quick Add, Bob, Neue Buchung) gehen beim ersten Push
+  und beim Erneut senden ohne `import_id` an YNAB, der Spiegel verknüpft eine offene Erfassung nach Konto, Tag, Betrag und
+  Payee, Erneut senden lässt vorher den Spiegel laufen (5e0925b1). Verifier PASS in Iteration 3, beide FAILs nur README.
+  Review-Lauf mit backend-code-quality und qa-milestone-reviewer, Fixes 26a549cd und 7090252f. Entschieden (Roman): Ersatz und
+  Wiederherstellen einer Erfassung wieder mit Ersatz-`import_id` vom Stamm `BB:<EntryId>` (sonst legt ein Wiederholen nach
+  verlorener Antwort in YNAB eine zweite Buchung an), Korrektur in ADR 0058 und 0092. Behoben außerdem: doppelte Verknüpfung
+  im Lauf, wenn die Beobachtung ohne `import_id` vor der mit `import_id` kam. Gate auf main: VERIFY: PASS (dotnet 4986, node
+  322). Probelauf gegen eine frische Kopie der Produktion: keine Änderung, kein Fehler. Learn: infrastructure-ewasy
+  (Delta-Gate meldet alten Wortlaut) nachgeschärft, wird verfeinert. Nicht gepusht, nicht deployt.
+- **Nächster Schritt:** Deploy von ledger-ay81j auf Romans „Ja“, dann infrastructure-ewasy verfeinern und bauen, dann Schnitt 6
   `categorization-n3sxw` (Regeln ins Kassenbuch). Offen zum Verfeinern: ledger-yhemh (Memo unter Datum), ledger-h7de3
   (Fehlertexte in Ereignissen), design-system-vf94m (Toast verdeckt „+ Buchung“), ledger-t4rk8 (Betrag eines Übertrags in BB).
 - Verfeinert wird nur die nächste Etappe. Spätere Etappen haben Zeilen, keine Tickets.

@@ -5,6 +5,18 @@ Newest entries on top.
 
 ---
 
+## 2026-11-13 19:02 -- Review-Lauf: 248b089a..HEAD (ledger-ay81j)
+
+**Type:** Review / Review-Lauf
+**Bereich:** 5e0925b1
+**Agents:** backend-code-quality, qa-milestone-reviewer
+**Funde:** behoben 18, verworfen 1, Rückfrage 1 (Ersatz mit :r<n>, Roman: übernehmen), Ticket 0, Kann-Sammlung 1 (Punkt 115)
+**Commits:** 26a549cd, 7090252f
+**Verworfen:** survivorBeforeRun mit OpenCapture-Treffer ist unerreichbar (Kandidaten tragen keine matched_transaction_id)
+**Verifikation:** VERIFY: PASS (dotnet 4986 grün, node 322 grün); Probelauf gegen frische Kopie der Produktion ohne Änderung
+
+---
+
 ## 2026-11-13 17:05 -- Work session ended
 
 **Type:** Work / Session end
