@@ -1,7 +1,7 @@
 ---
 id: ledger-nkwqb
 title: "Von YNAB abgeglichene Buchung bleibt im Kassenbuch doppelt: der Spiegel liest matched_transaction_id nicht und legt die zusammengelegte Buchung nicht still (Ledger/Domain.fs, Ledger/CommandHandlers.fs)"
-status: backlog
+status: todo
 type: bug
 context: ledger
 created: 2026-11-13

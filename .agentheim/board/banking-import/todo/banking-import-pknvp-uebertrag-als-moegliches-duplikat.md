@@ -1,7 +1,7 @@
 ---
 id: banking-import-pknvp
 title: "Ein YNAB-Übertrag mit gleichem Betrag und Tag gilt beim Import nicht als mögliches Duplikat, weil der Payee nicht passt (DuplicateDetection.fs)"
-status: backlog
+status: todo
 type: bug
 context: banking-import
 created: 2026-11-13

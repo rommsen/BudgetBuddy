@@ -10,14 +10,15 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 11
-- **Todo:** 0
+- **Backlog:** 10
+- **Todo:** 1
 - **Doing:** 0
 - **Done:** 132
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **ledger-nkwqb** — "Von YNAB abgeglichene Buchung bleibt im Kassenbuch doppelt: der Spiegel liest matched_transaction_id nicht und legt die zusammengelegte Buchung nicht still (Ledger/Domain.fs, Ledger/CommandHandlers.fs)" (bug) — `todo/ledger-nkwqb-abgleich-in-ynab-und-uebertrag-als-duplikat.md`
 <!-- todo-list:end -->
 
 ### Doing
@@ -62,7 +63,6 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
-- **ledger-nkwqb** — "Von YNAB abgeglichene Buchung bleibt im Kassenbuch doppelt; ein Übertrag gilt beim Import nicht als mögliches Duplikat" (bug) — `backlog/ledger-nkwqb-abgleich-in-ynab-und-uebertrag-als-duplikat.md`
 - **ledger-yhemh** — "Neue Buchung am Handy: Memo steht neben dem Datum statt darunter" (bug) — `backlog/ledger-yhemh-memo-unter-datum-am-handy.md`
 - **ledger-h7de3** — "Fehlertexte in Ereignissen: fehlendes Token als „nicht eingerichtet“, YNAB-Rohtext nur ins Log, Token- und Budget-Zugriff an einer Stelle" (bug) — `backlog/ledger-h7de3-fehlertexte-in-ereignissen.md`
 - **ledger-f8d7x** — "Kassenbuch ordnen: am Handy Filter-Knopf mit Sheet und Chips statt zwei wischender Leisten, am PC Seitenleiste mit Konten, Seitenpanel und Historie wie im Budget" (feature) — `backlog/ledger-f8d7x-kassenbuch-ordnen.md`

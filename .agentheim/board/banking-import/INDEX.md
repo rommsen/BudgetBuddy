@@ -10,14 +10,15 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 5
-- **Todo:** 0
+- **Backlog:** 4
+- **Todo:** 1
 - **Doing:** 0
 - **Done:** 9
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **banking-import-pknvp** — "Ein YNAB-Übertrag mit gleichem Betrag und Tag gilt beim Import nicht als mögliches Duplikat, weil der Payee nicht passt (DuplicateDetection.fs)" (bug) — `todo/banking-import-pknvp-uebertrag-als-moegliches-duplikat.md`
 <!-- todo-list:end -->
 
 ### Doing
@@ -39,7 +40,6 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
-- **banking-import-pknvp** — "Ein YNAB-Übertrag mit gleichem Betrag und Tag gilt beim Import nicht als mögliches Duplikat, weil der Payee nicht passt (DuplicateDetection.fs)" (bug) — `backlog/banking-import-pknvp-uebertrag-als-moegliches-duplikat.md`
 - **banking-import-r28hx** — "Alle Konten per FinTS selbst abrufen (zuerst ING), damit YNABs eigener Abruf und Abgleich wegfallen" (feature) — `backlog/banking-import-r28hx-fints-fuer-alle-konten.md`
 - **banking-import-asr13** — "Kann-Sammlung banking-import" (chore) — `backlog/banking-import-asr13-kann-sammlung-banking-import.md`
 - **banking-import-r9tfx** — "Verlust der Bankverbindung per Web-Push melden" (feature) — `backlog/banking-import-r9tfx-verlust-der-bankverbindung-per-web-push-melden.md`
