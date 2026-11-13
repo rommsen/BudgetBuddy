@@ -7,348 +7,362 @@ open Components.Rules.Types
 open Types
 open Shared.Domain
 
-
-/// Nach so vielen Millisekunden fällt die Rückfrage "Löschen" einer Regel von selbst zurück.
-let ruleDeleteConfirmMs = 3000
-
 let init () : Model * Cmd<Msg> =
-    let model = {
-        Rules = NotAsked
-        EditingRule = None
-        IsNewRule = false
-        Categories = []
-        Form = RuleFormState.empty
-        ConfirmingDeleteRuleId = None
-        MenuOpen = false
-    }
-    let cmd = Cmd.batch [
-        Cmd.ofMsg LoadRules
-        Cmd.ofMsg LoadCategories
-    ]
-    model, cmd
+    { Rules = NotAsked; LoadVersion = 0; Categories = []; Panel = None }, Cmd.none
 
-/// Schließt den Dialog "Neue Regel" bzw. "Regel bearbeiten" und leert das Formular
-let closeRuleDialog (model: Model) : Model =
-    { model with
-        EditingRule = None
-        IsNewRule = false
-        Form = RuleFormState.empty
-        ConfirmingDeleteRuleId = None
-    }
+// ============================================
+// Reine Hilfen
+// ============================================
 
-/// Der Mustertest im Dialog. `call` ist der Remoting-Aufruf, unter .NET ein Ersatz: jede Ausnahme ist
-/// ein Netzfehler und kein Urteil über das Muster (Bug categorization-f955d).
+let private blank (text: string) = String.IsNullOrWhiteSpace text
+
+/// Die Anfrage an `testRule` für die Eingaben im Formular. Ohne Text oder ohne Muster gibt es nichts zu prüfen.
+let testRequestOf (draft: RuleDraft) : TestRequest option =
+    if blank draft.TestInput || blank draft.Pattern then
+        None
+    else
+        Some { Pattern = draft.Pattern; PatternType = draft.PatternType; TargetField = draft.TargetField; Input = draft.TestInput }
+
+/// Die Pflichtfelder als (Label, Wert) für `Form.submitButton`: der Knopf ist gesperrt und nennt, was fehlt.
+let requiredFieldPairs (draft: RuleDraft) : (string * string) list =
+    [ ("Muster", draft.Pattern)
+      ("Kategorie", draft.CategoryId |> Option.map (fun _ -> "gewählt") |> Option.defaultValue "") ]
+
+/// Ein leerer Name wird beim Speichern zum Muster.
+let savedName (draft: RuleDraft) : string =
+    if blank draft.Name then draft.Pattern.Trim() else draft.Name.Trim()
+
+/// Die neue Regel aus dem Formular. Die Priorität vergibt der Server, die Regel steht danach vorn.
+let buildNewRule (draft: RuleDraft) (categoryId: YnabCategoryId) : NewRule = {
+    Name = savedName draft
+    Pattern = draft.Pattern
+    PatternType = draft.PatternType
+    TargetField = draft.TargetField
+    CategoryId = categoryId
+    PayeeOverride = None
+    Enabled = draft.Enabled
+}
+
+/// Die Änderung aus dem Formular. Ein Payee-Override hat kein Feld mehr in der Oberfläche: wer einen trägt,
+/// behält ihn (`Keep`).
+let buildRuleChange (rule: Rule) (draft: RuleDraft) (categoryId: YnabCategoryId) : RuleChange = {
+    Id = rule.Id
+    Name = Some (savedName draft)
+    Pattern = Some draft.Pattern
+    PatternType = Some draft.PatternType
+    TargetField = Some draft.TargetField
+    CategoryId = Some categoryId
+    PayeeOverride = PayeeOverrideChange.Keep
+    Priority = None
+    Enabled = Some draft.Enabled
+}
+
+let private panelFor (editor: Editor) : Panel =
+    let draft =
+        match editor with
+        | NewRule -> RuleDraft.empty
+        | Editing rule -> RuleDraft.fromRule rule
+    { Editor = editor; Draft = draft; Save = NotSaving; Test = NothingToTest; PickerOpen = false }
+
+/// Wo steht der Fokus, wenn eine Taste kommt? In einem Textfeld gehören die Pfeile dem Cursor (§7.8).
+type KeyFocus =
+    | InTextField
+    | Elsewhere
+
+/// Was eine Taste am PC auf dem Tab „Regeln“ auslöst.
+type RuleKey =
+    | ShowRule of RuleId
+    | CloseRulePanel
+    | CloseRulePicker
+
+/// Die Tastenlogik am PC (§7.8, ADR 0087 Punkte 18 und 19): ↓ ohne Auswahl öffnet die erste, ↑ die letzte Regel,
+/// danach die nächste bzw. vorige; in einem Textfeld gehören die Pfeile dem Cursor. Esc schließt zuerst die
+/// Auswahl der Kategorie, dann das Panel. Mit Alt, Strg oder Cmd und nach `defaultPrevented` reagiert sie nicht.
+let ruleKeyAction (model: Model) (focus: KeyFocus) (modifier: bool) (handled: bool) (key: string) : RuleKey option =
+    let pickerOpen = model.Panel |> Option.exists (fun p -> p.PickerOpen)
+    if handled || modifier then
+        None
+    else
+        match key with
+        | "Escape" when pickerOpen -> Some CloseRulePicker
+        | "Escape" when model.Panel.IsSome -> Some CloseRulePanel
+        | ("ArrowDown" | "ArrowUp") when not pickerOpen && focus = Elsewhere ->
+            match model.Rules with
+            | Success rules when not rules.IsEmpty ->
+                let last = rules.Length - 1
+                let current =
+                    match model.Panel with
+                    | Some { Editor = Editing rule } -> rules |> List.tryFindIndex (fun r -> r.Id = rule.Id)
+                    | _ -> None
+                let target =
+                    match key, current with
+                    | "ArrowDown", None -> 0
+                    | "ArrowDown", Some i -> min last (i + 1)
+                    | _, None -> last
+                    | _, Some i -> max 0 (i - 1)
+                if Some target = current then None else Some (ShowRule rules.[target].Id)
+            | _ -> None
+        | _ -> None
+
+// ============================================
+// Aufrufe (hinter Lambdas: unter .NET wirft der Remoting-Proxy im Typinitialisierer)
+// ============================================
+
+/// Der Muster-Test. `call` ist der Remoting-Aufruf, im Test ein Ersatz. Die Antwort trägt ihre Anfrage mit;
+/// eine Ausnahme ist ein Netzfehler und kein Urteil über das Muster (Bug categorization-f955d).
 let testPatternCmd
     (call: string * PatternType * TargetField * string -> Async<Result<bool, RulesError>>)
-    (form: RuleFormState)
+    (request: TestRequest)
     : Cmd<Msg> =
     Cmd.OfAsync.either
         call
-        (form.Pattern, form.PatternType, form.TargetField, form.TestInput)
-        RulePatternTested
-        (fun _ -> RulePatternTestLost)
+        (request.Pattern, request.PatternType, request.TargetField, request.Input)
+        (fun result -> PatternTested (request, result))
+        (fun _ -> PatternTestLost request)
+
+let private liveTest (args: string * PatternType * TargetField * string) =
+    Retry.reading Api.rules.testRule args
+
+let private loadCmd (version: int) : Cmd<Msg> =
+    Cmd.OfAsync.either
+        (fun () -> Retry.reading Api.rules.getAllRules ())
+        ()
+        (fun rules -> RulesLoaded (version, Ok rules))
+        (fun ex -> RulesLoaded (version, Error ex.Message))
+
+let private unreachable (operation: string) (ex: exn) = RulesError.DatabaseError (operation, ex.Message)
+
+// ============================================
+// update
+// ============================================
+
+/// Eine Änderung an der geladenen Liste: sie gilt sofort, eine ältere Ladeantwort danach zählt nicht mehr.
+let private withRules (rules: Rule list) (model: Model) : Model =
+    { model with Rules = Success rules; LoadVersion = model.LoadVersion + 1 }
+
+let private mapRules (change: Rule list -> Rule list) (model: Model) : Model =
+    match model.Rules with
+    | Success rules -> withRules (change rules) model
+    | _ -> model
+
+/// Nach einer Änderung an Muster, Art, Feld oder Testtext: ein Urteil zu anderen Eingaben gilt nicht mehr.
+let private retest (panel: Panel) : Panel * Cmd<Msg> =
+    match testRequestOf panel.Draft with
+    | None -> { panel with Test = NothingToTest }, Cmd.none
+    | Some request ->
+        match panel.Test with
+        | Testing current
+        | Tested (current, _) when current = request -> panel, Cmd.none
+        | _ -> { panel with Test = Testing request }, testPatternCmd liveTest request
+
+let private withPanel (model: Model) (change: Panel -> Panel * Cmd<Msg>) : Model * Cmd<Msg> * ExternalMsg =
+    match model.Panel with
+    | Some panel ->
+        let panel', cmd = change panel
+        { model with Panel = Some panel' }, cmd, NoOp
+    | None -> model, Cmd.none, NoOp
+
+let private editDraft (model: Model) (change: RuleDraft -> RuleDraft) (affectsTest: bool) =
+    withPanel model (fun panel ->
+        // Eine Eingabe nach einem Fehler: die Meldung gehörte zum alten Stand.
+        let save = match panel.Save with SaveFailed _ -> NotSaving | other -> other
+        let panel' = { panel with Draft = change panel.Draft; Save = save }
+        if affectsTest then retest panel' else panel', Cmd.none)
+
+let private saveFailure (error: RulesError) : SaveFailure =
+    match error with
+    | RulesError.InvalidPattern (_, reason) -> PatternRejected reason
+    | other -> SaveRejected (rulesErrorToString other)
+
+/// Nach dem Speichern zeigt das Panel die Regel (§7.6), das Sheet schließt.
+let private afterSave (shell: Shell) (rule: Rule) : Panel option =
+    match shell with
+    | InPanel -> Some (panelFor (Editing rule))
+    | InSheet -> None
+
+let private savingFailed (model: Model) (error: RulesError) =
+    match model.Panel with
+    | Some panel -> { model with Panel = Some { panel with Save = SaveFailed (saveFailure error) } }
+    | None -> model
 
 let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     match msg with
     | LoadRules ->
-        let cmd =
-            Cmd.OfAsync.either
-                (Retry.reading Api.rules.getAllRules)
-                ()
-                (Ok >> RulesLoaded)
-                (fun ex -> Error ex.Message |> RulesLoaded)
-        { model with Rules = Loading }, cmd, NoOp
+        let version = model.LoadVersion + 1
+        // Eine geladene Liste bleibt stehen, bis die neue da ist: der Wechsel zwischen den Tabs zeigt kein Skeleton.
+        let rules = if RemoteData.isSuccess model.Rules then model.Rules else Loading
+        { model with Rules = rules; LoadVersion = version }, loadCmd version, NoOp
 
-    | RulesLoaded (Ok rules) ->
-        { model with Rules = Success rules }, Cmd.none, NoOp
+    | RulesLoaded (version, _) when version <> model.LoadVersion -> model, Cmd.none, NoOp
 
-    // Eine neuere Abfrage hat schon geliefert: das späte Scheitern der älteren meldet nichts
-    // (infrastructure-r3tw7).
-    | RulesLoaded (Error _) when RemoteData.isSuccess model.Rules -> model, Cmd.none, NoOp
+    | RulesLoaded (_, Ok rules) -> { model with Rules = Success rules }, Cmd.none, NoOp
 
-    | RulesLoaded (Error err) ->
-        { model with Rules = Failure err }, Cmd.none, ShowToast ($"Failed to load rules: {err}", ToastError)
+    | RulesLoaded (_, Error err) when RemoteData.isSuccess model.Rules ->
+        model, Cmd.none, ShowToast ($"Regeln konnten nicht neu geladen werden: {err}", ToastError)
 
-    | OpenNewRuleModal ->
-        let loadCategoriesCmd =
-            if model.Categories.IsEmpty then Cmd.ofMsg LoadCategories else Cmd.none
-        { model with
-            EditingRule = None
-            IsNewRule = true
-            Form = RuleFormState.empty
-        }, loadCategoriesCmd, NoOp
+    | RulesLoaded (_, Error err) -> { model with Rules = Failure err }, Cmd.none, NoOp
 
-    | EditRule ruleId ->
-        match model.Rules with
-        | Success rules ->
+    // Die Kategorien holt der Root (`State.fs`) mit dem konfigurierten Budget.
+    | LoadCategories -> model, Cmd.none, NoOp
+
+    | CategoriesLoaded (Ok categories) -> { model with Categories = categories }, Cmd.none, NoOp
+
+    | CategoriesLoaded (Error err) ->
+        model, Cmd.none, ShowToast ($"Kategorien konnten nicht geladen werden: {ynabErrorText err}", ToastError)
+
+    | NewRuleRequested -> { model with Panel = Some (panelFor NewRule) }, Cmd.none, NoOp
+
+    | RuleChosen ruleId ->
+        match model.Panel, model.Rules with
+        // Dieselbe Regel noch einmal: die Eingaben bleiben.
+        | Some { Editor = Editing open' }, _ when open'.Id = ruleId -> model, Cmd.none, NoOp
+        | _, Success rules ->
             match rules |> List.tryFind (fun r -> r.Id = ruleId) with
-            | Some rule ->
-                let loadCategoriesCmd =
-                    if model.Categories.IsEmpty then Cmd.ofMsg LoadCategories else Cmd.none
-                { model with
-                    EditingRule = Some rule
-                    IsNewRule = false
-                    Form = RuleFormState.fromRule rule
-                }, loadCategoriesCmd, NoOp
+            | Some rule -> { model with Panel = Some (panelFor (Editing rule)) }, Cmd.none, NoOp
             | None -> model, Cmd.none, NoOp
         | _ -> model, Cmd.none, NoOp
 
-    | CloseRuleModal ->
-        closeRuleDialog model, Cmd.none, NoOp
+    | PanelClosed
+    | RulesTabLeft -> { model with Panel = None }, Cmd.none, NoOp
 
-    | ConfirmDeleteRule ruleId ->
-        // Show confirm button and start 3 second timeout
-        let timeoutCmd =
-            Cmd.OfAsync.perform
-                (fun () -> async { do! Async.Sleep ruleDeleteConfirmMs })
-                ()
-                (fun () -> CancelConfirmDelete)
-        { model with ConfirmingDeleteRuleId = Some ruleId }, timeoutCmd, NoOp
-
-    | CancelConfirmDelete ->
-        // Timeout expired - hide confirm button
-        { model with ConfirmingDeleteRuleId = None }, Cmd.none, NoOp
-
-    | DeleteRule ruleId ->
-        // Reset confirm state and actually delete
-        let cmd =
-            Cmd.OfAsync.either
-                Api.rules.deleteRule
-                ruleId
-                (fun result ->
-                    match result with
-                    | Ok () -> Ok ruleId |> RuleDeleted
-                    | Error err -> Error err |> RuleDeleted)
-                (fun ex -> Error (RulesError.DatabaseError ("delete", ex.Message)) |> RuleDeleted)
-        { model with ConfirmingDeleteRuleId = None }, cmd, NoOp
-
-    | RuleDeleted (Ok deletedRuleId) ->
-        match model.Rules with
-        | Success rules ->
-            let newRules = rules |> List.filter (fun r -> r.Id <> deletedRuleId)
-            { closeRuleDialog model with Rules = Success newRules }, Cmd.none, ShowToast ("Rule deleted", ToastSuccess)
-        | _ -> closeRuleDialog model, Cmd.none, ShowToast ("Rule deleted", ToastSuccess)
-
-    | RuleDeleted (Error err) ->
-        model, Cmd.none, ShowToast (rulesErrorToString err, ToastError)
-
-    | ToggleRuleEnabled ruleId ->
-        match model.Rules with
-        | Success rules ->
-            match rules |> List.tryFind (fun r -> r.Id = ruleId) with
-            | Some rule ->
-                let cmd =
-                    Cmd.OfAsync.either
-                        Api.rules.updateRule
-                        (toggleEnabledChange rule)
-                        RuleToggled
-                        (fun ex -> Error (RulesError.DatabaseError ("toggle", ex.Message)) |> RuleToggled)
-                model, cmd, NoOp
-            | None -> model, Cmd.none, NoOp
-        | _ -> model, Cmd.none, NoOp
-
-    | RuleToggled (Ok updatedRule) ->
-        match model.Rules with
-        | Success rules ->
-            let newRules = rules |> List.map (fun r ->
-                if r.Id = updatedRule.Id then updatedRule else r)
-            { model with Rules = Success newRules }, Cmd.none, NoOp
-        | _ -> model, Cmd.none, NoOp
-
-    | RuleToggled (Error err) ->
-        model, Cmd.none, ShowToast (rulesErrorToString err, ToastError)
-
-    | MoveRule (ruleId, direction) ->
+    | MoveRequested (ruleId, direction) ->
         match model.Rules with
         | Success rules ->
             let newOrder = reorderedIds direction ruleId rules
-            // No-op moves (edge / unknown id) leave the order untouched — don't
-            // hit the server for nothing.
             if newOrder = (rules |> List.map (fun r -> r.Id)) then
                 model, Cmd.none, NoOp
             else
-                // Optimistic reorder: reflect the new precedence immediately, then
-                // persist the full order. On failure we reload to restore truth.
                 let byId = rules |> List.map (fun r -> r.Id, r) |> Map.ofList
                 let reordered = newOrder |> List.choose (fun id -> Map.tryFind id byId)
                 let cmd =
                     Cmd.OfAsync.either
-                        Api.rules.reorderRules
+                        (fun ids -> Api.rules.reorderRules ids)
                         newOrder
-                        (fun result ->
-                            match result with
-                            | Ok () -> Ok () |> RulesReordered
-                            | Error err -> Error (rulesErrorToString err) |> RulesReordered)
-                        (fun ex -> Error ex.Message |> RulesReordered)
-                { model with Rules = Success reordered }, cmd, NoOp
+                        (fun result -> RulesReordered (rules, result |> Result.mapError rulesErrorToString))
+                        (fun ex -> RulesReordered (rules, Error ex.Message))
+                withRules reordered model, cmd, NoOp
         | _ -> model, Cmd.none, NoOp
 
-    | RulesReordered (Ok ()) ->
-        // Server accepted the new order; the optimistic state already matches.
-        model, Cmd.none, NoOp
+    | RulesReordered (_, Ok ()) -> model, Cmd.none, NoOp
 
-    | RulesReordered (Error err) ->
-        // Reload to discard the optimistic order and show the server's truth —
-        // never leave a half-moved list behind.
-        { model with Rules = Loading },
-        Cmd.ofMsg LoadRules,
-        ShowToast ($"Reihenfolge konnte nicht gespeichert werden: {err}", ToastError)
+    | RulesReordered (previous, Error err) ->
+        withRules previous model, Cmd.none, ShowToast ($"Reihenfolge konnte nicht gespeichert werden: {err}", ToastError)
 
-    | LoadCategories ->
-        // This will be called by parent with proper budget ID
-        model, Cmd.none, NoOp
+    | NameEntered value -> editDraft model (fun d -> { d with Name = value }) false
+    | PatternEntered value -> editDraft model (fun d -> { d with Pattern = value }) true
+    | PatternTypeChosen value -> editDraft model (fun d -> { d with PatternType = value }) true
+    | TargetFieldChosen value -> editDraft model (fun d -> { d with TargetField = value }) true
+    | TestInputEntered value -> editDraft model (fun d -> { d with TestInput = value }) true
+    | EnabledSwitched value -> editDraft model (fun d -> { d with Enabled = value }) false
 
-    | CategoriesLoaded (Ok categories) ->
-        { model with Categories = categories }, Cmd.none, NoOp
+    | CategoryPickerOpened -> withPanel model (fun p -> { p with PickerOpen = true }, Cmd.none)
+    | CategoryPickerClosed -> withPanel model (fun p -> { p with PickerOpen = false }, Cmd.none)
 
-    | CategoriesLoaded (Error _) ->
-        model, Cmd.none, NoOp
+    | CategoryChosen categoryId ->
+        let model', cmd, ext = editDraft model (fun d -> { d with CategoryId = categoryId }) false
+        match model'.Panel with
+        | Some panel -> { model' with Panel = Some { panel with PickerOpen = false } }, cmd, ext
+        | None -> model', cmd, ext
 
-    // Rule form messages
-    | UpdateRuleFormName value ->
-        { model with Form = { model.Form with Name = value } }, Cmd.none, NoOp
+    | PatternTested (request, result) ->
+        withPanel model (fun panel ->
+            match panel.Test with
+            | Testing current when current = request ->
+                let verdict =
+                    match result with
+                    | Ok true -> Matches
+                    | Ok false -> NoMatch
+                    | Error err -> PatternFaulty (rulesErrorToString err)
+                { panel with Test = Tested (request, verdict) }, Cmd.none
+            | _ -> panel, Cmd.none)
 
-    | UpdateRuleFormPattern value ->
-        { model with Form = { model.Form with Pattern = value; TestResult = None } }, Cmd.none, NoOp
+    | PatternTestLost request ->
+        withPanel model (fun panel ->
+            match panel.Test with
+            | Testing current when current = request -> { panel with Test = Tested (request, Unreachable) }, Cmd.none
+            | _ -> panel, Cmd.none)
 
-    | UpdateRuleFormPatternType value ->
-        { model with Form = { model.Form with PatternType = value; TestResult = None } }, Cmd.none, NoOp
+    | CreateRequested shell ->
+        match model.Panel with
+        | Some ({ Editor = NewRule; Save = (NotSaving | SaveFailed _) } as panel) ->
+            match panel.Draft.CategoryId with
+            | Some categoryId when not (blank panel.Draft.Pattern) ->
+                let cmd =
+                    Cmd.OfAsync.either
+                        (fun rule -> Api.rules.createRule rule)
+                        (buildNewRule panel.Draft categoryId)
+                        (fun result -> RuleCreated (shell, result))
+                        (fun ex -> RuleCreated (shell, Error (unreachable "create" ex)))
+                { model with Panel = Some { panel with Save = Saving } }, cmd, NoOp
+            | _ -> model, Cmd.none, NoOp
+        | _ -> model, Cmd.none, NoOp
 
-    | UpdateRuleFormTargetField value ->
-        { model with Form = { model.Form with TargetField = value } }, Cmd.none, NoOp
+    | RuleCreated (shell, Ok rule) ->
+        let model' = mapRules (fun rules -> rule :: rules) model
+        { model' with Panel = afterSave shell rule }, Cmd.none, ShowToast ("Regel angelegt", ToastSuccess)
 
-    | UpdateRuleFormCategoryId value ->
-        { model with Form = { model.Form with CategoryId = value; PickerOpen = false } }, Cmd.none, NoOp
+    | RuleCreated (_, Error err) -> savingFailed model err, Cmd.none, NoOp
 
-    | OpenRuleCategoryPicker ->
-        { model with Form = { model.Form with PickerOpen = true } }, Cmd.none, NoOp
+    | ChangeRequested shell ->
+        match model.Panel with
+        | Some ({ Editor = Editing rule; Save = (NotSaving | SaveFailed _) } as panel) ->
+            match panel.Draft.CategoryId with
+            | Some categoryId when not (blank panel.Draft.Pattern) ->
+                let cmd =
+                    Cmd.OfAsync.either
+                        (fun change -> Api.rules.updateRule change)
+                        (buildRuleChange rule panel.Draft categoryId)
+                        (fun result -> RuleChanged (shell, result))
+                        (fun ex -> RuleChanged (shell, Error (unreachable "update" ex)))
+                { model with Panel = Some { panel with Save = Saving } }, cmd, NoOp
+            | _ -> model, Cmd.none, NoOp
+        | _ -> model, Cmd.none, NoOp
 
-    | CloseRuleCategoryPicker ->
-        { model with Form = { model.Form with PickerOpen = false } }, Cmd.none, NoOp
+    | RuleChanged (shell, Ok rule) ->
+        let model' = mapRules (List.map (fun r -> if r.Id = rule.Id then rule else r)) model
+        { model' with Panel = afterSave shell rule }, Cmd.none, ShowToast ("Regel gespeichert", ToastSuccess)
 
-    | OpenRulesMenu ->
-        { model with MenuOpen = true }, Cmd.none, NoOp
+    | RuleChanged (_, Error err) -> savingFailed model err, Cmd.none, NoOp
 
-    | CloseRulesMenu ->
-        { model with MenuOpen = false }, Cmd.none, NoOp
+    | DeleteRequested ->
+        match model.Panel, model.Rules with
+        | Some { Editor = Editing rule; Save = (NotSaving | SaveFailed _) }, Success rules ->
+            match rules |> List.tryFindIndex (fun r -> r.Id = rule.Id) with
+            | Some position ->
+                let cmd =
+                    Cmd.OfAsync.either
+                        (fun id -> Api.rules.deleteRule id)
+                        rule.Id
+                        (fun result -> RuleDeleted (rule, position, result))
+                        (fun ex -> RuleDeleted (rule, position, Error (unreachable "delete" ex)))
+                let model' = withRules (rules |> List.filter (fun r -> r.Id <> rule.Id)) model
+                { model' with Panel = None }, cmd, NoOp
+            | None -> model, Cmd.none, NoOp
+        | _ -> model, Cmd.none, NoOp
 
-    | UpdateRuleFormPayeeOverride value ->
-        { model with Form = { model.Form with PayeeOverride = value } }, Cmd.none, NoOp
+    | RuleDeleted (rule, position, Ok ()) -> model, Cmd.none, RuleDeletedUndoable (rule, position)
 
-    | UpdateRuleFormEnabled value ->
-        { model with Form = { model.Form with Enabled = value } }, Cmd.none, NoOp
+    | RuleDeleted (rule, position, Error err) ->
+        // Die Regel steht noch auf dem Server: sie kommt an ihre Stelle zurück.
+        let model' =
+            mapRules
+                (fun rules ->
+                    if rules |> List.exists (fun r -> r.Id = rule.Id) then rules
+                    else List.insertAt (min position rules.Length) rule rules)
+                model
+        model', Cmd.none, ShowToast ($"Regel konnte nicht gelöscht werden: {rulesErrorToString err}", ToastError)
 
-    | UpdateRuleFormTestInput value ->
-        { model with Form = { model.Form with TestInput = value; TestResult = None } }, Cmd.none, NoOp
-
-    | TestRulePattern ->
-        if String.IsNullOrWhiteSpace(model.Form.Pattern) || String.IsNullOrWhiteSpace(model.Form.TestInput) then
-            model, Cmd.none, ShowToast ("Please enter both a pattern and test input", ToastWarning)
-        else
-            model, testPatternCmd (fun args -> Api.rules.testRule args) model.Form, NoOp
-
-    | RulePatternTested (Ok matches) ->
-        let resultText = if matches then "✅ Muster passt" else "❌ Muster passt nicht"
-        { model with Form = { model.Form with TestResult = Some resultText } }, Cmd.none, NoOp
-
-    | RulePatternTested (Error err) ->
-        { model with Form = { model.Form with TestResult = Some $"⚠️ {rulesErrorToString err}" } }, Cmd.none, NoOp
-
-    | RulePatternTestLost ->
-        { model with Form = { model.Form with TestResult = Some $"⚠️ {ruleTestLostText}" } }, Cmd.none, NoOp
-
-    | SaveRule ->
-        match model.Form.CategoryId with
-        | None ->
-            model, Cmd.none, ShowToast ("Please select a category", ToastWarning)
-        | Some categoryId ->
-            if String.IsNullOrWhiteSpace(model.Form.Name) then
-                model, Cmd.none, ShowToast ("Please enter a rule name", ToastWarning)
-            elif String.IsNullOrWhiteSpace(model.Form.Pattern) then
-                model, Cmd.none, ShowToast ("Please enter a pattern", ToastWarning)
-            else
-                if model.IsNewRule then
-                    let cmd =
-                        Cmd.OfAsync.either
-                            Api.rules.createRule
-                            (buildNewRule model.Form categoryId)
-                            RuleSaved
-                            (fun ex -> Error (RulesError.DatabaseError ("create", ex.Message)) |> RuleSaved)
-                    { model with Form = { model.Form with IsSaving = true } }, cmd, NoOp
-                else
-                    match model.EditingRule with
-                    | Some rule ->
-                        let cmd =
-                            Cmd.OfAsync.either
-                                Api.rules.updateRule
-                                (buildRuleChange rule model.Form categoryId)
-                                RuleSaved
-                                (fun ex -> Error (RulesError.DatabaseError ("update", ex.Message)) |> RuleSaved)
-                        { model with Form = { model.Form with IsSaving = true } }, cmd, NoOp
-                    | None -> model, Cmd.none, NoOp
-
-    | RuleSaved (Ok savedRule) ->
-        let action = if model.IsNewRule then "created" else "updated"
-        let newRules =
-            match model.Rules with
-            | Success rules ->
-                if model.IsNewRule then
-                    Success (savedRule :: rules)
-                else
-                    Success (rules |> List.map (fun r -> if r.Id = savedRule.Id then savedRule else r))
-            | other -> other
-        { model with
-            Rules = newRules
-            EditingRule = None
-            IsNewRule = false
-            Form = RuleFormState.empty
-        }, Cmd.none, ShowToast ($"Rule {action} successfully", ToastSuccess)
-
-    | RuleSaved (Error err) ->
-        { model with Form = { model.Form with IsSaving = false } }, Cmd.none, ShowToast (rulesErrorToString err, ToastError)
-
-    | ExportRules ->
+    | RestoreRequested (rule, position) ->
         let cmd =
             Cmd.OfAsync.either
-                Api.rules.exportRules
-                ()
-                (Ok >> RulesExported)
-                (fun ex -> Error (RulesError.DatabaseError ("export", ex.Message)) |> RulesExported)
+                (fun request -> Api.rules.restoreRule request)
+                { Rule = rule; Position = position }
+                RuleRestored
+                (fun ex -> RuleRestored (Error (unreachable "restore" ex)))
         model, cmd, NoOp
 
-    | RulesExported (Ok json) ->
-        // Trigger browser download using direct JS interop
-        Fable.Core.JS.eval(sprintf """
-            (function() {
-                var blob = new Blob([%s], {type: 'application/json'});
-                var url = URL.createObjectURL(blob);
-                var a = document.createElement('a');
-                a.href = url;
-                a.download = 'budgetbuddy-rules.json';
-                a.click();
-                URL.revokeObjectURL(url);
-            })();
-        """ (Fable.Core.JS.JSON.stringify json)) |> ignore
-        model, Cmd.none, ShowToast ("Rules exported successfully", ToastSuccess)
+    // Die Antwort ist die ganze Liste in der neuen Reihenfolge: kein Zwischenstand an falscher Stelle.
+    | RuleRestored (Ok rules) -> withRules rules model, Cmd.none, NoOp
 
-    | RulesExported (Error err) ->
-        model, Cmd.none, ShowToast (rulesErrorToString err, ToastError)
-
-    | ImportRulesStart ->
-        // This message triggers file input click from the view
-        model, Cmd.none, NoOp
-
-    | ImportRules json ->
-        let cmd =
-            Cmd.OfAsync.either
-                Api.rules.importRules
-                json
-                RulesImported
-                (fun ex -> Error (RulesError.DatabaseError ("import", ex.Message)) |> RulesImported)
-        model, cmd, NoOp
-
-    | RulesImported (Ok count) ->
-        model, Cmd.ofMsg LoadRules, ShowToast ($"Imported {count} rule(s) successfully", ToastSuccess)
-
-    | RulesImported (Error err) ->
-        model, Cmd.none, ShowToast (rulesErrorToString err, ToastError)
+    | RuleRestored (Error err) ->
+        model, Cmd.none, ShowToast ($"Regel konnte nicht wiederhergestellt werden: {rulesErrorToString err}", ToastError)

@@ -486,8 +486,14 @@ async function mockRules(page) {
     json(r, { Ok: Array.from({ length: 12 }, (_, i) => ({ Id: W("YnabCategoryId", guid(i + 1)), Name: i === 1 ? LONG_CATEGORY : `Kategorie ${i + 1}`, GroupName: "Alltag", Available: null, Hidden: false })) })
   );
   await page.route("**/api/RulesApi/getAllRules", (r) => json(r, [rule(1, "Regel eins", 1), rule(2, "Eine Regel mit einem sehr langen Namen für die Zeile", 2), rule(3, "Regel drei", 3)]));
+  await page.route("**/api/RulesApi/testRule", (r) => json(r, { Ok: true }));
 }
 const openRules = async (page) => page.getByText("Regel eins").locator("visible=true").first().waitFor();
+const openRule = async (page, name) => {
+  await openRules(page);
+  await page.locator('[data-testid="rule-row"]:visible').filter({ hasText: name }).first().click();
+  await page.locator('[data-testid="rule-form"]').waitFor();
+};
 
 // ============================================================
 // Einstellungen (banking-import-t4raw)
@@ -1516,50 +1522,40 @@ export const STATES = [
     mock: mockSettings,
     open: openSettings,
   },
-  // categorization-cgq35: Prioritätspfeile und Overflow-Knopf am Handy, Regeln mit langen Namen.
+  // categorization-cgq35, categorization-n3sxw: der Tab Regeln im Kassenbuch, Prioritätspfeile am Handy, lange Namen.
   {
     name: "regeln",
-    route: "/rules",
+    route: "/ledger/rules",
     widths: PAGE_WIDTHS,
     mock: mockRules,
     open: openRules,
   },
-  // categorization-cgq35, categorization-f955d: das Menü im Sheet, jeder Eintrag voll antippbar.
+  // categorization-n3sxw: am PC steht eine Regel rechts im Panel, der Picker hängt als Popover ganz im Bild.
   {
-    name: "regeln-menue",
-    route: "/rules",
-    widths: HANDY_WIDTHS,
-    mock: mockRules,
-    open: async (page) => {
-      await openRules(page);
-      await page.locator('[data-testid="rules-menu-button"] button').click();
-      await page.locator('[role="menuitem"]').first().waitFor();
-    },
-  },
-  // categorization-cgq35: am PC bleibt der Regel-Dialog ein Modal, der Picker hängt als Popover ganz im Bild.
-  {
-    name: "regeln-dialog-picker",
-    route: "/rules",
+    name: "regeln-panel",
+    route: "/ledger/rules",
     widths: [1440],
-    // Invariante 10 (ledger-dn4vy): die beiden Hilfetexte im Regel-Dialog stehen in `text-muted/70` (3,23:1).
-    // Kann-Sammlung categorization. Auf den Text der Treffer verengt, ein weiterer blasser Absatz fällt weiter auf.
-    exceptions: [
-      { width: 1440, inv: 10, selector: '[data-testid="rule-dialog"] p "Trifft zu wenn der Text diesen Teiltext' },
-      { width: 1440, inv: 10, selector: '[data-testid="rule-dialog"] p "Leer lassen für Original-Empfänger"' },
-    ],
     mock: mockRules,
     open: async (page) => {
-      await openRules(page);
-      await page.locator('[data-testid="rule-row"]:visible').filter({ hasText: "Regel eins" }).getByText("Regel eins").click();
-      await page.locator('[data-testid="rule-dialog"]').waitFor();
-      // Erst wenn der Dialog eingefahren ist: öffnet das Popover mitten in der Einfahrt, rechnet sein
-      // scrollIntoView mit der noch skalierten Lage, und unter Last stand es danach halb unter dem Rand.
-      await settle(page, { where: "regeln-dialog-picker, Dialog offen" });
-      await page.locator('[data-testid="rule-category"] button').click();
+      await openRule(page, "Regel eins");
+      await page.locator('[data-testid="rule-category"]').click();
       await page.locator('[role="option"]').first().waitFor();
       await frames(page);
     },
     primary: (page) => page.locator('[data-testid="category-picker-footer-hint"]:visible'),
+  },
+  // categorization-n3sxw: am Handy ersetzt die Auswahl der Kategorie den Inhalt des Sheets (§7.15), jede Zeile antippbar.
+  {
+    name: "regeln-sheet-picker",
+    route: "/ledger/rules",
+    widths: HANDY_WIDTHS,
+    mock: mockRules,
+    open: async (page) => {
+      await openRule(page, "Regel eins");
+      await settle(page, { where: "regeln-sheet-picker, Sheet offen" });
+      await page.locator('[data-testid="rule-category"]').click();
+      await page.locator('.bottom-sheet.active [role="option"]').first().waitFor();
+    },
   },
   // design-system-k6kfw: die Übersicht als Einstieg, mit Leiste unten, Rail und Seitenleiste je nach Breite.
   {

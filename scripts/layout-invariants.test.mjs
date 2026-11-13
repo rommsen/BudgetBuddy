@@ -103,9 +103,9 @@ test("[layout] Gegenbeweis Invariante 2: ein Knopf mit 46 px meldet die Trefferf
     "regeln",
     390,
     2,
-    '[data-testid="rules-menu-button"] button { min-width: 0 !important; min-height: 0 !important; width: 46px !important; height: 46px !important; padding: 0 !important; }'
+    '[data-testid="rule-move-down"] { min-width: 0 !important; min-height: 0 !important; width: 46px !important; height: 46px !important; padding: 0 !important; }'
   );
-  assert.ok(hits.some((v) => v.selector.includes("rules-menu-button") && v.value === "46 × 46 px"), hits.map(formatViolation).join("\n"));
+  assert.ok(hits.some((v) => v.selector.includes("rule-move-down") && v.value === "46 × 46 px"), hits.map(formatViolation).join("\n"));
 });
 
 test("[layout] Gegenbeweis Invariante 3: ein Feld mit 15 px Schrift meldet die Schrift", async () => {

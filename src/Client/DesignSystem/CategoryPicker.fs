@@ -811,6 +811,19 @@ let private sheetWith (elevated: bool) (markCurrent: bool) (isOpen: bool) (subti
     if elevated then BottomSheet.viewLayered sheetProps children
     else BottomSheet.view sheetProps children
 
+/// Der Inhalt des Pickers für ein offenes Sheet, dessen Inhalt er ersetzt (§7.15, Sheets werden nicht gestapelt).
+/// Titel und Schließen stellt das Sheet. Nach der Wahl kehrt das Sheet zu seinem Inhalt zurück; ein später
+/// synthetischer Klick soll dort nichts treffen (ADR 0005). Erster Nutzer: das Sheet einer Regel (categorization-n3sxw).
+let sheetContent (props: CategoryPickerProps) : ReactElement =
+    let returning =
+        { props with
+            OnSelect =
+                fun choice ->
+                    Viewport.swallowNextClick 350
+                    Viewport.vibrate 8
+                    props.OnSelect choice }
+    Content { Picker = returning; FocusSearch = Viewport.isFinePointer (); ListClass = ""; MarkCurrent = true; FooterHint = None }
+
 /// Hülle für das Handy: BottomSheet mit Titel "Kategorie wählen" und optionaler Unterzeile
 /// (zum Beispiel Payee und Betrag).
 let sheet (isOpen: bool) (subtitle: string option) (props: CategoryPickerProps) : ReactElement =

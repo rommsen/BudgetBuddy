@@ -281,7 +281,7 @@ let inputActiveTests =
                   Enabled = true
                   CreatedAt = DateTime.UtcNow
                   UpdatedAt = DateTime.UtcNow }
-            { m with Rules = { m.Rules with EditingRule = Some rule } })
+            { m with Rules = { m.Rules with Panel = Some { Editor = Components.Rules.Types.Editing rule; Draft = Components.Rules.Types.RuleDraft.fromRule rule; Save = Components.Rules.Types.NotSaving; Test = Components.Rules.Types.NothingToTest; PickerOpen = false } } })
         testCase "Abrufen: ein geschlossenes Sheet nach beendetem Abruf ist keine Eingabe" <| fun () ->
             let m = baseModel ()
             let m' = { m with Fetch = { m.Fetch with Session = Success (Some (session Shared.Domain.Completed)) } }

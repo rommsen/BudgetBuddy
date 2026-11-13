@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-11-13 21:32 -- Task verified and completed: categorization-n3sxw - "Regeln ins Kassenbuch: Regeln als Tab neben den Buchungen statt eigener Seite"
+
+**Type:** Work / Task completion
+**Task:** categorization-n3sxw - "Regeln ins Kassenbuch: Regeln als Tab neben den Buchungen statt eigener Seite"
+**Summary:** Regeln als Tab im Kassenbuch mit Liste, Panel und Sheet, Löschen mit Rückgängig über restoreRule
+**Duration:** 1h20m
+**Verification:** PASS (iteration 2)
+**Files changed:** 42
+**Tests added:** 47
+**ADRs written:** 0094
+
+---
+
+## 2026-11-13 21:14 -- Verification failed: categorization-n3sxw - Regeln ins Kassenbuch
+
+**Type:** Work / Verification failure
+**Task:** categorization-n3sxw - Regeln ins Kassenbuch
+**Iteration:** 1 of 3
+**Reasons:** Abweichungen von der Skizze ohne Eintrag in der Task. Roman entschied vier davon (DS-Tabs und Umschalter wie überall, Panel wie bei den Buchungen, Karte von 1024 bis 1279 px, Jetzt spiegeln bleibt), fünf weitere werden angeglichen
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-11-13 20:43 -- Task verified and completed: infrastructure-ewasy - README-Delta-Gate meldet alten Wortlaut, der nach einem replace anderswo in der README stehen bleibt
 
 **Type:** Work / Task completion

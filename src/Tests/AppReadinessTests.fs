@@ -119,16 +119,16 @@ let appReadinessTests =
                             Categories = Success [] } }
             Expect.isTrue (State.isPageReady model) "Failure ist kein Ladezustand mehr"
 
-        testCase "Rules ist NICHT bereit, solange Rules noch lädt" <| fun () ->
+        testCase "Der Tab Regeln ist NICHT bereit, solange Rules noch lädt" <| fun () ->
             let model =
-                { baseModel Rules with
-                    Rules = { (baseModel Rules).Rules with Rules = Loading } }
+                { baseModel LedgerRules with
+                    Rules = { (baseModel LedgerRules).Rules with Rules = Loading } }
             Expect.isFalse (State.isPageReady model) "Rules lädt noch"
 
-        testCase "Rules ist bereit, sobald Rules geladen sind" <| fun () ->
+        testCase "Der Tab Regeln ist bereit, sobald Rules geladen sind" <| fun () ->
             let model =
-                { baseModel Rules with
-                    Rules = { (baseModel Rules).Rules with Rules = Success [] } }
+                { baseModel LedgerRules with
+                    Rules = { (baseModel LedgerRules).Rules with Rules = Success [] } }
             Expect.isTrue (State.isPageReady model) "Rules ist fertig geladen"
 
         testCase "Settings ist NICHT bereit, solange Settings noch lädt (YnabBudgets zählt nicht: on-demand)" <| fun () ->

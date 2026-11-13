@@ -99,9 +99,17 @@ let ledgerCategoriesSyncTests =
         }
 
         test "Auf einer anderen Seite als dem Kassenbuch wird nichts nachgeholt" {
-            let model = baseModel Rules
+            let model = baseModel Settings
             let _, cmd = State.update (SettingsMsg (Components.Settings.Types.SettingsLoaded (Ok settingsWithBudget))) model
             Expect.isEmpty (dispatched cmd) "Die Kassenbuch-Seite ist gar nicht offen"
+        }
+
+        // categorization-n3sxw: beim Direktaufruf von `#/ledger/rules` kamen die Settings nach dem eigenen
+        // `LoadCategories` des Tabs, die Auswahl der Kategorie wartete sonst für immer.
+        test "Auf dem Tab Regeln ohne Kategorien werden die Regel-Kategorien nachgeholt" {
+            let model = baseModel LedgerRules
+            let _, cmd = State.update (SettingsMsg (Components.Settings.Types.SettingsLoaded (Ok settingsWithBudget))) model
+            Expect.contains (dispatched cmd) (RulesMsg Components.Rules.Types.LoadCategories) "nachgeholt"
         }
 
         test "Hat die Kassenbuch-Seite schon Kategorien (Success), wird nicht erneut geladen" {

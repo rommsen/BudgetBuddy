@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 2
 - **Todo:** 0
-- **Doing:** 1
-- **Done:** 8
+- **Doing:** 0
+- **Done:** 9
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,11 +22,11 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **categorization-n3sxw** — "Regeln ins Kassenbuch: Regeln als Tab neben den Buchungen statt eigener Seite" (feature) — `doing/categorization-n3sxw-regeln-ins-kassenbuch.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **categorization-n3sxw** — "Regeln ins Kassenbuch: Regeln als Tab neben den Buchungen statt eigener Seite" (feature) — `done/categorization-n3sxw-regeln-ins-kassenbuch.md`
 - **categorization-f955d** — "Regeln: Inline-Formular nach Elmish, Abhängigkeit von budgeting lösen, Menü und Zeilen bedienbar, Testlücken schließen" (bug) — `done/categorization-f955d-regelformular-und-regelseite-nachziehen.md`
 - **categorization-cgq35** — "Regelseite am Handy und per Tastatur" (bug) — `done/categorization-cgq35-regelseite-am-handy-und-per-tastatur.md`
 - **categorization-msep5** — "Regeln speichern, importieren und sortieren fehlerhaft" (bug) — `done/categorization-msep5-regeln-speichern-importieren-und-sortieren-fehlerhaft.md`

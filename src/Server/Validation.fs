@@ -128,19 +128,19 @@ let validateRuleChange (change: RuleChange) : Result<RuleChange, string list> =
 
     if errors.IsEmpty then Ok change else Error errors
 
-/// Eine Regel aus einer Importdatei: dieselben Prüfungen wie beim Anlegen, dazu die Priorität,
-/// die anders als beim Anlegen aus der Datei kommt.
-let validateImportedRule (rule: Rule) : Result<Rule, string list> =
+/// Eine gelöschte Regel, die „Rückgängig“ zurückbringt (categorization-n3sxw): dieselben Prüfungen wie beim
+/// Anlegen, dazu die Stelle. Die Priorität vergibt der Server neu, sie wird nicht geprüft.
+let validateRuleRestore (restore: RuleRestore) : Result<RuleRestore, string list> =
     let errors =
         [
-            validateRuleName rule.Name
-            validatePattern rule.Pattern
-            validatePayeeOverride rule.PayeeOverride
-            validatePriority rule.Priority
+            validateRuleName restore.Rule.Name
+            validatePattern restore.Rule.Pattern
+            validatePayeeOverride restore.Rule.PayeeOverride
+            if restore.Position < 0 then Some "Die Stelle darf nicht negativ sein" else None
         ]
         |> List.choose id
 
-    if errors.IsEmpty then Ok rule else Error errors
+    if errors.IsEmpty then Ok restore else Error errors
 
 // ============================================
 // Aufteilungen

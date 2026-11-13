@@ -14,6 +14,9 @@ type ButtonVariant =
     | Secondary  // Neutral mit Rand border-strong (ADR 0075 Punkt 2, ADR 0087 Punkt 5)
     | Ghost      // Transparent background
     | Danger     // Rot, Rand ohne Füllung, für Aktionen mit Folgen
+    /// Neutral nur mit Rand `border-strong`, ohne Füllung (Prototyp `.btn`): „Abbrechen“ neben dem Hauptknopf im Fuß
+    /// eines Panels oder Sheets und „+ Neue Regel“ unter der Liste am Handy (categorization-n3sxw).
+    | Outline
 
 /// Button size variants
 type ButtonSize =
@@ -104,6 +107,8 @@ let private variantToClass = function
         "text-text-secondary hover:text-text-primary hover:bg-surface-hover"
     | Danger ->
         $"bg-error/10 border {Borders.error} {Colors.error} hover:bg-error/20 active:scale-[0.98]"
+    | Outline ->
+        $"bg-transparent border {Borders.strong} text-text-primary hover:bg-surface-hover active:scale-[0.98]"
 
 /// Setzt der Aufrufer in `ClassName` eine eigene Anzeige-Klasse ohne Breakpoint (z. B. `hidden` in `hidden md:inline-flex`)?
 /// Dann entfällt das feste `inline-flex`: Tailwind 4 ordnet Utilities im erzeugten CSS,

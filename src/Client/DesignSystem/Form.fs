@@ -53,6 +53,36 @@ let submitButton (text: string) (onClick: unit -> unit) (isLoading: bool) (requi
         ]
     ]
 
+/// Wie `submitButton`, aber über die volle Breite und ohne Symbol: die rechte Hälfte eines Paars „Abbrechen“ und
+/// Speichern im Fuß von Panel und Sheet (Prototyp Version 17 `.btnrow`, Regel-Formular, categorization-n3sxw). Das
+/// Raster streckt den Knopf auch ab `md`, wo `FullWidth` zu `w-auto` wird.
+let submitButtonBlock (text: string) (onClick: unit -> unit) (isLoading: bool) (requiredFields: (string * string) list) =
+    let missingFields = getMissingFields requiredFields
+    let isDisabled = isLoading || not (List.isEmpty missingFields)
+
+    Html.div [
+        prop.className "grid gap-2"
+        prop.children [
+            Button.view {
+                Button.defaultProps with
+                    Text = text
+                    OnClick = onClick
+                    Variant = Button.Primary
+                    IsLoading = isLoading
+                    IsDisabled = isDisabled
+                    FullWidth = true
+            }
+            if isDisabled && not isLoading && not (List.isEmpty missingFields) then
+                Html.div [
+                    prop.className "flex items-center gap-2 text-sm text-attention"
+                    prop.children [
+                        Icons.warning SM Warning
+                        Html.span [ prop.text (missingFieldsText missingFields) ]
+                    ]
+                ]
+        ]
+    ]
+
 /// Submit button with custom icon
 let submitButtonWithIcon (text: string) (icon: ReactElement) (onClick: unit -> unit) (isLoading: bool) (requiredFields: (string * string) list) =
     let missingFields = getMissingFields requiredFields

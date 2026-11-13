@@ -141,7 +141,8 @@ module RemoteData =
 type Page =
     /// Die Übersicht, Einstieg der App unter `/` (design-system-k6kfw, ADR 0087 Punkt 9).
     | Overview
-    | Rules
+    /// Das Kassenbuch mit dem Tab „Regeln“ (categorization-n3sxw, ADR 0087 Punkt 9), `#/ledger/rules`.
+    | LedgerRules
     | Settings
     | Styleguide
     /// Manual transaction entry (Quick Add) as a first-class, sync-flow-independent
@@ -171,10 +172,10 @@ let isLedgerPage (page: Page) : bool =
     | LedgerEntry _ -> true
     | _ -> false
 
-/// React-Schlüssel der Seite. Liste und Route einer Buchung sind dieselbe Kassenbuch-Seite: ein
+/// React-Schlüssel der Seite. Liste, Route einer Buchung und Tab „Regeln“ sind dieselbe Kassenbuch-Seite: ein
 /// eigener Schlüssel würde sie beim Wechsel neu aufbauen.
 let pageKey (page: Page) : string =
-    if isLedgerPage page then "Ledger" else page.ToString()
+    if isLedgerPage page || page = LedgerRules then "Ledger" else page.ToString()
 
 /// Die Orte der Navigation (Styleguide §7.4, ADR 0087 Punkt 9): Übersicht, Kassenbuch und Budget.
 /// Quick Add steht als vierter Eintrag, bis `ledger-ea70s` (Ein Erfassen) es ablöst.
@@ -185,15 +186,14 @@ type Place =
     | QuickAddPlace
 
 /// Der Ort, unter dem eine Seite hängt und der in der Navigation markiert ist. Einstellungen und
-/// Styleguide hängen an keinem Ort, sie liegen hinter dem Zahnrad. Regeln hängen unter dem
-/// Kassenbuch, bis `categorization-n3sxw` sie dort als Tab einbaut.
+/// Styleguide hängen an keinem Ort, sie liegen hinter dem Zahnrad. Die Regeln sind ein Tab im Kassenbuch.
 let placeOf (page: Page) : Place option =
     match page with
     | Overview
     | Review -> Some OverviewPlace
     | Ledger
     | LedgerEntry _
-    | Rules -> Some LedgerPlace
+    | LedgerRules -> Some LedgerPlace
     | Budget
     | BudgetHistory
     | BudgetTargetCheck
@@ -228,7 +228,7 @@ let backLabel (page: Page) : string =
     | Review -> "Zurück zum Durchgehen"
     | Ledger
     | LedgerEntry _ -> "Zurück zum Kassenbuch"
-    | Rules -> "Zurück zu den Regeln"
+    | LedgerRules -> "Zurück zu den Regeln"
     | Budget -> "Zurück zum Budget"
     | BudgetHistory -> "Zurück zur Budget-Historie"
     | BudgetTargetCheck -> "Zurück zu Targets prüfen"
@@ -237,16 +237,14 @@ let backLabel (page: Page) : string =
     | Settings -> "Zurück zu den Einstellungen"
     | Styleguide -> "Zurück zum Styleguide"
 
-/// Das Ziel von „Zurück“ einer Unterseite: die Regeln führen zum Kassenbuch,
-/// der Styleguide zu den Einstellungen und die Einstellungen zur Seite davor (`settingsReturn`). Orte haben
+/// Das Ziel von „Zurück“ einer Unterseite: der Styleguide zu den Einstellungen und die Einstellungen zur Seite davor (`settingsReturn`). Orte haben
 /// kein „Zurück“. Die Budget-Unterseiten führen ihr „Zurück“ selbst (ein Schritt im Verlauf oder das Budget).
 let backTarget (page: Page) (settingsReturnPage: Page) : BackTarget option =
     let toPage target = Some { Target = target; Label = backLabel target }
     match page with
-    | Rules -> toPage Ledger
     | Styleguide -> toPage Settings
     | Settings -> toPage settingsReturnPage
-    | Overview | Review | Ledger | LedgerEntry _ | Budget | BudgetHistory | BudgetTargetCheck | BudgetCategories | QuickAdd -> None
+    | Overview | Review | Ledger | LedgerRules | LedgerEntry _ | Budget | BudgetHistory | BudgetTargetCheck | BudgetCategories | QuickAdd -> None
 
 /// URL routing helpers for hash-based navigation
 module Routing =
@@ -262,7 +260,9 @@ module Routing =
     let parseUrl (segments: string list) : Page =
         match segments with
         | [] -> Overview
-        | ["rules"] -> Rules
+        // Der alte Pfad der Regelseite führt in den Tab (Lesezeichen gehen nicht ins Leere).
+        | ["rules"] -> LedgerRules
+        | ["ledger"; "rules"] -> LedgerRules
         | ["settings"] -> Settings
         | ["styleguide"] -> Styleguide
         | ["quickadd"] -> QuickAdd
@@ -280,7 +280,7 @@ module Routing =
     let toUrlSegments (page: Page) : string list =
         match page with
         | Overview -> []
-        | Rules -> ["rules"]
+        | LedgerRules -> ["ledger"; "rules"]
         | Settings -> ["settings"]
         | Styleguide -> ["styleguide"]
         | QuickAdd -> ["quickadd"]
@@ -341,6 +341,9 @@ type ToastActionKind =
     /// "Rückgängig" nach "Buchung löschen" im Detail (ledger-z6sya, ADR 0092): die Buchung wird in
     /// YNAB neu angelegt und gilt im Kassenbuch nicht mehr als gelöscht.
     | UndoDeleteEntry of entryId: Guid
+    /// "Rückgängig" nach "Regel löschen" (categorization-n3sxw): die Regel kommt mit allen Feldern an ihre Stelle
+    /// zurück (`restoreRule`).
+    | UndoDeleteRule of rule: Shared.Domain.Rule * position: int
     /// "Neu laden" am Hinweis "Neue Version" der installierten PWA (infrastructure-bnbdc,
     /// ADR 0057): gibt den wartenden Service Worker frei, die Seite lädt neu.
     | ReloadForUpdate

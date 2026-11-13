@@ -140,13 +140,10 @@ type RulesApi = {
     /// Returns: Unit on success or RulesError (RuleNotFound for any missing ID).
     reorderRules: RuleId list -> Async<RulesResult<unit>>
 
-    /// Exports all rules as JSON for backup/sharing.
-    /// Returns: JSON string (never fails - returns empty array if no rules).
-    exportRules: unit -> Async<string>
-
-    /// Imports rules from JSON, validating and creating them.
-    /// Returns: Count of imported rules or RulesError (ValidationFailed naming every faulty rule). All or nothing.
-    importRules: string -> Async<RulesResult<int>>
+    /// Legt eine gelöschte Regel an ihrer alten Stelle wieder an („Rückgängig“, categorization-n3sxw).
+    /// Purpose: Die Regel kommt mit allen Feldern zurück, die übrigen rücken in einem Schritt nach.
+    /// Returns: Alle Regeln in der neuen Reihenfolge oder RulesError (ValidationFailed, InvalidPattern, DatabaseError).
+    restoreRule: RuleRestore -> Async<RulesResult<Rule list>>
 
     /// Tests if a pattern matches input text without persisting.
     /// Purpose: Allows users to validate regex before creating rule.

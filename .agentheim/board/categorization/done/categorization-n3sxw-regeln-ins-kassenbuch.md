@@ -1,7 +1,7 @@
 ---
 id: categorization-n3sxw
 title: "Regeln ins Kassenbuch: Regeln als Tab neben den Buchungen statt eigener Seite"
-status: doing
+status: done
 type: feature
 context: categorization
 created: 2026-11-11
@@ -9,7 +9,7 @@ completed:
 depends_on: [design-system-001-styleguide, design-system-k6kfw]
 blocks: [ledger-hg5m5]
 tags: [etappe-3, frontend, regeln]
-related_adrs: [0087]
+related_adrs: [0087, 0094]
 related_research: []
 prior_art: []
 ---
@@ -157,6 +157,19 @@ Dateien wieder ab.
   Prototyp: ein Fehler zur Eingabe steht am Feld, nie als Toast (`.claude/rules/task-ui-vorgaben.md`).
 - (b) Laden, leer und Fehler wie heute in BB; der Prototyp zeigt sie nicht.
 - (c) Panelbreite wie heute im Kassenbuch, bis design-system-gcpws die 30 % für alle Panels umsetzt.
+- (d) Tabs und Umschalter sind die DS-Bausteine wie überall in BB (`Tabs.bar` 12 px, `Segmented` als gefüllte
+  Pillen), nicht die Optik des Prototyps (14 px, Trennstriche, Unterstrich). Roman, 2026-11-13: ein Angleichen
+  an den Prototyp wird, falls gewollt, eine eigene Task für alle Stellen.
+- (e) Das PC-Panel steht wie bei den Buchungen unter Titel und Tabs, nicht über die volle Höhe (Roman, 2026-11-13);
+  die volle Höhe für alle Panels gehört zu design-system-gcpws.
+- (f) Von 1024 bis 1279 px steht neben dem Panel die Karte wie am Handy, ab 1280 px die Tabelle: sieben Spalten passen
+  in rund 350 px nicht (Layout-Sweep Invariante 4). Roman, 2026-11-13.
+- (g) „Jetzt spiegeln“ bleibt im Kopf des Kassenbuchs (am Handy als Symbolknopf), auch auf dem Tab Regeln: BB-Funktion,
+  die der Prototyp an dieser Stelle nicht zeigt (CLAUDE.md „gilt BB“).
+- (h) „+ Neue Regel“ am PC hat die DS-Größe des Hauptknopfs (44 px, Glow) statt `.btn.sm` (36 px), der Schließen-Knopf
+  im Sheet ist der runde Knopf von `BottomSheet` statt eines schlichten „×“: DS wie überall, nach Romans Entscheidung (d)
+  (Conductor, 2026-11-13).
+- (i) Die Navigation zeigt noch „Quick Add“ als vierten Ort; das entfernt ledger-ea70s (Ein Erfassen), nicht diese Task.
 
 ## Notes
 Verfeinert 2026-11-13 mit Roman: zwei Tasks (dieser Tab, danach ledger-hg5m5 „Regel aus der Buchung“, hängt
@@ -177,3 +190,79 @@ Heutige Regel-Seite: `src/Client/Components/Rules/` (View.fs 375-610 Formular, 6
 `BottomSheet`, `Segmented`, `CategoryPicker`.
 Baut der Schnitt eine Seite um, fliegen ihre `[flow]`-, `[tastatur]`-, `[fokus]`- und `[scroll]`-Tests raus
 und werden gegen die Muster aus dem Styleguide neu geschrieben, je Flow einer.
+
+## Verifier note (iteration 1)
+**REASONS:**
+- Kriterium „Seite neben der Skizze verglichen, Abweichungen nur die genannten“ nicht erfüllt: das OUTCOME nannte vier
+  weitere Abweichungen (Panel unter Titel und Tabs, Tabs 12 px, „Jetzt spiegeln“ im Kopf, Karte von 1024 bis 1279 px),
+  dazu `Segmented` ohne Trennstriche und Unterstrich. Diese sind jetzt mit Roman entschieden und stehen als (d) bis (g)
+  oben in den Abweichungen.
+- Weitere sichtbare Abweichungen ohne Eintrag, die an die Skizze anzugleichen sind:
+  - PC: „+ Neue Regel“ steht ganz oben rechts über dem Panel; in der Skizze am rechten Rand der Listenspalte, links vom Panel.
+  - PC: die Tastenleiste „↑ ↓ Regel · Esc schließen“ steht direkt unter der Tabelle (View.fs:639); in der Skizze unten
+    am Fensterrand der Listenspalte.
+  - Handy: der Kopf trägt den Untertitel „5 Regeln, 4 aktiv“, den die Handy-Ansicht der Skizze nicht hat.
+  - Handy: „+ Neue Regel“ unter der Liste hat eine Flächenfüllung; Kriterium und Skizze: breiter Knopf ohne Füllung.
+  - PC: „Abbrechen“ im Fuß des Panels ist gefüllt; die Skizze zeigt nur einen Rand.
+- Prüfungen 2 bis 8 noch nicht beurteilt (Tests, README_DELTA, ADR 0094, Scope).
+
+**SUGGESTED_FIX:** Die fünf Punkte oben an die Skizze angleichen (für Knöpfe ohne Füllung einen vorhandenen DS-Knopf
+nutzen, der gleich aussieht, sonst eine DS-Variante), die Abweichungen (d) bis (g) nicht anfassen. Danach `./verify.sh`
+und neue Screenshots in `bb-neu/`.
+
+**ITERATION_HINT:** likely-fixable
+
+## Outcome
+
+Die Regeln sind ein Tab im Kassenbuch. Route `#/ledger/rules` (`Page.LedgerRules`), `#/rules` führt dorthin, die
+Navigation markiert „Kassenbuch“. `Components.Ledger.View.view` bekommt `LedgerTabs` (Tabs „Buchungen“ und
+„Regeln“ über `Tabs.bar`, am PC höchstens 320 px), der Root reicht Untertitel, Kopf-Knopf und Inhalt des Regel-Tabs
+herein (`src/Client/View.fs`). Der Textlink „Regeln“ und die Seite „Kategorisierungsregeln“ samt „Zurück“ sind weg.
+Wechsel zwischen den Tabs lässt Konto, Filter, Auswahl und Liste stehen (`urlChangedCmd`, kein Neuladen), den
+Scrollstand setzt `BookingsScrollRestore` zurück.
+
+- Regel-Tab: `src/Client/Components/Rules/Types.fs`, `State.fs`, `View.fs`. Editor-DU (`NewRule | Editing of Rule`),
+  `SaveState`, `PatternTest` (an die Anfrage gebunden), `LoadVersion` gegen späte Ladeantworten, getrennte
+  Nachrichten nach Absicht (`CreateRequested`/`ChangeRequested`, `PatternEntered`, `CategoryChosen` …), kein
+  `Cmd.OfAsync.perform`, kein `JS.eval`, deutsche Toasts. `testRule` über `Retry.reading` (Inventar in
+  `src/Tests/RetryTests.fs`). Tasten am PC über die reine `ruleKeyAction` (↑↓, Esc erst Picker, dann Panel).
+- PC: Kopf „Kassenbuch“ mit „N Regeln, M aktiv“, „+ Neue Regel“ am rechten Rand der Listenspalte links vom Panel;
+  Tabelle (#, Name, Muster mono, Art, Kategorie, Status, Pfeile), gewählte Zeile `bg-surface-hover` mit Akzentrand;
+  Panel rechts (`Detail.panel`; ohne Auswahl „Regel wählen oder eine neue anlegen.“, nach dem Anlegen zeigt es die
+  neue Regel), im Fuß „Abbrechen“ nur mit Rand und „Speichern“ bzw. „Regel anlegen“; die Tastenleiste
+  „↑ ↓ Regel · Esc schließen“ unten am Fensterrand der Listenspalte (sticky).
+- Handy: Kopf ohne Untertitel, Karte mit Nummer, Name („· inaktiv“), Bedingung und „→ Kategorie“, Pfeile
+  übereinander, darunter „+ Neue Regel“ breit ohne Füllung; Formular im `BottomSheet`, die Kategorie-Auswahl ersetzt
+  den Sheet-Inhalt (`CategoryPicker.sheetContent`, §7.15). Kein „+ Buchung“ auf dem Tab.
+- Server: `restoreRule` (ADR 0094 neu, `src/Server/Rules/CommandHandlers.fs`, `Persistence.Rules.restoreRuleAt`,
+  `Validation.validateRuleRestore`); `NewRule.Enabled` für „Regel aktiv“ beim Anlegen; `exportRules`, `importRules`,
+  `insertRules` samt Tests entfernt. Änderungen schicken `PayeeOverrideChange.Keep`.
+- DS: neue Knopf-Variante `Button.Outline` (Rand `border-strong`, ohne Füllung, Prototyp `.btn`; auf `/styleguide`
+  unter „Nur Rand“), `Form.submitButtonBlock` (voll breit, ohne Symbol), `PageHeader.Props.SubtitleDesktopOnly`, CSS
+  `.input-field.input-mono`.
+- Tests: `src/Tests/RulesListTests.fs` (neu geschrieben: Liste, Ladeversion als Aufzählung der Reihenfolgen, Panel,
+  Muster-Test-Bindung, Löschen/Rückgängig, Tasten, Tab-Wechsel im Root), `RuleCommandHandlerTests.fs`
+  (Wiederherstellen, Anlegen inaktiv, Override bleibt), `RoutingTests.fs` (`#/rules` führt in den Tab),
+  `LedgerCategoriesSyncTests.fs` (Kategorien beim Direktaufruf des Tabs), `ButtonSizeTests.fs` (Outline im
+  Hover-Test). Browser: `scripts/regeln-tab.test.mjs` mit `[flow:regel-anlegen]` (412 px Touch), `[fokus]`
+  (Umschalter nimmt den Fokus nicht) und `[scroll]` (Scrollstand nach Regeln und zurück; vor dem Fix rot: „vorher
+  700, nachher 25“). `scripts/rules-page-mobile.test.mjs` entfernt, `FLOWS` ohne `regeln-importieren`. Layout-Sweep:
+  Zustände `regeln`, `regeln-panel` (1440), `regeln-sheet-picker` (Handy) auf `/ledger/rules`; der Gegenbeweis zu
+  Invariante 2 nutzt den Pfeil `rule-move-down`. `KNOWN_ROUTES` mit `/rules` und `/ledger/rules`.
+- `./verify.sh`: `VERIFY: PASS` (dotnet 4991 grün, node 319 grün).
+
+Seite neben der Skizze: Screenshots von BB (Iteration 2) unter
+`/private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/6d389406-c915-4195-8b34-eccfb6980fcd/scratchpad/n3sxw/bb-neu/`
+(`handy-regeln-liste.png`, `handy-regel-bearbeiten.png`, `handy-regel-neu.png`, `pc-regeln-liste.png`,
+`pc-regel-bearbeiten.png`, `pc-regel-neu.png`, 412 px Touch bzw. 1440 px) neben `proto/*.png`. Abweichungen: genau
+(a) bis (g) aus der Task. Die fünf Punkte der Verifier-Notiz (Iteration 1) sind angeglichen.
+
+Weitere sichtbare Unterschiede, die ich nicht selbst entschieden habe (für Roman):
+- „+ Neue Regel“ im Kopf am PC hat die normale DS-Knopfgröße (44 px, Glow), der Prototyp zeigt einen kleinen Knopf
+  (`.btn.sm`, 36 px).
+- Der Schließen-Knopf im Sheet ist der runde DS-Knopf von `BottomSheet`, im Prototyp ein schlichtes „×“.
+- Navigation: BB zeigt „Quick Add“ als vierten Ort (Seitenleiste und Leiste unten), der Prototyp nicht; das löst
+  `ledger-ea70s`, nicht diese Task.
+
+Hinweis: beim Löschen der alten Browser-Testdatei lief in Iteration 1 versehentlich ein `git rm --cached`; es ist mit
+`git restore --staged` sofort zurückgenommen, der Index entsprach danach wieder HEAD.

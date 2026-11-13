@@ -4463,15 +4463,83 @@ let private accountSwitcher
                   ] ]
         ]
 
-let view (model: Model) (dispatch: Msg -> unit) =
+/// Der Tab „Regeln“ (categorization-n3sxw): Untertitel, Knöpfe im Kopf und Inhalt kommen vom Regel-Tab, der Root
+/// reicht sie herein (das Kassenbuch kennt den Regel-Baustein nicht).
+type RulesTabParts = {
+    Subtitle: string option
+    Actions: ReactElement list
+    Content: ReactElement
+}
+
+/// Welcher Tab im Kassenbuch offen ist.
+type LedgerTab =
+    | BookingsTab
+    | RulesTab of RulesTabParts
+
+/// Die Tabs „Buchungen“ und „Regeln“ (ADR 0087 Punkt 9): der offene Tab und die beiden Wechsel (Routen).
+type LedgerTabs = {
+    Active: LedgerTab
+    ShowBookings: unit -> unit
+    ShowRules: unit -> unit
+}
+
+/// Der Scrollstand der Buchungen beim Wechsel zu „Regeln“. Der Tab „Buchungen“ baut sich beim Zurückwechseln neu
+/// auf, Konto, Filter und Auswahl stehen im Modell; nur der Scrollstand hängt am Fenster.
+let mutable private bookingsScrollY : float option = None
+
+/// Springt ohne Animation (`scroll-behavior: smooth` der Seite gilt hier nicht): die Liste soll stehen wie vorher.
+[<Emit("window.scrollTo({ top: $0, behavior: 'instant' })")>]
+let private scrollWindowTo (y: float) : unit = jsNative
+
+/// Setzt den gemerkten Scrollstand, sobald die Buchungen wieder stehen (nach dem Aufbau, vor dem Zeichnen).
+[<ReactComponent>]
+let private BookingsScrollRestore () =
+    React.useLayoutEffectOnce (fun () ->
+        match bookingsScrollY with
+        | Some y ->
+            bookingsScrollY <- None
+            scrollWindowTo y
+        | None -> ())
+    Html.none
+
+let private tabsBar (tabs: LedgerTabs) =
+    let onBookings = match tabs.Active with BookingsTab -> true | RulesTab _ -> false
+    Html.div [
+        prop.className "md:max-w-[320px] mb-3"
+        prop.children [
+            Tabs.bar "ledger-tabs" "Kassenbuch" [
+                { Label = "Buchungen"; IsActive = onBookings; OnClick = tabs.ShowBookings }
+                { Label = "Regeln"
+                  IsActive = not onBookings
+                  OnClick =
+                    fun () ->
+                        if onBookings then bookingsScrollY <- Some Browser.Dom.window.scrollY
+                        tabs.ShowRules () }
+            ]
+        ]
+    ]
+
+let view (model: Model) (dispatch: Msg -> unit) (tabs: LedgerTabs) =
     let accounts = model.Accounts |> RemoteData.toOption |> Option.map (fun a -> a.Accounts) |> Option.defaultValue []
     let balances = model.Balances
     let isAllAccounts = model.SelectedFilter = Some AllAccounts
     let categories = model.Categories |> RemoteData.toOption |> Option.defaultValue []
 
+    // „Jetzt spiegeln“ bleibt am Handy als Symbol-Knopf in der Kopfzeile, auch auf dem Tab „Regeln“ (Prototyp).
+    let mirrorIcon =
+        Button.view {
+            Button.defaultProps with
+                Icon = Some (Icons.sync Icons.SM Icons.Default)
+                Variant = Button.Secondary
+                IsLoading = model.MirrorRunning
+                Title = Some "Jetzt spiegeln"
+                // Am Handy zeigt `title` nichts: der Name kommt aus `AriaLabel` (ledger-dn4vy).
+                AriaLabel = Some "Jetzt spiegeln"
+                ClassName = Some "md:hidden"
+                OnClick = (fun () -> dispatch StartMirror)
+        }
+
     // Ruhige Liste (ADR 0049 Punkt 9): schlanker Seitenkopf, Liste füllt die Breite.
-    // "Jetzt spiegeln" bleibt erreichbar, aber ohne den großen Hauptknopf: am
-    // Handy als Symbol-Knopf in der Kopfzeile, am PC als sekundärer Knopf.
     // Die Lena-Farbe steht nur im Flag-Symbol (ADR 0087 Punkt 8, `data-lena-flag` in styles.css). Der
     // Rahmen ist `contents`, er ändert das Layout nicht.
     Html.div [
@@ -4479,70 +4547,70 @@ let view (model: Model) (dispatch: Msg -> unit) =
       yield! Badge.lenaFlagScope (lenaColorOf model.LenaFlagColor)
       prop.children [
        Primitives.Container.full [
-        PageHeader.calm
-            "Kassenbuch"
-            (lastRunSubtitle model.LastMirrorRun)
-            [
-                // Regeln stehen nicht mehr in der Navigation: bis `categorization-n3sxw` (Regeln ins Kassenbuch)
-                // führt dieser Link auf die Regelseite (design-system-k6kfw).
-                // Ein Textlink im Akzent (Styleguide §2); einen Link-Baustein hat das DS nicht.
-                Html.a [
-                    prop.href "#/rules"
-                    prop.className $"inline-flex items-center gap-1.5 px-2 {Tokens.FontSizes.sm} {Tokens.Colors.accent} hover:underline {Tokens.TouchTargets.mobileMinHeight} md:min-h-0"
+        match tabs.Active with
+        | RulesTab parts ->
+            // Ab 1024 px steht rechts das Panel: der Kopf endet wie die Liste links davon, „+ Neue Regel“ steht am
+            // rechten Rand der Listenspalte (Prototyp `rhead`). Der Untertitel nur am PC.
+            Html.div [
+                prop.className "lg:pr-[444px]"
+                prop.children [
+                    PageHeader.view
+                        { PageHeader.defaultProps with
+                            Title = "Kassenbuch"
+                            Subtitle = parts.Subtitle
+                            SubtitleDesktopOnly = true
+                            Actions = mirrorIcon :: parts.Actions
+                            TitleStyle = PageHeader.Calm }
+                ]
+            ]
+            tabsBar tabs
+            parts.Content
+        | BookingsTab ->
+            PageHeader.calm
+                "Kassenbuch"
+                (lastRunSubtitle model.LastMirrorRun)
+                [
+                    mirrorIcon
+                    Button.view {
+                        Button.defaultProps with
+                            Text = if model.MirrorRunning then "Spiegel läuft…" else "Jetzt spiegeln"
+                            Variant = Button.Secondary
+                            IsLoading = model.MirrorRunning
+                            ClassName = Some "hidden md:inline-flex"
+                            OnClick = (fun () -> dispatch StartMirror)
+                    }
+                    Button.view {
+                        Button.defaultProps with
+                            Text = captureOpenLabel
+                            Icon = Some (Icons.plus Icons.SM Icons.Default)
+                            Variant = Button.Primary
+                            AriaLabel = Some captureTitle
+                            ClassName = Some "hidden md:inline-flex"
+                            OnClick = (fun () -> dispatch OpenCapture)
+                    }
+                ]
+            tabsBar tabs
+
+            match model.Accounts with
+            | Failure message ->
+                ErrorDisplay.cardWithTitle "Konten konnten nicht geladen werden" message (Some (fun () -> dispatch LoadAccounts))
+            | Loading -> Loading.centered "Kassenbuch wird geöffnet…"
+            | NotAsked | Success _ ->
+                match balancesNoticeView dispatch balances with
+                | Some card when not (List.isEmpty accounts) -> Html.div [ prop.className "hidden lg:block pb-3"; prop.children [ card ] ]
+                | _ -> ()
+                Html.div [
+                    prop.className "flex flex-col md:flex-row md:items-start md:gap-6 gap-4"
                     prop.children [
-                        Icons.rules Icons.XS Icons.Accent
-                        Html.span [ prop.text "Regeln" ]
+                        accountSwitcher dispatch model accounts balances
+                        accountStrip dispatch accounts balances model.SelectedFilter
+
+                        FilterBarColumn dispatch model categories accounts isAllAccounts
                     ]
                 ]
-                Button.view {
-                    Button.defaultProps with
-                        Icon = Some (Icons.sync Icons.SM Icons.Default)
-                        Variant = Button.Secondary
-                        IsLoading = model.MirrorRunning
-                        Title = Some "Jetzt spiegeln"
-                        // Am Handy zeigt `title` nichts: der Name kommt aus `AriaLabel` (ledger-dn4vy).
-                        AriaLabel = Some "Jetzt spiegeln"
-                        ClassName = Some "md:hidden"
-                        OnClick = (fun () -> dispatch StartMirror)
-                }
-                Button.view {
-                    Button.defaultProps with
-                        Text = if model.MirrorRunning then "Spiegel läuft…" else "Jetzt spiegeln"
-                        Variant = Button.Secondary
-                        IsLoading = model.MirrorRunning
-                        ClassName = Some "hidden md:inline-flex"
-                        OnClick = (fun () -> dispatch StartMirror)
-                }
-                Button.view {
-                    Button.defaultProps with
-                        Text = captureOpenLabel
-                        Icon = Some (Icons.plus Icons.SM Icons.Default)
-                        Variant = Button.Primary
-                        AriaLabel = Some captureTitle
-                        ClassName = Some "hidden md:inline-flex"
-                        OnClick = (fun () -> dispatch OpenCapture)
-                }
-            ]
+                BookingsScrollRestore ()
 
-        match model.Accounts with
-        | Failure message ->
-            ErrorDisplay.cardWithTitle "Konten konnten nicht geladen werden" message (Some (fun () -> dispatch LoadAccounts))
-        | Loading -> Loading.centered "Kassenbuch wird geöffnet…"
-        | NotAsked | Success _ ->
-            match balancesNoticeView dispatch balances with
-            | Some card when not (List.isEmpty accounts) -> Html.div [ prop.className "hidden lg:block pb-3"; prop.children [ card ] ]
-            | _ -> ()
-            Html.div [
-                prop.className "flex flex-col md:flex-row md:items-start md:gap-6 gap-4"
-                prop.children [
-                    accountSwitcher dispatch model accounts balances
-                    accountStrip dispatch accounts balances model.SelectedFilter
-
-                    FilterBarColumn dispatch model categories accounts isAllAccounts
-                ]
-            ]
-
-        KeyboardNavigation model.FocusedRow dispatch
+            KeyboardNavigation model.FocusedRow dispatch
        ]
       ]
     ]

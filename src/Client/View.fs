@@ -81,12 +81,17 @@ let view (model: Model) (dispatch: Msg -> unit) =
         match backTarget model.CurrentPage model.SettingsReturn with
         | Some target -> PageHeader.backButtonFor (Some target.Label) (fun () -> dispatch (NavigateTo target.Target))
         | None -> Html.none
-    // Kassenbuch, Import prüfen und Regeln füllen die Breite (ADR 0049 Punkt 9, ledger-n4vte,
+    // Kassenbuch (mit dem Tab Regeln) und Import prüfen füllen die Breite (ADR 0049 Punkt 9, ledger-n4vte,
     // ynab-sync-aj5tv): ihr Rahmen trägt keine `container`-Begrenzung (max. 1280px), die
     // Seite setzt ihre Ränder selbst.
+    // Die Tabs des Kassenbuchs: „Buchungen“ und „Regeln“ sind Routen (categorization-n3sxw).
+    let ledgerTabs (active: Components.Ledger.View.LedgerTab) : Components.Ledger.View.LedgerTabs =
+        { Active = active
+          ShowBookings = fun () -> if not (isLedgerPage model.CurrentPage) then dispatch (NavigateTo Ledger)
+          ShowRules = fun () -> if model.CurrentPage <> LedgerRules then dispatch (NavigateTo LedgerRules) }
     let pageShell =
         match model.CurrentPage with
-        | Overview | Ledger | LedgerEntry _ | Rules | Budget | BudgetHistory | BudgetTargetCheck | BudgetCategories -> Navigation.pageContentFull
+        | Overview | Ledger | LedgerEntry _ | LedgerRules | Budget | BudgetHistory | BudgetTargetCheck | BudgetCategories -> Navigation.pageContentFull
         | _ -> Navigation.pageContent
 
     React.router [
@@ -141,11 +146,6 @@ let view (model: Model) (dispatch: Msg -> unit) =
                                       Capture = fun () -> dispatch CaptureFromOverview
                                       OpenPinned = fun categoryId -> dispatch (OpenPinnedCategory categoryId)
                                       Dispatch = OverviewMsg >> dispatch }
-                            | Rules ->
-                                Components.Rules.View.view
-                                    (back ())
-                                    model.Rules
-                                    (RulesMsg >> dispatch)
                             | Settings ->
                                 Components.Settings.View.view
                                     (back ())
@@ -169,6 +169,18 @@ let view (model: Model) (dispatch: Msg -> unit) =
                                 Components.Ledger.View.view
                                     model.Ledger
                                     (LedgerMsg >> dispatch)
+                                    (ledgerTabs Components.Ledger.View.BookingsTab)
+                            | LedgerRules ->
+                                let rulesDispatch = RulesMsg >> dispatch
+                                Components.Ledger.View.view
+                                    model.Ledger
+                                    (LedgerMsg >> dispatch)
+                                    (ledgerTabs (
+                                        Components.Ledger.View.RulesTab
+                                            { Subtitle = Components.Rules.View.subtitle model.Rules
+                                              Actions = Components.Rules.View.headerActions rulesDispatch
+                                              Content = Components.Rules.View.content model.Rules rulesDispatch }
+                                    ))
                             | Budget ->
                                 Components.Budget.View.view
                                     (match model.Overview.Pins with

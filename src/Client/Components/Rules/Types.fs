@@ -1,108 +1,105 @@
+/// Der Tab „Regeln“ im Kassenbuch (categorization-n3sxw, ADR 0087 Punkte 9 und 16): die Regeln nach Priorität,
+/// eine Regel öffnet am PC im Panel, am Handy im Sheet. Regeln sind Zustand, keine Ereignisse (ADR 0083).
 module Components.Rules.Types
 
 open Shared.Domain
 open Types
 
-/// State for the rule editor form
-type RuleFormState = {
+/// Was das Formular bearbeitet: eine neue Regel oder eine bestehende.
+type Editor =
+    | NewRule
+    | Editing of Rule
+
+/// Die Eingaben im Formular. `CategoryId = None`: noch keine Kategorie gewählt. `TestInput` ist der Text unter
+/// „Muster testen“, er wird nicht gespeichert.
+type RuleDraft = {
     Name: string
     Pattern: string
     PatternType: PatternType
     TargetField: TargetField
     CategoryId: YnabCategoryId option
-    PayeeOverride: string
     Enabled: bool
     TestInput: string
-    TestResult: string option
-    IsSaving: bool
-    /// Ist der Kategorie-Picker im Dialog offen?
-    PickerOpen: bool
 }
 
-module RuleFormState =
-    /// Empty form state for new rules
-    let empty : RuleFormState = {
+module RuleDraft =
+    /// Eine neue Regel: Enthält, in Payee & Memo, aktiv.
+    let empty : RuleDraft = {
         Name = ""
         Pattern = ""
         PatternType = Contains
         TargetField = Combined
         CategoryId = None
-        PayeeOverride = ""
         Enabled = true
         TestInput = ""
-        TestResult = None
-        IsSaving = false
-        PickerOpen = false
     }
 
-    /// Populate form from an existing rule for editing
-    let fromRule (rule: Rule) : RuleFormState = {
+    let fromRule (rule: Rule) : RuleDraft = {
         Name = rule.Name
         Pattern = rule.Pattern
         PatternType = rule.PatternType
         TargetField = rule.TargetField
         CategoryId = Some rule.CategoryId
-        PayeeOverride = rule.PayeeOverride |> Option.defaultValue ""
         Enabled = rule.Enabled
         TestInput = ""
-        TestResult = None
-        IsSaving = false
-        PickerOpen = false
     }
 
-/// Die neue Regel aus dem Dialog. Die Priorität vergibt der Server.
-let buildNewRule (form: RuleFormState) (categoryId: YnabCategoryId) : NewRule = {
-    Name = form.Name
-    Pattern = form.Pattern
-    PatternType = form.PatternType
-    TargetField = form.TargetField
-    CategoryId = categoryId
-    PayeeOverride =
-        if System.String.IsNullOrWhiteSpace form.PayeeOverride then None else Some form.PayeeOverride
+/// Eine Anfrage an `testRule`. Die Antwort trägt sie mit: passt sie nicht mehr zur Eingabe, zählt sie nicht.
+type TestRequest = {
+    Pattern: string
+    PatternType: PatternType
+    TargetField: TargetField
+    Input: string
 }
 
-/// Die Änderung aus dem Dialog: ein geleertes Feld entfernt den PayeeOverride.
-let buildRuleChange (rule: Rule) (form: RuleFormState) (categoryId: YnabCategoryId) : RuleChange = {
-    Id = rule.Id
-    Name = Some form.Name
-    Pattern = Some form.Pattern
-    PatternType = Some form.PatternType
-    TargetField = Some form.TargetField
-    CategoryId = Some categoryId
-    PayeeOverride =
-        if System.String.IsNullOrWhiteSpace form.PayeeOverride then PayeeOverrideChange.Remove
-        else PayeeOverrideChange.Set form.PayeeOverride
-    Priority = None
-    Enabled = Some form.Enabled
+/// Das Urteil des Servers über das Muster.
+type TestVerdict =
+    | Matches
+    | NoMatch
+    /// Das Muster gilt nicht (etwa ein ungültiges Regex): der Grund in Worten, kein „Passt nicht“.
+    | PatternFaulty of reason: string
+    /// Der Server hat nicht geantwortet: kein Urteil über das Muster.
+    | Unreachable
+
+/// „Muster testen“: ohne Text und Muster gibt es nichts zu prüfen, sonst läuft eine Anfrage oder ihr Urteil steht da.
+type PatternTest =
+    | NothingToTest
+    | Testing of TestRequest
+    | Tested of TestRequest * TestVerdict
+
+/// Warum das Speichern scheiterte. Ein ungültiges Muster steht am Feld Muster, alles andere im Formular.
+type SaveFailure =
+    | PatternRejected of reason: string
+    | SaveRejected of message: string
+
+type SaveState =
+    | NotSaving
+    | Saving
+    | SaveFailed of SaveFailure
+
+/// Die Hülle, in der das Formular steht: am PC das Panel, das nach dem Speichern die Regel zeigt (§7.6), am Handy
+/// das Sheet, das schließt.
+type Shell =
+    | InPanel
+    | InSheet
+
+/// Das offene Formular, am PC im Panel, am Handy im Sheet.
+type Panel = {
+    Editor: Editor
+    Draft: RuleDraft
+    Save: SaveState
+    Test: PatternTest
+    /// Ist die Auswahl der Kategorie offen? Am PC ein Popover, am Handy ersetzt sie den Inhalt des Sheets (§7.15).
+    PickerOpen: bool
 }
 
-/// Schaltet nur Enabled um, alle anderen Felder bleiben unangetastet.
-let toggleEnabledChange (rule: Rule) : RuleChange = {
-    Id = rule.Id
-    Name = None
-    Pattern = None
-    PatternType = None
-    TargetField = None
-    CategoryId = None
-    PayeeOverride = PayeeOverrideChange.Keep
-    Priority = None
-    Enabled = Some (not rule.Enabled)
-}
-
-/// Direction in which a rule is moved within the precedence-ordered list.
-/// "Up" raises a rule's precedence (it then wins earlier); "Down" lowers it.
+/// Richtung eines Pfeils: `Up` lässt die Regel früher gewinnen, `Down` später.
 type MoveDirection =
     | Up
     | Down
 
-/// Compute the new full RuleId list (in precedence order, top = highest
-/// priority = wins first) after moving `ruleId` one position in `direction`.
-///
-/// The displayed list is already sorted `priority DESC`, so a move just swaps
-/// the rule with its neighbour. Edge moves (top rule up / bottom rule down)
-/// and an unknown id are no-ops — the original order is returned unchanged so
-/// the server's priorities never desync. The result is always a permutation of
-/// the input ids, suitable to hand to `reorderRules` verbatim.
+/// Die Liste aller Regel-Ids nach dem Verschieben von `ruleId` um eine Stelle. Am Rand und bei unbekannter Id
+/// bleibt die Reihenfolge, wie sie ist. Das Ergebnis ist immer eine Umordnung der Eingabe, so geht es an `reorderRules`.
 let reorderedIds (direction: MoveDirection) (ruleId: RuleId) (rules: Rule list) : RuleId list =
     let ids = rules |> List.map (fun r -> r.Id)
     match List.tryFindIndex (fun (r: Rule) -> r.Id = ruleId) rules with
@@ -113,7 +110,6 @@ let reorderedIds (direction: MoveDirection) (ruleId: RuleId) (rules: Rule list) 
             | Up -> index - 1
             | Down -> index + 1
         if swapWith < 0 || swapWith >= List.length ids then
-            // Already at the relevant edge — nothing to do.
             ids
         else
             ids
@@ -122,67 +118,57 @@ let reorderedIds (direction: MoveDirection) (ruleId: RuleId) (rules: Rule list) 
                 elif i = swapWith then ids.[index]
                 else id)
 
-/// Rules-specific model state
 type Model = {
     Rules: RemoteData<Rule list>
-    EditingRule: Rule option
-    IsNewRule: bool
+    /// Zählt jedes Laden und jede Änderung an der Liste. Eine Ladeantwort mit älterer Version ist überholt und
+    /// ersetzt die Liste nicht (Befund `State.fs:52` aus categorization-krscs).
+    LoadVersion: int
     Categories: YnabCategory list
-
-    // Consolidated form state
-    Form: RuleFormState
-
-    // Delete confirmation state
-    ConfirmingDeleteRuleId: RuleId option
-
-    /// Ist das Menü der Seite offen (neu laden, exportieren, importieren)?
-    MenuOpen: bool
+    Panel: Panel option
 }
 
-/// Rules-specific messages
 type Msg =
     | LoadRules
-    | RulesLoaded of Result<Rule list, string>
-    | OpenNewRuleModal
-    | EditRule of RuleId
-    | CloseRuleModal
-    | ConfirmDeleteRule of RuleId    // First click on trash - shows confirm button
-    | CancelConfirmDelete            // Timeout expired - hide confirm button
-    | DeleteRule of RuleId           // Second click - actually delete
-    | RuleDeleted of Result<RuleId, RulesError>
-    | ToggleRuleEnabled of RuleId
-    | RuleToggled of Result<Rule, RulesError>
-    | MoveRule of RuleId * MoveDirection   // ▲/▼ — change a rule's precedence
-    | RulesReordered of Result<unit, string>
+    | RulesLoaded of version: int * Result<Rule list, string>
     | LoadCategories
     | CategoriesLoaded of Result<YnabCategory list, YnabError>
 
-    // Rule form messages
-    | UpdateRuleFormName of string
-    | UpdateRuleFormPattern of string
-    | UpdateRuleFormPatternType of PatternType
-    | UpdateRuleFormTargetField of TargetField
-    | UpdateRuleFormCategoryId of YnabCategoryId option
-    | UpdateRuleFormPayeeOverride of string
-    | UpdateRuleFormEnabled of bool
-    | UpdateRuleFormTestInput of string
-    | TestRulePattern
-    | RulePatternTested of Result<bool, RulesError>
-    /// Der Server hat nicht geantwortet (Netzfehler): kein Urteil über das Muster.
-    | RulePatternTestLost
-    | SaveRule
-    | RuleSaved of Result<Rule, RulesError>
-    | OpenRuleCategoryPicker
-    | CloseRuleCategoryPicker
-    | OpenRulesMenu
-    | CloseRulesMenu
-    | ExportRules
-    | RulesExported of Result<string, RulesError>
-    | ImportRulesStart
-    | ImportRules of string
-    | RulesImported of Result<int, RulesError>
+    // Liste
+    | NewRuleRequested
+    | RuleChosen of RuleId
+    | PanelClosed
+    | MoveRequested of RuleId * MoveDirection
+    /// `previous`: die Reihenfolge vor dem Verschieben, sie steht nach einem Fehler wieder da.
+    | RulesReordered of previous: Rule list * Result<unit, string>
+    /// Der Tab „Regeln“ ist verlassen: ein offenes Formular schließt.
+    | RulesTabLeft
 
-/// External message to notify parent of events
+    // Formular
+    | NameEntered of string
+    | PatternEntered of string
+    | PatternTypeChosen of PatternType
+    | TargetFieldChosen of TargetField
+    | CategoryPickerOpened
+    | CategoryPickerClosed
+    | CategoryChosen of YnabCategoryId option
+    | EnabledSwitched of bool
+    | TestInputEntered of string
+    | PatternTested of TestRequest * Result<bool, RulesError>
+    | PatternTestLost of TestRequest
+    | CreateRequested of Shell
+    | RuleCreated of Shell * Result<Rule, RulesError>
+    | ChangeRequested of Shell
+    | RuleChanged of Shell * Result<Rule, RulesError>
+
+    // Löschen mit Rückgängig
+    | DeleteRequested
+    | RuleDeleted of Rule * position: int * Result<unit, RulesError>
+    | RestoreRequested of Rule * position: int
+    | RuleRestored of Result<Rule list, RulesError>
+
+/// Was der Regel-Tab der Seite meldet.
 type ExternalMsg =
     | NoOp
     | ShowToast of string * ToastType
+    /// Die Regel ist gelöscht: Toast „Regel gelöscht“ mit „Rückgängig“, das sie an `position` zurückbringt.
+    | RuleDeletedUndoable of Rule * position: int

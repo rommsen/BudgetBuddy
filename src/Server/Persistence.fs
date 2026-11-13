@@ -435,17 +435,31 @@ module Rules =
             do! (conn.ExecuteAsync(insertRuleSql, insertRuleParameters rule) |> Async.AwaitTask |> Async.Ignore)
         }
 
-    /// Legt alle Regeln in einer Transaktion an: scheitert eine, bleibt keine (Import).
-    /// Die Reihenfolge der Liste ist die rowid-Reihenfolge, also der Gleichstand bei gleicher Priorität.
-    let insertRules (rules: Rule list) : Async<unit> =
+    /// Legt eine Regel an der Stelle `position` (ab 0, Prüfreihenfolge) wieder an und vergibt allen Regeln die
+    /// Prioritäten neu, in einer Transaktion: scheitert ein Schritt, bleibt alles wie vorher. Eine Stelle hinter
+    /// dem Ende hängt die Regel unten an.
+    let restoreRuleAt (rule: Rule) (position: int) : Async<unit> =
         async {
             use conn = getConnection()
             conn.Open()
             use transaction = conn.BeginTransaction()
 
-            for rule in rules do
-                do! (conn.ExecuteAsync(insertRuleSql, insertRuleParameters rule, transaction)
-                     |> Async.AwaitTask |> Async.Ignore)
+            let! ids =
+                conn.QueryAsync<string>("SELECT id FROM rules ORDER BY priority DESC, rowid ASC", transaction = transaction)
+                |> Async.AwaitTask
+            let (RuleId ruleId) = rule.Id
+            let ids = List.ofSeq ids
+            let order = List.insertAt (min position ids.Length) (ruleId.ToString()) ids
+
+            do! (conn.ExecuteAsync(insertRuleSql, insertRuleParameters rule, transaction)
+                 |> Async.AwaitTask |> Async.Ignore)
+
+            for i, id in List.indexed order do
+                do! (conn.ExecuteAsync(
+                        "UPDATE rules SET priority = @priority WHERE id = @id",
+                        {| id = id; priority = order.Length - i |},
+                        transaction
+                     ) |> Async.AwaitTask |> Async.Ignore)
 
             transaction.Commit()
         }

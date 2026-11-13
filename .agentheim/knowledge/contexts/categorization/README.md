@@ -19,8 +19,8 @@ schwaches Payee-basiertes Auto-Matching.
   CategoryId, Priority, optionaler **PayeeOverride**, Enabled.
 - **PatternType** — wie das Pattern matcht: `Contains | Exact | Regex`.
 - **TargetField** — worauf das Pattern matcht: `Combined | Memo | Payee`.
-- **Priority** — Reihenfolge der Regel-Anwendung; die erste passende Regel gewinnt. Höhere Zahl steht vorn. Bei gleicher Priority gewinnt die zuerst gespeicherte Regel (`ORDER BY priority DESC, rowid ASC`), beim Import also die frühere in der Datei. Die Priority neuer Regeln vergibt der Server: höchste vorhandene plus 1 (`NewRule` trägt keine).
-- **PayeeOverride** — überschreibt den an YNAB gemeldeten Payee unabhängig von der Kategorie. Eine Regeländerung (`RuleChange`) sagt mit `PayeeOverrideChange` ausdrücklich, was geschieht: behalten, setzen oder entfernen.
+- **Priority**: Reihenfolge der Regel-Anwendung; die erste passende Regel gewinnt. Höhere Zahl steht vorn. Bei gleicher Priority gewinnt die zuerst gespeicherte Regel (`ORDER BY priority DESC, rowid ASC`). Die Priority neuer Regeln vergibt der Server: höchste vorhandene plus 1 (`NewRule` trägt keine). Die Pfeile im Tab „Regeln“ (`reorderRules`) und „Rückgängig“ nach dem Löschen (`restoreRule`) vergeben allen Regeln die Priority neu, von oben gezählt.
+- **PayeeOverride**: überschreibt den an YNAB gemeldeten Payee unabhängig von der Kategorie. Eine Regeländerung (`RuleChange`) sagt mit `PayeeOverrideChange` ausdrücklich, was geschieht: behalten, setzen oder entfernen. Die Oberfläche hat dafür kein Feld mehr (categorization-n3sxw): das Formular schickt `Keep`, eine Regel mit Override behält ihn; Engine und Speicherung bleiben.
 - **AutoCategorized** — TransactionStatus, wenn eine Regel automatisch gegriffen hat
   (vs. **ManualCategorized** für Romans Hand-Zuordnung).
 - **Order-ID-Matching** — beim Abruf übernimmt eine neue Amazon-Buchung ohne Kategorie die Kategorie der jüngsten YNAB-Buchung mit gleicher Order-ID (`OrderIdMatcher.applySuggestions`, `SuggestedByOrderId`, `OrderIdSuggestion`). Eine Kategorie-Id aus der Historie, die keine Guid ist, überspringt den Eintrag, statt den Abruf abzubrechen (categorization-hz6vj, in banking-import-d0fey). Die Weitergabe an Buchungen derselben Bestellnummer innerhalb eines Imports (`propagateInSession`) entfiel mit der Prüfsitzung (ADR 0093).
@@ -51,6 +51,8 @@ schwaches Payee-basiertes Auto-Matching.
   eigenes `balance` ist ein interner Akkumulator (Fantasiewert); stattdessen zeigt sie den
   echten Ready-to-Assign des Monats (`to_be_budgeted`), via `applyReadyToAssign` (ADR 0011).
 - **Muster-Test**: prüft ein Muster gegen einen Text, ohne eine Regel zu speichern (`testRule`). Drei getrennte Ausgänge: passt, passt nicht, kein Urteil. Kein Urteil gibt es bei ungültigem Muster (nennt den Grund) und bei Netzfehler (eigene Meldung), beides ist nie „passt nicht“.
+- **Tab „Regeln“**: der Ort der Regeln, ein Tab im Kassenbuch neben „Buchungen“ (`#/ledger/rules`, der alte Pfad `#/rules` führt dorthin; ADR 0087 Punkt 9). Die Liste nach Priority mit Pfeilen; eine Regel öffnet am PC (ab 1024 px) im Panel, am Handy im Sheet. Felder: Name (leer heißt Muster), Wenn (`PatternType`), Suchen in (`TargetField`), Muster, Kategorie, „Regel aktiv“ (auch beim Anlegen, vorbelegt an, `NewRule.Enabled`), Muster-Test. Export, Import und Neu laden gibt es nicht mehr (categorization-n3sxw).
+- **Regel wiederherstellen** (`restoreRule`, `RuleRestore`): „Rückgängig“ nach „Regel löschen“ legt die gelöschte Regel mit allen Feldern (auch PayeeOverride und Enabled) an ihrer alten Stelle wieder an. Einfügen und neue Priorities laufen in einer Transaktion, die Antwort ist die ganze Liste; scheitert der Aufruf, fehlt die Regel und ein Toast nennt es.
 
 ## Aggregates
 - **Rule** — eine Regel; Invariante: gültiges Pattern (bei Regex kompilierbar), eindeutige
@@ -65,6 +67,7 @@ schwaches Payee-basiertes Auto-Matching.
 ## Key commands
 - *ApplyRules* auf eine Menge BankTransactions.
 - *CreateRule* (oft direkt aus dem Zuweisungs-Dialog).
+- *RestoreRule*: eine gelöschte Regel an ihrer Stelle wieder anlegen („Rückgängig“ im Tab „Regeln“).
 
 ## Relationships with other contexts
 - **Downstream of:** `banking-import` — erhält geholte BankTransactions.

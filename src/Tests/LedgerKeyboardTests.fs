@@ -223,8 +223,8 @@ let keyBindingTests =
             for tag in [ "INPUT"; "TEXTAREA"; "SELECT" ] do
                 Expect.isNone (keyCommandFor tag false false false "Escape") $"Esc im Feld {tag}"
 
-        // Beide Seiten stehen nie zugleich im DOM, ihre Tasten kollidieren nicht.
-        testCase "nur Kassenbuch und Budget-Seite hören auf Tasten am Dokument, kein anderes Kürzel kollidiert" <| fun () ->
+        // Die Seiten stehen nie zugleich im DOM, ihre Tasten kollidieren nicht.
+        testCase "nur Kassenbuch, Tab Regeln und Budget-Seite hören auf Tasten am Dokument, kein anderes Kürzel kollidiert" <| fun () ->
             // Repo-weite Invariante ohne Verhaltenszugang (Doktrin Punkt 7): ein Dokument-Handler
             // in einer dritten Datei fängt dieselben Tasten ab. Gegenbeweis unten. Die Einbindung
             // in die Seite prüfen die [tastatur]-Tests in scripts/ledger-selection.test.mjs.
@@ -239,7 +239,9 @@ let keyBindingTests =
                 |> Array.filter (fun f -> listensToKeys (File.ReadAllText f))
                 |> Array.map (fun f -> Path.GetRelativePath(clientDir, f).Replace('\\', '/'))
                 |> Array.sort
-            Expect.equal listeners [| "Components/Budget/View.fs"; "Components/Ledger/View.fs" |] "die einzigen Dokument-Handler"
+            // categorization-n3sxw: der Tab „Regeln“ hört nur, solange er offen ist; die Tasten der Buchungen hängen
+            // dann nicht im DOM (`Components.Ledger.View.view`, Zweig `BookingsTab`).
+            Expect.equal listeners [| "Components/Budget/View.fs"; "Components/Ledger/View.fs"; "Components/Rules/View.fs" |] "die einzigen Dokument-Handler"
     ]
 
 [<Tests>]

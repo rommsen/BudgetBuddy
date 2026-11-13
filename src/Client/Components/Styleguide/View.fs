@@ -252,6 +252,12 @@ let private buttonSection =
                     Button.danger "Löschen" ignore
                 ]
                 note "Sekundär ist neutral mit dem Rand border-strong, auch im Hover. Der Akzent steht für Hauptaktion und Auswahl (ADR 0087)."
+                subTitle "Nur Rand"
+                note "Outline: Rand border-strong ohne Füllung (Prototyp `.btn`), etwa „Abbrechen“ neben dem Hauptknopf im Fuß von Panel und Sheet und „+ Neue Regel“ unter der Liste am Handy."
+                row [
+                    Button.view { Button.defaultProps with Text = "Abbrechen"; Variant = Button.Outline }
+                    Button.view { Button.defaultProps with Text = "Neue Regel"; Variant = Button.Outline; Icon = Some (Icons.plus Icons.SM Icons.Default) }
+                ]
                 row [
                     Button.primaryWithIcon "Hinzufügen" (Icons.plus Icons.SM Icons.Primary) ignore
                     Button.primaryLoading "Speichern…" true ignore

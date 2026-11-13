@@ -787,6 +787,10 @@ nav a:focus-visible {
 .input-field.input-amount {
   font-family: var(--font-mono);
 }
+/* Ein Muster im Regel-Formular (categorization-n3sxw, Prototyp `.inp.mono`): Mono wie ein Betrag. */
+.input-field.input-mono {
+  font-family: var(--font-mono);
+}
 /* Der große Betrag im Formular "Neue Buchung" (ledger-at63w, Prototyp Version 17): Mono, rechtsbündig,
    ohne Layer wie `.input-field`, damit die Größe von `Input.Large` (`text-lg`) sie nicht überstimmt. */
 .input-field.input-amount-hero {

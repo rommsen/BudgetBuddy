@@ -359,6 +359,7 @@ type Rule = {
 }
 
 /// Eine neue Regel. Die Priorität vergibt der Server (höchste vorhandene plus 1).
+/// `Enabled`: der Schalter „Regel aktiv“ im Formular, beim Anlegen vorbelegt mit an (categorization-n3sxw).
 type NewRule = {
     Name: string
     Pattern: string
@@ -366,6 +367,15 @@ type NewRule = {
     TargetField: TargetField
     CategoryId: YnabCategoryId
     PayeeOverride: string option
+    Enabled: bool
+}
+
+/// „Rückgängig“ nach dem Löschen einer Regel (categorization-n3sxw): die gelöschte Regel mit allen Feldern
+/// (auch Payee-Override und aktiv/inaktiv) kommt an ihre alte Stelle zurück. `Position` zählt ab 0 von oben,
+/// in der Reihenfolge, in der die Regeln geprüft werden.
+type RuleRestore = {
+    Rule: Rule
+    Position: int
 }
 
 /// Was eine Änderung mit dem PayeeOverride einer Regel macht. Ein eigener Typ, weil `None`

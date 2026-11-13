@@ -20,6 +20,8 @@ type TitleStyle =
 type Props = {
     Title: string
     Subtitle: string option
+    /// Der Untertitel steht erst ab `md` (Tab „Regeln“ im Kassenbuch: der Prototyp zeigt ihn nur am PC).
+    SubtitleDesktopOnly: bool
     Actions: ReactElement list
     TitleStyle: TitleStyle
 }
@@ -27,6 +29,7 @@ type Props = {
 let defaultProps = {
     Title = ""
     Subtitle = None
+    SubtitleDesktopOnly = false
     Actions = []
     TitleStyle = Standard
 }
@@ -73,7 +76,9 @@ let view (props: Props) =
                     match props.Subtitle with
                     | Some subtitle ->
                         Html.p [
-                            prop.className (subtitleClass props.TitleStyle)
+                            prop.className (
+                                subtitleClass props.TitleStyle + (if props.SubtitleDesktopOnly then " hidden md:block" else "")
+                            )
                             prop.text subtitle
                         ]
                     | None -> Html.none

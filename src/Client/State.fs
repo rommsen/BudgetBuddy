@@ -172,6 +172,8 @@ let toastActionMsg (kind: ToastActionKind) : Msg =
         LedgerMsg (Components.Ledger.Types.StartDiscardCaptured entryId)
     | UndoDeleteEntry entryId ->
         LedgerMsg (Components.Ledger.Types.StartRestoreDeletedEntry entryId)
+    | UndoDeleteRule (rule, position) ->
+        RulesMsg (Components.Rules.Types.RestoreRequested (rule, position))
     | ReloadForUpdate -> PwaApplyUpdate
     | UndoCategoryBatch changes ->
         LedgerMsg (Components.Ledger.Types.StartUndoCategoryBatch changes)
@@ -222,7 +224,7 @@ let rec pageLoadCmd (page: Page) : Cmd<Msg> =
     | Overview ->
         // Monat, neueste Buchungen, Konten und Stände; „heute“ geht als Parameter in die reine Rechnung.
         Cmd.map OverviewMsg (Cmd.ofMsg (Components.Overview.Types.Entered (Components.Overview.State.berlinToday ())))
-    | Rules ->
+    | LedgerRules ->
         Cmd.batch [
             Cmd.map RulesMsg (Cmd.ofMsg Components.Rules.Types.LoadRules)
             Cmd.map RulesMsg (Cmd.ofMsg Components.Rules.Types.LoadCategories)
@@ -357,6 +359,18 @@ let urlChangedCmd (ledger: Components.Ledger.Types.Model) (current: Page) (page:
     | LedgerEntry _, LedgerEntry target when ledger.DetailFor |> Option.exists (fun d -> d.Id = target) -> Cmd.none
     | LedgerEntry _, LedgerEntry _ -> pageLoadCmd page
     | LedgerEntry _, Ledger -> leave Components.Ledger.Types.LedgerList
+    // Der Tab „Regeln“: das Detail einer Buchung schließt, Konto und Filter bleiben.
+    | LedgerEntry _, LedgerRules -> Cmd.batch [ leave Components.Ledger.Types.LedgerList; pageLoadCmd page ]
+    // Zurück zu „Buchungen“: Konto, Filter, Auswahl und geladene Liste stehen noch da (categorization-n3sxw). Nur
+    // ohne geladene Liste (Direktaufruf des Tabs „Regeln“) lädt das Kassenbuch.
+    | LedgerRules, Ledger ->
+        let loaded = RemoteData.isSuccess ledger.Accounts && RemoteData.isSuccess ledger.Entries
+        Cmd.batch [
+            Cmd.map RulesMsg (Cmd.ofMsg Components.Rules.Types.RulesTabLeft)
+            if not loaded then pageLoadCmd page
+        ]
+    | LedgerRules, target when target <> LedgerRules ->
+        Cmd.batch [ Cmd.map RulesMsg (Cmd.ofMsg Components.Rules.Types.RulesTabLeft); pageLoadCmd page ]
     | LedgerEntry _, _ -> Cmd.batch [ leave Components.Ledger.Types.OtherPage; pageLoadCmd page ]
     // Ohne den Abschied ginge eine offene Zuweisen-Eingabe beim Rücksprung per Browser verloren:
     // das Abbauen eines Felds löst in React keinen Blur aus.
@@ -404,7 +418,7 @@ let isPageReady (model: Model) : bool =
         && notLoading model.Overview.Recent
         && notLoading model.Overview.NotInYnab
         && notLoading model.Overview.Pins
-    | Rules -> notLoading model.Rules.Rules
+    | LedgerRules -> notLoading model.Rules.Rules
     | Settings -> notLoading model.Settings.Settings
     | QuickAdd -> notLoading model.QuickAddTemplates
     | Ledger -> ledgerReady ()
@@ -447,7 +461,7 @@ let isInputActive (model: Model) : bool =
         || draftDiffers ledger.AmountMinDraft (amountText filters.AmountMin)
         || draftDiffers ledger.AmountMaxDraft (amountText filters.AmountMax)
         || ledger.BatchRunning.IsSome
-    let rulesActive = model.Rules.EditingRule.IsSome
+    let rulesActive = model.Rules.Panel.IsSome
     let settingsActive = model.Settings.EditingSection.IsSome
     let quickAddActive =
         match model.QuickAdd with
@@ -504,7 +518,7 @@ let private applyPwaDecision (model: Model) : Model * Cmd<Msg> =
 
 let init () : Model * Cmd<Msg> =
     let settingsModel, settingsCmd = Components.Settings.State.init ()
-    let rulesModel, rulesCmd = Components.Rules.State.init ()
+    let rulesModel, _ = Components.Rules.State.init ()
     // Das Kassenbuch laedt erst beim Betreten der Seite (UrlChanged), nicht beim
     // Start der App: es soll keine Abfrage ausloesen, solange niemand hineinschaut.
     let ledgerModel, _ = Components.Ledger.State.init ()
@@ -756,11 +770,14 @@ let rec updateWith (ports: UpdatePorts) (msg: Msg) (model: Model) : Model * Cmd<
                     // Wartet ein `LoadCategories` ausdrücklich auf die Settings
                     // (`CategoriesAwaitSettings`, ledger-k9tq7), startet es hier
                     // unabhängig von Seite und `Loading`-Zustand.
-                    if model.Ledger.CategoriesAwaitSettings
-                       || (isLedgerPage model.CurrentPage && model.Ledger.Categories = NotAsked) then
-                        Cmd.map LedgerMsg (Cmd.ofMsg Components.Ledger.Types.LoadCategories)
-                    else
-                        Cmd.none
+                    Cmd.batch [
+                        if model.Ledger.CategoriesAwaitSettings
+                           || (isLedgerPage model.CurrentPage && model.Ledger.Categories = NotAsked) then
+                            Cmd.map LedgerMsg (Cmd.ofMsg Components.Ledger.Types.LoadCategories)
+                        // Derselbe Fall beim Direktaufruf des Tabs „Regeln“: die Auswahl der Kategorie wartete sonst.
+                        if model.CurrentPage = LedgerRules && model.Rules.Categories.IsEmpty then
+                            Cmd.map RulesMsg (Cmd.ofMsg Components.Rules.Types.LoadCategories)
+                    ]
                 | _ -> Cmd.none
             | _ -> Cmd.none
 
@@ -856,6 +873,8 @@ let rec updateWith (ports: UpdatePorts) (msg: Msg) (model: Model) : Model * Cmd<
                 match externalMsg with
                 | Components.Rules.Types.NoOp -> Cmd.none
                 | Components.Rules.Types.ShowToast (message, toastType) -> Cmd.ofMsg (ShowToast (message, toastType))
+                | Components.Rules.Types.RuleDeletedUndoable (rule, position) ->
+                    Cmd.ofMsg (ShowToastWithAction ("Regel gelöscht", ToastSuccess, { Label = "Rückgängig"; Kind = UndoDeleteRule (rule, position) }))
 
             { model with Rules = rulesModel' }, Cmd.batch [ Cmd.map RulesMsg rulesCmd; externalCmd ]
 
@@ -988,6 +1007,9 @@ let rec updateWith (ports: UpdatePorts) (msg: Msg) (model: Model) : Model * Cmd<
     | OpenLedgerAccount filter ->
         let ledgerMsg =
             if isLedgerPage model.CurrentPage then Components.Ledger.Types.SelectFilter filter
+            // Vom Tab „Regeln“ mit geladener Liste: wie im Kassenbuch, die Liste lädt mit dem neuen Konto.
+            elif model.CurrentPage = LedgerRules && RemoteData.isSuccess model.Ledger.Accounts then
+                Components.Ledger.Types.SelectFilter filter
             else Components.Ledger.Types.PresetFilter filter
         let model', cmd = updateWith ports (LedgerMsg ledgerMsg) model
         model', Cmd.batch [ cmd; (if model.CurrentPage = Ledger then Cmd.none else Cmd.ofMsg (NavigateTo Ledger)) ]

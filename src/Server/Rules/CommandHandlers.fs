@@ -1,9 +1,8 @@
-/// Regeln anlegen, ändern und importieren (Context `categorization`). YNAB kommt als Port
+/// Regeln anlegen, ändern und wiederherstellen (Context `categorization`). YNAB kommt als Port
 /// herein, damit Tests die Fehlerfälle ohne Live-Dienst durchspielen; Uhr und Ids als Parameter.
 module Server.Rules.CommandHandlers
 
 open System
-open Thoth.Json.Net
 open Shared.Domain
 open Server.RulesEngine
 open Server.Validation
@@ -63,7 +62,7 @@ let createRule (port: YnabPort) (now: DateTime) (request: NewRule) : Async<Rules
                 CategoryName = ""
                 PayeeOverride = valid.PayeeOverride
                 Priority = 0
-                Enabled = true
+                Enabled = valid.Enabled
                 CreatedAt = now
                 UpdatedAt = now
             }
@@ -136,37 +135,21 @@ let changeRule (port: YnabPort) (now: DateTime) (request: RuleChange) : Async<Ru
                             return Error (RulesError.DatabaseError ("update_rule", ex.Message))
     }
 
-/// Alle Fehler einer Importdatei, je Regel mit ihrem Namen (ohne Namen mit ihrer Position).
-let private importErrors (rules: Rule list) : string list =
-    rules
-    |> List.indexed
-    |> List.collect (fun (index, rule) ->
-        let label = if String.IsNullOrWhiteSpace rule.Name then $"Regel {index + 1}" else rule.Name
-        let validationErrors =
-            match validateImportedRule rule with
-            | Ok _ -> []
-            | Error errors -> errors
-        let compileErrors =
-            match compileRule rule with
-            | Ok _ -> []
-            | Error reason -> [ reason ]
-        validationErrors @ compileErrors |> List.map (fun error -> $"{label}: {error}"))
-
-/// Importiert eine Regeldatei, alles oder nichts. Kategorie und Name kommen aus der Datei, YNAB
-/// wird nicht gefragt. Bestehende Regeln bleiben, die Dateireihenfolge bleibt der Gleichstand.
-let importRules (newId: unit -> Guid) (now: DateTime) (json: string) : Async<RulesResult<int>> =
+/// Legt eine gelöschte Regel an ihrer alten Stelle wieder an („Rückgängig“, categorization-n3sxw). Kategorie und
+/// Name kommen aus der Regel, YNAB wird nicht gefragt. Einfügen und neue Reihenfolge laufen in einer Transaktion:
+/// es gibt keinen Zwischenstand, in dem die Regel an falscher Stelle steht. Die Antwort ist die ganze Liste.
+let restoreRule (request: RuleRestore) : Async<RulesResult<Rule list>> =
     async {
-        match Decode.Auto.fromString<Rule list>(json) with
-        | Error reason -> return Error (RulesError.ValidationFailed [ $"Die Importdatei ist ungültig: {reason}" ])
-        | Ok rules ->
-            match importErrors rules with
-            | _ :: _ as errors -> return Error (RulesError.ValidationFailed errors)
-            | [] ->
-                let imported =
-                    rules |> List.map (fun rule -> { rule with Id = RuleId (newId ()); CreatedAt = now; UpdatedAt = now })
+        match validateRuleRestore request with
+        | Error errors -> return Error (RulesError.ValidationFailed errors)
+        | Ok valid ->
+            match compileRule valid.Rule with
+            | Error reason -> return Error (compileError valid.Rule reason)
+            | Ok _ ->
                 try
-                    do! Persistence.Rules.insertRules imported
-                    return Ok imported.Length
+                    do! Persistence.Rules.restoreRuleAt valid.Rule valid.Position
+                    let! rules = Persistence.Rules.getAllRules ()
+                    return Ok rules
                 with ex ->
-                    return Error (RulesError.DatabaseError ("import_rules", ex.Message))
+                    return Error (RulesError.DatabaseError ("restore_rule", ex.Message))
     }

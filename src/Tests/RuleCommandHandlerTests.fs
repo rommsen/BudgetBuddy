@@ -1,6 +1,6 @@
 module Tests.RuleCommandHandlerTests
 
-// Regeln speichern, importieren und sortieren (categorization-msep5): Befehle gegen
+// Regeln speichern, wiederherstellen und sortieren (categorization-msep5, categorization-n3sxw): Befehle gegen
 // In-Memory-SQLite mit gefälschtem YNAB-Port, der nie YNAB erreicht und seine Aufrufe zählt.
 // Die In-Memory-DB ist geteilt: jeder Test sieht nur seine eigenen Regeln (eindeutige Ids
 // und Namen) und schreibt keine kaputte Zeile, die `getAllRules` anderer Tests stören würde.
@@ -16,6 +16,7 @@ open Shared.Domain
 open Server.RulesEngine
 open Server.Rules.CommandHandlers
 open Components.Rules.Types
+open Components.Rules.State
 
 let private now = DateTime(2026, 10, 30, 12, 0, 0, DateTimeKind.Utc)
 
@@ -58,7 +59,7 @@ let private unchangedApart (id: RuleId) : RuleChange =
 
 let private newRule (name: string) (categoryId: YnabCategoryId) : NewRule =
     { Name = name; Pattern = "REWE"; PatternType = Contains; TargetField = Combined
-      CategoryId = categoryId; PayeeOverride = None }
+      CategoryId = categoryId; PayeeOverride = None; Enabled = true }
 
 let private rulesNamed (prefix: string) : Rule list =
     Persistence.Rules.getAllRules () |> run |> List.filter (fun rule -> rule.Name.StartsWith prefix)
@@ -70,41 +71,27 @@ let private neverCalledPort () = portAnswering (Error "YNAB darf nicht gefragt w
 [<Tests>]
 let payeeOverrideTests =
     testSequenced <| testList "Regel ändern: PayeeOverride" [
-        // Bug: `None` hieß immer "behalten", ein gesetzter Override ließ sich nicht entfernen.
-        testCase "ein im Dialog geleerter Override ist nach dem Speichern entfernt" <| fun () ->
+        // categorization-n3sxw: das Feld Payee-Override fällt aus der Oberfläche. Wer einen trägt, behält ihn.
+        testCase "eine Regel mit Payee-Override behält ihn, wenn sie im Panel geändert und gespeichert wird" <| fun () ->
             let rule = insert (savedRule (uniquePrefix ()) 1 (Some "REWE Markt"))
-            let form = { RuleFormState.fromRule rule with PayeeOverride = "" }
+            let draft = { RuleDraft.fromRule rule with Name = rule.Name + " neu"; Pattern = "rewe markt"; Enabled = false }
             let port, _ = neverCalledPort ()
 
-            let result = changeRule port now (buildRuleChange rule form rule.CategoryId) |> run
+            let result = changeRule port now (buildRuleChange rule draft rule.CategoryId) |> run
 
             Expect.isOk result "gespeichert"
-            Expect.isNone (stored rule).PayeeOverride "Override entfernt"
-
-        testCase "ein geänderter Override wird gesetzt" <| fun () ->
-            let rule = insert (savedRule (uniquePrefix ()) 1 (Some "alt"))
-            let form = { RuleFormState.fromRule rule with PayeeOverride = "neu" }
-            let port, _ = neverCalledPort ()
-
-            changeRule port now (buildRuleChange rule form rule.CategoryId) |> run |> ignore
-
-            Expect.equal (stored rule).PayeeOverride (Some "neu") "neuer Override"
-
-        // Der Server lehnt einen leeren Override ab: der Dialog schickt beim Anlegen gar keinen.
-        testCase "beim Anlegen wird ein leeres Override-Feld zu keinem Override" <| fun () ->
-            let form = { RuleFormState.empty with PayeeOverride = "  " }
-            let request = buildNewRule form (YnabCategoryId (Guid.NewGuid()))
-            Expect.isNone request.PayeeOverride "kein Override"
-
-        testCase "Enabled allein umschalten lässt den Override unverändert" <| fun () ->
-            let rule = insert (savedRule (uniquePrefix ()) 1 (Some "REWE Markt"))
-            let port, _ = neverCalledPort ()
-
-            let result = changeRule port now (toggleEnabledChange rule) |> run
-
-            Expect.isOk result "gespeichert"
-            Expect.isFalse (stored rule).Enabled "ausgeschaltet"
             Expect.equal (stored rule).PayeeOverride (Some "REWE Markt") "Override bleibt"
+            Expect.equal (stored rule).Pattern "rewe markt" "Muster geändert"
+            Expect.isFalse (stored rule).Enabled "ausgeschaltet"
+
+        testCase "eine Änderung mit gesetztem Override ersetzt ihn, ein Entfernen löscht ihn" <| fun () ->
+            let rule = insert (savedRule (uniquePrefix ()) 1 (Some "alt"))
+            let port, _ = neverCalledPort ()
+
+            changeRule port now { unchangedApart rule.Id with PayeeOverride = PayeeOverrideChange.Set "neu" } |> run |> ignore
+            Expect.equal (stored rule).PayeeOverride (Some "neu") "neuer Override"
+            changeRule port now { unchangedApart rule.Id with PayeeOverride = PayeeOverrideChange.Remove } |> run |> ignore
+            Expect.isNone (stored rule).PayeeOverride "entfernt"
     ]
 
 [<Tests>]
@@ -149,10 +136,10 @@ let categoryChangeTests =
         testCase "YNAB nicht erreichbar, nur der Name ändert sich: gespeichert, YNAB nicht gefragt" <| fun () ->
             let rule = insert (savedRule (uniquePrefix ()) 1 None)
             let renamed = rule.Name + " neu"
-            let form = { RuleFormState.fromRule rule with Name = renamed }
+            let draft = { RuleDraft.fromRule rule with Name = renamed }
             let port, calls = neverCalledPort ()
 
-            let result = changeRule port now (buildRuleChange rule form rule.CategoryId) |> run
+            let result = changeRule port now (buildRuleChange rule draft rule.CategoryId) |> run
 
             Expect.isOk result "gespeichert"
             Expect.equal (stored rule).Name renamed "neuer Name"
@@ -240,6 +227,19 @@ let createTests =
             Expect.equal created.CategoryName "Drogerie" "Name aus YNAB"
             Expect.equal (Persistence.Rules.getAllRules () |> run |> List.head).Id created.Id "steht vorn"
 
+        // categorization-n3sxw: der Schalter „Regel aktiv“ gibt es auch beim Anlegen.
+        testCase "eine neu angelegte Regel mit ausgeschaltetem Schalter ist inaktiv" <| fun () ->
+            Persistence.initializeDatabase ()
+            let target = YnabCategoryId (Guid.NewGuid())
+            let port, _ = portAnswering (Ok [ category target "Drogerie" ])
+
+            let created =
+                createRule port now { newRule (uniquePrefix ()) target with Enabled = false } |> run
+                |> Result.defaultWith (fun error -> failtest $"Anlegen scheiterte: {error}")
+
+            Expect.isFalse created.Enabled "Antwort"
+            Expect.isFalse (stored created).Enabled "gespeichert"
+
         testCase "ein leerer Payee-Override wird abgelehnt" <| fun () ->
             let port, calls = neverCalledPort ()
             let request =
@@ -299,80 +299,91 @@ let tieBreakTests =
     ]
 
 [<Tests>]
-let importTests =
-    testSequenced <| testList "Regeln importieren" [
-        let fileOf (rules: Rule list) = Encode.Auto.toString (4, rules)
+let restoreTests =
+    testSequenced <| testList "Gelöschte Regel wiederherstellen" [
+        /// Drei Regeln ganz oben (höchste Prioritäten): die Stelle 1 ist dann die mittlere von ihnen.
+        let topThree (prefix: string) =
+            let highest =
+                Persistence.Rules.getAllRules () |> run
+                |> List.fold (fun top rule -> max top rule.Priority) 0
+            [ insert (savedRule $"{prefix} A" (highest + 3) None)
+              insert { savedRule $"{prefix} B" (highest + 2) (Some "Ein Payee") with
+                         Enabled = false; PatternType = Exact; TargetField = Memo }
+              insert (savedRule $"{prefix} C" (highest + 1) None) ]
 
-        testCase "eine gültige Datei legt alle Regeln an, gleiche Priorität in Dateireihenfolge" <| fun () ->
+        // categorization-n3sxw: „Rückgängig“ nach dem Löschen bringt die Regel mit allen Feldern an ihre Stelle.
+        testCase "die gelöschte Regel an Stelle 1 steht danach wieder dort, mit Payee-Override und inaktiv" <| fun () ->
             Persistence.initializeDatabase ()
             let prefix = uniquePrefix ()
-            let existing = insert (savedRule $"{prefix} bestehend" 1 None)
-            let file =
-                [ savedRule $"{prefix} Z" 3 (Some "Ein Payee"); savedRule $"{prefix} M" 3 None; savedRule $"{prefix} A" 3 None ]
+            let rules = topThree prefix
+            let deleted = rules[1]
+            let position =
+                Persistence.Rules.getAllRules () |> run |> List.findIndex (fun rule -> rule.Id = deleted.Id)
+            Persistence.Rules.deleteRule deleted.Id |> run
 
-            let result = importRules Guid.NewGuid now (fileOf file) |> run
-
-            Expect.equal result (Ok 3) "drei importiert"
-            Expect.equal
-                (rulesNamed prefix |> List.map (fun rule -> rule.Name))
-                [ $"{prefix} Z"; $"{prefix} M"; $"{prefix} A"; existing.Name ]
-                "Dateireihenfolge, bestehende bleibt"
-            Expect.equal (rulesNamed $"{prefix} Z").Head.PayeeOverride (Some "Ein Payee") "Override aus der Datei"
-            Expect.equal (rulesNamed $"{prefix} Z").Head.CategoryName "Lebensmittel" "Kategoriename aus der Datei"
-
-        // Bug: der Import prüfte nur das Muster, eine Regel ohne Namen kam ungeprüft durch.
-        testCase "die dritte von vier Regeln hat keinen Namen: keine neue Zeile" <| fun () ->
-            Persistence.initializeDatabase ()
-            let prefix = uniquePrefix ()
-            let file =
-                [ savedRule $"{prefix} 1" 1 None
-                  savedRule $"{prefix} 2" 1 None
-                  savedRule "" 1 None
-                  savedRule $"{prefix} 4" 1 None ]
-
-            let result = importRules Guid.NewGuid now (fileOf file) |> run
-
-            Expect.equal result (Error (RulesError.ValidationFailed [ "Regel 3: Regelname ist erforderlich" ])) "Meldung"
-            Expect.isEmpty (rulesNamed prefix) "keine neue Zeile"
-
-        testCase "die Meldung nennt alle fehlerhaften Regeln" <| fun () ->
-            Persistence.initializeDatabase ()
-            let prefix = uniquePrefix ()
-            let file =
-                [ { savedRule $"{prefix} Muster" 1 None with Pattern = "("; PatternType = Regex }
-                  savedRule $"{prefix} gut" 1 None
-                  savedRule $"{prefix} Override" 1 (Some " ")
-                  savedRule $"{prefix} Priorität" -1 None ]
-
-            match importRules Guid.NewGuid now (fileOf file) |> run with
-            | Error (RulesError.ValidationFailed errors) ->
-                Expect.equal errors.Length 3 "drei Fehler"
-                Expect.stringStarts errors[0] $"{prefix} Muster: " "Muster"
-                Expect.equal errors[1] $"{prefix} Override: Payee-Override darf nicht leer sein" "Override"
-                Expect.equal errors[2] $"{prefix} Priorität: Priorität muss zwischen 0 und 10000 liegen" "Priorität"
-            | other -> failtest $"Erwartet ValidationFailed, war {other}"
-            Expect.isEmpty (rulesNamed prefix) "keine neue Zeile"
-
-        // Bug: ohne Transaktion blieben die ersten beiden Regeln stehen.
-        testCase "das Einfügen der dritten Regel scheitert: keine neue Zeile" <| fun () ->
-            Persistence.initializeDatabase ()
-            let prefix = uniquePrefix ()
-            let file = [ for i in 1 .. 4 -> savedRule $"{prefix} {i}" 1 None ]
-            let duplicate = Guid.NewGuid()
-            let ids = Collections.Generic.Queue [ Guid.NewGuid(); duplicate; duplicate; Guid.NewGuid() ]
-
-            let result = importRules ids.Dequeue now (fileOf file) |> run
+            let result = restoreRule { Rule = deleted; Position = position } |> run
 
             match result with
-            | Error (RulesError.DatabaseError ("import_rules", _)) -> ()
-            | other -> failtest $"Erwartet DatabaseError, war {other}"
+            | Ok all ->
+                Expect.equal (all |> List.findIndex (fun rule -> rule.Id = deleted.Id)) position "Stelle in der Antwort"
+            | Error error -> failtest $"Wiederherstellen scheiterte: {error}"
+            Expect.equal (rulesNamed prefix |> List.map (fun rule -> rule.Name)) [ $"{prefix} A"; $"{prefix} B"; $"{prefix} C" ] "Reihenfolge"
+            let back = stored deleted
+            Expect.equal back.PayeeOverride (Some "Ein Payee") "Override"
+            Expect.isFalse back.Enabled "inaktiv"
+            Expect.equal (back.PatternType, back.TargetField, back.CategoryId, back.CategoryName)
+                         (Exact, Memo, deleted.CategoryId, deleted.CategoryName) "übrige Felder"
+
+        testCase "die Antwort ist die ganze Liste in Prüfreihenfolge" <| fun () ->
+            Persistence.initializeDatabase ()
+            let prefix = uniquePrefix ()
+            let rules = topThree prefix
+            Persistence.Rules.deleteRule rules[2].Id |> run
+
+            let result = restoreRule { Rule = rules[2]; Position = 2 } |> run
+
+            match result with
+            | Ok all -> Expect.equal all (Persistence.Rules.getAllRules () |> run) "wie gespeichert"
+            | Error error -> failtest $"Wiederherstellen scheiterte: {error}"
+
+        testCase "eine Stelle hinter dem Ende hängt die Regel unten an" <| fun () ->
+            Persistence.initializeDatabase ()
+            let prefix = uniquePrefix ()
+            let rules = topThree prefix
+            Persistence.Rules.deleteRule rules[0].Id |> run
+
+            match restoreRule { Rule = rules[0]; Position = Int32.MaxValue } |> run with
+            | Ok all -> Expect.equal (List.last all).Id rules[0].Id "ganz unten"
+            | Error error -> failtest $"Wiederherstellen scheiterte: {error}"
+
+        testCase "eine ungültige Regel wird abgelehnt, keine Zeile" <| fun () ->
+            let prefix = uniquePrefix ()
+            let broken = { savedRule $"{prefix} kaputt" 1 None with Pattern = "("; PatternType = Regex }
+
+            match restoreRule { Rule = broken; Position = 0 } |> run with
+            | Error (RulesError.InvalidPattern ("(", _)) -> ()
+            | other -> failtest $"Erwartet InvalidPattern, war {other}"
             Expect.isEmpty (rulesNamed prefix) "keine neue Zeile"
 
-        testCase "eine Datei ohne gültiges JSON wird abgelehnt" <| fun () ->
-            match importRules Guid.NewGuid now "kein json" |> run with
-            | Error (RulesError.ValidationFailed [ message ]) ->
-                Expect.stringStarts message "Die Importdatei ist ungültig" "Meldung"
-            | other -> failtest $"Erwartet ValidationFailed, war {other}"
+        testCase "eine negative Stelle und ein leerer Name kommen gesammelt als ValidationFailed" <| fun () ->
+            let broken = { savedRule "" 1 None with Pattern = "REWE" }
+
+            let result = restoreRule { Rule = broken; Position = -1 } |> run
+
+            Expect.equal result (Error (RulesError.ValidationFailed [ "Regelname ist erforderlich"; "Die Stelle darf nicht negativ sein" ])) "Meldung"
+
+        // Kein Zwischenstand: eine Regel, die es noch gibt, wird nicht doppelt angelegt und die Reihenfolge bleibt.
+        testCase "eine Regel, die es noch gibt, wird nicht doppelt angelegt" <| fun () ->
+            Persistence.initializeDatabase ()
+            let prefix = uniquePrefix ()
+            let rules = topThree prefix
+            let before = Persistence.Rules.getAllRules () |> run
+
+            match restoreRule { Rule = rules[2]; Position = 0 } |> run with
+            | Error (RulesError.DatabaseError ("restore_rule", _)) -> ()
+            | other -> failtest $"Erwartet DatabaseError, war {other}"
+            Expect.equal (Persistence.Rules.getAllRules () |> run |> List.map (fun rule -> rule.Id, rule.Priority))
+                         (before |> List.map (fun rule -> rule.Id, rule.Priority)) "unverändert"
     ]
 
 [<Tests>]

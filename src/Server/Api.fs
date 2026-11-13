@@ -802,15 +802,7 @@ let rulesApi : RulesApi = {
             return Error (RulesError.DatabaseError ("reorder_rules", ex.Message))
     }
 
-    exportRules = fun () -> async {
-        let! rules = Persistence.Rules.getAllRules()
-
-        // Serialize to JSON
-        let json = Encode.Auto.toString(4, rules)
-        return json
-    }
-
-    importRules = fun json -> RuleCommands.importRules Guid.NewGuid DateTime.UtcNow json
+    restoreRule = RuleCommands.restoreRule
 
     testRule = fun (pattern, patternType, targetField, testInput) -> async {
         let testRule = {

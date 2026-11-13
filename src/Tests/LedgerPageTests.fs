@@ -1410,7 +1410,7 @@ let private erstlaufTests =
             // dieser Test faengt, wenn eine Seite dort ihre Kommandos verliert.
             // `Styleguide` ist reine Galerie und laedt bewusst nichts.
             let datentragend =
-                [ Types.Page.Rules; Types.Page.Settings
+                [ Types.Page.LedgerRules; Types.Page.Settings
                   Types.Page.Ledger; Types.Page.QuickAdd ]
             for page in datentragend do
                 let msgs = dispatched (State.pageLoadCmd page)
@@ -1495,7 +1495,7 @@ let private visibilityTests =
         }
 
         test "Auf den übrigen Seiten tut der Vordergrund-Wechsel nichts" {
-            let onRules = rootModel Types.Page.Rules
+            let onRules = rootModel Types.Page.LedgerRules
             let updated, cmd = State.update State.VisibilityChanged onRules
             Expect.equal updated onRules "kein Zustandswechsel"
             Expect.isEmpty (dispatched cmd) "kein Kommando außerhalb von Kassenbuch, Sync und Einstellungen"
@@ -3622,15 +3622,17 @@ let private staleAnswerTests =
             Expect.equal (update (TransferTargetsLoaded (Error "x")) shown).TransferTargets (Success []) "bleibt"
             Expect.equal (update (TransferTargetsLoaded (Error "x")) { shown with TransferTargets = Loading }).TransferTargets (Failure "x") "ohne Stand gilt der Fehler"
 
+        // categorization-n3sxw: die Antwort trägt ihre Ladeversion, eine überholte zählt nicht.
         testCase "Ein spätes Scheitern ersetzt die fertige Regel-Liste nicht und meldet nichts" <| fun () ->
             let model, _ = Components.Rules.State.init ()
-            let shown = { model with Rules = Success [] }
-            let after, _, external = Components.Rules.State.update (Components.Rules.Types.RulesLoaded (Error "x")) shown
+            let shown = { model with Rules = Success []; LoadVersion = 2 }
+            let after, _, external = Components.Rules.State.update (Components.Rules.Types.RulesLoaded (1, Error "x")) shown
             Expect.equal after.Rules (Success []) "bleibt"
             Expect.equal external Components.Rules.Types.NoOp "kein Toast"
-            let failed, _, toast = Components.Rules.State.update (Components.Rules.Types.RulesLoaded (Error "x")) { shown with Rules = Loading }
+            let failed, _, toast = Components.Rules.State.update (Components.Rules.Types.RulesLoaded (2, Error "x")) { shown with Rules = Loading }
             Expect.equal failed.Rules (Failure "x") "ohne Stand gilt der Fehler"
-            Expect.notEqual toast Components.Rules.Types.NoOp "und der Toast wie bisher"
+            // Der Fehler steht mit „Erneut versuchen“ in der Liste (`ErrorDisplay`), ein Toast dazu wäre doppelt.
+            Expect.equal toast Components.Rules.Types.NoOp "kein Toast"
 
         testCase "Ein spätes Scheitern ersetzt fertige Quick-Add-Vorlagen nicht" <| fun () ->
             let shown = { rootModel Types.Page.Ledger with QuickAddTemplates = Success [] }

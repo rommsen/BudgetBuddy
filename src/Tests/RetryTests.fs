@@ -142,7 +142,9 @@ let tests =
 
             let inventory =
                 [ "Components/Settings/State.fs", [ "getSettings"; "getLenaFlagSettings" ]
-                  "Components/Rules/State.fs", [ "getAllRules" ]
+                  // categorization-n3sxw: der Muster-Test liest nur, wie an den anderen lesenden Stellen (Entscheidung aus
+                  // categorization-h2w8k).
+                  "Components/Rules/State.fs", [ "getAllRules"; "testRule" ]
                   // ledger-r8h19: beide Kategorien-Abrufe (Regeln, Kassenbuch) laufen über den Port
                   // `GetCategories`, umhüllt einmal in `livePorts`.
                   // banking-import-d0fey: die Kategorien für Quick Add (Einstellungen, dann Kategorien) lagen im

@@ -23,28 +23,25 @@ let private firstDispatched (cmd: Elmish.Cmd<'msg>) : 'msg = firstDispatchedWith
 /// Ein Aufruf, dessen Antwort ausbleibt (im Browser Status 0).
 let private lost (_: 'a) : Async<'b> = async { return failwith "Http error (0)" }
 
-let private ruleForm : Components.Rules.Types.RuleFormState =
-    { Components.Rules.Types.RuleFormState.empty with
-        Pattern = "rewe"
-        PatternType = Exact
-        TargetField = Payee
-        TestInput = "REWE Markt" }
+let private ruleTest : Components.Rules.Types.TestRequest =
+    { Pattern = "rewe"; PatternType = Exact; TargetField = Payee; Input = "REWE Markt" }
 
 [<Tests>]
 let tests =
     testList "Ausgehende Aufrufe im Client" [
-        testList "Mustertest im Regel-Dialog" [
-            test "der Aufruf bekommt Muster, Typ, Feld und Beispieltext, die Antwort kommt als Urteil an" {
+        testList "Muster testen im Regel-Formular" [
+            // categorization-n3sxw: die Antwort trägt ihre Anfrage, damit eine späte Antwort nichts aus ihr zeigt.
+            test "der Aufruf bekommt Muster, Art, Feld und Text, die Antwort kommt mit ihrer Anfrage an" {
                 let seen = ref None
                 let call args = async { seen.Value <- Some args; return Ok false }
-                let msg = firstDispatched (Components.Rules.State.testPatternCmd call ruleForm)
+                let msg = firstDispatched (Components.Rules.State.testPatternCmd call ruleTest)
                 Expect.equal seen.Value (Some ("rewe", Exact, Payee, "REWE Markt")) "Argumente"
-                Expect.equal msg (Components.Rules.Types.RulePatternTested (Ok false)) "Urteil"
+                Expect.equal msg (Components.Rules.Types.PatternTested (ruleTest, Ok false)) "Urteil"
             }
             // Bug categorization-f955d: ein Netzfehler erschien als ungültiges Muster.
             test "bleibt die Antwort aus, ist das ein Netzfehler und kein Urteil über das Muster" {
-                let msg = firstDispatched (Components.Rules.State.testPatternCmd lost ruleForm)
-                Expect.equal msg Components.Rules.Types.RulePatternTestLost "Netzfehler"
+                let msg = firstDispatched (Components.Rules.State.testPatternCmd lost ruleTest)
+                Expect.equal msg (Components.Rules.Types.PatternTestLost ruleTest) "Netzfehler"
             }
         ]
         testList "Bank trennen" [

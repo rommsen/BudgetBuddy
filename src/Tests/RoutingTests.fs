@@ -13,7 +13,8 @@ let private entryId = System.Guid.Parse "00000000-0000-0000-0000-000000000042"
 let private routes : (Page * string list) list =
     [ // `/` ist die Übersicht. Den Sync-Ablauf unter `/sync` gibt es seit banking-import-d0fey nicht mehr.
       Overview, []
-      Rules, [ "rules" ]
+      // categorization-n3sxw: die Regeln sind ein Tab im Kassenbuch.
+      LedgerRules, [ "ledger"; "rules" ]
       Settings, [ "settings" ]
       Styleguide, [ "styleguide" ]
       QuickAdd, [ "quickadd" ]
@@ -44,6 +45,11 @@ let routingTests =
             let covered = routes |> List.map (fst >> caseName) |> Set.ofList
             Expect.equal covered all "jede Seite hat eine Route"
 
+        // categorization-n3sxw: ein altes Lesezeichen auf die Regelseite führt in den Tab, nicht ins Leere.
+        testCase "Der alte Pfad der Regelseite führt in den Tab Regeln" <| fun () ->
+            Expect.equal (Routing.parseUrl [ "rules" ]) LedgerRules "alter Pfad"
+            Expect.equal (placeOf (Routing.parseUrl [ "rules" ])) (Some LedgerPlace) "Kassenbuch markiert"
+
         testCase "Ein unbekannter Pfad landet auf der Übersicht" <| fun () ->
             Expect.equal (Routing.parseUrl [ "unbekannt" ]) Overview "ein Segment"
             Expect.equal (Routing.parseUrl [ "foo"; "bar"; "baz" ]) Overview "mehrere Segmente"
@@ -57,7 +63,7 @@ let placeTests =
                 [ Overview, Some OverviewPlace
                   Ledger, Some LedgerPlace
                   LedgerEntry entryId, Some LedgerPlace
-                  Rules, Some LedgerPlace
+                  LedgerRules, Some LedgerPlace
                   Budget, Some BudgetPlace
                   BudgetHistory, Some BudgetPlace
                   BudgetTargetCheck, Some BudgetPlace
@@ -78,12 +84,12 @@ let backTargetTests =
     testList "Ziel von Zurück" [
         testCase "Jede Unterseite führt zu ihrem Ort, die Einstellungen zur Seite davor, Orte haben kein Zurück" <| fun () ->
             let expected =
-                [ Rules, Some (Ledger, "Zurück zum Kassenbuch")
-                  Styleguide, Some (Settings, "Zurück zu den Einstellungen")
+                [ Styleguide, Some (Settings, "Zurück zu den Einstellungen")
                   Settings, Some (Budget, "Zurück zum Budget")
                   Overview, None
                   Ledger, None
                   LedgerEntry entryId, None
+                  LedgerRules, None
                   Budget, None
                   QuickAdd, None
                   // Die Budget-Unterseiten führen ihr Zurück selbst (Browser-Schritt oder Budget-Seite).
@@ -113,5 +119,5 @@ let settingsReturnTests =
             Expect.equal backToSettings (LedgerEntry entryId) "die Buchung bleibt das Ziel"
 
         testCase "Ein Wechsel zwischen anderen Seiten lässt das Ziel stehen" <| fun () ->
-            Expect.equal (settingsReturn Budget Ledger Rules) Rules "unverändert"
+            Expect.equal (settingsReturn Budget Ledger LedgerRules) LedgerRules "unverändert"
     ]

@@ -1,262 +1,342 @@
 module Tests.RulesListTests
 
-// categorization-wnxd6 (ADR 0049, Ruhige Listen): die Regeln-Seite als ruhige Liste.
-// Reine Funktionen bekommen Werttests, die Struktur der Seite wird über den Quelltext
-// zugesichert (Feliz-Elemente lassen sich unter .NET nicht inspizieren).
+// categorization-n3sxw: der Tab „Regeln“ im Kassenbuch. Liste, Formular, Muster-Test, Löschen mit Rückgängig und die
+// Tastenlogik laufen über das echte `update` bzw. reine Funktionen; die Aufrufe liegen hinter Lambdas und werden hier
+// nicht ausgeführt.
 
 open System
-open System.IO
 open Expecto
 open Shared.Domain
-open Components.Rules.Types
-open Components.Rules.View
 open Types
-open Client.DesignSystem
+open Components.Rules.Types
+open Components.Rules.State
+open Components.Rules.View
 
-let private repoRoot =
-    Directory.GetParent(Directory.GetParent(__SOURCE_DIRECTORY__).FullName).FullName
+let private time = DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)
 
-let private rulesViewSource =
-    File.ReadAllText(Path.Combine(repoRoot, "src", "Client", "Components", "Rules", "View.fs"))
+let private rule (n: int) (enabled: bool) : Rule =
+    { Id = RuleId (Guid($"00000000-0000-0000-0000-{n:D12}"))
+      Name = $"Regel {n}"
+      Pattern = $"muster{n}"
+      PatternType = Contains
+      TargetField = Payee
+      CategoryId = YnabCategoryId (Guid($"10000000-0000-0000-0000-{n:D12}"))
+      CategoryName = $"Kategorie {n}"
+      PayeeOverride = (if n = 3 then Some "Ein Payee" else None)
+      Priority = 10 - n
+      Enabled = enabled
+      CreatedAt = time
+      UpdatedAt = time }
 
-let private appViewSource =
-    File.ReadAllText(Path.Combine(repoRoot, "src", "Client", "View.fs"))
+let private r1, r2, r3 = rule 1 true, rule 2 true, rule 3 false
+let private shown = { fst (init ()) with Rules = Success [ r1; r2; r3 ]; LoadVersion = 1 }
 
-/// Quelltext der Listenzeilen (Tabelle und Handy), ohne Tabellenrahmen, Dialog und Leerzustand
-let private listSource =
-    let slice (from: string) (until: string) =
-        let a = rulesViewSource.IndexOf from
-        rulesViewSource.Substring(a, rulesViewSource.IndexOf until - a)
-    slice "let private ruleTableRow" "let private rulesTable"
-    + slice "let private ruleMobileRow" "let private rulesMobileList"
+let private step (msg: Msg) (model: Model) : Model = let m, _, _ = update msg model in m
+let private stepExt (msg: Msg) (model: Model) : ExternalMsg = let _, _, e = update msg model in e
+let private steps (msgs: Msg list) (model: Model) = msgs |> List.fold (fun m msg -> step msg m) model
+let private ids (model: Model) =
+    match model.Rules with
+    | Success rules -> rules |> List.map (fun r -> r.Id)
+    | other -> failtest $"keine Liste: %A{other}"
+let private panelOf (model: Model) = model.Panel |> Option.defaultWith (fun () -> failtest "kein Panel")
+let private isToast (ext: ExternalMsg) = match ext with ShowToast _ -> true | _ -> false
 
-/// Quelltext des Dialogs
-let private modalSource =
-    let a = rulesViewSource.IndexOf "let private categoryField"
-    let b = rulesViewSource.IndexOf "// Page Header Actions"
-    rulesViewSource.Substring(a, b - a)
-
-let private makeRule (enabled: bool) : Rule =
-    {
-        Id = RuleId (Guid.NewGuid())
-        Name = "Amazon"
-        Pattern = "amazon"
-        PatternType = Contains
-        TargetField = Combined
-        CategoryId = YnabCategoryId (Guid.NewGuid())
-        CategoryName = "Shopping"
-        PayeeOverride = None
-        Priority = 0
-        Enabled = enabled
-        CreatedAt = DateTime.UtcNow
-        UpdatedAt = DateTime.UtcNow
-    }
-
-let private rules (total: int) (active: int) =
-    [ for i in 1..total -> makeRule (i <= active) ]
-
-let private contains (needle: string) (text: string) = text.Contains needle
-
-let private tests =
-    testList "Regeln als ruhige Liste (categorization-wnxd6)" [
-        testList "Quelltext" [
-            test "Kopf ruhig, Rahmen volle Breite, kein Gradient" {
-                Expect.isFalse (contains "gradientWithActions" rulesViewSource) "gradientWithActions"
-                Expect.isFalse (contains "PageHeader.gradient" rulesViewSource) "PageHeader.gradient"
-                Expect.isTrue (contains "Primitives.Container.full" rulesViewSource) "Container.full"
-            }
-            test "Tabelle mit calmHeaderCell und calmRow, Zeile ohne Karte" {
-                Expect.isTrue (contains "Table.calmHeaderCell" rulesViewSource) "calmHeaderCell"
-                Expect.isTrue (contains "Table.calmRow" rulesViewSource) "calmRow"
-                Expect.isFalse (contains "bg-surface-card" listSource) "bg-surface-card in der Zeile"
-                Expect.isFalse (contains "rounded-lg" listSource) "rounded-lg in der Zeile"
-                Expect.isFalse (contains "Card." listSource) "Card. in der Zeile"
-                Expect.isTrue (contains "Loading.tableSkeleton" rulesViewSource) "tableSkeleton"
-                Expect.isFalse (contains "Loading.cardSkeleton" rulesViewSource) "cardSkeleton"
-            }
-            test "App-Rahmen: Regeln bekommen pageContentFull" {
-                let a = appViewSource.IndexOf "let pageShell"
-                let shell = appViewSource.Substring(a, 300)
-                Expect.isTrue (contains "Rules" shell && contains "Navigation.pageContentFull" shell) shell
-            }
-            test "Zeile ohne Schalter, Löschen und Stift; Dialog behält den Schalter" {
-                Expect.isFalse (contains "Input.toggle" listSource) "Input.toggle"
-                Expect.isFalse (contains "Icons.trash" listSource) "Icons.trash"
-                Expect.isFalse (contains "Icons.edit" listSource) "Icons.edit"
-                Expect.isTrue (contains "Input.toggle" modalSource) "Dialog braucht den Schalter"
-                Expect.isTrue (contains "\"Regel aktiv\"" modalSource) "Regel aktiv"
-            }
-            test "Dialog: Löschen nur im Bearbeiten-Modus, mit Bestätigung" {
-                Expect.isTrue (contains "\"Regel löschen\"" modalSource) "Regel löschen"
-                Expect.isTrue (contains "ConfirmDeleteRule" modalSource) "ConfirmDeleteRule"
-                Expect.isTrue (contains "DeleteRule" modalSource) "DeleteRule"
-                Expect.isTrue (contains "when not model.IsNewRule" modalSource) "nur im Bearbeiten-Modus"
-            }
-            test "Deutsch: keine englischen Reste, kein Gedankenstrich im Hinweis" {
-                for literal in
-                    [ "Rule Name"; "Refresh rules"; "Regex pattern"; "Contains substring"
-                      "Exact match"; "Pattern:" ] do
-                    Expect.isFalse (contains literal rulesViewSource) literal
-                Expect.isFalse (contains "—" rulesViewSource) "Gedankenstrich (lang)"
-                Expect.isFalse (contains "–" rulesViewSource) "Gedankenstrich (kurz)"
-                Expect.isFalse (contains "—" priorityHint) priorityHint
-                Expect.equal
-                    priorityHint
-                    "Die Regeln werden von oben nach unten geprüft. Die erste passende, aktive Regel gewinnt."
-                    "Prioritätshinweis"
-            }
-        ]
-        testList "statusLabel" [
-            test "aktiv: kein Zeichen" { Expect.equal (statusLabel true) "" "aktiv" }
-            test "inaktiv: das Wort" { Expect.equal (statusLabel false) "inaktiv" "inaktiv" }
-        ]
-        testList "summaryText" [
-            test "keine Regeln: leer" { Expect.equal (summaryText []) "" "leer" }
-            test "eine Regel" { Expect.equal (summaryText (rules 1 1)) "1 Regel, 1 aktiv" "eine" }
-            test "zwölf Regeln, elf aktiv" {
-                Expect.equal (summaryText (rules 12 11)) "12 Regeln, 11 aktiv" "zwölf"
-            }
-        ]
-        testList "patternTypeLabel" [
-            test "Anzeigetexte" {
-                Expect.equal (patternTypeLabel PatternType.Regex) "Regex" "Regex"
-                Expect.equal (patternTypeLabel Contains) "Enthält" "Enthält"
-                Expect.equal (patternTypeLabel Exact) "Exakt" "Exakt"
-            }
-            test "Rundlauf zum technischen Schlüssel ist verlustfrei" {
-                for t in [ PatternType.Regex; Contains; Exact ] do
-                    Expect.equal (patternTypeOfKey (patternTypeKey t)) t $"{t}"
-                Expect.equal (patternTypeKey PatternType.Regex) "Regex" "Schlüssel Regex"
-                Expect.equal (patternTypeKey Contains) "Contains" "Schlüssel Contains"
-                Expect.equal (patternTypeKey Exact) "Exact" "Schlüssel Exact"
-            }
-        ]
-        testList "rowClass" [
-            test "inaktiv: gedämpft, ohne opacity-50 und ohne neon-Klasse" {
-                let cls = rowClass false
-                Expect.isTrue (contains "text-text-secondary" cls) cls
-                Expect.isFalse (contains "opacity-50" cls) cls
-                Expect.isFalse (contains "neon-" cls) cls
-            }
-            test "aktiv: hell" {
-                Expect.isTrue (contains "text-text-primary" (rowClass true)) (rowClass true)
-            }
-        ]
-        testList "Pflichtfelder" [
-            test "leeres Formular nennt deutsche Labels" {
-                // Regression: der Hinweis lautete "Bitte ausfüllen: Rule Name, Pattern, Category",
-                // die Labels im Dialog sind aber "Regelname", "Muster", "Kategorie".
-                Expect.equal
-                    (Form.missingFieldsText (requiredFields RuleFormState.empty))
-                    "Bitte ausfüllen: Regelname, Muster, Kategorie"
-                    "Hinweis"
-            }
-            test "ausgefülltes Formular: nichts fehlt" {
-                let form =
-                    { RuleFormState.empty with
-                        Name = "A"
-                        Pattern = "p"
-                        CategoryId = Some (YnabCategoryId (Guid.NewGuid())) }
-                Expect.isEmpty (requiredFields form) "nichts fehlt"
-            }
-        ]
-        testList "Kategorie-Auswahl im Dialog (categorization-cgq35)" [
-            test "die Wahl einer Kategorie setzt sie im Formular und schließt den Picker" {
-                let model, _ = Components.Rules.State.init ()
-                let opened, _, _ = Components.Rules.State.update OpenRuleCategoryPicker model
-                Expect.isTrue opened.Form.PickerOpen "Picker offen"
-                let categoryId = YnabCategoryId (Guid.NewGuid())
-                let chosen, _, _ =
-                    Components.Rules.State.update (UpdateRuleFormCategoryId (Some categoryId)) opened
-                Expect.equal chosen.Form.CategoryId (Some categoryId) "Kategorie im Formular"
-                Expect.isFalse chosen.Form.PickerOpen "Picker zu"
-            }
-            test "der geschlossene Dialog lässt keinen offenen Picker zurück" {
-                let model, _ = Components.Rules.State.init ()
-                let opened, _, _ = Components.Rules.State.update OpenRuleCategoryPicker model
-                let closed, _, _ = Components.Rules.State.update CloseRuleModal opened
-                Expect.isFalse closed.Form.PickerOpen "Picker zu"
-            }
-            test "der Auslöser zeigt Gruppe und Name der gewählten Kategorie" {
-                let categoryId = YnabCategoryId (Guid.NewGuid())
-                let category : YnabCategory =
-                    { Id = categoryId; Name = "Miete"; GroupName = "Wohnen"; Available = None; Hidden = false }
-                let form = { RuleFormState.empty with CategoryId = Some categoryId }
-                Expect.equal (categoryButtonLabel [ category ] None form) "Wohnen: Miete" "Label"
-            }
-            test "ohne geladene Kategorien zeigt der Auslöser den gespeicherten Namen der Regel" {
-                let rule = makeRule true
-                let form = RuleFormState.fromRule rule
-                Expect.equal (categoryButtonLabel [] (Some rule) form) rule.CategoryName "Name der Regel"
-            }
-            test "ohne Wahl fordert der Auslöser zur Wahl auf" {
-                Expect.equal (categoryButtonLabel [] None RuleFormState.empty) "Kategorie wählen…" "Aufforderung"
-            }
-        ]
-        testList "Menü der Seite (categorization-cgq35)" [
-            test "Öffnen und Schließen stehen im Model" {
-                let model, _ = Components.Rules.State.init ()
-                Expect.isFalse model.MenuOpen "zu beim Start"
-                let opened, _, _ = Components.Rules.State.update OpenRulesMenu model
-                Expect.isTrue opened.MenuOpen "offen"
-                let closed, _, _ = Components.Rules.State.update CloseRulesMenu opened
-                Expect.isFalse closed.MenuOpen "zu"
-            }
-        ]
-        testList "Löschen im Dialog" [
-            // infrastructure-t5m2b, Iteration 2: der Rückfall lief bisher in keinem Test ab.
-            test "die Rückfrage Löschen fällt nach der Wartezeit von selbst zurück" {
-                let model, _ = Components.Rules.State.init ()
-                let ruleId = RuleId (System.Guid.NewGuid())
-                let confirming, cmd, _ = Components.Rules.State.update (ConfirmDeleteRule ruleId) model
-                Expect.equal confirming.ConfirmingDeleteRuleId (Some ruleId) "scharf"
-                Tests.CmdTiming.expectAfter Components.Rules.State.ruleDeleteConfirmMs CancelConfirmDelete cmd
-            }
-            test "ConfirmDeleteRule merkt die Regel, RuleDeleted schließt den Dialog" {
-                let model, _ = Components.Rules.State.init ()
-                let rule = makeRule true
-                let editing =
-                    { model with
-                        Rules = RemoteData.Success [ rule ]
-                        EditingRule = Some rule
-                        Form = RuleFormState.fromRule rule }
-                let confirming, _, _ = Components.Rules.State.update (ConfirmDeleteRule rule.Id) editing
-                Expect.equal confirming.ConfirmingDeleteRuleId (Some rule.Id) "Bestätigung offen"
-                Expect.isSome confirming.EditingRule "Dialog noch offen"
-                let deleted, _, _ =
-                    Components.Rules.State.update (RuleDeleted (Ok rule.Id)) confirming
-                Expect.isNone deleted.EditingRule "Dialog zu"
-                Expect.isFalse deleted.IsNewRule "kein Anlegen-Modus"
-                Expect.isNone deleted.ConfirmingDeleteRuleId "Bestätigung zurückgesetzt"
-                Expect.equal deleted.Form RuleFormState.empty "Formular leer"
-                match deleted.Rules with
-                | RemoteData.Success remaining -> Expect.isEmpty remaining "Regel aus der Liste"
-                | other -> failtestf "Erwartet Success, war %A" other
-            }
-        ]
+[<Tests>]
+let textTests =
+    testList "Regeln: Texte" [
+        test "Untertitel nennt Zahl und aktive" {
+            Expect.equal (summaryText [ r1; r2; r3 ]) "3 Regeln, 2 aktiv" "drei"
+            Expect.equal (summaryText [ r1 ]) "1 Regel, 1 aktiv" "eine"
+            Expect.equal (summaryText []) "" "keine"
+        }
+        test "Art am PC und Bedingung am Handy" {
+            Expect.equal (kindText r1) "Enthält · Payee" "PC"
+            Expect.equal (conditionText { r1 with Pattern = "rewe" }) "Enthält „rewe“ in Payee" "Handy"
+            Expect.equal (conditionText { r1 with PatternType = PatternType.Regex; TargetField = Combined; Pattern = "a.*b" })
+                         "Regex „a.*b“ in Payee & Memo" "Regex"
+            Expect.equal (kindText { r1 with PatternType = Exact; TargetField = Memo }) "Exakt · Memo" "Exakt"
+        }
+        test "Ein leerer Name wird beim Speichern zum Muster" {
+            let draft = { RuleDraft.empty with Name = "  "; Pattern = "rewe" }
+            Expect.equal (buildNewRule draft r1.CategoryId).Name "rewe" "Anlegen"
+            Expect.equal (buildRuleChange r1 draft r1.CategoryId).Name (Some "rewe") "Ändern"
+            Expect.equal (buildNewRule { draft with Name = "Rewe" } r1.CategoryId).Name "Rewe" "gesetzter Name bleibt"
+        }
+        test "Der Schalter Regel aktiv geht beim Anlegen mit, vorbelegt an" {
+            Expect.isTrue RuleDraft.empty.Enabled "an"
+            Expect.isFalse (buildNewRule { RuleDraft.empty with Pattern = "x"; Enabled = false } r1.CategoryId).Enabled "aus"
+        }
+        test "Ohne Muster oder Kategorie nennt der Knopf, was fehlt" {
+            Expect.equal (Client.DesignSystem.Form.getMissingFields (requiredFieldPairs RuleDraft.empty)) [ "Muster"; "Kategorie" ] "beides"
+            let complete = { RuleDraft.empty with Pattern = "x"; CategoryId = Some r1.CategoryId }
+            Expect.isEmpty (Client.DesignSystem.Form.getMissingFields (requiredFieldPairs complete)) "nichts"
+        }
+        test "Die Zeile unter Muster testen: Hinweis, Passt, Passt nicht, Grund, Netzfehler" {
+            let request = { Pattern = "x"; PatternType = Contains; TargetField = Payee; Input = "y" }
+            Expect.equal (testLine NothingToTest) (HintLine "Text eingeben, um das Muster zu prüfen.") "ohne Eingabe"
+            Expect.equal (testLine (Tested (request, Matches))) (MatchLine "Passt") "passt"
+            Expect.equal (testLine (Tested (request, NoMatch))) (NoMatchLine "Passt nicht") "passt nicht"
+            Expect.equal (testLine (Tested (request, PatternFaulty "Ungültiges Muster"))) (FaultLine "Ungültiges Muster") "Grund"
+            Expect.equal (testLine (Tested (request, Unreachable))) (FaultLine ruleTestLostText) "Netzfehler"
+        }
     ]
 
 [<Tests>]
-let allTests = tests
+let listTests =
+    testList "Regeln: Liste" [
+        test "Laden zeigt ohne Liste den Ladezustand, ein Fehler die Ursache, eine geladene Liste bleibt beim Neuladen" {
+            let loading = step LoadRules (fst (init ()))
+            Expect.equal loading.Rules Loading "lädt"
+            Expect.equal (step (RulesLoaded (loading.LoadVersion, Error "weg")) loading).Rules (Failure "weg") "Fehler"
+            Expect.equal (step (RulesLoaded (loading.LoadVersion, Ok [])) loading).Rules (Success []) "leer"
+            Expect.equal (step LoadRules shown).Rules shown.Rules "kein Skeleton beim Neuladen"
+        }
+        test "Ein Pfeil ändert die Reihenfolge sofort, am Rand nichts" {
+            Expect.equal (ids (step (MoveRequested (r2.Id, Up)) shown)) [ r2.Id; r1.Id; r3.Id ] "hoch"
+            Expect.equal (ids (step (MoveRequested (r1.Id, Up)) shown)) (ids shown) "oberste nicht höher"
+            Expect.equal (ids (step (MoveRequested (r3.Id, Down)) shown)) (ids shown) "unterste nicht tiefer"
+        }
+        test "Scheitert das Speichern der Reihenfolge, steht die alte wieder da und ein Toast nennt es" {
+            let moved, _, _ = update (MoveRequested (r2.Id, Up)) shown
+            let back, _, ext = update (RulesReordered ([ r1; r2; r3 ], Error "Datenbank weg")) moved
+            Expect.equal (ids back) [ r1.Id; r2.Id; r3.Id ] "alte Reihenfolge"
+            Expect.equal ext (ShowToast ("Reihenfolge konnte nicht gespeichert werden: Datenbank weg", ToastError)) "Toast"
+        }
+        // GIVEN Roman hat eine Regel verschoben WHEN eine ältere Ladeantwort danach ankommt THEN bleibt die neue
+        // Reihenfolge stehen (Befund `State.fs:52` aus categorization-krscs). Alle Reihenfolgen von Laden, Pfeil
+        // und Antwort mit dem Orakel: zählt die Antwort, kam sie nach dem letzten Pfeil.
+        test "Eine ältere Ladeantwort überschreibt eine verschobene Reihenfolge nicht" {
+            let answer version = RulesLoaded (version, Ok [ r1; r2; r3 ])
+            let loaded = step LoadRules shown
+            let v = loaded.LoadVersion
+            for order, expected in
+                [ [ MoveRequested (r2.Id, Up); answer v ], [ r2.Id; r1.Id; r3.Id ]
+                  [ answer v; MoveRequested (r2.Id, Up) ], [ r2.Id; r1.Id; r3.Id ]
+                  [ MoveRequested (r2.Id, Up); LoadRules; answer v ], [ r2.Id; r1.Id; r3.Id ]
+                  [ MoveRequested (r2.Id, Up); LoadRules; answer (v + 2) ], [ r1.Id; r2.Id; r3.Id ] ] do
+                Expect.equal (ids (steps order loaded)) expected $"%A{order}"
+        }
+    ]
 
 [<Tests>]
-let patternTestFeedbackTests =
-    let form (msg: Components.Rules.Types.Msg) =
-        let initial, _ = Components.Rules.State.init ()
-        let next, _, _ = Components.Rules.State.update msg initial
-        next.Form.TestResult
-    testList "Muster testen im Regel-Dialog" [
-        testCase "kein Treffer heißt passt nicht" <| fun () ->
-            Expect.equal (form (RulePatternTested (Ok false))) (Some "❌ Muster passt nicht") "Text"
+let panelTests =
+    testList "Regeln: Panel und Sheet" [
+        test "Neue Regel öffnet ein leeres Formular, eine Regel ihr Formular, dieselbe noch einmal lässt die Eingaben" {
+            Expect.equal (panelOf (step NewRuleRequested shown)).Editor NewRule "neu"
+            let opened = step (RuleChosen r2.Id) shown
+            Expect.equal (panelOf opened).Draft (RuleDraft.fromRule r2) "Felder der Regel"
+            let typed = steps [ NameEntered "Anders"; RuleChosen r2.Id ] opened
+            Expect.equal (panelOf typed).Draft.Name "Anders" "Eingabe bleibt"
+            Expect.isNone (step PanelClosed opened).Panel "geschlossen"
+        }
+        test "Ohne Muster oder Kategorie geht nichts hinaus" {
+            let opened = step NewRuleRequested shown
+            let _, cmd, _ = update (CreateRequested InPanel) opened
+            Expect.isEmpty cmd "kein Aufruf"
+            Expect.equal (panelOf (step (CreateRequested InPanel) opened)).Save NotSaving "nichts läuft"
+        }
+        test "Anlegen und Ändern sind getrennte Nachrichten, das jeweils andere tut nichts" {
+            let filled = steps [ NewRuleRequested; PatternEntered "x"; CategoryChosen (Some r1.CategoryId) ] shown
+            Expect.equal (panelOf (step (ChangeRequested InPanel) filled)).Save NotSaving "Ändern auf neuer Regel"
+            Expect.equal (panelOf (step (CreateRequested InPanel) filled)).Save Saving "Anlegen läuft"
+            let editing = step (RuleChosen r1.Id) shown
+            Expect.equal (panelOf (step (CreateRequested InPanel) editing)).Save NotSaving "Anlegen auf bestehender Regel"
+            Expect.equal (panelOf (step (ChangeRequested InPanel) editing)).Save Saving "Ändern läuft"
+        }
+        test "Nach dem Anlegen steht die Regel vorn, das Panel zeigt sie, das Sheet schließt" {
+            let created = { rule 9 true with Name = "Neu" }
+            let saving = steps [ NewRuleRequested; PatternEntered "x"; CategoryChosen (Some r1.CategoryId); CreateRequested InPanel ] shown
+            let inPanel, _, ext = update (RuleCreated (InPanel, Ok created)) saving
+            Expect.equal (ids inPanel) [ created.Id; r1.Id; r2.Id; r3.Id ] "vorn"
+            Expect.equal (panelOf inPanel).Editor (Editing created) "Panel zeigt sie"
+            Expect.equal ext (ShowToast ("Regel angelegt", ToastSuccess)) "Toast"
+            Expect.isNone (step (RuleCreated (InSheet, Ok created)) saving).Panel "Sheet zu"
+        }
+        test "Ein ungültiges Regex steht als Feldfehler am Muster, eine Eingabe nimmt ihn weg" {
+            let saving = steps [ RuleChosen r1.Id; ChangeRequested InPanel ] shown
+            let failed, _, ext = update (RuleChanged (InPanel, Error (RulesError.InvalidPattern ("(", "Klammer fehlt")))) saving
+            Expect.equal (panelOf failed).Save (SaveFailed (PatternRejected "Klammer fehlt")) "am Muster"
+            Expect.equal ext NoOp "kein Toast"
+            Expect.equal (panelOf (step (PatternEntered "(a)") failed)).Save NotSaving "weg"
+            let other = step (RuleChanged (InPanel, Error (RulesError.CategoryLookupFailed "YNAB weg"))) saving
+            Expect.equal (panelOf other).Save (SaveFailed (SaveRejected "Kategorie konnte nicht nachgeschlagen werden: YNAB weg")) "im Formular"
+        }
+        test "Nach dem Ändern steht die geänderte Regel an ihrer Stelle" {
+            let changed = { r2 with Name = "Neu" }
+            let saving = steps [ RuleChosen r2.Id; ChangeRequested InPanel ] shown
+            let after = step (RuleChanged (InPanel, Ok changed)) saving
+            match after.Rules with
+            | Success [ _; second; _ ] -> Expect.equal second changed "ersetzt"
+            | other -> failtest $"%A{other}"
+            Expect.equal (panelOf after).Editor (Editing changed) "Panel zeigt sie"
+        }
+        test "Die Auswahl der Kategorie schließt nach der Wahl" {
+            let opened = steps [ NewRuleRequested; CategoryPickerOpened ] shown
+            Expect.isTrue (panelOf opened).PickerOpen "offen"
+            let chosen = step (CategoryChosen (Some r2.CategoryId)) opened
+            Expect.isFalse (panelOf chosen).PickerOpen "zu"
+            Expect.equal (panelOf chosen).Draft.CategoryId (Some r2.CategoryId) "gewählt"
+        }
+        test "Der Name der gewählten Kategorie, ohne geladene Kategorien der gespeicherte der Regel" {
+            let panel = panelOf (step (RuleChosen r1.Id) shown)
+            Expect.equal (categoryValue [] panel) (Some "Kategorie 1") "gespeichert"
+            let category = { Id = r1.CategoryId; Name = "Lebensmittel"; GroupName = "Alltag"; Available = None; Hidden = false }
+            Expect.equal (categoryValue [ category ] panel) (Some "Lebensmittel") "geladen"
+            Expect.equal (categoryValue [] (panelOf (step NewRuleRequested shown))) None "keine"
+        }
+    ]
 
-        testCase "ein Treffer heißt passt" <| fun () ->
-            Expect.equal (form (RulePatternTested (Ok true))) (Some "✅ Muster passt") "Text"
+[<Tests>]
+let patternTestTests =
+    testList "Regeln: Muster testen" [
+        let typedA = steps [ NewRuleRequested; PatternEntered "rewe"; TestInputEntered "REWE Markt" ] shown
+        let requestA = { Pattern = "rewe"; PatternType = Contains; TargetField = Combined; Input = "REWE Markt" }
 
-        testCase "ein ungültiges Muster nennt den Grund" <| fun () ->
-            let result = form (RulePatternTested (Error (RulesError.InvalidPattern ("(", "Klammer fehlt"))))
-            Expect.equal result (Some "⚠️ Ungültiges Muster '(': Klammer fehlt") "Text"
+        test "Ohne Text oder Muster gibt es nichts zu prüfen, mit beiden läuft eine Anfrage" {
+            Expect.equal (panelOf (steps [ NewRuleRequested; TestInputEntered "x" ] shown)).Test NothingToTest "ohne Muster"
+            Expect.equal (panelOf typedA).Test (Testing requestA) "läuft"
+            Expect.equal (panelOf (step (PatternTested (requestA, Ok true)) typedA)).Test (Tested (requestA, Matches)) "passt"
+            Expect.equal (panelOf (step (PatternTested (requestA, Ok false)) typedA)).Test (Tested (requestA, NoMatch)) "passt nicht"
+        }
+        test "Ein ungültiges Muster und ein Netzfehler sind nie Passt nicht" {
+            let invalid = step (PatternTested (requestA, Error (RulesError.InvalidPattern ("rewe", "kaputt")))) typedA
+            Expect.equal (panelOf invalid).Test (Tested (requestA, PatternFaulty "Ungültiges Muster 'rewe': kaputt")) "Grund"
+            Expect.equal (panelOf (step (PatternTestLost requestA) typedA)).Test (Tested (requestA, Unreachable)) "Netzfehler"
+        }
+        // GIVEN eine Testanfrage für Eingabe A läuft WHEN Roman Muster, Art, Feld oder Text ändert und danach die
+        // Antwort für A kommt THEN zeigt das Ergebnis nichts aus A.
+        test "Eine Antwort für eine geänderte Eingabe zeigt nichts" {
+            for change in [ PatternEntered "edeka"; PatternTypeChosen Exact; TargetFieldChosen Memo; TestInputEntered "EDEKA"; TestInputEntered "" ] do
+                let changed = step change typedA
+                for answer in [ PatternTested (requestA, Ok true); PatternTested (requestA, Ok false); PatternTestLost requestA ] do
+                    let after = step answer changed
+                    match (panelOf after).Test with
+                    | Tested (request, _) | Testing request -> Expect.notEqual request requestA $"%A{change} / %A{answer}"
+                    | NothingToTest -> ()
+        }
+    ]
 
-        // Bug categorization-f955d: ein Netzfehler wurde als ungültiges Muster gemeldet.
-        testCase "ein Netzfehler ist kein Urteil über das Muster" <| fun () ->
-            Expect.equal (form RulePatternTestLost) (Some $"⚠️ {ruleTestLostText}") "Text"
+[<Tests>]
+let deleteTests =
+    testList "Regeln: Löschen mit Rückgängig" [
+        test "Regel löschen nimmt sie sofort aus der Liste und schließt das Panel" {
+            let after = steps [ RuleChosen r2.Id; DeleteRequested ] shown
+            Expect.equal (ids after) [ r1.Id; r3.Id ] "weg"
+            Expect.isNone after.Panel "zu"
+        }
+        test "Ist sie gelöscht, kommt der Toast mit Rückgängig für ihre Stelle" {
+            let deleted = steps [ RuleChosen r3.Id; DeleteRequested ] shown
+            Expect.equal (stepExt (RuleDeleted (r3, 2, Ok ())) deleted) (RuleDeletedUndoable (r3, 2)) "Stelle 2"
+        }
+        test "Scheitert das Löschen, steht sie wieder an ihrer Stelle und ein Toast nennt es" {
+            let deleted = steps [ RuleChosen r2.Id; DeleteRequested ] shown
+            let back, _, ext = update (RuleDeleted (r2, 1, Error (RulesError.DatabaseError ("delete", "weg")))) deleted
+            Expect.equal (ids back) [ r1.Id; r2.Id; r3.Id ] "zurück"
+            Expect.isTrue (isToast ext) "Toast"
+        }
+        // GIVEN eine gelöschte Regel an Stelle 3 WHEN Roman „Rückgängig“ wählt THEN steht sie wieder an Stelle 3,
+        // aus der Antwort des Servers; scheitert der Aufruf, fehlt sie und ein Toast nennt es.
+        test "Rückgängig übernimmt die Liste des Servers, ein Fehler lässt die Regel weg" {
+            let deleted = steps [ RuleChosen r3.Id; DeleteRequested ] shown
+            let restoring, _, _ = update (RestoreRequested (r3, 2)) deleted
+            Expect.equal (ids restoring) [ r1.Id; r2.Id ] "kein Zwischenstand"
+            Expect.equal (ids (step (RuleRestored (Ok [ r1; r2; r3 ])) restoring)) [ r1.Id; r2.Id; r3.Id ] "an Stelle 3"
+            let failed, _, ext = update (RuleRestored (Error (RulesError.DatabaseError ("restore_rule", "weg")))) restoring
+            Expect.equal (ids failed) [ r1.Id; r2.Id ] "fehlt"
+            Expect.equal ext (ShowToast ("Regel konnte nicht wiederhergestellt werden: Datenbankfehler bei restore_rule: weg", ToastError)) "Toast"
+        }
+        test "Rückgängig im Toast führt zur Wiederherstellung an der Stelle" {
+            Expect.equal (State.toastActionMsg (UndoDeleteRule (r3, 2))) (State.RulesMsg (RestoreRequested (r3, 2))) "Nachricht"
+        }
+    ]
+
+[<Tests>]
+let keyTests =
+    testList "Regeln: Tasten am PC" [
+        let key k model = ruleKeyAction model Elsewhere false false k
+        test "↓ ohne Auswahl öffnet die erste, ↑ die letzte Regel" {
+            Expect.equal (key "ArrowDown" shown) (Some (ShowRule r1.Id)) "erste"
+            Expect.equal (key "ArrowUp" shown) (Some (ShowRule r3.Id)) "letzte"
+            Expect.equal (key "ArrowDown" (step NewRuleRequested shown)) (Some (ShowRule r1.Id)) "neue Regel zählt nicht als Auswahl"
+        }
+        test "Danach ↑↓ die nächste bzw. vorige, am Rand nichts" {
+            let onSecond = step (RuleChosen r2.Id) shown
+            Expect.equal (key "ArrowDown" onSecond) (Some (ShowRule r3.Id)) "nächste"
+            Expect.equal (key "ArrowUp" onSecond) (Some (ShowRule r1.Id)) "vorige"
+            Expect.equal (key "ArrowDown" (step (RuleChosen r3.Id) shown)) None "Rand unten"
+            Expect.equal (key "ArrowUp" (step (RuleChosen r1.Id) shown)) None "Rand oben"
+        }
+        test "In einem Textfeld, mit Zusatztaste oder schon behandelt gehören die Pfeile nicht der Liste" {
+            Expect.equal (ruleKeyAction shown InTextField false false "ArrowDown") None "Textfeld"
+            Expect.equal (ruleKeyAction shown Elsewhere true false "ArrowDown") None "Zusatztaste"
+            Expect.equal (ruleKeyAction shown Elsewhere false true "ArrowDown") None "behandelt"
+        }
+        test "Esc schließt zuerst die Auswahl der Kategorie, dann das Panel, ohne Panel nichts" {
+            let opened = step (RuleChosen r1.Id) shown
+            Expect.equal (key "Escape" (step CategoryPickerOpened opened)) (Some CloseRulePicker) "Picker"
+            Expect.equal (ruleKeyAction opened InTextField false false "Escape") (Some CloseRulePanel) "Panel, auch aus dem Feld"
+            Expect.equal (key "Escape" shown) None "nichts offen"
+            Expect.equal (key "ArrowDown" (step CategoryPickerOpened opened)) None "Pfeile gehören dem Picker"
+        }
+    ]
+
+/// Ein Root-Modell ohne `State.init()` (das liest die URL über `Browser.Dom.window`).
+let private rootModel (page: Page) : State.Model =
+    let settingsModel, _ = Components.Settings.State.init ()
+    let ledgerModel, _ = Components.Ledger.State.init ()
+    { CurrentPage = page
+      Toasts = []
+      Pwa = Pwa.initialState
+      Settings = settingsModel
+      Fetch = Components.Fetch.Types.init
+      QuickAddCategories = NotAsked
+      Rules = shown
+      Ledger = ledgerModel
+      Budget = Components.Budget.State.init ()
+      QuickAdd = None
+      QuickAddTemplates = NotAsked
+      Overview = Components.Overview.Types.init
+      SettingsReturn = Page.Overview }
+
+let private dispatched (cmd: Elmish.Cmd<'msg>) : 'msg list =
+    let collected = ResizeArray<'msg>()
+    cmd |> List.iter (fun effect -> effect collected.Add)
+    List.ofSeq collected
+
+[<Tests>]
+let rootTests =
+    testList "Regeln: Tab im Kassenbuch" [
+        // GIVEN Buchungen mit gewähltem Konto, gesetztem Filter und Auswahl WHEN Roman zu „Regeln“ und zurück zu
+        // „Buchungen“ wechselt THEN stehen Konto, Filter und Auswahl wie vorher, die Liste lädt nicht neu (den
+        // Scrollstand hält die Seite selbst).
+        test "Der Wechsel zu Regeln und zurück lässt Konto, Filter, Auswahl und Liste stehen" {
+            let account = Guid.NewGuid()
+            let start = rootModel Page.Ledger
+            let ledger =
+                { start.Ledger with
+                    Accounts = Success { Accounts = []; DefaultAccountId = None }
+                    Entries = Success []
+                    SelectedFilter = Some (Components.Ledger.Types.OneAccount account)
+                    Selection = Components.Ledger.Types.Picked (Set.singleton account)
+                    Filters = { start.Ledger.Filters with Memo = Some "rewe" } }
+            let onBookings = { start with Ledger = ledger }
+            let onRules, toRules = State.update (State.UrlChanged [ "ledger"; "rules" ]) onBookings
+            let back, toBookings = State.update (State.UrlChanged [ "ledger" ]) onRules
+            Expect.equal onRules.CurrentPage LedgerRules "Tab Regeln"
+            Expect.equal back.Ledger ledger "Kassenbuch unverändert"
+            Expect.isEmpty (dispatched toBookings |> List.filter (function State.LedgerMsg _ -> true | _ -> false)) "kein Neuladen"
+            Expect.contains (dispatched toRules) (State.RulesMsg LoadRules) "Regeln laden"
+            Expect.contains (dispatched toBookings) (State.RulesMsg RulesTabLeft) "Formular zu"
+        }
+        test "Ohne geladene Liste lädt der Wechsel zu Buchungen das Kassenbuch" {
+            let _, cmd = State.update (State.UrlChanged [ "ledger" ]) (rootModel LedgerRules)
+            Expect.contains (dispatched cmd) (State.LedgerMsg Components.Ledger.Types.LoadAccounts) "lädt"
+        }
+        test "Eine gelöschte Regel meldet der Root als Toast „Regel gelöscht“ mit „Rückgängig“" {
+            let model = { rootModel LedgerRules with Rules = steps [ RuleChosen r2.Id; DeleteRequested ] shown }
+            let _, cmd = State.update (State.RulesMsg (RuleDeleted (r2, 1, Ok ()))) model
+            let expected =
+                State.ShowToastWithAction ("Regel gelöscht", ToastSuccess, { Label = "Rückgängig"; Kind = UndoDeleteRule (r2, 1) })
+            Expect.contains (dispatched cmd) expected "Toast"
+        }
     ]

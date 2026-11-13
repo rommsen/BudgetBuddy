@@ -228,7 +228,7 @@ let private rows : Row list = [
       Run = fun () ->
         rulesApi.createRule
             { Name = ""; Pattern = ""; PatternType = Contains; TargetField = Payee
-              CategoryId = YnabCategoryId (Guid.NewGuid()); PayeeOverride = None }
+              CategoryId = YnabCategoryId (Guid.NewGuid()); PayeeOverride = None; Enabled = true }
         |> run |> expectError "Regel anlegen" }
     { Endpoint = "RulesApi.updateRule"; Case = "unbekannte Id wird abgelehnt"
       Run = fun () ->
@@ -240,12 +240,15 @@ let private rows : Row list = [
       Run = fun () -> rulesApi.deleteRule (RuleId (Guid.NewGuid())) |> run |> ignore }
     { Endpoint = "RulesApi.reorderRules"; Case = "unbekannte Ids ohne Absturz"
       Run = fun () -> rulesApi.reorderRules [ RuleId (Guid.NewGuid()) ] |> run |> ignore }
-    { Endpoint = "RulesApi.exportRules"; Case = "Export liefert JSON ohne Absturz"
+    { Endpoint = "RulesApi.restoreRule"; Case = "leerer Name, leeres Muster und negative Stelle werden abgelehnt"
       Run = fun () ->
-        let json = rulesApi.exportRules () |> run
-        Expect.isFalse (String.IsNullOrWhiteSpace json) "Export nicht leer" }
-    { Endpoint = "RulesApi.importRules"; Case = "kein JSON wird abgelehnt"
-      Run = fun () -> rulesApi.importRules "kein json" |> run |> expectError "Import" }
+        rulesApi.restoreRule
+            { Rule =
+                { Id = RuleId (Guid.NewGuid()); Name = ""; Pattern = ""; PatternType = Contains; TargetField = Payee
+                  CategoryId = YnabCategoryId (Guid.NewGuid()); CategoryName = "Kategorie"; PayeeOverride = None
+                  Priority = 1; Enabled = true; CreatedAt = DateTime.UtcNow; UpdatedAt = DateTime.UtcNow }
+              Position = -1 }
+        |> run |> expectError "Regel wiederherstellen" }
     { Endpoint = "RulesApi.testRule"; Case = "ungültiger Regex wird abgelehnt"
       Run = fun () -> rulesApi.testRule ("(", Regex, Payee, "(irgendwas") |> run |> expectError "Muster" }
 

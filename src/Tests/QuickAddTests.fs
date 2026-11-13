@@ -484,7 +484,7 @@ let private toastTexts (cmd: Elmish.Cmd<State.Msg>) =
 let loadFailureToastTests =
     testList "Ladefehler der Quick-Add-Kategorien als Toast" [
         test "scheitern die Kategorien, meldet nur Quick-Add einen Toast" {
-            for page in [ Types.Page.Overview; Types.Page.Ledger; Types.Page.Rules; Types.Page.Settings; Types.Page.Budget ] do
+            for page in [ Types.Page.Overview; Types.Page.Ledger; Types.Page.LedgerRules; Types.Page.Settings; Types.Page.Budget ] do
                 let _, cmd = State.update categoriesFailed { modelWithForm validForm with CurrentPage = page }
                 Expect.isEmpty (toastTexts cmd) $"{page}: kein Toast"
             let _, cmd = State.update categoriesFailed (modelWithForm validForm)

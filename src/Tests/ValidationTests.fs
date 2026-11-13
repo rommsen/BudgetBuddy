@@ -328,6 +328,7 @@ let rulesValidationTests =
                     TargetField = Combined
                     CategoryId = YnabCategoryId (Guid.NewGuid())
                     PayeeOverride = None
+                    Enabled = true
                 }
                 let result = validateNewRule request
                 Expect.isOk result "Should return Ok for valid request"
@@ -341,6 +342,7 @@ let rulesValidationTests =
                     TargetField = Combined
                     CategoryId = YnabCategoryId (Guid.NewGuid())
                     PayeeOverride = None
+                    Enabled = true
                 }
                 let result = validateNewRule request
                 Expect.isError result "Should return Error for empty name"
@@ -354,6 +356,7 @@ let rulesValidationTests =
                     TargetField = Combined
                     CategoryId = YnabCategoryId (Guid.NewGuid())
                     PayeeOverride = None
+                    Enabled = true
                 }
                 let result = validateNewRule request
                 Expect.isError result "Should return Error for empty pattern"
@@ -367,6 +370,7 @@ let rulesValidationTests =
                     TargetField = Combined
                     CategoryId = YnabCategoryId (Guid.NewGuid())
                     PayeeOverride = None
+                    Enabled = true
                 }
                 let result = validateNewRule request
                 match result with
@@ -382,6 +386,7 @@ let rulesValidationTests =
                     TargetField = Combined
                     CategoryId = YnabCategoryId (Guid.NewGuid())
                     PayeeOverride = Some "   "
+                    Enabled = true
                 }
                 Expect.equal
                     (validateNewRule request)
