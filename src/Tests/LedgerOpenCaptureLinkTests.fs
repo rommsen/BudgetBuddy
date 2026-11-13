@@ -1,4 +1,4 @@
-module LedgerOpenPushLinkTests
+module LedgerOpenCaptureLinkTests
 
 // Dritte Match-Stufe des Spiegels (ledger-ay81j, ADR 0015 und 0021 Nachtrag 2026-11-13), rein: eine in BB
 // erfasste, offene Buchung wird mit einer YNAB-Beobachtung ohne import_id verknüpft, wenn Konto, Tag, Betrag
@@ -70,7 +70,7 @@ let private observation (ynabId: string) (payee: string option) : YnabObservatio
     FlagName = None
 }
 
-let private plan observations captures = planOpenPushLinks observations resolution Set.empty captures
+let private plan observations captures = planOpenCaptureLinks observations resolution Set.empty captures
 
 let private linksOf observations captures = (plan observations captures).Links
 
@@ -79,7 +79,7 @@ let private expectNoLink (label: string) (obs: YnabObservation) (entry: Entry) =
     Expect.isEmpty (linksOf [ obs ] [ entry ]) label
 
 [<Tests>]
-let openPushLinkTests =
+let openCaptureLinkTests =
     testList "Ledger offene Erfassung verknüpfen (rein, ledger-ay81j)" [
         testCase "Treffer: gleiches Konto, Tag, Betrag und Payee; Kategorie und Memo zählen nicht" <| fun () ->
             let entry = capture (Some "Kiosk")
@@ -125,7 +125,7 @@ let openPushLinkTests =
             expectNoLink "gelöscht" { obs with Deleted = true } entry
             expectNoLink "mit import_id" { obs with ImportId = Some "YNAB:-12500:2026-11-12:1" } entry
             expectNoLink "mit matched_transaction_id" { obs with MatchedYnabTransactionId = Some "y-alt" } entry
-            Expect.isEmpty (planOpenPushLinks [ obs ] resolution (Set.ofList [ "y-1" ]) [ entry ]).Links "YNAB-Id als ynab oder ynabsuperseded bekannt"
+            Expect.isEmpty (planOpenCaptureLinks [ obs ] resolution (Set.ofList [ "y-1" ]) [ entry ]).Links "YNAB-Id als ynab oder ynabsuperseded bekannt"
 
         testCase "Mehrdeutig: zwei passende Erfassungen zu einer Beobachtung, keine Verknüpfung" <| fun () ->
             let first, second = capture (Some "Kiosk"), capture (Some "kiosk")
@@ -156,13 +156,13 @@ let openPushLinkTests =
             Expect.isFalse (isCapturedInBb None) "unbekannte Buchung"
             Expect.isFalse (isCapturedInBb (Some (YnabMirror, EntryLinkedToYnab { YnabTransactionId = "y" }))) "anderes erstes Ereignis"
 
-        testCase "isOpenForPushLink: verknüpft, gelöscht oder als Duplikat gehalten zählt nicht, ein Fehlschlag schon" <| fun () ->
+        testCase "isOpenCapture: verknüpft, gelöscht oder als Duplikat gehalten zählt nicht, ein Fehlschlag schon" <| fun () ->
             let entry = capture (Some "Kiosk")
-            Expect.isTrue (isOpenForPushLink entry) "offen mit Fehlschlag"
-            Expect.isFalse (isOpenForPushLink { entry with LinkedToYnab = true }) "verknüpft"
-            Expect.isFalse (isOpenForPushLink { entry with DeletedInYnab = true }) "gelöscht"
+            Expect.isTrue (isOpenCapture entry) "offen mit Fehlschlag"
+            Expect.isFalse (isOpenCapture { entry with LinkedToYnab = true }) "verknüpft"
+            Expect.isFalse (isOpenCapture { entry with DeletedInYnab = true }) "gelöscht"
             let held : EntryHeldAsPossibleDuplicatePayload =
                 { Reason = "gleicher Betrag"; MatchYnabTransactionId = "y-treffer"; MatchEntryId = None
                   Match = { Date = day; Amount = entry.Amount; Payee = entry.Payee; CategoryName = None } }
-            Expect.isFalse (isOpenForPushLink { entry with PossibleDuplicate = Some held }) "als Duplikat gehalten"
+            Expect.isFalse (isOpenCapture { entry with PossibleDuplicate = Some held }) "als Duplikat gehalten"
     ]

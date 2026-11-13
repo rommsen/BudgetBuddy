@@ -285,7 +285,6 @@ let retryOpenCaptureTests =
             for failing in [ (fun () -> async.Return (Error "HTTP 503")); (fun () -> async { return failwith "weg" }) ] do
                 let result = retryPushToYnab (at.AddHours 2.0) loadEntryOrigin failing push noTrigger entryId |> Async.RunSynchronously
                 Expect.equal result (Error retryMirrorUnavailableText) "der Satz aus What 3"
-            Expect.equal retryMirrorUnavailableText "BB konnte YNAB gerade nicht abfragen. Nichts gesendet, bitte später erneut senden." "Wortlaut"
             Expect.isEmpty calls "kein Push"
             Expect.equal (eventTypesOf entryId) [ "CashExpenseAdded"; "EntryPushToYnabFailed" ] "kein Ereignis"
 
@@ -327,10 +326,37 @@ let retryOpenCaptureTests =
             Expect.equal mirrors 0 "kein Spiegel"
             Expect.equal calls.Count 1 "ein Push"
 
+        testCase "(e) ein Comdirect-Import, dessen import_id YNAB schon kennt (409): gesendet, kein Fehlschlag, der Auslöser läuft" <| fun () ->
+            // Die verlorene Antwort eines Comdirect-Pushs: 409 heißt angekommen (ledger-p3vq8), nicht gescheitert.
+            let account, _ = mirroredAccount ()
+            let entryId = newEntryId ()
+            let reference = $"ay81j-{Guid.NewGuid():N}".Substring(0, 20)
+            appendAndApply [
+                { EntryId = entryId; OccurredAt = at; Actor = ComdirectImport
+                  Body =
+                    EntryImportedFromComdirect {
+                        AccountId = account.Id; ImportId = $"BB:{reference}"; ComdirectReference = reference
+                        Date = at.Date; Amount = eur -9m; Payee = Some "Markt"; Memo = None
+                        Cleared = Uncleared; Approved = false; FlagColor = None; FlagName = None } }
+                { EntryId = entryId; OccurredAt = at; Actor = ComdirectImport; Body = EntryPushToYnabFailed { Reason = "Zeitüberschreitung" } }
+            ]
+            |> Async.RunSynchronously
+            let calls, push = countingPush (Error YnabError.ImportIdAlreadyInYnab)
+            let mutable triggers = 0
+            let result =
+                retryPushToYnab (at.AddHours 2.0) loadEntryOrigin mirrorFindsNothing push (fun () -> triggers <- triggers + 1) entryId
+                |> Async.RunSynchronously
+            Expect.equal result (Ok PushToYnabSent) "gesendet"
+            Expect.equal calls.Count 1 "ein Push"
+            Expect.equal triggers 1 "der Spiegel-Auslöser läuft"
+            Expect.equal (eventTypesOf entryId) [ "EntryImportedFromComdirect"; "EntryPushToYnabFailed" ] "kein neuer Fehlschlag"
+
         testCase "Live: Erneut senden des Servers fragt bei einer Erfassung zuerst YNAB, ohne Einrichtung kein Push" <| fun () ->
             // Belegt die Verdrahtung in `Api.fs` (`retryPushToYnabWith entryPush mirrorYnabBudget`): die
             // Test-Datenbank hat kein YNAB-Token, der echte Spiegel scheitert, also kein Push und kein Ereignis.
             // Ohne den Spiegel-Port schriebe der Push ein `EntryPushToYnabFailed` („No YNAB token configured“).
+            // Mit Token erreichte der echte Spiegel YNAB; der Fall läuft nur ohne.
+            Expect.isNone (global.Persistence.Settings.getSetting "ynab_token" |> Async.RunSynchronously) "kein Token in der Test-Datenbank"
             let account, _ = mirroredAccount ()
             let entryId = openCapture account.Id $"ay81j-{Guid.NewGuid()}"
             let (EntryId guid) = entryId

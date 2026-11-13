@@ -221,7 +221,7 @@ type private EntryMatch =
     /// Über die offene Erfassung (ledger-ay81j, ADR 0015 Nachtrag 2026-11-13): eine in BB erfasste,
     /// noch offene Buchung mit gleichem Konto, Tag, Betrag und Payee. Der Lauf hängt
     /// `EntryLinkedToYnab` an.
-    | MatchedByOpenPush of EntryId
+    | MatchedByOpenCapture of EntryId
     /// Kein Treffer: eine neue Buchung mit frischer Id.
     | NewEntry of EntryId
 
@@ -240,13 +240,14 @@ type private MirrorBatchState = {
     /// (ledger-nkwqb), einmal gebündelt geladen. Keine Verknüpfung wandert bei einer
     /// Zusammenlegung, deshalb bleibt die Map im Lauf unverändert.
     MatchedEntryLinks: Map<EntryId, EntryLink list>
-    /// Die Verknüpfungen offener Erfassungen (ledger-ay81j, `planOpenPushLinks`), einmal vor der
+    /// Die Verknüpfungen offener Erfassungen (ledger-ay81j, `planOpenCaptureLinks`), einmal vor der
     /// Schleife geplant: YNAB-Id der Beobachtung auf die Buchung.
-    OpenPushLinks: Map<string, EntryId>
+    OpenCaptureLinks: Map<string, EntryId>
 }
 
 module private MirrorBatchState =
     let load
+        (log: string -> unit)
         (observations: YnabObservation list)
         (resolution: Map<YnabAccountId, LedgerAccountId>)
         : Async<MirrorBatchState> =
@@ -281,29 +282,37 @@ module private MirrorBatchState =
                 |> List.choose (fun matched -> Map.tryFind matched byYnab)
             let! matchedEntryLinks = Ledger.Persistence.linksForEntries matchedEntryIds
             // Dritte Match-Stufe (ledger-ay81j): die offenen Erfassungen aus einer festen Abfrage, die
-            // abgelösten Ids der zulässigen Beobachtungen gebündelt, die Paare rein geplant.
-            let! openCaptures = Ledger.Persistence.loadOpenCaptures ()
-            let! openPushPlan =
+            // abgelösten Ids der zulässigen Beobachtungen gebündelt, die Paare rein geplant. Eine
+            // Erfassung, die eine Beobachtung des Laufs über ihre ImportId findet, nimmt an der dritten
+            // Stufe nicht teil: sonst verknüpfte eine frühere Beobachtung ohne `import_id` sie zuerst,
+            // und die ImportId hängte danach eine zweite YNAB-Id an.
+            let claimedByImportId = byImportId |> Map.toList |> List.map snd |> Set.ofList
+            let! openCaptures =
+                async {
+                    let! loaded = Ledger.Persistence.loadOpenCaptures ()
+                    return loaded |> List.filter (fun e -> not (claimedByImportId.Contains e.Id))
+                }
+            let! openCapturePlan =
                 async {
                     if List.isEmpty openCaptures then
-                        return planOpenPushLinks [] resolution Set.empty []
+                        return OpenCaptureLinkPlan.empty
                     else
                         let byYnabIds = byYnab |> Map.toList |> List.map fst |> Set.ofList
                         let unknownIds =
                             observations
-                            |> List.filter (isOpenPushLinkCandidate byYnabIds)
+                            |> List.filter (isOpenCaptureLinkCandidate byYnabIds)
                             |> List.map (fun obs -> obs.YnabTransactionId)
                         let! superseded = Ledger.Persistence.findEntriesByLinks YnabSupersededSystem unknownIds
                         let known = Set.union byYnabIds (superseded |> Map.toList |> List.map fst |> Set.ofList)
-                        return planOpenPushLinks observations resolution known openCaptures
+                        return planOpenCaptureLinks observations resolution known openCaptures
                 }
-            for ynabId in openPushPlan.ObservationsWithManyCaptures do
-                printfn "Offene Erfassung nicht verknüpft: mehrere Buchungen in BB passen zu YNAB-Buchung %s" ynabId
-            for entryId in openPushPlan.CapturesWithManyObservations do
-                printfn "Offene Erfassung nicht verknüpft: mehrere YNAB-Buchungen passen zu Buchung %O" entryId
+            for ynabId in openCapturePlan.ObservationsWithManyCaptures do
+                log $"Offene Erfassung nicht verknüpft: mehrere Buchungen in BB passen zu YNAB-Buchung {ynabId}"
+            for entryId in openCapturePlan.CapturesWithManyObservations do
+                log $"Offene Erfassung nicht verknüpft: mehrere YNAB-Buchungen passen zu Buchung {entryId}"
             let openCaptureEntries = openCaptures |> List.map (fun e -> e.Id, e) |> Map.ofList
             let entries =
-                openPushPlan.Links
+                openCapturePlan.Links
                 |> Map.fold
                     (fun acc _ entryId ->
                         match Map.tryFind entryId openCaptureEntries with
@@ -314,7 +323,7 @@ module private MirrorBatchState =
                 Links = links
                 Entries = entries
                 MatchedEntryLinks = matchedEntryLinks
-                OpenPushLinks = openPushPlan.Links
+                OpenCaptureLinks = openCapturePlan.Links
             }
         }
 
@@ -371,17 +380,17 @@ let private resolveEntry (state: MirrorBatchState) (obs: YnabObservation) : Entr
         | Some entryId -> MatchedByImportId entryId
         | None ->
             let stillOpen =
-                Map.tryFind obs.YnabTransactionId state.OpenPushLinks
+                Map.tryFind obs.YnabTransactionId state.OpenCaptureLinks
                 |> Option.filter (fun entryId ->
-                    MirrorBatchState.entry state entryId |> Option.exists isOpenForPushLink)
+                    MirrorBatchState.entry state entryId |> Option.exists isOpenCapture)
             match stillOpen with
-            | Some entryId -> MatchedByOpenPush entryId
+            | Some entryId -> MatchedByOpenCapture entryId
             | None -> NewEntry (newEntryId ())
 
 /// Das Ereignis der dritten Match-Stufe (ledger-ay81j): `EntryLinkedToYnab` mit Actor
 /// `YnabMirror`, wie im Standardzweig von `importIdMatchEvents`. Es beendet einen offenen
 /// Fehlschlag. Rein.
-let openPushMatchEvents (now: DateTime) (entryId: EntryId) (obs: YnabObservation) : LedgerEvent list =
+let openCaptureMatchEvents (now: DateTime) (entryId: EntryId) (obs: YnabObservation) : LedgerEvent list =
     [ { EntryId = entryId
         OccurredAt = now
         Actor = YnabMirror
@@ -612,10 +621,10 @@ let private survivorBeforeRun (now: DateTime) (state: MirrorBatchState) (obs: Yn
             |> List.fold (fun st ev -> apply (Some st) ev) entry
             |> ExistingSurvivor)
         |> Option.defaultValue NewSurvivor
-    | MatchedByOpenPush entryId ->
+    | MatchedByOpenCapture entryId ->
         existing entryId
         |> Option.map (fun entry ->
-            openPushMatchEvents now entryId obs
+            openCaptureMatchEvents now entryId obs
             |> List.fold (fun st ev -> apply (Some st) ev) entry
             |> ExistingSurvivor)
         |> Option.defaultValue NewSurvivor
@@ -640,8 +649,11 @@ let private mergeRejectionText (rejection: MergeRejection) : string =
 /// schreiben. Am Ende steht das `server_knowledge` des Laufs in den Settings und der
 /// Lauf-Status ist abrufbar — auch (und gerade) im Fehlerfall (ADR 0014).
 ///
-/// `now` und die Abrufe kommen von aussen; die Funktion selbst kennt weder Uhr noch HTTP.
-let runMirror
+/// `now` und die Abrufe kommen von aussen; die Funktion selbst kennt weder Uhr noch HTTP. `log`
+/// bekommt die Log-Zeilen der dritten Match-Stufe (offene Erfassung nicht verknüpft); live ist das
+/// die Konsole (`runMirror`), ein Test sammelt sie.
+let runMirrorWith
+    (log: string -> unit)
     (now: DateTime)
     (fetchers: MirrorFetchers)
     (budgetId: YnabBudgetId)
@@ -677,7 +689,7 @@ let runMirror
                 match! fetchers.FetchTransactions knowledge with
                 | Error error -> return! finish (Error (ynabErrorText error))
                 | Ok batch ->
-                    let! state = MirrorBatchState.load batch.Observations resolution
+                    let! state = MirrorBatchState.load log batch.Observations resolution
                     // Die Abgleiche des Batches (ledger-nkwqb, ADR 0015 Nachtrag 2026-11-13), vor der
                     // Schleife: nur Ziele zugelassener Abgleiche überspringen ihr `observe`.
                     let mergeDecisions =
@@ -722,7 +734,7 @@ let runMirror
                                         true,
                                         importIdMatchEvents now (MirrorBatchState.entry state id) id obs
                                     // ledger-ay81j: offene Erfassung, gleiche Verknüpfung wie über die ImportId.
-                                    | MatchedByOpenPush id -> id, true, openPushMatchEvents now id obs
+                                    | MatchedByOpenCapture id -> id, true, openCaptureMatchEvents now id obs
                                     | NewEntry id -> id, false, []
 
                                 // `observe` vergleicht mit dem Stand nach den Verknüpfungs-Ereignissen
@@ -915,6 +927,10 @@ module internal MirrorGuard =
                     | _ -> ())
         }
 
+/// Der Spiegel-Lauf mit der Konsole als Log (`runMirrorWith`).
+let runMirror (now: DateTime) (fetchers: MirrorFetchers) (budgetId: YnabBudgetId) : Async<Result<MirrorRunSummary, string>> =
+    runMirrorWith (printfn "%s") now fetchers budgetId
+
 /// `runMirror`, aber mit dem Einzel-Flug-Schutz: der Auslöser für alle drei
 /// Wege aus ADR 0014 (Seitenaufruf/Vordergrund über den manuellen Endpunkt, Lauf nach
 /// Push, "Jetzt spiegeln").
@@ -949,8 +965,9 @@ type PushArrival =
     /// YNAB kennt die `import_id` schon: ein früherer Versand kam an, nur seine Antwort nicht
     /// (ledger-p3vq8). Keine YNAB-Id; ob die Buchung dort noch lebt, klärt der Spiegel, der sie
     /// über die `import_id` verknüpft (ADR 0058 Probelauf 3). Seit ledger-ay81j nur noch für
-    /// Comdirect-Importe und einen offenen Ersatz mit `import_id`: eine in BB erfasste Buchung geht
-    /// ohne `import_id` hinaus und bekommt kein 409.
+    /// Comdirect-Importe sowie Ersatz und Wiederherstellen mit Ersatz-`import_id`: der erste Push und
+    /// das Erneut senden einer in BB erfassten Buchung gehen ohne `import_id` hinaus und bekommen
+    /// kein 409.
     | ArrivedWithoutId
     /// Der Versand ist gescheitert, mit Grund.
     | PushFailedBecause of reason: string
@@ -3088,8 +3105,7 @@ let loadEntryPushPlan (entry: Entry) : Async<Result<EntryPushPlan, string>> =
         let! links = Ledger.Persistence.linksForEntry entry.Id
         let! recorded = Ledger.Persistence.loadEventsForEntry entry.Id
         let events = recorded |> List.map (fun r -> r.Event)
-        let origin = events |> List.tryHead |> Option.map (fun e -> e.Actor, e.Body)
-        return planEntryPush accounts origin links events entry
+        return planEntryPush accounts (originOf events) links events entry
     }
 
 /// Die `import_id` der Ersatzbuchung: der Stamm der aktuellen plus `:r<n>`, n ist die Zahl
@@ -3111,14 +3127,20 @@ let replacementImportId (current: string option) : string option =
         let kept = if stem.Length > maxStem then stem.Substring(0, maxStem) else stem
         kept + suffix)
 
-/// Die `import_id` eines Ersatzes oder Wiederherstellens (ledger-ay81j): ein schon offener
-/// (`pending`) sendet weiter mit seiner Ersatz-`import_id`, eine in BB erfasste Buchung geht ohne,
-/// alle anderen mit `replacementImportId` der aktuellen. Rein.
-let replacementImportIdFor (capturedInBb: bool) (pending: PendingReplacement option) (current: string option) : string option =
-    match pending with
-    | Some p -> Some p.NewImportId
-    | None when capturedInBb -> None
-    | None -> replacementImportId current
+/// Die `import_id`, aus der Ersatz und Wiederherstellen ihre Ersatz-`import_id` rechnen
+/// (`replacementImportId`): die aktuelle. Eine in BB erfasste Buchung, die seit ledger-ay81j ohne
+/// `import_id` an YNAB geht und darum keine `importid`-Verknüpfung hat, nimmt den Stamm
+/// `BB:<EntryId>` (die EntryId als Guid ohne Bindestriche, 35 Zeichen, wie vor ledger-ay81j die
+/// feste `import_id`). So schickt ein Wiederholen nach verlorener Antwort dieselbe
+/// Ersatz-`import_id`, und YNAB fängt es per 409 ab, statt eine zweite Buchung anzulegen
+/// (Owner-Entscheidung 2026-11-13). Eine Buchung aus YNAB ohne `import_id` hat keine. Rein.
+let replacementBaseImportId (capturedInBb: bool) (entryId: EntryId) (current: string option) : string option =
+    match current with
+    | Some _ -> current
+    | None when capturedInBb ->
+        let (EntryId id) = entryId
+        Some $"{ImportIdPrefix}:{id:N}"
+    | None -> None
 
 /// Die Form einer Split-Anfrage nach der Prüfung: eine Kategorie (Aufheben oder
 /// gewöhnliche Kategorie) oder mindestens zwei Zeilen.
@@ -3414,14 +3436,20 @@ let private pushSplitState
                     let oldId = defaultArg pendingDeleted currentId
                     let newlyDeleted = if pendingDeleted.IsNone then Some oldId else None
                     let! links = Ledger.Persistence.linksForEntry entryId
+                    // Nur das erste Ereignis, nicht das ganze Log (`loadEntryOrigin`).
                     let! origin = Ledger.Persistence.loadEntryOrigin entryId
                     // ledger-f8bjm: steht ein Ersatz offen, gilt seine Ersatz-import_id; neu
                     // gerechnet ergäbe sie wegen ihrer Verknüpfung schon `:r<n+1>` und legte in
-                    // YNAB eine zweite Buchung an. ledger-ay81j: eine in BB erfasste Buchung geht
-                    // ohne `import_id`, dann gibt es kein `EntryReplacementSentToYnab`.
+                    // YNAB eine zweite Buchung an. Eine in BB erfasste Buchung ohne eigene
+                    // `import_id` rechnet vom Stamm `BB:<EntryId>` (`replacementBaseImportId`).
                     let openReplacement = entry.PendingReplacement |> Option.filter (fun p -> p.Kind = Replace)
                     let newImportId =
-                        replacementImportIdFor (isCapturedInBb origin) openReplacement (currentImportId links)
+                        match openReplacement with
+                        | Some pending -> Some pending.NewImportId
+                        | None ->
+                            replacementImportId (
+                                replacementBaseImportId (isCapturedInBb origin) entryId (currentImportId links)
+                            )
 
                     match! ynabAccountOf entry.AccountId with
                     | None -> return! fail "Das Konto der Buchung ist nicht mit YNAB verknüpft" newlyDeleted
@@ -3793,11 +3821,16 @@ let deletedInBbPayloadOf (entry: Entry) (ynabTransactionId: string) (importId: s
 
 /// Die Neuanlage in YNAB aus dem Stand vor dem Löschen (ADR 0092 Punkt 2): alle Felder des
 /// Ereignisses, die Ersatz-`import_id` (`replacementImportId`, ADR 0058 Punkt 2 und Nachtrag),
-/// ohne `import_id` keine, für eine in BB erfasste Buchung (`capturedInBb`) auch keine
-/// (ledger-ay81j); `EntryDeletedInBb` hält die echte `import_id` weiter als Historie fest. Ein
-/// Übertrag ohne Split geht mit seinem Ziel (`payee_id` der Übertrags-Payee), eine aufgeteilte
-/// Buchung mit ihren Zeilen samt Übertrags-Zeilen. Rein.
-let restoreRequestOf (capturedInBb: bool) (ynabAccount: YnabAccountId) (deleted: EntryDeletedInBbPayload) : Ynab.SplitReplacement =
+/// ohne `import_id` keine. Eine in BB erfasste Buchung (`capturedInBb`) ohne eigene rechnet vom
+/// Stamm `BB:<EntryId>` (`replacementBaseImportId`). Ein Übertrag ohne Split geht mit seinem Ziel
+/// (`payee_id` der Übertrags-Payee), eine aufgeteilte Buchung mit ihren Zeilen samt
+/// Übertrags-Zeilen. Rein.
+let restoreRequestOf
+    (capturedInBb: bool)
+    (entryId: EntryId)
+    (ynabAccount: YnabAccountId)
+    (deleted: EntryDeletedInBbPayload)
+    : Ynab.SplitReplacement =
     { AccountId = ynabAccount
       Date = deleted.Date
       Amount = deleted.Amount
@@ -3806,7 +3839,7 @@ let restoreRequestOf (capturedInBb: bool) (ynabAccount: YnabAccountId) (deleted:
       FlagColor = deleted.FlagColor
       Cleared = clearedToYnab deleted.Cleared
       Approved = deleted.Approved
-      ImportId = replacementImportIdFor capturedInBb None deleted.ImportId
+      ImportId = replacementImportId (replacementBaseImportId capturedInBb entryId deleted.ImportId)
       CategoryId =
         if List.isEmpty deleted.Splits then deleted.Category |> Option.map (fun c -> c.CategoryId) else None
       Splits = deleted.Splits
@@ -3907,8 +3940,7 @@ let restoreDeletedEntry
                     | Some entry ->
                         let! recorded = Ledger.Persistence.loadEventsForEntry entryId
                         let events = recorded |> List.map (fun r -> r.Event)
-                        let capturedInBb =
-                            isCapturedInBb (events |> List.tryHead |> Option.map (fun e -> e.Actor, e.Body))
+                        let capturedInBb = isCapturedInBb (originOf events)
                         match pendingDeletionIn events with
                         | None -> return Error entryRestoreNotDeletedInBbText
                         | Some deleted ->
@@ -3917,13 +3949,11 @@ let restoreDeletedEntry
                             | Some ynabAccount ->
                                 // ledger-f8bjm: steht das Wiederherstellen schon offen, gilt seine
                                 // Ersatz-import_id; sonst steht sie vor dem POST im Kassenbuch.
-                                // ledger-ay81j: eine in BB erfasste Buchung geht ohne.
                                 let request =
+                                    let fresh = restoreRequestOf capturedInBb entryId ynabAccount deleted
                                     match entry.PendingReplacement with
-                                    | Some pending when pending.Kind = Restore ->
-                                        { restoreRequestOf capturedInBb ynabAccount deleted with
-                                            ImportId = Some pending.NewImportId }
-                                    | _ -> restoreRequestOf capturedInBb ynabAccount deleted
+                                    | Some pending when pending.Kind = Restore -> { fresh with ImportId = Some pending.NewImportId }
+                                    | _ -> fresh
                                 match request.ImportId, entry.PendingReplacement with
                                 | Some importId, None ->
                                     do!

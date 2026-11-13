@@ -199,13 +199,11 @@ let jsonBodyTests =
             Expect.equal amount -4500 "Amount should be a signed milliunit number"
         }
 
-        test "der Rumpf trägt eine übergebene import_id, ohne fehlt der Schlüssel" {
-            // ledger-ay81j: in BB erfasste Buchungen gehen ohne import_id (`None`), Comdirect-Importe mit.
+        test "eine übergebene import_id steht im Rumpf" {
+            // ledger-ay81j: Comdirect-Importe gehen mit import_id; ohne fehlt der Schlüssel (Test darunter).
             let account = YnabAccountId (Guid.NewGuid())
             let withId = buildManualTransactionBodyWith (Some "BB:ref-1") account validRequest
             Expect.equal (decodeAt [ "transaction"; "import_id" ] Decode.string withId) "BB:ref-1" "mit import_id"
-            let without = buildManualTransactionBodyWith None account validRequest
-            Expect.isFalse (decodeAt [ "transaction" ] Decode.keys without |> List.contains "import_id") "ohne den Schlüssel"
         }
 
         test "eine Buchung ohne import_id geht ohne den Schlüssel hinaus" {

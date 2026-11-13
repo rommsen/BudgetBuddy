@@ -848,40 +848,31 @@ let restoreBodyTests =
     ]
 
 // ============================================
-// Wiederherstellen einer in BB erfassten Buchung ohne import_id (ledger-ay81j, ADR 0092 Nachtrag 2026-11-13)
+// Wiederherstellen einer in BB erfassten Buchung (ledger-ay81j, Owner-Entscheidung 2026-11-13)
 // ============================================
 
-/// Eine in BB erfasste, mit YNAB verknüpfte Buchung mit der alten festen `BB:<EntryId>`.
-let private seedCaptured (account: Account) (ynabId: string) : EntryId * string =
+/// Der Stamm einer in BB erfassten Buchung: `BB:` und die EntryId ohne Bindestriche (35 Zeichen).
+let private capturedStemOf (EntryId g) = $"BB:{g:N}"
+
+/// Die erste Ersatz-import_id einer erfassten Buchung: der Stamm auf 33 Zeichen gekürzt, damit mit `:r1`
+/// höchstens 36 bleiben (ledger-m7k2d).
+let private firstReplacementIdOf (entryId: EntryId) = (capturedStemOf entryId).Substring(0, 33) + ":r1"
+
+/// Eine in BB erfasste, mit YNAB verknüpfte Buchung, mit der alten festen `BB:<EntryId>` aus der Zeit vor
+/// ledger-ay81j oder ohne import_id.
+let private seedCaptured (account: Account) (ynabId: string) (withOldImportId: bool) : EntryId =
     let entryId = newEntryId ()
-    let oldImportId = (let (EntryId g) = entryId in $"BB:{g:N}")
     appendAndApply [
         { EntryId = entryId; OccurredAt = at; Actor = Bob
           Body =
             CashExpenseAdded {
                 AccountId = account.Ledger; Date = DateTime(2026, 11, 3, 0, 0, 0, DateTimeKind.Utc); Amount = eur -7.50m
                 Payee = Some "Kiosk"; Memo = None; Category = Some food; Cleared = Uncleared; Approved = false
-                ImportId = Some oldImportId } }
+                ImportId = if withOldImportId then Some (capturedStemOf entryId) else None } }
         { EntryId = entryId; OccurredAt = at; Actor = Bob; Body = EntryLinkedToYnab { YnabTransactionId = ynabId } }
     ]
     |> Async.RunSynchronously
-    entryId, oldImportId
-
-/// Ein mit YNAB verknüpfter Comdirect-Import mit `BB:<Reference>`.
-let private seedComdirect (account: Account) (ynabId: string) : EntryId * string =
-    let entryId = newEntryId ()
-    let reference = $"ay81j-{Guid.NewGuid():N}".Substring(0, 20)
-    appendAndApply [
-        { EntryId = entryId; OccurredAt = at; Actor = ComdirectImport
-          Body =
-            EntryImportedFromComdirect {
-                AccountId = account.Ledger; ImportId = $"BB:{reference}"; ComdirectReference = reference
-                Date = DateTime(2026, 11, 3, 0, 0, 0, DateTimeKind.Utc); Amount = eur -30m; Payee = Some "Markt"; Memo = None
-                Cleared = Uncleared; Approved = false; FlagColor = None; FlagName = None } }
-        { EntryId = entryId; OccurredAt = at; Actor = ComdirectImport; Body = EntryLinkedToYnab { YnabTransactionId = ynabId } }
-    ]
-    |> Async.RunSynchronously
-    entryId, $"BB:{reference}"
+    entryId
 
 [<Tests>]
 let capturedRestoreTests =
@@ -891,46 +882,32 @@ let capturedRestoreTests =
             initializeLedgerSchema ()
             body ())
     testSequenced
-    <| testList "Buchung wiederherstellen: in BB erfasst ohne import_id (ledger-ay81j)" [
-        testCase "Erfasst: das Wiederherstellen geht ohne import_id, ohne EntryRestoreSentToYnab; EntryDeletedInBb hält die alte fest" <| fun () ->
-            // Verhindert, dass YNAB die neu angelegte Barbuchung mit `BB:<id>:r1` gegen eine Handbuchung abgleicht.
-            let account = freshAccount ()
-            let oldYnab = freshYnabId ()
-            let entryId, oldImportId = seedCaptured account oldYnab
-            let probe = Probe(CreateResult = Some (Ok "ynab-ay81j-wieder"))
-            delete probe entryId |> expectOk "Löschen"
-            restore probe entryId |> expectOk "Wiederherstellen"
-            Expect.equal (probe.Creates |> List.map (fun r -> r.ImportId)) [ None ] "POST ohne import_id"
-            let events = eventsOf entryId
-            Expect.isFalse (events |> List.exists (fun r -> r.EventType = "EntryRestoreSentToYnab")) "kein EntryRestoreSentToYnab"
-            match events |> List.map (fun r -> r.Event) |> pendingDeletionIn, events |> List.choose (fun r -> match r.Event.Body with EntryDeletedInBb p -> Some p | _ -> None) with
-            | None, [ deleted ] -> Expect.equal deleted.ImportId (Some oldImportId) "die echte import_id als Historie"
-            | other -> failtest $"ein abgeschlossenes Löschen erwartet, war {other}"
-            Expect.equal
-                (List.last events).Event.Body
-                (EntryRestoredInBb { OldYnabTransactionId = oldYnab; NewYnabTransactionId = "ynab-ay81j-wieder"; NewImportId = None })
-                "Ereignis ohne import_id"
+    <| testList "Buchung wiederherstellen: in BB erfasst (ledger-ay81j)" [
+        testCase "Erfasst: das Wiederherstellen geht mit BB:<EntryId>:r1 und EntryRestoreSentToYnab, mit und ohne alte Verknüpfung" <| fun () ->
+            for withOldImportId in [ true; false ] do
+                let account = freshAccount ()
+                let oldYnab = freshYnabId ()
+                let entryId = seedCaptured account oldYnab withOldImportId
+                let replacementId = firstReplacementIdOf entryId
+                let probe = Probe(CreateResult = Some (Ok $"ynab-ay81j-{Guid.NewGuid()}"))
+                delete probe entryId |> expectOk "Löschen"
+                restore probe entryId |> expectOk "Wiederherstellen"
+                Expect.equal (probe.Creates |> List.map (fun r -> r.ImportId)) [ Some replacementId ] $"POST mit :r1 (alte Verknüpfung: {withOldImportId})"
+                Expect.isTrue (eventsOf entryId |> List.exists (fun r -> r.EventType = "EntryRestoreSentToYnab")) "vor dem POST im Kassenbuch"
 
-        testCase "Erfasst, Wiederherstellen schon offen: sendet weiter mit pending.NewImportId" <| fun () ->
+        testCase "Kaputt: erfasst ohne import_id, Wiederherstellen mit verlorener Antwort; das zweite schickt dieselbe :r1, 409 heißt angekommen" <| fun () ->
+            // Verhindert eine zweite echte Buchung in YNAB: ohne import_id schickte ein zweites Rückgängig nach
+            // verlorener Antwort das POST noch einmal, und YNAB legte die Buchung doppelt an.
             let account = freshAccount ()
-            let oldYnab = freshYnabId ()
-            let entryId, oldImportId = seedCaptured account oldYnab
-            let probe = Probe(CreateResult = Some (Ok "ynab-ay81j-offen"))
+            let entryId = seedCaptured account (freshYnabId ()) false
+            let replacementId = firstReplacementIdOf entryId
+            let probe = Probe(CreateResult = Some (Error (YnabError.NetworkError "Timeout")))
             delete probe entryId |> expectOk "Löschen"
-            appendAndApply [
-                { EntryId = entryId; OccurredAt = at; Actor = UserInBb
-                  Body = EntryRestoreSentToYnab { OldYnabTransactionId = oldYnab; NewImportId = $"{oldImportId}:r1" } }
-            ]
-            |> Async.RunSynchronously
-            restore probe entryId |> expectOk "Wiederherstellen"
-            Expect.equal (probe.Creates |> List.map (fun r -> r.ImportId)) [ Some $"{oldImportId}:r1" ] "die Ersatz-import_id des offenen"
-
-        testCase "Intakt: ein Comdirect-Import geht mit :r1 und EntryRestoreSentToYnab" <| fun () ->
-            let account = freshAccount ()
-            let entryId, importId = seedComdirect account (freshYnabId ())
-            let probe = Probe(CreateResult = Some (Ok "ynab-ay81j-comdirect"))
-            delete probe entryId |> expectOk "Löschen"
-            restore probe entryId |> expectOk "Wiederherstellen"
-            Expect.equal (probe.Creates |> List.map (fun r -> r.ImportId)) [ Some $"{importId}:r1" ] "Ersatz-import_id"
-            Expect.isTrue (eventsOf entryId |> List.exists (fun r -> r.EventType = "EntryRestoreSentToYnab")) "vor dem POST im Kassenbuch"
+            match restore probe entryId with
+            | Error _ -> ()
+            | Ok () -> failtest "die verlorene Antwort ist ein Fehler"
+            probe.CreateHttp <- Some (HttpStatusCode.Conflict, """{"error":{"id":"409","detail":"same import_id"}}""")
+            restore probe entryId |> expectOk "das zweite Rückgängig ist angekommen"
+            Expect.equal (probe.Creates |> List.map (fun r -> r.ImportId)) [ Some replacementId; Some replacementId ] "beide POSTs mit derselben :r1"
+            Expect.equal probe.MirrorTriggers 2 "Spiegel nach dem Löschen und nach dem Ankommen"
     ]

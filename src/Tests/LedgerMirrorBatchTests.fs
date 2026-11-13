@@ -191,16 +191,12 @@ let private openCapture (account: LedgerAccountId) : EntryId =
     |> Async.RunSynchronously
     entryId
 
-/// Führt den Lauf aus und liefert, was er auf die Konsole schrieb (die Log-Zeilen aus What 2).
-let private runCapturingLog (day: int) (budget: YnabBudgetId) (fetchers: MirrorFetchers) : MirrorRunSummary * string =
-    let original = Console.Out
-    use writer = new IO.StringWriter()
-    Console.SetOut writer
-    try
-        let summary = runOk day budget fetchers
-        summary, writer.ToString()
-    finally
-        Console.SetOut original
+/// Führt den Lauf aus und liefert die Log-Zeilen, die er über den Log-Port schrieb (What 2).
+let private runCapturingLog (day: int) (budget: YnabBudgetId) (fetchers: MirrorFetchers) : MirrorRunSummary * string list =
+    let lines = ResizeArray<string>()
+    match runMirrorWith lines.Add (at day) fetchers budget |> Async.RunSynchronously with
+    | Ok summary -> summary, List.ofSeq lines
+    | Error err -> failtest $"Lauf sollte gelingen, war: {err}"
 
 [<Tests>]
 let openCaptureTests =
@@ -238,7 +234,7 @@ let openCaptureTests =
             let summary, log = runCapturingLog 3 budget (fetchersFor [ giro ] [ observationOn giro ynabId ])
             Expect.equal summary.NewEntries 1 "die YNAB-Buchung wird eine neue Buchung"
             Expect.isTrue (isOpen first && isOpen second) "beide Erfassungen bleiben offen"
-            Expect.stringContains log $"Offene Erfassung nicht verknüpft: mehrere Buchungen in BB passen zu YNAB-Buchung {ynabId}" "Log-Zeile"
+            Expect.contains log $"Offene Erfassung nicht verknüpft: mehrere Buchungen in BB passen zu YNAB-Buchung {ynabId}" "Log-Zeile"
 
         testCase "zwei passende YNAB-Buchungen zu einer Erfassung: keine Verknüpfung, Log-Zeile, die Erfassung bleibt offen" <| fun () ->
             let tag, giro, budget, ledgerGiro = setup ()
@@ -247,5 +243,73 @@ let openCaptureTests =
                 runCapturingLog 3 budget (fetchersFor [ giro ] [ observationOn giro $"ay81j-{tag}-a"; observationOn giro $"ay81j-{tag}-b" ])
             Expect.equal summary.NewEntries 2 "beide YNAB-Buchungen werden neue Buchungen"
             Expect.isTrue (isOpen entryId) "die Erfassung bleibt offen"
-            Expect.stringContains log $"Offene Erfassung nicht verknüpft: mehrere YNAB-Buchungen passen zu Buchung {entryId}" "Log-Zeile"
+            Expect.contains log $"Offene Erfassung nicht verknüpft: mehrere YNAB-Buchungen passen zu Buchung {entryId}" "Log-Zeile"
+
+        testCase "eine offene, unverknüpfte Comdirect-Buchung wird nicht über die dritte Stufe verknüpft" <| fun () ->
+            // Die dritte Stufe gilt nur für in BB erfasste Buchungen; ein Comdirect-Import findet YNAB über seine import_id.
+            let tag, giro, budget, ledgerGiro = setup ()
+            let entryId = newEntryId ()
+            let reference = $"ay81j-{tag}-ref"
+            appendAndApply [
+                { EntryId = entryId; OccurredAt = at 3; Actor = ComdirectImport
+                  Body =
+                    EntryImportedFromComdirect {
+                        AccountId = ledgerGiro; ImportId = $"BB:{reference}"; ComdirectReference = reference
+                        Date = bookingDate; Amount = eur -21.99m; Payee = Some "Rewe"; Memo = None
+                        Cleared = Uncleared; Approved = true; FlagColor = None; FlagName = None } }
+            ]
+            |> Async.RunSynchronously
+            let summary = runOk 3 budget (fetchersFor [ giro ] [ observationOn giro $"ay81j-{tag}-ohne-id" ])
+            Expect.equal summary.NewEntries 1 "die YNAB-Buchung wird eine neue Buchung"
+            Expect.isTrue (isOpen entryId) "der Comdirect-Import bleibt offen"
+            Expect.equal (eventTypesOf entryId) [ "EntryImportedFromComdirect" ] "kein Ereignis am Import"
+
+        testCase "eine Beobachtung, deren YNAB-Id BB nur als ynabsuperseded kennt, verknüpft keine offene Erfassung" <| fun () ->
+            let tag, giro, budget, ledgerGiro = setup ()
+            let captureId = openCapture ledgerGiro
+            let supersededId = $"ay81j-{tag}-abgelöst"
+            // Eine andere Buchung trägt die Id nur als abgelöst (`EntryRestoredInBb`), nicht als `ynab`.
+            let holder = newEntryId ()
+            appendAndApply [
+                { EntryId = holder; OccurredAt = at 3; Actor = QuickAdd
+                  Body =
+                    CashExpenseAdded {
+                        AccountId = ledgerGiro; Date = bookingDate; Amount = eur -3m; Payee = Some $"ay81j-{tag}-anders"
+                        Memo = None; Category = None; Cleared = Uncleared; Approved = true; ImportId = None } }
+                { EntryId = holder; OccurredAt = at 3; Actor = UserInBb
+                  Body =
+                    EntryRestoredInBb {
+                        OldYnabTransactionId = supersededId; NewYnabTransactionId = $"ay81j-{tag}-neu"; NewImportId = None } }
+            ]
+            |> Async.RunSynchronously
+            runOk 3 budget (fetchersFor [ giro ] [ observationOn giro supersededId ]) |> ignore
+            Expect.isTrue (isOpen captureId) "die Erfassung bleibt offen"
+            Expect.equal (eventTypesOf captureId) [ "CashExpenseAdded" ] "kein Ereignis an der Erfassung"
+
+        testCase "alte offene Erfassung mit BB:-Verknüpfung: O1 mit import_id verknüpft, O2 ohne wird neu, in beiden Reihenfolgen" <| fun () ->
+            // Verhindert zwei YNAB-Verknüpfungen an einer Buchung: kam O2 vor O1, verknüpfte die dritte Stufe
+            // O2 mit der Erfassung, und danach hängte die ImportId-Stufe O1 noch einmal an.
+            for o1First in [ true; false ] do
+                let tag, giro, budget, ledgerGiro = setup ()
+                let entryId = newEntryId ()
+                let stem = (let (EntryId g) = entryId in $"BB:{g:N}")
+                appendAndApply [
+                    { EntryId = entryId; OccurredAt = at 3; Actor = QuickAdd
+                      Body =
+                        CashExpenseAdded {
+                            AccountId = ledgerGiro; Date = bookingDate; Amount = eur -21.99m; Payee = Some "Rewe"; Memo = None
+                            Category = Some lebensmittel; Cleared = Uncleared; Approved = true; ImportId = Some stem } }
+                ]
+                |> Async.RunSynchronously
+                let o1 = { observationOn giro $"ay81j-{tag}-o1" with ImportId = Some stem }
+                let o2 = observationOn giro $"ay81j-{tag}-o2"
+                let summary = runOk 3 budget (fetchersFor [ giro ] (if o1First then [ o1; o2 ] else [ o2; o1 ]))
+                let order = if o1First then "O1 vor O2" else "O2 vor O1"
+                Expect.equal
+                    (eventTypesOf entryId |> List.filter ((=) "EntryLinkedToYnab") |> List.length)
+                    1
+                    $"genau eine Verknüpfung ({order})"
+                Expect.equal (entryOf YnabSystem o1.YnabTransactionId) entryId $"O1 zeigt auf die Erfassung ({order})"
+                Expect.notEqual (entryOf YnabSystem o2.YnabTransactionId) entryId $"O2 ist eine andere Buchung ({order})"
+                Expect.equal summary.NewEntries 1 $"O2 wird eine neue Buchung ({order})"
     ]

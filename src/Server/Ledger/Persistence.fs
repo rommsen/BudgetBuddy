@@ -2062,11 +2062,22 @@ let loadCapturedEntryIds (limit: int) : Async<EntryId list> =
     }
 
 /// Actor und Körper des ersten Ereignisses einer Buchung (ledger-at63w: "Rückgängig" nur für
-/// eine in BB erfasste Buchung). `None` für eine unbekannte Buchung.
+/// eine in BB erfasste Buchung). Liest nur die Zeile mit `stream_version = 1`, nicht das ganze
+/// Log. `None` für eine unbekannte Buchung.
 let loadEntryOrigin (entryId: EntryId) : Async<(Actor * LedgerEventBody) option> =
     async {
-        let! events = loadEventsForEntry entryId
-        return events |> List.tryHead |> Option.map (fun r -> r.Event.Actor, r.Event.Body)
+        let (EntryId id) = entryId
+        use conn = Core.getConnection ()
+        let! rows =
+            conn.QueryAsync<StoredEventRow>(
+                """SELECT position, event_id, context, stream_id, stream_version, occurred_at, actor_kind,
+                          actor_ref, event_type, schema_version, payload, command_id
+                   FROM events
+                   WHERE context = @context AND stream_id = @streamId AND stream_version = 1""",
+                {| context = ledgerContext; streamId = entryStreamId id |}
+            )
+            |> Async.AwaitTask
+        return rows |> Seq.map (fun row -> (rowToRecordedEvent row).Event) |> Seq.toList |> Ledger.Domain.originOf
     }
 
 [<CLIMutable>]
@@ -2112,31 +2123,26 @@ let loadEntryOrigins () : Async<Map<Guid, Actor>> =
         return loadEntryOriginsOn conn
     }
 
-/// Die offenen Erfassungen (ledger-ay81j): Buchungen, deren erstes Ereignis `CashExpenseAdded` ist
-/// (`isCapturedInBb`) und die nicht verknüpft, nicht in YNAB gelöscht und nicht als Duplikat
-/// gehalten sind (`isOpenForPushLink`). Zwei feste Abfragen je Spiegel-Lauf, keine je Buchung.
+/// Die offenen Erfassungen (ledger-ay81j) in einer festen Abfrage je Spiegel-Lauf: Buchungen, deren
+/// erstes Ereignis `CashExpenseAdded` ist (`isCapturedInBb`, über den JOIN auf `events`) und die nicht
+/// verknüpft, nicht in YNAB gelöscht und nicht als Duplikat gehalten sind (`isOpenCapture`, in der
+/// WHERE-Klausel).
 let loadOpenCaptures () : Async<Entry list> =
     async {
         use conn = Core.getConnection ()
-        let captured =
-            conn.Query<string>(
-                "SELECT stream_id FROM events WHERE context = @context AND stream_version = 1 AND event_type = 'CashExpenseAdded'",
-                {| context = ledgerContext |}
-            )
-            |> Seq.map entryGuidOfStream
-            |> Set.ofSeq
         let! rows =
             conn.QueryAsync<EntryRow>(
-                "SELECT * FROM ledger_entries WHERE linked_to_ynab = 0 AND deleted_in_ynab = 0 AND possible_duplicate IS NULL"
+                """SELECT e.* FROM ledger_entries e
+                   JOIN events ev
+                     ON ev.context = @context AND ev.stream_id = @streamPrefix || e.id
+                    AND ev.stream_version = 1 AND ev.event_type = @eventType
+                   WHERE e.linked_to_ynab = 0 AND e.deleted_in_ynab = 0 AND e.possible_duplicate IS NULL""",
+                {| context = ledgerContext
+                   streamPrefix = EventStore.streamIdOf ledgerContext entryAggregate (EventStore.TextId "")
+                   eventType = "CashExpenseAdded" |}
             )
             |> Async.AwaitTask
-        return
-            rows
-            |> Seq.map rowToEntry
-            |> Seq.filter (fun e ->
-                let (EntryId id) = e.Id
-                captured.Contains id && Ledger.Domain.isOpenForPushLink e)
-            |> Seq.toList
+        return rows |> Seq.map rowToEntry |> Seq.toList
     }
 
 /// Alle Fremd-Id-Verknuepfungen einer Buchung.

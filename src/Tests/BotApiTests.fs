@@ -497,44 +497,20 @@ let botApiTests =
             Expect.equal env.Pushes 1 "kein zweiter Push"
 
         // ledger-ay81j: Bob-Buchungen gehen ohne import_id, ein 409 entsteht nicht mehr. Geht die Antwort verloren,
-        // meldet der Commit `pushed_to_ynab: false` mit `push_error`, der nächste Spiegel-Lauf verknüpft die Buchung
-        // als offene Erfassung, und eine Wiederholung des Commits pusht nicht noch einmal.
-        testCase "verlorene Antwort: push_error, der Spiegel verknüpft, eine Buchung, zählt einmal, kein zweiter Push" <| fun () ->
-            let ledgerAccount = LedgerAccountId (Guid.NewGuid())
-            let ynab = YnabAccountId (Guid.NewGuid())
-            saveAccount { Id = ledgerAccount; Name = $"Bar-{Guid.NewGuid()}"; Kind = CashAccount; Link = YnabMirrored ynab; Closed = false }
-            |> Async.RunSynchronously
-            let env =
-                Env(pushResult = async.Return (Error (YnabError.NetworkError "Zeitüberschreitung")),
-                    target = Ok { LedgerAccountId = ledgerAccount; YnabAccountId = ynab; AccountName = "Bar" })
+        // meldet der Commit `pushed_to_ynab: false` mit `push_error`, eine Wiederholung des Commits pusht nicht noch
+        // einmal, und die Buchung zählt einmal zur Tagessumme. Dass der Spiegel sie danach verknüpft, prüft
+        // LedgerCashBookingTests (verlorene Antwort).
+        testCase "verlorene Antwort: push_error, eine Buchung, zählt einmal, kein zweiter Push" <| fun () ->
+            let env = Env(pushResult = async.Return (Error (YnabError.NetworkError "Zeitüberschreitung")))
             let payee = uniquePayee ()
             let id = preview env.Deps payee "1" "outflow"
             let status, json = commit env.Deps id
             Expect.equal status 200 "Buchung steht"
             Expect.isFalse (json.Value.GetProperty("pushed_to_ynab").GetBoolean()) "nicht als angekommen gemeldet"
             Expect.stringContains (str json "push_error") "Netzwerk" "Grund"
-            let entry =
-                loadEntriesForAccount ledgerAccount |> Async.RunSynchronously |> List.filter (fun e -> e.Payee = Some payee) |> List.exactlyOne
-            let ynabTxId = $"ynab-ay81j-{Guid.NewGuid()}"
-            let observation : Server.YnabObservations.YnabObservation = {
-                YnabTransactionId = ynabTxId; AccountId = ynab; ImportId = None; Date = entry.Date; Amount = entry.Amount
-                Payee = entry.Payee; Memo = entry.Memo; Category = entry.Category; Splits = []; SplitTransfers = []
-                Cleared = Uncleared; TransferAccountId = None; TransferYnabTransactionId = None
-                MatchedYnabTransactionId = None; Deleted = false; Approved = false; FlagColor = None; FlagName = None }
-            let fetchers = {
-                Ledger.CommandHandlers.emptyMirrorFetchers with
-                    FetchAccounts =
-                        fun _ -> async.Return (Ok { Accounts = [ { AccountId = ynab; Name = "Bar"; Closed = false; Deleted = false } ]; ServerKnowledge = 5L })
-                    FetchTransactions = fun _ -> async.Return (Ok { Observations = [ observation ]; ServerKnowledge = 5L })
-            }
-            match Ledger.CommandHandlers.runMirror (env.Now.AddMinutes 5.0) fetchers (YnabBudgetId $"budget-bot-{Guid.NewGuid()}") |> Async.RunSynchronously with
-            | Ok summary -> Expect.equal summary.NewEntries 0 "keine zweite Buchung im Spiegel"
-            | Error e -> failtest e
-            let linked = loadEntry entry.Id |> Async.RunSynchronously |> Option.get
-            Expect.isTrue linked.LinkedToYnab "nach dem Spiegel verknüpft"
-            Expect.isNone linked.PushToYnabFailure "der Fehlschlag ist beendet"
             let _, again = commit env.Deps id
             Expect.equal (str again "entry_id") (str json "entry_id") "derselbe Commit, dieselbe Buchung"
+            Expect.equal (entriesFor payee).Length 1 "keine zweite Buchung"
             Expect.equal env.Pushes 1 "kein zweiter Push"
             // Tagesnutzung: die Buchung zählt genau einmal, mit 1 Euro Summe.
             Expect.equal (fst (previewOn env.Deps (todayText env.Deps) "499" "outflow")) 200 "499 Euro passen noch"

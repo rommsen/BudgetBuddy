@@ -1319,25 +1319,30 @@ let mergeObservedInYnab
 // In BB erfasst und offene Erfassung (ledger-ay81j, ADR 0004 und 0021 Nachtrag 2026-11-13)
 // ============================================
 
+/// Actor und Körper des ersten Ereignisses einer Buchung, ihre Herkunft. `None` ohne Ereignis. Rein.
+let originOf (events: LedgerEvent list) : (Actor * LedgerEventBody) option =
+    events |> List.tryHead |> Option.map (fun e -> e.Actor, e.Body)
+
 /// Ist die Buchung in BB erfasst (Quick Add, Bob, Neue Buchung, jeder Actor)? Ja, wenn ihr erstes
-/// Ereignis `CashExpenseAdded` ist (`Ledger.Persistence.loadEntryOrigin`). Die einzige Stelle, die
-/// über die `import_id` beim Senden entscheidet: eine erfasste Buchung geht ohne an YNAB, weil YNAB
-/// jede Buchung mit `import_id` wie einen Bankimport gegen Handbuchungen abgleicht. Rein.
+/// Ereignis `CashExpenseAdded` ist (`originOf`). Eine erfasste Buchung geht beim ersten Push und beim
+/// Erneut senden ohne `import_id` an YNAB, weil YNAB jede Buchung mit `import_id` wie einen
+/// Bankimport gegen Handbuchungen abgleicht. Ersatz und Wiederherstellen gehen mit Ersatz-`import_id`
+/// (`replacementBaseImportId`). Rein.
 let isCapturedInBb (origin: (Actor * LedgerEventBody) option) : bool =
     match origin with
     | Some (_, CashExpenseAdded _) -> true
     | _ -> false
 
 /// Ist die Buchung offen (nicht verknüpft, nicht in YNAB gelöscht, kein Duplikat-Halt)? Ein offener
-/// Fehlschlag schließt sie nicht aus, eine Zeitüberschreitung steht als Fehlschlag im Log. Ob sie in
-/// BB erfasst ist, sagt `isCapturedInBb`. Rein.
-let isOpenForPushLink (entry: Entry) : bool =
+/// Fehlschlag schließt sie nicht aus, eine Zeitüberschreitung steht als Fehlschlag im Log. Eine
+/// offene Erfassung ist eine offene Buchung, die in BB erfasst ist (`isCapturedInBb`). Rein.
+let isOpenCapture (entry: Entry) : bool =
     not entry.LinkedToYnab && not entry.DeletedInYnab && entry.PossibleDuplicate.IsNone
 
 /// Darf der Spiegel diese Beobachtung mit einer offenen Erfassung verknüpfen? Nur ungelöscht, ohne
 /// `import_id`, ohne Abgleich in YNAB und mit einer YNAB-Id, die BB weder als `ynab` noch als
 /// `ynabsuperseded` kennt (`knownYnabIds`). Rein.
-let isOpenPushLinkCandidate (knownYnabIds: Set<string>) (obs: YnabObservation) : bool =
+let isOpenCaptureLinkCandidate (knownYnabIds: Set<string>) (obs: YnabObservation) : bool =
     not obs.Deleted
     && obs.ImportId.IsNone
     && obs.MatchedYnabTransactionId.IsNone
@@ -1358,7 +1363,7 @@ let matchesOpenCapture (observedAccount: LedgerAccountId) (obs: YnabObservation)
     && counterpartMatches
 
 /// Die Verknüpfungen offener Erfassungen eines Spiegel-Laufs, vor der Schleife geplant.
-type OpenPushLinkPlan = {
+type OpenCaptureLinkPlan = {
     /// YNAB-Id der Beobachtung auf die Buchung, die sie verknüpft.
     Links: Map<string, EntryId>
     /// Beobachtungen mit mehr als einer passenden Buchung, keine Verknüpfung.
@@ -1367,24 +1372,29 @@ type OpenPushLinkPlan = {
     CapturesWithManyObservations: EntryId list
 }
 
+module OpenCaptureLinkPlan =
+    /// Der Plan ohne Verknüpfung und ohne Mehrdeutigkeit, etwa ohne offene Erfassung.
+    let empty : OpenCaptureLinkPlan =
+        { Links = Map.empty; ObservationsWithManyCaptures = []; CapturesWithManyObservations = [] }
+
 /// Plant die dritte Match-Stufe des Spiegels (ADR 0015 Nachtrag 2026-11-13, ledger-ay81j): je
-/// zulässiger Beobachtung (`isOpenPushLinkCandidate`) die offenen Erfassungen, die passen
+/// zulässiger Beobachtung (`isOpenCaptureLinkCandidate`) die offenen Erfassungen, die passen
 /// (`matchesOpenCapture`). Verknüpft wird nur ein eindeutiges Paar: die Beobachtung hat genau eine
 /// Kandidatin, und die Buchung passt zu genau einer Beobachtung des Laufs. `resolution` löst das
 /// YNAB-Konto auf, eine Beobachtung auf einem unbekannten Konto bleibt außen vor. `openCaptures`
-/// sind schon gefiltert (`isCapturedInBb`, `isOpenForPushLink`). Rein.
-let planOpenPushLinks
+/// sind schon gefiltert (`isCapturedInBb`, `isOpenCapture`). Rein.
+let planOpenCaptureLinks
     (observations: YnabObservation list)
     (resolution: Map<YnabAccountId, LedgerAccountId>)
     (knownYnabIds: Set<string>)
     (openCaptures: Entry list)
-    : OpenPushLinkPlan =
+    : OpenCaptureLinkPlan =
     if List.isEmpty openCaptures then
-        { Links = Map.empty; ObservationsWithManyCaptures = []; CapturesWithManyObservations = [] }
+        OpenCaptureLinkPlan.empty
     else
         let candidatesOf =
             observations
-            |> List.filter (isOpenPushLinkCandidate knownYnabIds)
+            |> List.filter (isOpenCaptureLinkCandidate knownYnabIds)
             |> List.distinctBy (fun obs -> obs.YnabTransactionId)
             |> List.choose (fun obs ->
                 Map.tryFind obs.AccountId resolution
