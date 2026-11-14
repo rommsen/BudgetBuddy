@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-11-14 13:33 -- Modeling / Captured: ledger-wj0b8 - "Einstellungen: Satz unter „Quick-Add-Konto“ lautet „Vorbelegt bei „+ Buchung“ ohne Kontofilter“"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** todo
+**Summary:** Satz unter Quick-Add-Konto: Vorbelegt bei + Buchung ohne Kontofilter
+
+---
+
 ## 2026-11-14 13:33 -- Modeling / Captured: ledger-pnjz3 - "Kassenbuch zeigt keine leeren Tagesblöcke, jeder Tag einmal und in der richtigen Reihenfolge"
 
 **Type:** Modeling / Capture
