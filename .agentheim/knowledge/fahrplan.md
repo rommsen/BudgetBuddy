@@ -167,8 +167,8 @@ Zuletzt aktualisiert: 2026-11-14 abends, nach work-Lauf und Review ledger-sre0f.
   (dotnet 5031, node 340). Nicht gepusht, nicht deployt. Entschieden (Roman): Einnahmen stehen im Chip mit „+“ vor dem Betrag.
   Für Romans Blick nach dem Deploy: „+ Buchung“, Konto Bar wählen, die üblichen Bar-Buchungen stehen als Chips, ein Tipp
   füllt Payee, Kategorie, Betrag und Memo.
-- **Nächster Schritt:** Deploy von ledger-sre0f auf Romans Anweisung. Danach Schnitt 8 ledger-f8d7x (Kassenbuch ordnen)
-  in eine Task Handy und eine Task PC teilen, verfeinern, bauen, Review-Lauf; ledger-ayjzq (Sicht „Für mich“) bleibt eigene
+- **Nächster Schritt:** Deploy von ledger-sre0f auf Romans Anweisung. Danach Schnitt 8 bauen, verfeinert in drei Tasks
+  (in todo, nacheinander): ledger-d9z3n (Handy), ledger-cnaz3 (PC), ledger-zfj78 (Detail), dann Review-Lauf; ledger-ayjzq (Sicht „Für mich“) bleibt eigene
   Task nach einem Gespräch mit Roman. Romans Blick offen: ledger-pnjz3 und categorization-m47g8 (Punkte oben), ledger-ea70s
   und ledger-hg5m5 (Bob, Regel aus der Buchung im Detail, Tab Regeln neben dem Prototyp, Sichtpunkte 1 bis 5). Offen zum
   Verfeinern: ledger-h7de3 (Fehlertexte in Ereignissen), design-system-vf94m (Toast verdeckt „+ Buchung“), ledger-t4rk8
@@ -233,7 +233,8 @@ Baut ein Schnitt eine Seite um, gilt die Zeile „Browser-Tests beim Umbau“ al
 5. ✓ `ledger-v6s7c` Durchgehen Karte für Karte (2026-11-12)
 6. ✓ `categorization-n3sxw` Regeln ins Kassenbuch (2026-11-13) (nimmt `categorization-krscs` auf), danach ✓ `ledger-hg5m5` Regel aus der Buchung (2026-11-14)
 7. ✓ `ledger-ea70s` Ein Erfassen, Quick Add entfällt (2026-11-14) (nimmt `design-system-taytp` und `ledger-yhemh` auf)
-8. `ledger-f8d7x` Kassenbuch ordnen, beim Verfeinern nach Handy und PC teilen (nimmt `ledger-ayjzq` auf)
+8. Kassenbuch ordnen, verfeinert 2026-11-14 in `ledger-d9z3n` (Handy, unter 1024 px), `ledger-cnaz3` (PC) und
+   `ledger-zfj78` (Detail); `ledger-ayjzq` (Sicht „Für mich“) bleibt eigene Task
 9. `design-system-gcpws` Liste mit Panel überall, generischer Tastentest
 10. `budgeting-wnkgj` Budget angleichen
 11. `design-system-x1abn` Logo und Icon

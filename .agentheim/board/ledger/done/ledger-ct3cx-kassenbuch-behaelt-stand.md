@@ -7,7 +7,7 @@ context: ledger
 created: 2026-11-12
 completed:
 depends_on: [design-system-001-styleguide]
-blocks: [ledger-dn4vy, ledger-f8d7x]
+blocks: [ledger-dn4vy]
 tags: [bestandsreview, frontend, tests]
 related_adrs: [0014]
 related_research: []

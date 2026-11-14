@@ -5,6 +5,52 @@ Newest entries on top.
 
 ---
 
+## 2026-11-14 20:42 -- Modeling / Refined: ledger-f8d7x - Kassenbuch ordnen
+
+**Type:** Modeling / Refine
+**BC:** ledger
+**Status after:** todo (Teile), Sammelpunkt entfernt
+**Summary:** Geteilt nach Prototyp Version 17 und dem Inventar der heutigen Seite. Entschieden (Roman, 2026-11-14): Handy-Form bis 1023 px ohne Konten-Spalte, Detail als eigene Task, Zeitraum als ein Chip mit Popover ohne Vorgabe, Filter löschen löscht alle Filter und die Suche. Plus im Zuletzt-Chip bei Einnahmen (ledger-sre0f).
+**Split into:** ledger-d9z3n (Handy), ledger-cnaz3 (PC), ledger-zfj78 (Detail), nacheinander
+**ADRs written:** keine
+
+---
+
+## 2026-11-14 20:41 -- Modeling / Dismissed: ledger-f8d7x
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- ledger-f8d7x - "Kassenbuch ordnen: am Handy Filter-Knopf mit Sheet und Chips statt zwei wischender Leisten, am PC Seitenleiste mit Konten, Seitenpanel und Historie wie im Budget" (ledger)
+
+---
+
+## 2026-11-14 20:41 -- Modeling / Captured: ledger-zfj78 - "Detail einer Buchung ordnen (Sheet und Panel): Payee als Kopf, Betrag mit Prüfstand, Knopf Geprüft, Payee mit alle zeigen, Aufteilen und Lena als Knopfzeile, Historie aufklappbar in der Form von §7.11"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** todo
+**Summary:** Teil 3 aus ledger-f8d7x: Detail einer Buchung nach dem Prototyp geordnet, Historie nach Paragraf 7.11.
+
+---
+
+## 2026-11-14 20:41 -- Modeling / Captured: ledger-cnaz3 - "Kassenbuch am PC ordnen: Kopf mit Konto und Saldo, Abrufen, n durchgehen und + Buchung; Filterleiste mit Suche; Tabelle ohne Status-Spalte und Prüf-Knopf; Panel immer da, ab zwei gewählten Buchungen als Zusammenfassung"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** todo
+**Summary:** Teil 2 aus ledger-f8d7x: Kassenbuch ab 1024 px mit Kopf, Filterleiste, Tabelle ohne Status-Spalte, Panel und Zusammenfassung der Auswahl.
+
+---
+
+## 2026-11-14 20:41 -- Modeling / Captured: ledger-d9z3n - "Kassenbuch am Handy ordnen: eine Kontowahl als Feld mit Saldo, freie Suche statt Payee- und Memo-Filter, Filter-Knopf mit Sheet und gesetzte Filter als Chips; gilt unter 1024 px"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** todo
+**Summary:** Teil 1 aus ledger-f8d7x: Kassenbuch unter 1024 px mit einer Kontowahl als Feld, Suche statt Payee- und Memo-Filter, Filter-Sheet und Chips.
+
+---
+
 ## 2026-11-14 19:36 -- Review-Lauf: 814e1002~1..d021f49a
 
 **Type:** Review / Review-Lauf
