@@ -28,3 +28,18 @@ Schnitt aus Etappe 3 (Fahrplan, Roman 2026-11-11). Groß: beim Verfeinern nach H
 Vorlage: Prototyp https://claude.ai/artifact/CE3WJZHhPX6NABosJaviRg (Version 17). Baut der Schnitt eine Seite um, fliegen ihre `[flow]`-, `[tastatur]`-, `[fokus]`- und `[scroll]`-Tests raus und werden gegen die Muster aus dem Styleguide neu geschrieben, je Flow einer.
 
 Nach ledger-ct3cx (Kassenbuch behält Stand) bauen: beide ändern die Filter-Chips (`Remove*Filter`, `ClearAllFilters`) und die Historie im Detail (Refinement ledger-ct3cx, 2026-11-12).
+
+## Abgleich mit Prototyp Version 17 (2026-11-14)
+Screenshots: Prototyp und BB heute (412 und 1440 px) im Scratchpad der Session, beim Verfeinern neu aufnehmen.
+BB kann heute mehr als der Prototyp: Kategorie-Filter mit mehreren Kategorien, Zeitraum als freier Bereich, Sortieren
+(Datum, Betrag, Payee, Kategorie, Konto), „Gelöschte zeigen“, Trefferzeile „n Buchungen, Summe“. Das bleibt (Regel
+„gilt BB“), am Handy im Filter-Sheet.
+
+Entschieden (Roman, 2026-11-14):
+- Die freie Suche (Payee, Memo, Kategorie) ersetzt die Filter Payee und Memo. „Alle zeigen“ am Payee im Detail setzt
+  dann die Suche.
+- Kopf am PC wie im Prototyp: Konto und Saldo, „Abrufen“, „n durchgehen“, „+ Buchung“; „Jetzt spiegeln“ bleibt daneben.
+- Prüfen je Zeile wie im Prototyp: kein Knopf „Geprüft“ an der Zeile und keine Spalte Status; gelbe Kante und „zu
+  prüfen“, Taste G, am Handy Wischen.
+- Spalte Memo am PC wie im Prototyp erst ab 1500 px.
+- Teilen in eine Task Handy und eine Task PC. ledger-ayjzq (Sicht „Für mich“) bleibt eigene Task, braucht ein Gespräch.
