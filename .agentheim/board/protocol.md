@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-14 18:49 -- Modeling / Promoted: ledger-sre0f - "Zuletzt-Chips in „Neue Buchung“ aus den Buchungen des gewählten Kontos, fünf mit Memo"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-14 18:49 -- Modeling / Refined: ledger-sre0f - Zuletzt-Chips in „Neue Buchung“ aus den Buchungen des gewählten Kontos, fünf mit Memo
 
 **Type:** Modeling / Refine
