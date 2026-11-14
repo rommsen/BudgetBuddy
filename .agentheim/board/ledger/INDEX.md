@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 9
 - **Todo:** 0
-- **Doing:** 1
-- **Done:** 138
+- **Doing:** 0
+- **Done:** 139
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,11 +22,11 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **ledger-pnjz3** — "Kassenbuch zeigt keine leeren Tagesblöcke, jeder Tag einmal und in der richtigen Reihenfolge" (bug) — `doing/ledger-pnjz3-keine-leeren-tagesbloecke.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)
 <!-- done-list:start -->
+- **ledger-pnjz3** — "Kassenbuch zeigt keine leeren Tagesblöcke, jeder Tag einmal und in der richtigen Reihenfolge" (bug) — `done/ledger-pnjz3-keine-leeren-tagesbloecke.md`
 - **ledger-wj0b8** — "Einstellungen: Satz unter „Quick-Add-Konto“ lautet „Vorbelegt bei „+ Buchung“ ohne Kontofilter“" (chore) — `done/ledger-wj0b8-satz-quick-add-konto.md`
 - **ledger-hg5m5** — "Regel aus der Buchung: „Regel anlegen“ im Detail und beim Durchgehen, dazu ein Angebot nach einer Kategorie-Änderung, vorbelegt mit Payee und Kategorie" (feature) — `done/ledger-hg5m5-regel-angebot-nach-kategorie-aenderung.md`
 - **ledger-ea70s** — "Ein Erfassen: Quick Add hört auf, ein eigener Ort zu sein; „+ Buchung“ in Kassenbuch und Übersicht mit kluger Vorbelegung" (feature) — `done/ledger-ea70s-ein-erfassen.md`

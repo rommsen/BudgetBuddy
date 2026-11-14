@@ -167,7 +167,7 @@ let sortClientTests =
         test "groupByDate gruppiert eine aufsteigend gelieferte Liste mit Tagessumme je Gruppe" {
             let d1, d2 = DateTime(2026, 10, 1), DateTime(2026, 10, 2)
             let entries = [ entryOn 1 d1 -10m; entryOn 2 d1 -5m; entryOn 3 d2 20m ]
-            let groups = groupByDate entries
+            let groups = groupByDate SortAsc entries
             Expect.equal (groups |> List.map fst) [ d1; d2 ] "aufsteigende Reihenfolge bleibt"
             Expect.equal (groups |> List.map (snd >> List.length)) [ 2; 1 ] "Größen"
             Expect.equal (groups |> List.map (fun (_, g) -> (daySum false g).Amount)) [ -15m; 20m ] "Tagessummen"

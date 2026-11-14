@@ -91,21 +91,24 @@ let accountAbbreviation (name: string) : string =
             |> Option.defaultValue trimmed
         firstWord.ToUpperInvariant().Substring(0, min 4 firstWord.Length)
 
-/// Fasst aufeinanderfolgende Buchungen desselben Datums zu einer Gruppe zusammen, in
-/// der Reihenfolge der Liste (neueste zuerst) — die Datums-Gruppenkoepfe der
-/// Handy-Ansicht (AC6). Bewusst kein globales `List.groupBy`: das wuerde gleiche
-/// Datumswerte zusammenziehen, auch wenn sie in der Liste nicht benachbart sind, und
-/// die Sortierung der Server-Seite (neueste zuerst) verlassen.
-let groupByDate (entries: LedgerEntryView list) : (DateTime * LedgerEntryView list) list =
-    entries
-    |> List.fold
-        (fun acc entry ->
-            match acc with
-            | (date, items) :: rest when date = entry.Date -> (date, entry :: items) :: rest
-            | _ -> (entry.Date, [ entry ]) :: acc)
-        []
-    |> List.rev
-    |> List.map (fun (date, items) -> date, List.rev items)
+/// Der Kalendertag einer Buchung als Schlüssel der Tagesgruppe: Jahr, Monat, Tag ohne
+/// Uhrzeit und ohne Kind. Die Spalte `date` mischt Kinds (Spiegel `Utc`, Comdirect und
+/// Quick-Add ohne Kind). Fable vergleicht `DateTime` per `getTime()`, im Browser sind
+/// UTC-Mitternacht und lokale Mitternacht desselben Tags also ungleich; `Year`/`Month`/`Day`
+/// lesen bei jedem Kind den angezeigten Tag (ledger-pnjz3).
+let entryDay (d: DateTime) : DateTime = DateTime(d.Year, d.Month, d.Day)
+
+/// Die Tagesgruppen der Liste bei Sortierung nach Datum, für Handy-Liste und PC-Tabelle
+/// (AC6, ledger-pnjz3): jeder Kalendertag genau einmal, die Tage in der Richtung der
+/// Sortierung, die Zeilen eines Tages in Listenreihenfolge. Jede Gruppe hat mindestens eine
+/// Zeile, es gibt also keinen leeren Tageskopf. Der Tag ist zugleich der React-Key des Kopfs
+/// (`group-yyyy-MM-dd`); trug ein Tag zwei Gruppen, ließ React bei doppeltem Key alte Köpfe
+/// als verwaiste Knoten im DOM stehen (Romans Blick 2026-11-14).
+let groupByDate (direction: LedgerSortDirection) (entries: LedgerEntryView list) : (DateTime * LedgerEntryView list) list =
+    let groups = entries |> List.groupBy (fun e -> entryDay e.Date)
+    match direction with
+    | SortDesc -> groups |> List.sortByDescending fst
+    | SortAsc -> groups |> List.sortBy fst
 
 /// Die Tagessumme einer Datumsgruppe (ADR 0049, Punkt 8; `ledger-n4vte`): die Summe
 /// der *sichtbaren* Zeilen dieser Gruppe. Eine in YNAB gelöschte Buchung zählt nur
@@ -2781,7 +2784,7 @@ let private entryListMobile
         Html.div [
             prop.children (
                 if usesDayGroups sort then
-                    groupByDate entries
+                    groupByDate sort.Direction entries
                     |> List.collect (fun (date, group) ->
                         dateGroupHeader date (daySum includeDeleted group)
                         :: (group |> List.map (row false)))
@@ -3007,7 +3010,7 @@ let private entryListDesktop
                 ]
                 Table.tbody (
                     if usesDayGroups sort then
-                        groupByDate entries
+                        groupByDate sort.Direction entries
                         |> List.collect (fun (date, group) ->
                             dateGroupRow columnsBeforeAmount date (daySum includeDeleted group)
                             :: (group |> List.map bodyRows))

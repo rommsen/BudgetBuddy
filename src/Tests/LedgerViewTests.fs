@@ -100,7 +100,7 @@ let private groupByDateTests =
                   entryView (accountId 1) d1 "Edeka"
                   entryView (accountId 1) d2 "Aldi" ]
 
-            let groups = groupByDate entries
+            let groups = groupByDate SortDesc entries
             Expect.equal (groups |> List.map fst) [ d1; d2 ] "Zwei Gruppen, in Listenreihenfolge"
             Expect.equal (groups |> List.item 0 |> snd |> List.length) 2 "Erste Gruppe traegt beide Maerz-10-Buchungen"
             Expect.equal
@@ -109,18 +109,73 @@ let private groupByDateTests =
                 "Reihenfolge innerhalb der Gruppe bleibt erhalten"
         }
 
-        test "Dasselbe Datum an nicht benachbarter Stelle bildet zwei getrennte Gruppen" {
-            // Bewusst: die Liste ist server-sortiert (neueste zuerst), ein
-            // globales groupBy wuerde diese Sortierung verlassen.
-            let d = DateTime(2026, 3, 10)
-            let other = DateTime(2026, 3, 9)
-            let entries = [ entryView (accountId 1) d "A"; entryView (accountId 1) other "B"; entryView (accountId 1) d "C" ]
-            let groups = groupByDate entries
-            Expect.equal (List.length groups) 3 "Drei Gruppen, nicht zwei: das zweite d-10 ist nicht benachbart"
+        // Regression ledger-pnjz3 (Romans Blick 2026-11-14, Kassenbuch am Handy): über „Gestern“
+        // standen Tagesköpfe ohne Zeile, aber mit Summe, und ein Tag zweimal. Die Spalte `date`
+        // mischt Kinds (Spiegel `Utc`, Comdirect/Quick-Add ohne Kind, Kommentar in
+        // `Server/Ledger/Persistence.fs`). Im Browser vergleicht Fable `DateTime` per `getTime()`:
+        // UTC-Mitternacht und lokale Mitternacht desselben Tags sind dort verschiedene Zeitpunkte.
+        // Die alte Faltung trennte den Tag in zwei benachbarte Gruppen mit demselben React-Key
+        // `group-<datum>`; React ließ bei doppelten Keys alte Köpfe als verwaiste DOM-Knoten stehen.
+        // Unter .NET bilden zwei Uhrzeiten am selben Tag diese zwei Zeitpunkte nach.
+        test "Kaputt: Buchungen eines Tages mit verschiedenem Zeitpunkt ergeben genau einen Tageskopf" {
+            // GIVEN die Liste mit „Zu prüfen“ wie vom Server (Datum absteigend), der 10.11. aus Spiegel und Import
+            let mirrored = DateTime(2026, 11, 10, 1, 0, 0)
+            let imported = DateTime(2026, 11, 10, 0, 0, 0)
+            let entries =
+                [ entryView (accountId 1) (DateTime(2026, 11, 13)) "Gestern"
+                  entryView (accountId 1) mirrored "Spiegel"
+                  entryView (accountId 1) imported "Import 1"
+                  entryView (accountId 1) imported "Import 2"
+                  entryView (accountId 1) (DateTime(2026, 11, 5)) "Fünfter" ]
+            // WHEN sie gruppiert wird (Handy-Liste und PC-Tabelle nutzen dieselbe Funktion)
+            let groups = groupByDate SortDesc entries
+            // THEN jeder Tag einmal, absteigend, kein leerer Kopf, jede Zeile genau einmal
+            Expect.equal
+                (groups |> List.map fst)
+                [ DateTime(2026, 11, 13); DateTime(2026, 11, 10); DateTime(2026, 11, 5) ]
+                "Der 10.11. steht einmal, absteigend nach Datum"
+            Expect.isTrue (groups |> List.forall (snd >> List.isEmpty >> not)) "Kein Tageskopf ohne Zeile"
+            Expect.equal
+                (groups |> List.item 1 |> snd |> List.map (fun e -> e.Payee))
+                [ Some "Spiegel"; Some "Import 1"; Some "Import 2" ]
+                "Die Zeilen des Tages in Listenreihenfolge"
+            Expect.equal (groups |> List.collect snd) entries "Jede Zeile genau einmal, in Listenreihenfolge"
+        }
+
+        test "Kaputt: derselbe Tag an nicht benachbarter Stelle steht einmal, in der Reihenfolge der Sortierung" {
+            // Eine Liste, die nicht nach Tagen geordnet ankommt (Seiten, die sich überlappen,
+            // stehen gebliebene Zeilen), darf keinen Tag zweimal zeigen (ledger-pnjz3).
+            let d10, d9, d5 = DateTime(2026, 11, 10), DateTime(2026, 11, 9), DateTime(2026, 11, 5)
+            let entries =
+                [ entryView (accountId 1) d10 "A"
+                  entryView (accountId 1) d5 "B"
+                  entryView (accountId 1) d10 "C"
+                  entryView (accountId 1) d9 "D" ]
+            let desc = groupByDate SortDesc entries
+            Expect.equal (desc |> List.map fst) [ d10; d9; d5 ] "Absteigend, jeder Tag einmal"
+            Expect.equal (desc |> List.head |> snd |> List.map (fun e -> e.Payee)) [ Some "A"; Some "C" ] "Beide Zeilen des 10.11."
+            let asc = groupByDate SortAsc entries
+            Expect.equal (asc |> List.map fst) [ d5; d9; d10 ] "Aufsteigend, jeder Tag einmal"
+        }
+
+        test "Intakt: eine nach Datum geordnete Liste mit gelöschter und ausgegrauter Zeile gruppiert wie vorher" {
+            // ledger-pnjz3, intakt-Szenario: die Ansicht reicht alle Zeilen der Liste weiter, auch
+            // eine in YNAB gelöschte (bei „Gelöschte zeigen“) und eine, die gerade den Filter
+            // verlassen hat (`FilteredOut`). Beide behalten ihren Tageskopf; die Tagessumme zählt
+            // die sichtbaren Zeilen (ADR 0049 Punkt 8).
+            let d10, d9 = DateTime(2026, 11, 10), DateTime(2026, 11, 9)
+            let rewe = { entryView (accountId 1) d10 "Rewe" with Amount = eur -20m }
+            let deleted = { entryView (accountId 1) d10 "Gelöscht" with Amount = eur -500m; DeletedInYnab = true }
+            let leftFilter = { entryView (accountId 1) d9 "Hat den Filter verlassen" with Amount = eur -7m }
+            let groups = groupByDate SortDesc [ rewe; deleted; leftFilter ]
+            Expect.equal (groups |> List.map fst) [ d10; d9 ] "Zwei Tage wie vorher"
+            Expect.equal (groups |> List.map snd) [ [ rewe; deleted ]; [ leftFilter ] ] "Zeilen wie vorher, die ausgegraute mit eigenem Kopf"
+            Expect.equal (groups |> List.map (fun (_, g) -> (daySum true g).Amount)) [ -520m; -7m ] "Gelöschte zeigen: Summe mit gelöschter"
+            Expect.equal (groups |> List.map (fun (_, g) -> (daySum false g).Amount)) [ -20m; -7m ] "Ohne: nur sichtbare Zeilen"
         }
 
         test "Leere Liste ergibt keine Gruppen" {
-            Expect.equal (groupByDate []) [] "Nichts zu gruppieren"
+            Expect.equal (groupByDate SortDesc []) [] "Nichts zu gruppieren"
         }
     ]
 
