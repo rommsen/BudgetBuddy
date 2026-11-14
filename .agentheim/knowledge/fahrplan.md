@@ -121,7 +121,7 @@ Zuletzt aktualisiert: 2026-11-14, nach work-Lauf und Review ledger-ea70s und led
   ließ den Picker ewig laden, „Jetzt spiegeln“ fehlte am PC auf dem Tab Regeln, drei Bug-Regressionen der alten Regelseite
   fehlten. Entschieden (Roman): „aktiv“ und „Passt nicht“ ruhig statt Grün und Rot. Der Sweep fand danach den überdeckten
   Kopf bei 1024 px (behoben). Kann-Sammlungen categorization und design-system ergänzt. Gate: VERIFY: PASS (dotnet 5012,
-  node 338). Nicht gepusht, nicht deployt.
+  node 338). Deployt 2026-11-14 (1b3a8108).
 - **Work-Lauf 2026-11-13/14 nachts, Roman offline:** Schnitt 7 ledger-ea70s (Ein Erfassen: Quick Add als Ort entfällt,
   `#/quickadd` öffnet „Neue Buchung“ auf der Übersicht, ohne Kontofilter ist das Quick-Add-Konto vorbelegt, Fokus im Betrag
   am PC, Schutz vor dem Neuladen, Konto- und Kategorie-Auswahl ersetzen an allen vier Stellen den Sheet-Inhalt, Memo unter
@@ -132,7 +132,7 @@ Zuletzt aktualisiert: 2026-11-14, nach work-Lauf und Review ledger-ea70s und led
   ↑/↓ die Buchung, während das Regel-Formular im Panel stand, und verwarfen so den Entwurf; Esc im Regel-Dialog des
   Durchgehens tat nichts (`Modal.CloseOnEscape` wird nirgends ausgewertet); eine Memo-Regel warf bei Memo `null`;
   `addCashBooking` ohne Aufrufer entfernt; Angebotszeile als `Detail.offerRow` im DS. Kann-Sammlungen ledger,
-  design-system und neu ynab-sync ergänzt. Gate: VERIFY: PASS (dotnet 5009, node 340). Nicht gepusht, nicht deployt.
+  design-system und neu ynab-sync ergänzt. Gate: VERIFY: PASS (dotnet 5009, node 340). Deployt 2026-11-14 (1b3a8108), Health-Check grün.
   Für Romans Blick am Handy und PC: (1) Karte im Durchgehen: „Regel anlegen“ als Textlink neben „Details“ statt eigener
   Zeile (sonst rutscht „Passt, weiter“ aus dem Bild); (2) am Handy führt im Regel-Sheet das × zur Buchung zurück, ein
   beschriftetes „Zurück“ gibt es nur im Panel am PC; (3) „Regel anlegen“ als Feldzeile im Detail: als Aktion erkennbar?;
