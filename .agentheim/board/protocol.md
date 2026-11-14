@@ -5,6 +5,21 @@ Newest entries on top.
 
 ---
 
+## 2026-11-14 14:18 -- Review-Lauf: d40409da~1..ddd1ba7e
+
+**Type:** Review / Review-Lauf
+**Bereich:** d40409da~1..ddd1ba7e (categorization-m47g8, ledger-pnjz3, ledger-wj0b8)
+**Agents:** backend-code-quality, frontend-architecture, design-quality, qa-milestone-reviewer
+**Funde:** behoben 6, verworfen 4, Rückfrage 0, Ticket 0, Kann-Sammlung 4
+**Commits:** 7ffac40c, 4b525a61, d15ec95c, 99782788
+**Behoben:** Prioritätsprüfung ohne Untergrenze (Regressionstest rot vor dem Fix); `RuleCreated` hängt eine Regel nur einmal an (Regressionstest rot vor dem Fix); Handler-Test „steht am Ende“ gegen parallele Tests stabil; Browser-Mock hängt hinten an; `dayGroups` als reine Funktion für beide Ansichten mit Richtungstest; Intakt-Test ohne falschen FilteredOut-Bezug, Kommentar zum Fable-Vergleich genauer.
+**Verworfen:** „Kontofilter“ (Wortlaut von Roman festgelegt); Transaktion um MIN und INSERT (folgenlos, `rowid ASC` ordnet, ein Nutzer); `use` an `getConnection` (nicht aus diesem Diff); Priority ganz aus `RuleChange` streichen (Änderung in src/Shared, Laufzeitfalle, Grenze reicht).
+**Kann-Sammlung:** ledger-k4n2s 120 (`[fable]`-Test gemischte Kinds), 121 (Hilfetext im Bearbeiten-Modus); categorization-m5k2c (neue Regel außer Sicht, scrollIntoView); 119 gekürzt.
+**Vorschlag:** /architecture-review ledger (17 erledigte Tasks seit dem letzten Bestandsreview).
+**Verifikation:** VERIFY: PASS (dotnet 5016 grün, node 340 grün, dotnet build, npm run build, guard:classes, guard:tokens grün)
+
+---
+
 ## 2026-11-14 14:08 -- Work session ended
 
 **Type:** Work / Session end
