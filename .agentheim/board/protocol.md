@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-14 13:48 -- Task verified and completed: ledger-wj0b8 - "Einstellungen: Satz unter „Quick-Add-Konto“ lautet „Vorbelegt bei „+ Buchung“ ohne Kontofilter“"
+
+**Type:** Work / Task completion
+**Task:** ledger-wj0b8 - "Einstellungen: Satz unter „Quick-Add-Konto“ lautet „Vorbelegt bei „+ Buchung“ ohne Kontofilter“"
+**Summary:** Einstellungen: Satz unter „Quick-Add-Konto“ lautet „Vorbelegt bei „+ Buchung“ ohne Kontofilter“
+**Duration:** (unknown)
+**Verification:** PASS (iteration 1)
+**Files changed:** 0
+**Tests added:** 0
+**ADRs written:** none
+
+---
+
 ## 2026-11-14 13:33 -- Batch started: [categorization-m47g8, ledger-pnjz3, ledger-wj0b8]
 
 **Type:** Work / Batch start

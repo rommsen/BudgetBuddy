@@ -146,7 +146,7 @@ let private ynabSettingsCard (model: Model) (dispatch: Msg -> unit) =
 
                             settingRow "Budget" "Aktives YNAB Budget" budgetName
                             settingRow "Konto" "YNAB Konto für Transaktionen" accountName
-                            settingRow "Quick-Add-Konto" "Konto für manuell erfasste Transaktionen (z. B. Bar)" quickAddAccountName
+                            settingRow "Quick-Add-Konto" "Vorbelegt bei „+ Buchung“ ohne Kontofilter" quickAddAccountName
                             settingRow "API Token" "Pers\u00f6nlicher Access Token" (secretStatus ynab.HasToken)
 
                             Html.div [
