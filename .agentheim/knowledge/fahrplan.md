@@ -20,7 +20,7 @@ Zuletzt aktualisiert: 2026-11-14, nach work-Lauf und Review ledger-ea70s und led
   Backlog, danach kann die Sperre für Überträge fallen. ledger-nb4tv (ETF-Konto und Abgleich) nach
   Etappe 3 verschoben (Roman, 2026-11-10).
   Deployt (2026-11-10, f85d3b3d): ledger-m7k2d, ledger-z6sya, ledger-m7mye.
-- **Etappe 3 · Ein Produkt:** in elf Schnitte geteilt (Roman, 2026-11-11). 7 erledigt (6 categorization-n3sxw mit ledger-hg5m5, 7 ledger-ea70s, siehe Work-Lauf 2026-11-13/14 unten; nicht deployt), davon 1 design-system-k6kfw, 2 ledger-s1weh
+- **Etappe 3 · Ein Produkt:** in elf Schnitte geteilt (Roman, 2026-11-11). 7 erledigt (6 categorization-n3sxw mit ledger-hg5m5, 7 ledger-ea70s, siehe Work-Lauf 2026-11-13/14 unten; deployt 2026-11-14, 1b3a8108), davon 1 design-system-k6kfw, 2 ledger-s1weh
   (beide deployt), 3 budgeting-w9yt4 (Angepinnte Kategorien, 828f6a24), 4 banking-import-d0fey (Import direkt, ADR 0093, 613eee26)
   mit ledger-r7h2w (wartendes Duplikat übernehmen oder verwerfen, ef7e039b), ledger-fxt09 (Payee ändern, 0a7d9cf0) und
   banking-import-t4raw (automatisch abrufen, Vorgabe an, 1b1c868f), 5 ledger-v6s7c (Durchgehen, 64a3402f). Work-Lauf
@@ -139,8 +139,7 @@ Zuletzt aktualisiert: 2026-11-14, nach work-Lauf und Review ledger-ea70s und led
   (4) Höhensprung, wenn die Auswahl den Inhalt des Sheets ersetzt („+ Buchung“, Konto antippen); (5) gebogene Akzentkante
   der aktiven Zeile in „Konto wählen“ (älter, jetzt prominent); (6) Satz unter „Quick-Add-Konto“ in den Einstellungen
   („Konto für manuell erfasste Transaktionen“) besser „Vorbelegt bei „+ Buchung“ ohne Kontofilter, auch für Bob“?
-- **Nächster Schritt:** Romans Blick auf ledger-ea70s und ledger-hg5m5 (Punkte oben), danach Deploy der Schnitte 6 und 7 auf
-  Romans Anweisung. Dann Schnitt 8 ledger-f8d7x (Kassenbuch ordnen) verfeinern. Offen zum Verfeinern: ledger-h7de3
+- **Nächster Schritt:** Romans Blick auf ledger-ea70s und ledger-hg5m5 (Punkte oben), jetzt in der Produktion. Dann Schnitt 8 ledger-f8d7x (Kassenbuch ordnen) verfeinern. Offen zum Verfeinern: ledger-h7de3
   (Fehlertexte in Ereignissen), design-system-vf94m (Toast verdeckt „+ Buchung“), ledger-t4rk8 (Betrag eines Übertrags in BB).
 - Verfeinert wird nur die nächste Etappe. Spätere Etappen haben Zeilen, keine Tickets.
 - Neue Ideen für spätere Etappen kommen hier als Zeile dazu.
