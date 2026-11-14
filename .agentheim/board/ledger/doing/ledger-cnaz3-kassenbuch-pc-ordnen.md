@@ -1,7 +1,7 @@
 ---
 id: ledger-cnaz3
 title: "Kassenbuch am PC ordnen: Kopf mit Konto und Saldo, Abrufen, n durchgehen und + Buchung; Filterleiste mit Suche; Tabelle ohne Status-Spalte und Prüf-Knopf; Panel immer da, ab zwei gewählten Buchungen als Zusammenfassung"
-status: todo
+status: doing
 type: feature
 context: ledger
 created: 2026-11-14
@@ -104,6 +104,9 @@ Tests und Abgleich
 - (d) Die Spalte Konto steht nur in „Alle Konten“ (BB); im Prototyp steht sie immer, in einem Konto wiederholt sie
   denselben Namen.
 - (e) In der Leiste bei einer Buchung bleibt „Rückfrage zurücknehmen“ (BB).
+- (f) Die Kompaktliste ab 1024 px (zu wenig Breite neben dem Panel) behält die Handy-Zeile aus ledger-d9z3n (gedämpfter
+  Kontoname, Wörter statt Badges, kein Prüf-Knopf). Grund: derselbe Baustein, eine Zeile soll nicht je nach Breite anders
+  aussehen. Nachts selbst entschieden (Kann-Zeile 128 in ledger-k4n2s), für Romans Blick im Fahrplan.
 
 ## Notes
 Teil 2 von 3 aus ledger-f8d7x (Kassenbuch ordnen). Baut auf ledger-d9z3n (Suche, `ClearAllFilters`, Breite 1024 px) auf;
@@ -119,3 +122,6 @@ Fundstellen heute (Inventar 2026-11-14): Kopf `headerActionsFor` `View.fs` 4615 
 und `visibleColumns` 2859 bis 2925, Status-Spalte 270 bis 288 und 1010 bis 1040, Prüf-Knopf bei Hover 553 bis 557,
 Tastenleiste 2564 bis 2582, `keyCommandFor` `Types.fs` 2601, Auswahl-Leiste `DesignSystem/MultiSelect.fs` 273 bis 315,
 Abruf-Sheet `src/Client/State.fs` 80. Eine Zusammenfassung im Panel gibt es heute nicht.
+Die Zeilennummern stammen von vor ledger-d9z3n (Commit a2b25490) und haben sich verschoben; über die Namen suchen.
+ledger-d9z3n hat am PC den Chip „Betrag“ für Betrag und Richtung (ADR 0095) und das Suchfeld am Ende der Filterleiste
+schon gebaut; die Richtung „Alle | Ausgaben | Einnahmen“ steht im Popover „Betrag“.

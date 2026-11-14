@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-14 22:16 -- Batch started: [ledger-cnaz3]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-cnaz3 - "Kassenbuch am PC ordnen: Kopf mit Konto und Saldo, Abrufen, n durchgehen und + Buchung; Filterleiste mit Suche; Tabelle ohne Status-Spalte und Prüf-Knopf; Panel immer da, ab zwei gewählten Buchungen als Zusammenfassung"
+**Parallel:** 1 (Kette nacheinander: ledger-cnaz3 hängt an ledger-d9z3n, ledger-zfj78 an ledger-cnaz3, alle drei ändern Ledger/View.fs)
+
+---
+
 ## 2026-11-14 22:14 -- Task verified and completed: ledger-d9z3n - "Kassenbuch am Handy ordnen: eine Kontowahl als Feld mit Saldo, freie Suche statt Payee- und Memo-Filter, Filter-Knopf mit Sheet und gesetzte Filter als Chips; gilt unter 1024 px"
 
 **Type:** Work / Task completion
