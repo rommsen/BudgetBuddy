@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-11-14 13:33 -- Modeling / Captured: ledger-pnjz3 - "Kassenbuch zeigt keine leeren Tagesblöcke, jeder Tag einmal und in der richtigen Reihenfolge"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** todo
+**Summary:** Keine leeren Tagesblöcke, jeder Tag einmal und in Reihenfolge (Romans Screenshot)
+
+---
+
 ## 2026-11-14 13:33 -- Modeling / Captured: categorization-m47g8 - "Neue Regeln kommen ans Ende der Liste (niedrigste Priorität), aus der Buchung wie im Tab Regeln"
 
 **Type:** Modeling / Capture
