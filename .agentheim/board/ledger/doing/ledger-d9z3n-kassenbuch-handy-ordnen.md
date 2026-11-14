@@ -1,7 +1,7 @@
 ---
 id: ledger-d9z3n
 title: "Kassenbuch am Handy ordnen: eine Kontowahl als Feld mit Saldo, freie Suche statt Payee- und Memo-Filter, Filter-Knopf mit Sheet und gesetzte Filter als Chips; gilt unter 1024 px"
-status: todo
+status: doing
 type: feature
 context: ledger
 created: 2026-11-14

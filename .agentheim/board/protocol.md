@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-14 20:42 -- Batch started: [ledger-d9z3n]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-d9z3n - "Kassenbuch am Handy ordnen: eine Kontowahl als Feld mit Saldo, freie Suche statt Payee- und Memo-Filter, Filter-Knopf mit Sheet und gesetzte Filter als Chips; gilt unter 1024 px"
+**Parallel:** scoped — Roman will die Kette ledger-d9z3n, ledger-cnaz3, ledger-zfj78 nacheinander; dispatching ledger-d9z3n, die beiden anderen hängen per depends_on daran und folgen als eigene Läufe
+
+---
+
 ## 2026-11-14 20:42 -- Modeling / Refined: ledger-f8d7x - Kassenbuch ordnen
 
 **Type:** Modeling / Refine

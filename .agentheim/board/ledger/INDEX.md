@@ -11,8 +11,8 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 7
-- **Todo:** 3
-- **Doing:** 0
+- **Todo:** 2
+- **Doing:** 1
 - **Done:** 140
 <!-- task-counts:end -->
 
@@ -20,11 +20,11 @@ research touching this BC, and concept synthesis pages.
 <!-- todo-list:start -->
 - **ledger-zfj78** — "Detail einer Buchung ordnen (Sheet und Panel): Payee als Kopf, Betrag mit Prüfstand, Knopf Geprüft, Payee mit alle zeigen, Aufteilen und Lena als Knopfzeile, Historie aufklappbar in der Form von §7.11" (feature) — `todo/ledger-zfj78-detail-ordnen.md`
 - **ledger-cnaz3** — "Kassenbuch am PC ordnen: Kopf mit Konto und Saldo, Abrufen, n durchgehen und + Buchung; Filterleiste mit Suche; Tabelle ohne Status-Spalte und Prüf-Knopf; Panel immer da, ab zwei gewählten Buchungen als Zusammenfassung" (feature) — `todo/ledger-cnaz3-kassenbuch-pc-ordnen.md`
-- **ledger-d9z3n** — "Kassenbuch am Handy ordnen: eine Kontowahl als Feld mit Saldo, freie Suche statt Payee- und Memo-Filter, Filter-Knopf mit Sheet und gesetzte Filter als Chips; gilt unter 1024 px" (feature) — `todo/ledger-d9z3n-kassenbuch-handy-ordnen.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **ledger-d9z3n** — "Kassenbuch am Handy ordnen: eine Kontowahl als Feld mit Saldo, freie Suche statt Payee- und Memo-Filter, Filter-Knopf mit Sheet und gesetzte Filter als Chips; gilt unter 1024 px" (feature) — `doing/ledger-d9z3n-kassenbuch-handy-ordnen.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)
