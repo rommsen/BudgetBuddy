@@ -172,6 +172,16 @@ let panelTests =
             Expect.equal ext (ShowToast ("Regel angelegt", ToastSuccess)) "Toast"
             Expect.isNone (step (RuleCreated (InSheet, requestOf saving, Ok created)) saving).Panel "Sheet zu"
         }
+        // Bug (Review nach categorization-m47g8): Kam eine Ladeantwort nach dem Speichern auf dem Server,
+        // aber vor `RuleCreated`, stand die Regel schon in der Liste und wurde ein zweites Mal angehängt
+        // (doppelte Zeile, doppelter React-Key).
+        test "Steht die neue Regel nach einem Neuladen schon in der Liste, steht sie danach genau einmal am Ende" {
+            let created = { rule 9 true with Name = "Neu" }
+            let saving = steps [ NewRuleRequested; PatternEntered "x"; CategoryChosen (Some r1.CategoryId); CreateRequested InPanel ] shown
+            let reloaded = { saving with Rules = Success [ r1; created; r2; r3 ] }
+            let after = step (RuleCreated (InPanel, requestOf saving, Ok created)) reloaded
+            Expect.equal (ids after) [ r1.Id; r2.Id; r3.Id; created.Id ] "einmal, am Ende"
+        }
         test "Ein ungültiges Regex steht als Feldfehler am Muster, eine Eingabe nimmt ihn weg" {
             let saving = steps [ RuleChosen r1.Id; ChangeRequested InPanel ] shown
             let failed, _, ext = update (RuleChanged (InPanel, requestOf saving, Error (RulesError.InvalidPattern ("(", "Klammer fehlt")))) saving

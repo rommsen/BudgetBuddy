@@ -405,7 +405,9 @@ let updateWith (ports: RulesPorts) (msg: Msg) (model: Model) : Model * Cmd<Msg> 
         | _ -> model, Cmd.none, NoOp
 
     | RuleCreated (shell, request, result) ->
-        saveAnswered model shell request result (fun rule rules -> rules @ [ rule ]) "Regel angelegt" "Regel konnte nicht angelegt werden"
+        // Ans Ende (categorization-m47g8) und genau einmal: kam eine Ladeantwort nach dem Speichern auf
+        // dem Server, steht die Regel schon in der Liste.
+        saveAnswered model shell request result (fun rule rules -> (rules |> List.filter (fun r -> r.Id <> rule.Id)) @ [ rule ]) "Regel angelegt" "Regel konnte nicht angelegt werden"
 
     | ChangeRequested shell ->
         match model.Panel with
