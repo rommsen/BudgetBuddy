@@ -98,7 +98,8 @@ async function openLedger(contextOptions) {
 const visibleBar = (page) => page.locator(".selection-bar").filter({ visible: true });
 const box = (page, n) => page.getByRole("checkbox", { name: `${label(n)} auswählen` });
 const rowOf = (page, n) => page.locator("div.group").filter({ has: box(page, n) });
-const hint = (page) => page.getByText("Leertaste auswählen").filter({ visible: true });
+// Die Tastenleiste (ledger-cnaz3) zeigt die Tasten als Kästchen.
+const hint = (page) => page.getByTestId("ledger-keys").filter({ visible: true });
 
 before(async () => {
   frontendPort = await getFreePort();

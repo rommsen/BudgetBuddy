@@ -179,12 +179,6 @@ let keyboardTests =
         testCase "bei offenem Panel sind die Listentasten an" <| fun () ->
             let opened = modelWith (rows 3) |> asPanel |> step (OpenDetail (entry 1))
             Expect.equal (step (MoveFocus 1) opened).FocusedRow (Some (idOf 2)) "Pfeil bewegt"
-
-        testCase "der Tastaturhinweis nennt bei offenem Panel Pfeile, G und Esc" <| fun () ->
-            let opened = modelWith (rows 3) |> asPanel |> step (OpenDetail (entry 1))
-            Expect.equal (keyboardHintTextFor opened) "↑ ↓ bewegen · G geprüft · Esc Panel schließen" "Panel-Hinweis"
-            Expect.equal (keyboardHintTextFor (modelWith (rows 3))) keyboardHintText "sonst der Grundtext"
-            Expect.stringContains keyboardHintText "Enter" "Enter ist belegt und steht im Grundtext"
     ]
 
 // ============================================
@@ -253,38 +247,36 @@ let private columnsOf (layout: TableLayout) : LedgerColumn list =
 
 [<Tests>]
 let formTests =
-    testList "Detail: Form und Spalten neben dem Panel (ledger-q1hw2)" [
+    testList "Spalten neben dem Panel, das ab 1024 px immer steht" [
 
-        testCase "bei offenem Panel ist Memo in keiner Breite sichtbar" <| fun () ->
-            for width in [ 600.0 .. 10.0 .. 2400.0 ] do
-                for account in [ true; false ] do
+        testCase "Memo erst ab 1500 px Fensterbreite, darunter in keiner Spaltenbreite" <| fun () ->
+            for account in [ true; false ] do
+                for width in [ 600.0 .. 50.0 .. 3000.0 ] do
                     Expect.isFalse
-                        (columnsOf (visibleColumnsWithPanel width account) |> List.contains MemoColumn)
-                        $"{width}px, Konto-Spalte erlaubt: {account}"
+                        (columnsOf (visibleColumnsBesidePanel 1499.0 width account) |> List.contains MemoColumn)
+                        $"Fenster 1499 px, Spalte {width} px, Gesamtsicht {account}"
+                Expect.contains (columnsOf (visibleColumnsBesidePanel 1500.0 3000.0 account)) MemoColumn $"Fenster 1500 px, Gesamtsicht {account}"
 
-        testCase "die übrigen Spalten folgen visibleColumns mit der Breite minus 420 px" <| fun () ->
+        testCase "ab 1500 px nur, wenn die Stufe mit Memo neben dem Panel passt" <| fun () ->
+            // Ein Konto: Kästchen 44, Datum 96, Payee 140, Kategorie 120, Memo 120, Betrag 132 = 652 px neben 420 px Panel und 4 px Abstand.
+            Expect.contains (columnsOf (visibleColumnsBesidePanel 1600.0 1076.0 false)) MemoColumn "1076 px: Memo passt"
+            Expect.isFalse (columnsOf (visibleColumnsBesidePanel 1600.0 1075.0 false) |> List.contains MemoColumn) "1075 px: Memo entfällt"
+            // Gesamtsicht: dazu die Konto-Spalte (110 px), also 762 px.
+            Expect.contains (columnsOf (visibleColumnsBesidePanel 1600.0 1186.0 true)) MemoColumn "1186 px: Memo passt"
+            Expect.isFalse (columnsOf (visibleColumnsBesidePanel 1600.0 1185.0 true) |> List.contains MemoColumn) "1185 px: Memo entfällt"
+
+        testCase "ohne Platz für eine Stufe neben dem Panel steht die Kompaktliste" <| fun () ->
+            // Kleinste Stufe ohne Memo und Konto: 532 px.
+            for account in [ true; false ] do
+                Expect.equal (visibleColumnsBesidePanel 1440.0 955.0 account) CompactList $"955 px, Gesamtsicht {account}"
+                Expect.notEqual (visibleColumnsBesidePanel 1440.0 956.0 account) CompactList $"956 px, Gesamtsicht {account}"
+
+        testCase "die übrigen Spalten folgen visibleColumns mit der Breite minus 424 px (Panel und Abstand)" <| fun () ->
             for width in [ 1000.0 .. 25.0 .. 2200.0 ] do
-                let plain = columnsOf (visibleColumns (width - 420.0) true) |> List.filter ((<>) MemoColumn)
-                let withPanel = columnsOf (visibleColumnsWithPanel width true)
+                let plain = columnsOf (visibleColumns (width - 424.0) true) |> List.filter ((<>) MemoColumn)
+                let besidePanel = columnsOf (visibleColumnsBesidePanel 1440.0 width true)
                 if not (List.isEmpty plain) then
-                    Expect.equal withPanel plain $"{width}px"
-
-        testCase "Grenzwerte: ein Konto braucht 660 px neben dem Panel, also 1080 px ohne" <| fun () ->
-            Expect.equal (detailFormFor 1079.0 false) DetailSheet "1079 px: Restbreite 659 reicht für keine Stufe"
-            Expect.equal (detailFormFor 1080.0 false) DetailPanel "1080 px: Restbreite 660 reicht"
-            Expect.equal (detailFormFor 1090.0 false) DetailPanel "die angenommene Breite bei 1440 px Fenster"
-
-        testCase "Grenzwerte: in der Gesamtsicht weicht die Konto-Spalte zuerst" <| fun () ->
-            Expect.contains (columnsOf (visibleColumnsWithPanel 1152.0 true)) AccountColumn "1152 px: mit Konto-Spalte"
-            Expect.isFalse (columnsOf (visibleColumnsWithPanel 1151.0 true) |> List.contains AccountColumn) "1151 px: ohne Konto-Spalte"
-            Expect.equal (detailFormFor 1151.0 true) DetailPanel "auch ohne Konto-Spalte ein Panel"
-            Expect.equal (detailFormFor 1079.0 true) DetailSheet "darunter ein Sheet"
-
-        testCase "zeigt der PC schon die Kompaktliste, ist die Form ein Sheet" <| fun () ->
-            for width in [ 0.0; 300.0; 659.0 ] do
-                Expect.equal (visibleColumns width false) CompactList $"{width}px: Kompaktliste"
-                Expect.equal (detailFormFor width false) DetailSheet $"{width}px: Sheet"
-                Expect.equal (detailFormFor width true) DetailSheet $"{width}px, Gesamtsicht: Sheet"
+                    Expect.equal besidePanel plain $"{width}px"
     ]
 
 // ============================================

@@ -3690,16 +3690,16 @@ let private rulesTabTests =
         }
 
         test "Auf Buchungen steht „+ Buchung“, auf Regeln nicht" {
-            Expect.contains (Components.Ledger.View.headerActionsFor false) Components.Ledger.View.CaptureBooking "Buchungen"
+            Expect.contains (Components.Ledger.View.headerActionsFor false 0) Components.Ledger.View.CaptureBooking "Buchungen"
             Expect.isFalse
-                (Components.Ledger.View.headerActionsFor true |> List.contains Components.Ledger.View.CaptureBooking)
+                (Components.Ledger.View.headerActionsFor true 0 |> List.contains Components.Ledger.View.CaptureBooking)
                 "Regeln: Hauptaktion ist „+ Neue Regel“"
-            Expect.contains (Components.Ledger.View.headerActionsFor true) Components.Ledger.View.TabActions "„+ Neue Regel“"
+            Expect.contains (Components.Ledger.View.headerActionsFor true 0) Components.Ledger.View.TabActions "„+ Neue Regel“"
         }
 
         test "„Jetzt spiegeln“ steht auf beiden Tabs am Handy und am PC" {
             for onRules in [ false; true ] do
-                let actions = Components.Ledger.View.headerActionsFor onRules
+                let actions = Components.Ledger.View.headerActionsFor onRules 0
                 Expect.contains actions Components.Ledger.View.MirrorIcon $"Handy, Regeln={onRules}"
                 Expect.contains actions Components.Ledger.View.MirrorButton $"PC, Regeln={onRules}"
         }

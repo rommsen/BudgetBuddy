@@ -158,21 +158,28 @@ async function swipe(page, locator, dx) {
 }
 
 // ledger-d9z3n: unter 1024 px hat die Zeile keinen Prüfknopf mehr, geprüft wird per Wisch nach rechts (ledger-th36h).
-test("[flow:buchung-pruefen] PC: Geprüft an der Zeile schickt den Aufruf ohne Historie; Handy: Wisch nach rechts prüft, die Zeile hat keinen Knopf", async () => {
+// ledger-cnaz3: auch am PC hat die Zeile keinen Knopf mehr, geprüft wird mit G auf der markierten Zeile.
+test("[flow:buchung-pruefen] PC: G auf der markierten Zeile schickt den Aufruf, die Zeile hat keinen Knopf; Handy: Wisch nach rechts prüft", async () => {
   {
     const { page, context, calls, entries } = await openLedger({ width: 1440, height: 900 });
     try {
-      const button = rowOf(page, true, PAYEES.toReview).getByRole("button", { name: "Geprüft", exact: true });
-      await button.waitFor();
-      // Verhindert die Rückkehr des Fehlers, bei dem auch gelöschte Buchungen die Schaltfläche bekamen und ein
-      // Klick in der Ablehnung des Servers endete.
-      const deleted = rowOf(page, true, PAYEES.deleted);
-      assert.equal(await deleted.getByRole("button", { name: /^(Geprüft|Ungeprüft)$/ }).count(), 0, "PC: gelöscht ohne Schaltfläche");
-      await button.click();
-      await rowOf(page, true, PAYEES.toReview).getByRole("button", { name: "Ungeprüft", exact: true }).waitFor();
+      const row = rowOf(page, true, PAYEES.toReview);
+      await row.waitFor();
+      await row.hover();
+      assert.equal(
+        await page.getByRole("button", { name: /^(Geprüft|Ungeprüft)$/ }).filter({ visible: true }).count(),
+        0,
+        "PC: keine Prüfknöpfe an den Zeilen, auch nicht bei Hover"
+      );
+      // Die erste Zeile ist die zu prüfende: ↓ markiert sie, G prüft.
+      await page.keyboard.press("ArrowDown");
+      await page.locator('tr[data-keyboard-focus="true"]', { hasText: PAYEES.toReview }).waitFor();
+      const sent = page.waitForResponse((response) => response.url().includes("setReviewMark"));
+      await page.keyboard.press("g");
+      await sent;
       const call = calls.find((c) => c.endpoint === "setReviewMark");
+      assert.ok(call, "PC: G schickt den Prüfvermerk");
       assert.deepEqual(JSON.parse(call.body), [entries.Entries[0].Id, "Reviewed"], "PC: Id und Ziel");
-      assert.equal(await page.locator("dialog, [role=dialog]").filter({ visible: true }).count(), 0, "PC: keine Historie");
       await screenshotIfRequested(page, "pc-1440x900-review-mark");
     } finally {
       await context.close();

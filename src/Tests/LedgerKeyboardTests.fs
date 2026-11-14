@@ -181,7 +181,7 @@ let keyBindingTests =
     testList "Tastaturfokus: Tastenbelegung (ledger-rjb8w)" [
 
         testCase "Pfeile, J und K bewegen, g und G prüfen" <| fun () ->
-            let key k = keyCommandFor "BODY" false false false k
+            let key k = keyCommandFor "BODY" false false false false false k
             Expect.equal (key "ArrowDown") (Some (MoveFocus 1)) "ab"
             Expect.equal (key "j") (Some (MoveFocus 1)) "j"
             Expect.equal (key "ArrowUp") (Some (MoveFocus -1)) "auf"
@@ -192,36 +192,36 @@ let keyBindingTests =
         testCase "ein Tastenereignis aus einem Eingabefeld löst keinen Befehl aus" <| fun () ->
             for tag in [ "INPUT"; "input"; "TEXTAREA"; "SELECT" ] do
                 for k in [ "g"; "G"; "j"; "ArrowDown" ] do
-                    Expect.isNone (keyCommandFor tag false false false k) $"{tag} {k}"
-            Expect.isNone (keyCommandFor "DIV" true false false "g") "contenteditable"
+                    Expect.isNone (keyCommandFor tag false false false false false k) $"{tag} {k}"
+            Expect.isNone (keyCommandFor "DIV" true false false false false "g") "contenteditable"
 
         testCase "Strg, Meta und Alt lösen keinen Befehl aus" <| fun () ->
-            Expect.isNone (keyCommandFor "BODY" false true false "g") "Strg oder Meta"
-            Expect.isNone (keyCommandFor "BODY" false false true "g") "Alt"
+            Expect.isNone (keyCommandFor "BODY" false false true false false "g") "Strg oder Meta"
+            Expect.isNone (keyCommandFor "BODY" false false false true false "g") "Alt"
 
         testCase "Enter öffnet das Detail, Esc schließt eine Stufe, Leertaste wählt aus (ledger-q1hw2, ledger-w4vte)" <| fun () ->
-            Expect.equal (keyCommandFor "BODY" false false false "Enter") (Some OpenFocusedDetail) "Enter"
-            Expect.equal (keyCommandFor "BODY" false false false "Escape") (Some EscapePressed) "Esc"
-            Expect.equal (keyCommandFor "BODY" false false false " ") (Some ToggleFocusedSelected) "Leertaste"
-            Expect.isNone (keyCommandFor "BODY" false false false "a") "a bleibt frei"
+            Expect.equal (keyCommandFor "BODY" false false false false false "Enter") (Some OpenFocusedDetail) "Enter"
+            Expect.equal (keyCommandFor "BODY" false false false false false "Escape") (Some EscapePressed) "Esc"
+            Expect.equal (keyCommandFor "BODY" false false false false false " ") (Some ToggleFocusedSelected) "Leertaste"
+            Expect.isNone (keyCommandFor "BODY" false false false false false "a") "a bleibt frei"
 
         testCase "Leertaste löst in Feldern, mit Strg, Meta oder Alt und auf Knöpfen nichts aus (ledger-w4vte)" <| fun () ->
             for tag in [ "INPUT"; "TEXTAREA"; "SELECT" ] do
-                Expect.isNone (keyCommandFor tag false false false " ") $"Leertaste im Feld {tag}"
-            Expect.isNone (keyCommandFor "DIV" true false false " ") "contenteditable"
-            Expect.isNone (keyCommandFor "BODY" false true false " ") "Strg oder Meta"
-            Expect.isNone (keyCommandFor "BODY" false false true " ") "Alt"
+                Expect.isNone (keyCommandFor tag false false false false false " ") $"Leertaste im Feld {tag}"
+            Expect.isNone (keyCommandFor "DIV" true false false false false " ") "contenteditable"
+            Expect.isNone (keyCommandFor "BODY" false false true false false " ") "Strg oder Meta"
+            Expect.isNone (keyCommandFor "BODY" false false false true false " ") "Alt"
             // Die native Wirkung des Knopfs gewinnt: sonst kippte die Auswahl nach einem Mausklick zweimal.
             for tag in [ "BUTTON"; "button"; "A"; "SUMMARY" ] do
-                Expect.isNone (keyCommandFor tag false false false " ") $"Leertaste auf {tag}"
+                Expect.isNone (keyCommandFor tag false false false false false " ") $"Leertaste auf {tag}"
 
         testCase "Enter auf einem Knopf oder Link löst kein Detail aus, damit er nicht doppelt wirkt" <| fun () ->
             for tag in [ "BUTTON"; "button"; "A"; "SUMMARY" ] do
-                Expect.isNone (keyCommandFor tag false false false "Enter") $"Enter auf {tag}"
+                Expect.isNone (keyCommandFor tag false false false false false "Enter") $"Enter auf {tag}"
             // Esc bleibt auf einem Knopf wirksam: der Fokus nach einem Mausklick liegt oft dort.
-            Expect.equal (keyCommandFor "BUTTON" false false false "Escape") (Some EscapePressed) "Esc auf Knopf"
+            Expect.equal (keyCommandFor "BUTTON" false false false false false "Escape") (Some EscapePressed) "Esc auf Knopf"
             for tag in [ "INPUT"; "TEXTAREA"; "SELECT" ] do
-                Expect.isNone (keyCommandFor tag false false false "Escape") $"Esc im Feld {tag}"
+                Expect.isNone (keyCommandFor tag false false false false false "Escape") $"Esc im Feld {tag}"
 
         // Die Seiten stehen nie zugleich im DOM, ihre Tasten kollidieren nicht.
         testCase "nur Kassenbuch, Tab Regeln und Budget-Seite hören auf Tasten am Dokument, kein anderes Kürzel kollidiert" <| fun () ->
@@ -248,17 +248,17 @@ let keyBindingTests =
         // der verdeckten Zeile, Esc schloss Detail samt Formular statt einer Stufe.
         testCase "über dem offenen Regel-Formular wirken die Tasten der Liste nicht, Esc führt zur Buchung zurück" <| fun () ->
             for k in [ "ArrowDown"; "ArrowUp"; "j"; "k"; "g"; "G"; "Enter"; " " ] do
-                Expect.isNone (ledgerKeyFor true "BODY" false false false k) $"{k} bei offenem Formular"
-                Expect.isNone (ledgerKeyFor true "DIV" false false false k) $"{k} auf dem Segment"
-            Expect.equal (ledgerKeyFor true "BUTTON" false false false "Escape") (Some RuleFormBack) "Esc auf einem Segment"
-            Expect.equal (ledgerKeyFor true "INPUT" false false false "Escape") (Some RuleFormBack) "Esc im Feld des Formulars"
-            Expect.isNone (ledgerKeyFor true "BODY" false true false "Escape") "Esc mit Strg oder Meta"
+                Expect.isNone (ledgerKeyFor true "BODY" false false false false false k) $"{k} bei offenem Formular"
+                Expect.isNone (ledgerKeyFor true "DIV" false false false false false k) $"{k} auf dem Segment"
+            Expect.equal (ledgerKeyFor true "BUTTON" false false false false false "Escape") (Some RuleFormBack) "Esc auf einem Segment"
+            Expect.equal (ledgerKeyFor true "INPUT" false false false false false "Escape") (Some RuleFormBack) "Esc im Feld des Formulars"
+            Expect.isNone (ledgerKeyFor true "BODY" false false true false false "Escape") "Esc mit Strg oder Meta"
 
         testCase "ohne Regel-Formular gelten die Tasten der Liste unverändert" <| fun () ->
-            Expect.equal (ledgerKeyFor false "BODY" false false false "ArrowDown") (Some (PageAction (MoveFocus 1))) "Pfeil ab"
-            Expect.equal (ledgerKeyFor false "BODY" false false false "g") (Some (PageAction (ReviewKeyPressed Reviewed))) "g"
-            Expect.equal (ledgerKeyFor false "BUTTON" false false false "Escape") (Some (PageAction EscapePressed)) "Esc"
-            Expect.isNone (ledgerKeyFor false "INPUT" false false false "Escape") "Esc im Feld"
+            Expect.equal (ledgerKeyFor false "BODY" false false false false false "ArrowDown") (Some (PageAction (MoveFocus 1))) "Pfeil ab"
+            Expect.equal (ledgerKeyFor false "BODY" false false false false false "g") (Some (PageAction (ReviewKeyPressed Reviewed))) "g"
+            Expect.equal (ledgerKeyFor false "BUTTON" false false false false false "Escape") (Some (PageAction EscapePressed)) "Esc"
+            Expect.isNone (ledgerKeyFor false "INPUT" false false false false false "Escape") "Esc im Feld"
     ]
 
 [<Tests>]
@@ -304,14 +304,14 @@ let selectionRulesTests =
             Expect.isSome withSheet.DetailFor "Sheet steht"
             Expect.equal (step ToggleFocusedSelected withSheet) withSheet "Sheet"
 
-        testCase "bei offenem Panel wirkt die Leertaste und schließt das Panel" <| fun () ->
+        testCase "bei offenem Panel wirkt die Leertaste, das Panel zeigt die eine gewählte Buchung" <| fun () ->
+            // ledger-cnaz3 (ADR 0087 Punkt 17): bei genau einer gewählten Buchung zeigt das Panel ihr Detail.
             let opened = { modelWith (rows 3) with DetailForm = DetailPanel } |> step (OpenDetail (entry 1 true))
             let model = step ToggleFocusedSelected opened
             Expect.isTrue (isSelected model.Selection (idOf 1)) "gewählt"
-            Expect.isNone model.DetailFor "Panel zu"
-            Expect.equal model.History NotAsked "Historie leer"
+            Expect.equal (model.DetailFor |> Option.map (fun d -> d.Id)) (Some (idOf 1)) "Panel bleibt bei der Buchung"
 
-        testCase "jeder Weg, der die Auswahl beginnt, schließt ein offenes Panel und Sheet" <| fun () ->
+        testCase "jeder Weg, der die Auswahl beginnt, schließt ein offenes Sheet; das Panel zeigt eine gewählte Buchung oder schließt" <| fun () ->
             let ways : (string * Msg) list =
                 [ "Kästchen", ClickRowCheckbox (idOf 2, false)
                   "Umschalt-Klick", ClickRowCheckbox (idOf 2, true)
@@ -325,8 +325,13 @@ let selectionRulesTests =
                     let opened = { modelWith (rows 3) with DetailForm = form } |> step (OpenDetail (entry 1 true))
                     Expect.isSome opened.DetailFor $"{name}: Detail steht vorher"
                     let model = step msg opened
-                    Expect.isNone model.DetailFor $"{name} ({form}): Detail zu"
-                    Expect.equal model.History NotAsked $"{name} ({form}): Historie leer"
+                    // Am PC (Panel, ledger-cnaz3): genau eine gewählte Buchung steht im Panel, ab zwei schließt es.
+                    match form, singleSelectedEntry model with
+                    | DetailPanel, Some selected when not model.SelectionMode ->
+                        Expect.equal (model.DetailFor |> Option.map (fun d -> d.Id)) (Some selected.Id) $"{name} ({form}): Detail der gewählten"
+                    | _ ->
+                        Expect.isNone model.DetailFor $"{name} ({form}): Detail zu"
+                        Expect.equal model.History NotAsked $"{name} ({form}): Historie leer"
 
         testCase "ein Schritt, der die Auswahl nicht von leer auf nicht leer ändert, lässt das Detail stehen" <| fun () ->
             let opened = { modelWith (rows 3) with DetailForm = DetailPanel } |> step (OpenDetail (entry 1 true))
@@ -381,34 +386,25 @@ let selectionRulesTests =
             let selecting = { modelWith (rows 3) with Selection = Picked (Set.singleton (idOf 1)) }
             Expect.equal (step EscapePressed selecting).Selection NoSelection "aufgehoben"
 
-        testCase "Hinweis ohne Auswahl nennt alle belegten Tasten, mit Auswahl ist er aus" <| fun () ->
-            let text = Components.Ledger.View.keyboardHintText
-            for part in [ "J K"; "Enter"; "Leertaste"; "G geprüft"; "Umschalt+G ungeprüft" ] do
-                Expect.stringContains text part part
+        testCase "Tastenleiste ohne Auswahl nennt alle belegten Tasten, mit Auswahl ist sie aus" <| fun () ->
+            // ledger-cnaz3: Prototyp Version 17 `.keys` und dazu J K, Enter und ⇧+G (BB).
+            let texts = Components.Ledger.View.keyboardHintItems |> List.map Components.Ledger.View.keyboardHintItemText
+            Expect.equal
+                texts
+                [ "↑ ↓ J K bewegen"
+                  "Enter Detail"
+                  "G geprüft"
+                  "⇧+G ungeprüft"
+                  "L Lena fragen"
+                  "Leertaste oder ⇧+↓ auswählen"
+                  "/ suchen, Pfeile wirken auch dort"
+                  "Esc schließen" ]
+                "Einträge in der Reihenfolge der Leiste"
             let model = modelWith (rows 2)
-            Expect.equal (Components.Ledger.View.keyboardHintTextFor model) text "Grundtext"
+            Expect.isTrue (Components.Ledger.View.keyboardHintVisible model) "ohne Auswahl steht sie"
             let selecting = { model with Selection = Picked (Set.singleton (idOf 1)) }
             Expect.isFalse (Components.Ledger.View.keyboardHintVisible selecting) "mit Auswahl ersetzt die Leiste den Hinweis"
 
-
-        testCase "Tabelle und Maus-Zeile: bei laufender Auswahl ein Platzhalter statt Prüf-Schaltfläche" <| fun () ->
-            // ledger-r8h19: ersetzt den Quelltext-Test; die Zeilen rufen nur `pointerRowReviewMarkSlot`.
-            let open' = entry 1 true
-            let deleted = { open' with DeletedInYnab = true }
-            Expect.equal (Components.Ledger.View.pointerRowReviewMarkSlot open' false) Components.Ledger.View.ReviewMarkButtonSlot "ohne Auswahl die Schaltfläche"
-            Expect.equal (Components.Ledger.View.pointerRowReviewMarkSlot open' true) Components.Ledger.View.ReviewMarkPlaceholder "bei laufender Auswahl der Platzhalter"
-            for active in [ true; false ] do
-                Expect.equal (Components.Ledger.View.pointerRowReviewMarkSlot deleted active) Components.Ledger.View.NoReviewMarkSlot $"gelöscht nichts, Auswahl={active}"
-
-        testCase "Handy-Zeile: bei laufender Auswahl ohne Modus weder Wisch noch Schaltfläche" <| fun () ->
-            // ledger-r8h19: ersetzt den Quelltext-Test; Wisch entscheidet `mobileRowMode`
-            // (LedgerSelectionTests), die Schaltfläche `touchRowReviewMarkSlot`.
-            let open' = entry 1 true
-            let slot = Components.Ledger.View.touchRowReviewMarkSlot
-            Expect.equal (slot open' false false false) Components.Ledger.View.ReviewMarkButtonSlot "Finger ohne Auswahl"
-            Expect.equal (slot open' false false true) Components.Ledger.View.NoReviewMarkSlot "Auswahl ohne Modus"
-            Expect.equal (slot open' false true false) Components.Ledger.View.NoReviewMarkSlot "im Auswahl-Modus"
-            Expect.equal (slot open' true false false) Components.Ledger.View.NoReviewMarkSlot "mit Maus steht sie in der Maus-Zeile"
-            Expect.equal (slot { open' with DeletedInYnab = true } false false false) Components.Ledger.View.NoReviewMarkSlot "gelöscht"
+        testCase "Handy-Zeile: bei laufender Auswahl ohne Modus kein Wisch" <| fun () ->
             Expect.equal (Components.Ledger.View.mobileRowMode false false true) Components.Ledger.View.MobilePlainRow "kein Wisch bei Auswahl ohne Modus"
     ]

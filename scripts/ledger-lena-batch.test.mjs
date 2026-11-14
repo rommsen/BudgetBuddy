@@ -159,10 +159,14 @@ test("[flow:lena-fragen-mehrere] PC: Lena fragen für zwei Buchungen, ein Aufruf
     const bar = visibleBar(page);
     await bar.waitFor();
 
-    const ask = bar.getByRole("button", { name: "Lena fragen (2)", exact: true });
-    const withdraw = bar.getByRole("button", { name: "Rückfrage zurücknehmen (2)", exact: true });
-    assert.equal(await ask.count(), 1, "Lena fragen mit Anzahl");
-    assert.equal(await withdraw.count(), 1, "Rückfrage zurücknehmen mit Anzahl");
+    // Ab zwei gewählten Buchungen stehen die Sammelaktionen am PC in der Zusammenfassung im Panel (ledger-cnaz3),
+    // „Rückfrage zurücknehmen“ nur, wenn eine gewählte Buchung gefragt ist.
+    const summary = page.getByTestId("selection-summary").filter({ visible: true });
+    await summary.waitFor();
+    const ask = summary.getByRole("button", { name: "Lena fragen", exact: true });
+    const withdraw = summary.getByRole("button", { name: "Rückfrage zurücknehmen", exact: true });
+    assert.equal(await ask.count(), 1, "Lena fragen in der Zusammenfassung");
+    assert.equal(await withdraw.count(), 0, "keine gewählte Buchung ist gefragt: kein Zurücknehmen");
 
     await ask.click();
     await page.getByText("2 Buchungen an Lena gefragt", { exact: true }).waitFor();

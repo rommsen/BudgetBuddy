@@ -586,8 +586,16 @@ let private applyFilterEffect (updated: LedgerEntryView) (model: Model) : Model 
         (match m.Entries with Success list -> List.length list | _ -> 0) - Set.count m.FilteredOut
     match matches, wasOut with
     | false, false ->
+        // Eine ausgegraute Buchung trägt kein Häkchen: unter `Picked` verlässt sie die Auswahl, sonst träfe eine
+        // Sammelaktion sie unsichtbar. Unter `AllExcept` gehört sie nicht mehr zum Treffer; eine Ausnahme bleibt
+        // stehen, damit eine Rücknahme sie nicht wieder wählt (`selectionTotals` zählt sie nicht doppelt ab).
+        let selection =
+            match model.Selection with
+            | Picked _ -> removeFromSelection updated.Id model.Selection
+            | other -> other
         let m =
             { model with
+                Selection = selection
                 FilteredOut = Set.add updated.Id model.FilteredOut
                 LocallyRemoved = model.LocallyRemoved + 1
                 TotalCount = max 0 (model.TotalCount - 1)
@@ -3845,11 +3853,13 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
     // Auswahl mit Summe (ledger-r1d2f)
     // ============================================
 
-    | StartSelectionMode entryId when model.FilteredOut.Contains entryId -> model, Cmd.none, NoOp
+    // Nur wählbare Zeilen kommen in die Auswahl (`isSelectableEntry`): nicht ausgegraut und geladen. Die Fokuszeile kann
+    // eine nur über die Route geöffnete Buchung sein, die Leertaste geht über `ClickRowCheckbox` (ledger-cnaz3).
+    | StartSelectionMode entryId when not (isSelectableEntry model entryId) -> model, Cmd.none, NoOp
 
-    | ToggleRowSelected entryId when model.FilteredOut.Contains entryId -> model, Cmd.none, NoOp
+    | ToggleRowSelected entryId when not (isSelectableEntry model entryId) -> model, Cmd.none, NoOp
 
-    | ClickRowCheckbox (entryId, _) when model.FilteredOut.Contains entryId -> model, Cmd.none, NoOp
+    | ClickRowCheckbox (entryId, _) when not (isSelectableEntry model entryId) -> model, Cmd.none, NoOp
 
     | StartSelectionMode entryId ->
         { model with
@@ -3864,7 +3874,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         { model with Selection = toggleSelected entryId model.Selection }, Cmd.none, NoOp
 
     | ClickRowCheckbox (entryId, shift) ->
-        let entries = model.Entries |> RemoteData.withDefault []
+        let entries = selectableEntries model
         let span =
             match shift, model.SelectionAnchor with
             | true, Some anchor -> rangeBetween entries anchor entryId
@@ -4211,6 +4221,69 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         match model.FocusedRow with
         | Some id when not (keyboardBlocked model) -> updateCore (ClickRowCheckbox (id, false)) model
         | _ -> model, Cmd.none, NoOp
+
+    | ClickRowWithModifier (entryId, _) when not (isSelectableEntry model entryId) -> model, Cmd.none, NoOp
+
+    | ClickRowWithModifier (entryId, modifier) ->
+        let entries = selectableEntries model
+        // Ohne Auswahl zählt eine offene Buchung im Panel als erste gewählte (Prototyp `selectWithMods`): Strg-Klick
+        // auf eine zweite Zeile wählt beide, Umschalt-Klick den Bereich ab ihr. Nur wenn sie wählbar in der Liste
+        // steht: eine ausgegraute oder über die Route geöffnete, nicht geladene Buchung hätte kein Häkchen, und eine
+        // Sammelaktion träfe sie trotzdem (Verifier-FAIL Iteration 1).
+        let openId =
+            model.DetailFor
+            |> Option.map (fun d -> d.Id)
+            |> Option.filter (fun id ->
+                not (hasSelection model) && id <> entryId && entries |> List.exists (fun e -> e.Id = id))
+        let anchor = model.SelectionAnchor |> Option.orElse openId
+        let span =
+            match modifier, anchor with
+            | RangeToRow, Some a -> rangeBetween entries a entryId
+            | _ -> []
+        let selection =
+            if not (List.isEmpty span) then addToSelection span model.Selection
+            else
+                let base' = match openId with Some id -> addToSelection [ id ] model.Selection | None -> model.Selection
+                toggleSelected entryId base'
+        { model with
+            Selection = selection
+            SelectionAnchor = (if List.isEmpty span then Some entryId else model.SelectionAnchor |> Option.orElse anchor)
+            FocusedRow = Some entryId },
+        Cmd.none,
+        NoOp
+
+    | ExtendSelection delta ->
+        if keyboardBlocked model || model.SelectionMode then
+            model, Cmd.none, NoOp
+        else
+            let entries = selectableEntries model
+            match movedFocus entries model.FocusedRow delta with
+            | Some next ->
+                // Die markierte Zeile und die nächste kommen dazu; ohne Markierung nur die erste bzw. letzte Zeile.
+                let ids = [ yield! model.FocusedRow |> Option.filter (fun id -> entries |> List.exists (fun e -> e.Id = id)) |> Option.toList; next ]
+                { model with
+                    Selection = addToSelection ids model.Selection
+                    SelectionAnchor = model.SelectionAnchor |> Option.orElse (List.tryHead ids)
+                    FocusedRow = Some next },
+                Cmd.none,
+                NoOp
+            | None -> model, Cmd.none, NoOp
+
+    | LenaKeyPressed ->
+        // Wie „Lena fragen“: mit Auswahl für die Auswahl, sonst für die markierte Zeile. Eine schon gefragte Zeile
+        // bleibt, wie sie ist (die Taste nimmt keine Rückfrage zurück).
+        if keyboardBlocked model || model.SelectionMode then
+            model, Cmd.none, NoOp
+        elif hasSelection model then
+            updateCore (StartLenaBatch AssignLena) model
+        else
+            match model.FocusedRow with
+            | Some id -> updateCore (StartSetLenaFlag (id, AssignLena)) model
+            | None -> model, Cmd.none, NoOp
+
+    | FocusSearch ->
+        if keyboardBlocked model then model, Cmd.none, NoOp
+        else model, Cmd.ofEffect (fun _ -> Client.DesignSystem.Viewport.focusField ledgerSearchInputSelector), NoOp
 
     // ============================================
     // Durchgehen (ledger-v6s7c)
@@ -4601,10 +4674,23 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         | Some capture, Some detail when model.DetailFor <> Some detail && not capture.Saving -> { model' with Capture = None }
         | _ -> model'
     let selectionBegan = not (hasSelection model) && hasSelection model'
-    let model' =
-        if model'.DetailFor.IsSome && selectionBegan then closeDetail model'
-        else
-            model'
+    // Am PC (Panel, kein Handy-Modus) zeigt das Panel die Auswahl (ledger-cnaz3, ADR 0087 Punkt 17): bei genau einer
+    // gewählten Buchung ihr Detail, ab zwei die Zusammenfassung (das Detail schließt). Nur wenn sich die Auswahl
+    // geändert hat, sonst könnte Esc das Detail einer gewählten Buchung nie schließen. Mit Sheet bleibt ADR 0053
+    // Punkt 2: eine beginnende Auswahl schließt das Detail.
+    let model', cmd =
+        if model'.DetailForm = DetailPanel && not model'.SelectionMode then
+            if model'.Selection = model.Selection then model', cmd
+            else
+                match singleSelectedEntry model' with
+                | Some entry when model'.DetailFor |> Option.forall (fun d -> d.Id <> entry.Id) ->
+                    let shown, loadCmd = showDetail entry model'
+                    shown, Cmd.batch [ cmd; loadCmd ]
+                | Some _ -> model', cmd
+                | None when model'.DetailFor.IsSome && (selectionTotals model').Count >= 2 -> closeDetail model', cmd
+                | None -> model', cmd
+        elif model'.DetailFor.IsSome && selectionBegan then closeDetail model', cmd
+        else model', cmd
     // Eine neuere Eingabe überholt den Sprung: die späte Antwort der Route darf sie nicht überschreiben.
     let routeOvertaken =
         match msg with

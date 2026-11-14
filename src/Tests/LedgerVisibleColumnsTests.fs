@@ -15,7 +15,7 @@ let private columnsOf (layout: TableLayout) : LedgerColumn list =
 let private minSum (cols: LedgerColumn list) = cols |> List.sumBy minColumnWidth |> float
 
 let private allAccountsFull =
-    [ SelectColumn; DateColumn; AccountColumn; PayeeColumn; CategoryColumn; MemoColumn; AmountColumn; StatusColumn ]
+    [ SelectColumn; DateColumn; AccountColumn; PayeeColumn; CategoryColumn; MemoColumn; AmountColumn ]
 
 let private allAccountsNoMemo = allAccountsFull |> List.filter ((<>) MemoColumn)
 let private allAccountsNoMemoNoAccount = allAccountsNoMemo |> List.filter ((<>) AccountColumn)
@@ -27,7 +27,7 @@ let visibleColumnsTests =
     testList "visibleColumns (ledger-qh9qx)" [
 
         test "Gesamtsicht, breit: alle Spalten" {
-            Expect.equal (columnsOf (visibleColumns 1090.0 true)) allAccountsFull "alle acht Spalten"
+            Expect.equal (columnsOf (visibleColumns 1090.0 true)) allAccountsFull "alle sieben Spalten"
         }
 
         test "Gesamtsicht: Grenzwert für Memo liegt bei der Summe der Mindestbreiten" {

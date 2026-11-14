@@ -443,38 +443,26 @@ let private payeeLabelTests =
         }
     ]
 
-/// PC-Statusspalte (AC4/AC5, ledger-qns4j, ledger-cks06): nur Status, nie Herkunft, Quelle
-/// bleibt `entry.NeedsReview`. Die Zelle rendert nur `tableStatusMarks` (ledger-r8h19, vorher
-/// Funktionsrumpf-Wächter). Abschneiden und Hover-Text misst der Layout-Sweep
-/// (Invariante 4, Zustand kassenbuch in `scripts/layout-states.mjs`).
+/// Payee-Zelle der PC-Tabelle (ledger-cnaz3): die Kennzeichen der früheren Spalte Status stehen hinter dem Namen,
+/// „zu prüfen“ nur noch als gelbe Kante. Ob nichts abgeschnitten wird, misst der Layout-Sweep (`kassenbuch`).
 let private statusColumnTests =
-    testList "PC-Statusspalte zeigt Status statt Herkunft (ledger-qns4j)" [
+    testList "Kennzeichen in der Payee-Zelle statt Spalte Status (ledger-cnaz3)" [
 
         let linked = { entryView (accountId 1) (DateTime(2026, 3, 10)) "Rewe" with LinkedToYnab = true }
 
-        test "eine geprüfte, verknüpfte Buchung ohne Flag trägt kein Kennzeichen" {
-            Expect.isEmpty (tableStatusMarks { linked with NeedsReview = false }) "leer"
+        test "eine verknüpfte Buchung ohne Flag trägt kein Kennzeichen, auch wenn sie zu prüfen ist" {
+            Expect.isEmpty (payeeMarks { linked with NeedsReview = false }) "geprüft"
+            Expect.isEmpty (payeeMarks { linked with NeedsReview = true }) "zu prüfen ist nur die Kante"
         }
 
-        test "zu prüfen nur bei NeedsReview, vor dem Flag" {
-            Expect.equal (tableStatusMarks { linked with NeedsReview = true; Flag = AskLena }) [ StatusNeedsReview; StatusFlag AskLena ] "Reihenfolge"
-            Expect.equal (tableStatusMarks { linked with NeedsReview = false; Flag = Marked }) [ StatusFlag Marked ] "nur das Flag"
+        test "das Flag steht vor dem Zustand" {
+            Expect.equal (payeeMarks { linked with Flag = AskLena }) [ PayeeFlag AskLena ] "Lena"
+            Expect.equal (payeeMarks { linked with Flag = Marked; LinkedToYnab = false }) [ PayeeFlag Marked; PayeeNotInYnab ] "Flag, dann nicht in YNAB"
         }
 
-        test "das Gelöscht-Symbol nur bei einer in YNAB gelöschten Buchung, hinter den übrigen" {
-            Expect.equal
-                (tableStatusMarks { linked with NeedsReview = true; DeletedInYnab = true })
-                [ StatusNeedsReview; StatusDeleted ]
-                "gelöscht"
-            Expect.isFalse (tableStatusMarks { linked with NeedsReview = true } |> List.contains StatusDeleted) "nicht gelöscht"
-        }
-
-        test "eine nicht verknüpfte Buchung trägt nur Nicht in YNAB, eine gelöschte bleibt gelöscht" {
-            Expect.equal (tableStatusMarks { linked with LinkedToYnab = false; NeedsReview = true; Flag = AskLena }) [ StatusNotInYnab ] "nur das Wort"
-            Expect.equal
-                (tableStatusMarks { linked with LinkedToYnab = false; DeletedInYnab = true })
-                [ StatusDeleted ]
-                "gelöscht vor Nicht in YNAB"
+        test "gelöscht vor doppelt? vor nicht in YNAB" {
+            Expect.equal (payeeMarks { linked with DeletedInYnab = true; LinkedToYnab = false }) [ PayeeDeleted ] "gelöscht"
+            Expect.equal (payeeMarks { linked with LinkedToYnab = false }) [ PayeeNotInYnab ] "nicht in YNAB"
         }
     ]
 

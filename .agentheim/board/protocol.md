@@ -5,6 +5,41 @@ Newest entries on top.
 
 ---
 
+## 2026-11-15 00:16 -- Task verified and completed: ledger-cnaz3 - "Kassenbuch am PC ordnen: Kopf mit Konto und Saldo, Abrufen, n durchgehen und + Buchung; Filterleiste mit Suche; Tabelle ohne Status-Spalte und Prüf-Knopf; Panel immer da, ab zwei gewählten Buchungen als Zusammenfassung"
+
+**Type:** Work / Task completion
+**Task:** ledger-cnaz3 - "Kassenbuch am PC ordnen: Kopf mit Konto und Saldo, Abrufen, n durchgehen und + Buchung; Filterleiste mit Suche; Tabelle ohne Status-Spalte und Prüf-Knopf; Panel immer da, ab zwei gewählten Buchungen als Zusammenfassung"
+**Summary:** Kassenbuch am PC ab 1024 px: Kopf mit Konto und Saldo, Filterleiste mit Suche, Tabelle ohne Status und Prüf-Knopf, Panel immer da und ab zwei gewählten als Zusammenfassung
+**Duration:** 3 Iterationen
+**Verification:** PASS (iteration 3)
+**Files changed:** 39
+**Tests added:** 49
+**ADRs written:** 0096-panel-am-pc-zeigt-die-auswahl.md
+
+---
+
+## 2026-11-14 23:56 -- Verification failed: ledger-cnaz3 - Kassenbuch am PC ordnen
+
+**Type:** Work / Verification failure
+**Task:** ledger-cnaz3 - Kassenbuch am PC ordnen
+**Iteration:** 2 of 3
+**Reasons:** Die Leertaste nimmt eine nur per Route geöffnete, nicht geladene Buchung in die Auswahl (`ClickRowCheckbox` prüft nur `FilteredOut`); eine Sammelaktion trifft sie danach ohne Häkchen. README_DELTA und ADR 0096 Punkt 5 sagen das Gegenteil, die Aufzählung `selectionSteps` enthält die Leertaste nicht
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker (Iteration 3, letzte)
+
+---
+
+## 2026-11-14 23:34 -- Verification failed: ledger-cnaz3 - Kassenbuch am PC ordnen
+
+**Type:** Work / Verification failure
+**Task:** ledger-cnaz3 - Kassenbuch am PC ordnen
+**Iteration:** 1 of 3
+**Reasons:** Strg- oder Umschalt-Klick nimmt die im Panel offene Buchung ungeprüft in die Auswahl, auch wenn sie ausgegraut oder nicht geladen ist; eine Sammelaktion trifft dann eine Buchung ohne Häkchen. Eine im Panel-Detail ausgegraute einzeln gewählte Buchung bleibt gewählt. Gate rot durch einen vermutlich zeitbedingten Ausfall in `[flow:design-system-export]`
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-11-14 22:16 -- Batch started: [ledger-cnaz3]
 
 **Type:** Work / Batch start

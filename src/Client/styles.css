@@ -533,9 +533,12 @@ nav a:focus-visible {
 .toast-above-nav {
   bottom: calc(var(--bottom-nav-height) + 34px + env(safe-area-inset-bottom, 0px));
 }
+/* Am PC über einer festen Leiste unten (Auswahl-Leiste, Tastenleiste des Kassenbuchs, Styleguide §7.13,
+   ledger-cnaz3): `MeasuredBottomBar` schreibt ihre Höhe nach `--ledger-bottom-bar-height`, ohne Leiste gilt 0. */
 @media (min-width: 768px) {
-  .toast-above-nav {
-    bottom: 1rem;
+  .toast-above-nav,
+  .toast-above-bar {
+    bottom: calc(var(--ledger-bottom-bar-height, 0px) + 1rem);
   }
 }
 

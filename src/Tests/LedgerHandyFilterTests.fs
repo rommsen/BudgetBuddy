@@ -253,15 +253,13 @@ let handyFilterTests =
         }
 
         test "Kopf auf „Buchungen“: „Abrufen“ steht vor „Jetzt spiegeln“" {
+            let actions = Components.Ledger.View.headerActionsFor false 0
             Expect.equal
-                (Components.Ledger.View.headerActionsFor false)
-                [ Components.Ledger.View.FetchIcon
-                  Components.Ledger.View.MirrorIcon
-                  Components.Ledger.View.MirrorButton
-                  Components.Ledger.View.CaptureBooking ]
-                "Buchungen"
+                (actions |> List.filter (fun a -> a = Components.Ledger.View.FetchIcon || a = Components.Ledger.View.MirrorIcon))
+                [ Components.Ledger.View.FetchIcon; Components.Ledger.View.MirrorIcon ]
+                "Handy: erst „Abrufen“, dann „Jetzt spiegeln“"
             Expect.isFalse
-                (Components.Ledger.View.headerActionsFor true |> List.contains Components.Ledger.View.FetchIcon)
+                (Components.Ledger.View.headerActionsFor true 0 |> List.contains Components.Ledger.View.FetchIcon)
                 "auf „Regeln“ kein „Abrufen“"
         }
     ]

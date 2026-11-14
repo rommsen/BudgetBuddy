@@ -236,7 +236,8 @@ test("[layout] Gegenbeweis Invariante 7: ein Feld, das erst bei offener Tastatur
 });
 
 test("[layout] Gegenbeweis Invariante 8: ein Spaltenkopf mit zu breitem Text meldet die Überlappung", async () => {
-  const hits = await brokenFinds("kassenbuch", 1024, 8, "thead th { letter-spacing: 40px !important; }");
+  // Bei 1024 px steht neben dem Panel die Kompaktliste ohne Spaltenköpfe (ledger-cnaz3): gemessen bei 1440 px.
+  const hits = await brokenFinds("kassenbuch", 1440, 8, "thead th { letter-spacing: 40px !important; }");
   assert.ok(hits.some((v) => v.selector.startsWith("th")), hits.map(formatViolation).join("\n"));
 });
 

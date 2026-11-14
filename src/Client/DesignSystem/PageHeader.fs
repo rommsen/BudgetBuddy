@@ -22,6 +22,9 @@ type Props = {
     Subtitle: string option
     /// Der Untertitel steht erst ab `md` (Tab „Regeln“ im Kassenbuch: der Prototyp zeigt ihn nur am PC).
     SubtitleDesktopOnly: bool
+    /// Ein Untertitel mit eigenem Aufbau statt `Subtitle` (Kassenbuch am PC, ledger-cnaz3: „Alle Konten · Saldo“ mit
+    /// dem Saldo in Mono). Steht in derselben Zeile mit denselben Klassen; gewinnt gegen `Subtitle`.
+    SubtitleView: ReactElement option
     Actions: ReactElement list
     TitleStyle: TitleStyle
 }
@@ -30,6 +33,7 @@ let defaultProps = {
     Title = ""
     Subtitle = None
     SubtitleDesktopOnly = false
+    SubtitleView = None
     Actions = []
     TitleStyle = Standard
 }
@@ -73,15 +77,22 @@ let view (props: Props) =
                         prop.className $"{titleClass} hyphens-auto break-words"
                         prop.text props.Title
                     ]
-                    match props.Subtitle with
-                    | Some subtitle ->
+                    match props.SubtitleView, props.Subtitle with
+                    | Some view, _ ->
+                        Html.p [
+                            prop.className (
+                                subtitleClass props.TitleStyle + (if props.SubtitleDesktopOnly then " hidden md:block" else "")
+                            )
+                            prop.children [ view ]
+                        ]
+                    | None, Some subtitle ->
                         Html.p [
                             prop.className (
                                 subtitleClass props.TitleStyle + (if props.SubtitleDesktopOnly then " hidden md:block" else "")
                             )
                             prop.text subtitle
                         ]
-                    | None -> Html.none
+                    | None, None -> Html.none
                 ]
             ]
             if not props.Actions.IsEmpty then

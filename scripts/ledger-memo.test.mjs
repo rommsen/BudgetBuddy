@@ -140,7 +140,8 @@ async function openDetail(page, payee) {
 
 test("[flow:memo-setzen] PC: Memo hinzufügen setzt das Memo, Detail und Liste zeigen es, der Toast bietet Rückgängig", async () => {
   resetState();
-  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  // Die Spalte Memo steht erst ab 1500 px Fensterbreite (ledger-cnaz3).
+  const context = await browser.newContext({ viewport: { width: 1600, height: 900 } });
   const page = await open(context);
   await openDetail(page, "Rewe Memo");
   assert.ok((await memoRow(panel(page)).textContent()).includes("Kein Memo"), "Wert: Kein Memo");
@@ -160,9 +161,9 @@ test("[flow:memo-setzen] PC: Memo hinzufügen setzt das Memo, Detail und Liste z
   assert.equal((await memoAction(panel(page)).textContent()).trim(), "Bearbeiten");
   await page.getByText("Memo gesetzt", { exact: true }).waitFor();
 
-  // Bei offenem Panel weicht die Memo-Spalte; ohne Panel zeigt die Liste das neue Memo.
+  // Esc schließt das Detail, das Panel bleibt leer stehen (ledger-cnaz3); die Liste zeigt das neue Memo.
   await page.keyboard.press("Escape");
-  await panel(page).waitFor({ state: "detached" });
+  await page.getByTestId("ledger-panel-empty").waitFor();
   assert.ok((await row(page, "Rewe Memo").textContent()).includes("Werkzeug + Lampe"), "Liste zeigt das neue Memo");
 
   await page.locator('[data-toast-action="true"]', { hasText: "Rückgängig" }).click();

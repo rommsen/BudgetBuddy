@@ -1,6 +1,7 @@
 ## ADRs scoped to this BC
 
 <!-- adr-local:start -->
+- **0096**: Am PC steht das Panel immer und folgt der Auswahl (eine Buchung: Detail, ab zwei: Zusammenfassung mit Sammelaktionen), keine Zeile trägt mehr eine Prüf-Schaltfläche; ändert ADR 0053 Punkt 2 und 4 für den PC · 2026-11-14 · `../../decisions/0096-panel-am-pc-zeigt-die-auswahl.md`
 - **0095**: Betragsfilter als Höhe ohne Vorzeichen, die Richtung „Alle | Ausgaben | Einnahmen“ als eigener Umschalter, wirkt auf alle Zählwege · 2026-11-14 · `../../decisions/0095-betragsfilter-als-hoehe-richtung-getrennt.md`
 - **0092**: Buchung löschen und Betrag ändern in BB: YNAB zuerst, Rückgängig per Neuanlage mit Ersatz-import_id; abgeglichene gesperrt, Betrag auch bei Importen, bei Überträgen vorerst gesperrt, Splits über den Split-Editor · 2026-11-09 · `../../decisions/0092-buchung-loeschen-und-betrag-aendern-in-bb.md`
 - **0091**: Erfasste Buchung verwerfen (Rückgängig nach Neue Buchung): zuerst das DELETE in YNAB, nur bei Erfolg EntryDiscardedInBb im Kassenbuch, nur für verknüpfte, in BB erfasste, nicht abgeglichene Buchungen; Ausnahme von ADR 0021 · 2026-11-08 · `../../decisions/0091-erfasste-buchung-verwerfen-ynab-zuerst.md`

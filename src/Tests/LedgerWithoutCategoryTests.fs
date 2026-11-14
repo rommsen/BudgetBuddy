@@ -392,9 +392,10 @@ let clientTests =
             let m2, _, _ = Components.Ledger.State.update ToggleWithoutCategory m1
             Expect.isFalse m2.Filters.WithoutCategory "aus"
 
-        testCase "der Chip steht in fixedChipOrder hinter CategoryChip" <| fun () ->
+        testCase "der Chip steht in fixedChipOrder vor CategoryChip" <| fun () ->
+            // Prototyp Version 17: die drei Umschalter zuerst, dann Kategorie (ledger-cnaz3).
             let order = fixedChipOrder
-            Expect.equal (List.findIndex ((=) WithoutCategoryChip) order) (List.findIndex ((=) CategoryChip) order + 1) "direkt hinter Kategorie"
+            Expect.equal (List.findIndex ((=) WithoutCategoryChip) order + 1) (List.findIndex ((=) CategoryChip) order) "direkt vor Kategorie"
 
         testCase "am Handy wandert der aktive Chip nach vorn" <| fun () ->
             let activity = chipActivityOf false { noFilters with WithoutCategory = true }

@@ -204,7 +204,6 @@ let sortClientTests =
             Expect.equal (sortOf CategoryColumn) (Some SortByCategory) "Kategorie"
             Expect.equal (sortOf AmountColumn) (Some SortByAmount) "Betrag"
             Expect.equal (sortOf MemoColumn) None "Memo nicht sortierbar"
-            Expect.equal (sortOf StatusColumn) None "Status nicht sortierbar"
             Expect.isNone (tableHeaderFor SelectColumn) "das Kästchen hat einen eigenen Kopf"
             Expect.equal (tableHeaderFor AmountColumn |> Option.map (fun h -> h.HeaderAlign)) (Some (Some "right")) "Betrag rechtsbündig"
         }

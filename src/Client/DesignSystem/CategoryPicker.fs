@@ -759,10 +759,21 @@ let popoverWithWidth (widthClassName: string) (isOpen: bool) (props: CategoryPic
 /// rechtsbündig mit ihm (die Leiste sitzt fest am unteren Bildschirmrand) und markiert keine
 /// Zeile mit Haken, denn mehrere Buchungen haben keine gemeinsame aktuelle Kategorie. Der
 /// Auslöser steht in einem `position:relative`-Wrapper.
+let private selectionContent (props: CategoryPickerProps) : ReactElement =
+    Content { Picker = props; FocusSearch = true; ListClass = "max-h-72 overflow-y-auto"; MarkCurrent = false; FooterHint = Some popoverFooterHint }
+
 let selectionPopover (isOpen: bool) (props: CategoryPickerProps) : ReactElement =
     FilterPopover.viewAbove
         { IsOpen = isOpen; OnClose = props.OnClose; WidthClassName = FilterPopover.categoryWidthClass }
-        [ Content { Picker = props; FocusSearch = true; ListClass = "max-h-72 overflow-y-auto"; MarkCurrent = false; FooterHint = Some popoverFooterHint } ]
+        [ selectionContent props ]
+
+/// Wie `selectionPopover`, aber für „Kategorie setzen“ in der Zusammenfassung im Panel (ledger-cnaz3): es öffnet
+/// unter dem Knopf (links im Inhalt des Panels), rückt beim Öffnen ins Bild und nimmt die Breite des Inhalts
+/// (420 px Panel minus 2 × 16 px Rand); keine Zeile trägt einen Haken.
+let selectionPopoverInPanel (isOpen: bool) (props: CategoryPickerProps) : ReactElement =
+    FilterPopover.viewRevealed
+        { IsOpen = isOpen; OnClose = props.OnClose; WidthClassName = "w-[388px]" }
+        [ selectionContent props ]
 
 let popover (isOpen: bool) (props: CategoryPickerProps) : ReactElement =
     popoverWithWidth FilterPopover.categoryWidthClass isOpen props

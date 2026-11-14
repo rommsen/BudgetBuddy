@@ -346,11 +346,16 @@ let private batchEvents (model: Model) (pending: BatchCall list) : (string * Msg
           yield! answersOf call ]
 
 /// Macht jeden Start möglich: ohne Auswahl wählt langes Drücken Zeile 1 (durch das echte update).
-/// "Alle" ginge nach dem Neuladen nicht: ohne Treffer ist die Auswahl leer.
+/// "Alle" ginge nach dem Neuladen nicht: ohne Treffer ist die Auswahl leer. Wählen kann man nur eine
+/// geladene Zeile (ledger-cnaz3, `isSelectableEntry`): steht die Liste nach einem Rückgängig im Neuladen,
+/// kommt erst die Antwort mit den Zeilen an.
 let private armed (model: Model) : Model =
     if Components.Ledger.State.reviewMarkBatchSelection model |> Option.isSome then model
     else
-        let model', _, _ = update selectRow model
+        let loaded =
+            if isSelectableEntry model (row 1).Id then model
+            else { model with Entries = (batchBase ()).Entries; FilteredOut = Set.empty }
+        let model', _, _ = update selectRow loaded
         model'
 
 /// Geht alle Folgen bis `depth` ab. Ein Verstoß wird mit dem Schritt davor gesammelt, so nennt die

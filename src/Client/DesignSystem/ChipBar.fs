@@ -42,17 +42,33 @@ let private chipLabelClassName (isActive: bool) (hasRemove: bool) : string =
     let baseClasses = $"inline-flex items-center rounded-full {TouchTargets.minHeight} {chipLabelPadding hasRemove} md:py-1.5 text-xs font-semibold text-left"
     if isActive then $"{baseClasses} {Colors.accent}" else $"{baseClasses} {Colors.textSecondary}"
 
-/// Ein einzelner Chip.
-let chip (props: ChipProps) : ReactElement =
+/// Ein Chip mit Zusätzen (ledger-cnaz3, Prototyp Version 17 `.fbar .chip`): `count` steht klein in Mono hinter dem
+/// Text, gedämpft, im aktiven Chip im Akzent („Zu prüfen 4“); `chevron` setzt einen Pfeil ▾ dahinter, wenn der Chip
+/// eine Auswahl öffnet („Kategorie ▾“).
+let chipWith (count: int option) (chevron: bool) (props: ChipProps) : ReactElement =
     Html.div [
         prop.className (chipContainerClassName props.IsActive)
         prop.children [
             Html.button [
                 prop.type' "button"
-                prop.className (chipLabelClassName props.IsActive (props.IsActive && props.OnRemove.IsSome))
+                prop.className (chipLabelClassName props.IsActive (props.IsActive && props.OnRemove.IsSome) + " gap-1")
                 prop.ariaPressed props.IsActive
                 prop.onClick (fun _ -> props.OnClick ())
-                prop.text props.Label
+                prop.children [
+                    Html.span [ prop.text props.Label ]
+                    match count with
+                    | Some n ->
+                        Html.span [
+                            prop.custom ("data-testid", "chip-count")
+                            prop.className (
+                                $"{Fonts.mono} {FontSizes.microPlus} font-normal "
+                                + (if props.IsActive then Colors.accent else Colors.textMuted)
+                            )
+                            prop.text (string n)
+                        ]
+                    | None -> ()
+                    if chevron then Icons.chevronDown Icons.XS (if props.IsActive then Icons.Accent else Icons.Muted)
+                ]
             ]
             match props.OnRemove with
             | Some onRemove when props.IsActive ->
@@ -68,6 +84,9 @@ let chip (props: ChipProps) : ReactElement =
             | _ -> ()
         ]
     ]
+
+/// Ein einzelner Chip.
+let chip (props: ChipProps) : ReactElement = chipWith None false props
 
 /// "Alle Filter löschen": Textknopf am Ende der Leiste (PC: `margin-left:auto`,
 /// Handy: letzter Chip in der scrollbaren Leiste, beides über dieselbe Klasse,

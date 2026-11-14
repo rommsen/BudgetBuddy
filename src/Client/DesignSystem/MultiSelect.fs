@@ -17,13 +17,14 @@ type CheckState =
     | Partial
 
 /// Klassen des Kästchens. `large` ist das Handy-Kästchen (20px), sonst das PC-Kästchen
-/// (17px). Leer: Eingabegrund und Standardrand; gesetzt: Akzent; Teilauswahl: Akzent-Rand
+/// (17px). Leer: Eingabegrund und Rand `border-strong`; gesetzt: Akzent; Teilauswahl: Akzent-Rand
 /// auf blassem Akzent-Grund.
 let boxClassName (state: CheckState) (large: bool) : string =
     let size = if large then "size-5" else "size-[17px]"
     let look =
         match state with
-        | Unchecked -> $"{Backgrounds.elevated} {Borders.default'}"
+        // Rand in `border-strong` wie `.chk` und `.cb` im Prototyp Version 17 (ledger-cnaz3).
+        | Unchecked -> $"{Backgrounds.elevated} {Borders.strong}"
         | Checked -> "bg-accent border-accent"
         | Partial -> "bg-accent/20 border-accent"
     $"inline-flex shrink-0 items-center justify-center rounded-[5px] border transition-colors {size} {look}"
@@ -192,11 +193,14 @@ let private categoryButton (action: CategoryAction) (size: Button.ButtonSize) (c
             ClassName = Some className
     }
 
-/// Ein sekundärer Lena-Knopf. Ein Grund sperrt ihn und steht im Tooltip.
-let private lenaButton (action: LenaAction) (size: Button.ButtonSize) (className: string) : ReactElement =
+/// Ein sekundärer Lena-Knopf. Ein Grund sperrt ihn und steht im Tooltip. `withFlag`: das Flag-Symbol in der
+/// Lena-Farbe vor dem Text (Prototyp Version 17 `.flag`, „Lena fragen“ am PC); die Farbe kommt von einem
+/// Vorfahren mit `data-lena-flag` (`Badge.lenaFlagScope`).
+let private lenaButtonWith (withFlag: bool) (action: LenaAction) (size: Button.ButtonSize) (className: string) : ReactElement =
     Button.view {
         Button.defaultProps with
             Text = action.Label
+            Icon = (if withFlag then Some (Icons.flag Icons.SM Icons.LenaFlag) else None)
             Size = size
             OnClick = action.OnClick
             Variant = Button.Secondary
@@ -205,6 +209,9 @@ let private lenaButton (action: LenaAction) (size: Button.ButtonSize) (className
             Title = action.Reason
             ClassName = Some className
     }
+
+let private lenaButton (action: LenaAction) (size: Button.ButtonSize) (className: string) : ReactElement =
+    lenaButtonWith false action size className
 
 /// Die Auswahl-Leiste am Handy: ersetzt die Tab-Bar. Reihe 1 "n ausgewählt" und Summe,
 /// Reihe 2 "Alle" (Akzent, wenn der ganze Treffer gewählt ist), "Geprüft" (primär),
@@ -266,10 +273,24 @@ let barMobile
         ]
     ]
 
-/// Die Auswahl-Leiste am PC: eine Reihe, ersetzt den Tastatur-Hinweis. Kein "Alle", das
-/// Kopfzeilen-Kästchen erledigt es. Rechts "Auswahl aufheben", die beiden Lena-Aktionen
-/// (sekundär, ein Grund steht im Tooltip), "Kategorie setzen" (sekundär, mit dem Picker als
-/// Popover über der Leiste) und zuletzt "Geprüft" (primär).
+/// Die Hülle der Leiste am PC: unten, rechts von Rail und Seitenleiste (design-system-k6kfw), eine Reihe, die bei
+/// Bedarf umbricht. Ab 1024 px endet sie am Panel des Kassenbuchs (420 px Panel und der Seitenrand `px-6`, ledger-cnaz3,
+/// Prototyp `dselbar`).
+let private desktopBarClassName =
+    $"selection-bar hidden md:flex flex-wrap fixed bottom-0 left-0 {NavWidths.fixedLeft} right-0 lg:right-[calc(420px+1.5rem)] z-40 items-center gap-x-4 gap-y-2 {Backgrounds.surface} " +
+    $"border-t {Borders.default'} px-5 py-3.5"
+
+/// „Esc aufheben“: die Taste zum Aufheben, gedämpft in Mono neben dem Knopf (ledger-w4vte).
+let private clearKeyHintView (clearKeyHint: string) : ReactElement =
+    Html.span [
+        prop.className $"hidden lg:inline {Fonts.mono} {FontSizes.xs} {Colors.textMuted}"
+        prop.text clearKeyHint
+    ]
+
+/// Die Auswahl-Leiste am PC bei genau einer gewählten Buchung (ledger-cnaz3, Prototyp Version 17 `dselbar`): links
+/// „1 ausgewählt“ und die Summe, rechts „Geprüft“ (primär), „Kategorie setzen“ (mit dem Picker als Popover über der
+/// Leiste), „Lena fragen“ mit Flag, „Rückfrage zurücknehmen“ und zuletzt „Auswahl aufheben“ mit der Taste daneben.
+/// Kein „Alle“, das Kopfzeilen-Kästchen erledigt es.
 let barDesktop
     (countText: string)
     (amount: Shared.Domain.Money)
@@ -285,24 +306,13 @@ let barDesktop
     (onClear: unit -> unit)
     : ReactElement =
     Html.div [
-        prop.className (
-            // Rechts von Rail und Seitenleiste (design-system-k6kfw).
-            $"selection-bar hidden md:flex flex-wrap fixed bottom-0 left-0 {NavWidths.fixedLeft} right-0 z-40 items-center gap-x-4 gap-y-2 {Backgrounds.surface} " +
-            $"border-t {Borders.default'} px-5 py-3.5"
-        )
+        prop.className desktopBarClassName
         prop.children [
             yield! countAndSum countText amount
             Html.div [
                 prop.className "ml-auto flex flex-wrap items-center justify-end gap-2"
                 prop.children [
-                    // Die Taste zum Aufheben, gedämpft in Mono neben dem Knopf (ledger-w4vte).
-                    Html.span [
-                        prop.className $"hidden lg:inline {Fonts.mono} {FontSizes.xs} {Colors.textMuted}"
-                        prop.text clearKeyHint
-                    ]
-                    clearButton clearLabel onClear false
-                    lenaButton withdraw Button.Medium ""
-                    lenaButton lena Button.Medium ""
+                    reviewedButton reviewedLabel reviewedBusy locked Button.Medium onReviewed ""
                     // Der Wrapper trägt das Popover; es öffnet über dem Knopf (`bottom-full`).
                     Html.div [
                         prop.className "relative"
@@ -312,8 +322,158 @@ let barDesktop
                         prop.onMouseDown (fun e -> e.stopPropagation ())
                         prop.children [ categoryButton category Button.Medium ""; category.Popover ]
                     ]
-                    reviewedButton reviewedLabel reviewedBusy locked Button.Medium onReviewed ""
+                    lenaButtonWith true lena Button.Medium ""
+                    lenaButton withdraw Button.Medium ""
+                    clearKeyHintView clearKeyHint
+                    clearButton clearLabel onClear false
                 ]
             ]
         ]
     ]
+
+/// Die Auswahl-Leiste am PC ab zwei gewählten Buchungen (ledger-cnaz3, §7.7): nur „n ausgewählt“, die Summe und
+/// „Auswahl aufheben“; die Sammelaktionen stehen dann in der Zusammenfassung im Panel (`summaryPanel`).
+let barDesktopCompact
+    (countText: string)
+    (amount: Shared.Domain.Money)
+    (clearLabel: string)
+    (clearKeyHint: string)
+    (onClear: unit -> unit)
+    : ReactElement =
+    Html.div [
+        prop.className desktopBarClassName
+        prop.children [
+            yield! countAndSum countText amount
+            Html.div [
+                prop.className "ml-auto flex items-center gap-2"
+                prop.children [ clearKeyHintView clearKeyHint; clearButton clearLabel onClear false ]
+            ]
+        ]
+    ]
+
+// ============================================
+// Zusammenfassung der Auswahl im Panel (ledger-cnaz3, §7.7, Prototyp Version 17 `selSummary`)
+// ============================================
+
+/// Eine Zeile „Nach Kategorie“: Name und Summe; `Missing` färbt „ohne Kategorie“ Gelb (ADR 0087 Punkt 3).
+type SummaryLine = {
+    Label: string
+    Amount: Shared.Domain.Money
+    Missing: bool
+}
+
+/// Was die Zusammenfassung zeigt. `Note`: ein Satz unter der Karte, etwa wenn nicht alle gewählten Buchungen
+/// geladen sind. `Withdraw`: „Rückfrage zurücknehmen“, nur wenn eine gewählte Buchung gefragt ist.
+type SummaryPanelProps = {
+    Title: string
+    Hint: string
+    SumLabel: string
+    Sum: Shared.Domain.Money
+    Figures: (string * string) list
+    CategoryHeading: string
+    Categories: SummaryLine list
+    Note: string option
+    ReviewedLabel: string
+    ReviewedBusy: bool
+    Locked: bool
+    OnReviewed: unit -> unit
+    Category: CategoryAction
+    Lena: LenaAction
+    Withdraw: LenaAction option
+    ClearLabel: string
+    OnClear: unit -> unit
+}
+
+/// Eine Zeile einer Karte der Zusammenfassung (Prototyp `.kv`): Wort links, Wert rechts in Mono.
+let private summaryRowView (labelClass: string) (label: string) (value: string) : ReactElement =
+    Html.div [
+        prop.className $"flex min-h-10 items-center justify-between gap-2.5 border-b {Borders.subtle} last:border-b-0"
+        prop.children [
+            Html.span [ prop.className ($"{FontSizes.compact} min-w-0 truncate " + labelClass); prop.text label ]
+            Html.span [ prop.className $"{Fonts.mono} {FontSizes.sm} {Colors.textPrimary} tabular-nums whitespace-nowrap"; prop.text value ]
+        ]
+    ]
+
+let private summaryCard (rows: ReactElement list) : ReactElement =
+    Html.div [
+        prop.className $"rounded-xl border {Borders.subtle} {Backgrounds.dark} px-3 py-0.5"
+        prop.children rows
+    ]
+
+/// Der Inhalt des Panels bei einer Mehrfachauswahl: Kopf mit Anzahl, Hinweis und „Auswahl aufheben“ (×), „Summe“
+/// groß in Mono, eine Karte mit Ausgaben, Einnahmen und „Davon zu prüfen“, „Nach Kategorie“ mit je einer Zeile, darunter
+/// „Alle geprüft“ als primärer Knopf über die ganze Breite und die übrigen Sammelaktionen neutral. Die Hülle
+/// (`Detail.panel`) setzt der Aufrufer. Der Kopf ist derselbe wie im Sheet (`sheet-header`).
+let summaryPanel (props: SummaryPanelProps) : ReactElement list =
+    [ Html.div [
+          prop.className "sheet-header"
+          prop.children [
+              Html.div [
+                  prop.className "min-w-0 flex-1"
+                  prop.children [
+                      Html.h3 [ prop.custom ("data-testid", "selection-summary-title"); prop.text props.Title ]
+                      Html.p [ prop.text props.Hint ]
+                  ]
+              ]
+              Html.button [
+                  prop.type'.button
+                  prop.className "sheet-close"
+                  prop.ariaLabel props.ClearLabel
+                  prop.title props.ClearLabel
+                  prop.onClick (fun _ -> props.OnClear ())
+                  prop.children [ Icons.x Icons.XS Icons.Default ]
+              ]
+          ]
+      ]
+      Html.div [
+          prop.custom ("data-testid", "selection-summary")
+          prop.className "flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 pb-4 pt-1"
+          prop.children [
+              Html.div [
+                  prop.children [
+                      Html.div [ prop.className $"{FontSizes.xs} {Colors.textMuted}"; prop.text props.SumLabel ]
+                      Html.div [
+                          prop.custom ("data-testid", "selection-summary-sum")
+                          prop.className $"{Fonts.mono} text-3xl font-semibold tabular-nums {Colors.textPrimary}"
+                          prop.text (amountText props.Sum)
+                      ]
+                  ]
+              ]
+              summaryCard [ for (label, value) in props.Figures -> summaryRowView Colors.textMuted label value ]
+              Html.div [ prop.className $"{ListRoles.groupHeader} px-0.5 pt-2"; prop.text props.CategoryHeading ]
+              summaryCard [
+                  for line in props.Categories ->
+                      summaryRowView
+                          (if line.Missing then Colors.attention else Colors.textPrimary)
+                          line.Label
+                          (Money.formatAmountText false true line.Amount.Amount line.Amount.Currency)
+              ]
+              match props.Note with
+              | Some note -> Html.p [ prop.className $"{FontSizes.xs} {Colors.textMuted}"; prop.text note ]
+              | None -> ()
+              reviewedButton props.ReviewedLabel props.ReviewedBusy props.Locked Button.Medium props.OnReviewed "w-full"
+              // Das Popover von „Kategorie setzen“ hängt unter der ganzen Reihe (Breite des Inhalts), nicht im Knopf.
+              Html.div [
+                  prop.className "relative"
+                  prop.children [
+                      Html.div [
+                          prop.className "flex gap-2"
+                          prop.children [
+                              Html.div [
+                                  prop.className "flex-1"
+                                  // Der Klick auf den Knopf schaltet den Picker; das Schließen bei Klick außerhalb
+                                  // soll ihn nicht vorher schließen.
+                                  prop.onMouseDown (fun e -> e.stopPropagation ())
+                                  prop.children [ categoryButton props.Category Button.Small "w-full" ]
+                              ]
+                              lenaButtonWith true props.Lena Button.Small "flex-1"
+                          ]
+                      ]
+                      props.Category.Popover
+                  ]
+              ]
+              match props.Withdraw with
+              | Some withdraw -> lenaButton withdraw Button.Small "w-full"
+              | None -> ()
+          ]
+      ] ]

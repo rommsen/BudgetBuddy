@@ -87,6 +87,8 @@ let view (model: Model) (dispatch: Msg -> unit) =
         { Active = active
           ShowBookings = fun () -> if not (isLedgerPage model.CurrentPage) then dispatch (NavigateTo Ledger)
           Fetch = fun () -> dispatch FetchFromBank
+          OverviewReviewCount = Components.Overview.Types.reviewCount model.Overview
+          StartReview = fun () -> dispatch (NavigateTo Review)
           ShowRules = fun () -> if model.CurrentPage <> LedgerRules then dispatch (NavigateTo LedgerRules) }
     // Das Regel-Formular aus einer Buchung (ledger-hg5m5): es gehört zum Tab „Regeln“, das Kassenbuch zeigt es dort,
     // wo die Buchung steht.

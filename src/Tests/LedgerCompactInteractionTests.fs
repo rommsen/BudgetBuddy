@@ -36,16 +36,14 @@ let decisionTests =
             Expect.equal (listInteractionFor CompactList false true) CompactTouch "Kompaktliste, Finger, ab md (Tablet)"
             Expect.equal (listInteractionFor CompactList false false) CompactTouch "Kompaktliste, Finger, Handy"
 
-        testCase "Merkmale je Modus: Kästchen, Hover-Schaltfläche, Markierung, Gesten, Hinweis" <| fun () ->
+        testCase "Merkmale je Modus: Kästchen, Markierung, Gesten, Hinweis" <| fun () ->
             let mouse = listInteractionTraits CompactMouse
             Expect.isTrue mouse.CheckboxVisible "Maus: Kästchen"
-            Expect.isTrue mouse.HoverReviewButton "Maus: Prüf-Schaltfläche bei Hover"
             Expect.isTrue mouse.FocusMarkVisible "Maus: sichtbare Markierung"
             Expect.isFalse mouse.GesturesEnabled "Maus: keine Gesten"
             Expect.isTrue mouse.FooterHint "Maus: Fußzeilen-Hinweis"
             let touch = listInteractionTraits CompactTouch
             Expect.isFalse touch.CheckboxVisible "Finger: kein Kästchen"
-            Expect.isFalse touch.HoverReviewButton "Finger: Schaltfläche immer sichtbar, kein Hover"
             Expect.isFalse touch.FocusMarkVisible "Finger: keine Markierung"
             Expect.isTrue touch.GesturesEnabled "Finger: Gesten"
             Expect.isFalse touch.FooterHint "Finger: kein Hinweis"

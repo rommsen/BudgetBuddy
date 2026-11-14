@@ -126,7 +126,52 @@ after(async () => {
   await stopServer(frontend, frontendPort);
 });
 
-test("[flow:mehrfachauswahl] Handy 390x844: langes Drücken, Tippen, Alle und Auswahl aufheben", async () => {
+test("[flow:mehrfachauswahl] Handy 390x844: langes Drücken, Tippen, Alle und Auswahl aufheben; PC 1440x900: Strg-Klick, Umschalt-Klick und die Zusammenfassung im Panel", async () => {
+  await mobileSelectionFlow();
+  await desktopSelectionFlow();
+});
+
+/// Am PC (ledger-cnaz3, §7.7): Strg- und Umschalt-Klick auf die Zeile wählen, ab zwei gewählten zeigt das Panel die
+/// Zusammenfassung, die Leiste unten nur Anzahl, Summe und „Auswahl aufheben“.
+async function desktopSelectionFlow() {
+  const { page, context } = await openLedger({ width: 1440, height: 900 }, false);
+  try {
+    const row = (n) => page.locator("tr", { hasText: `Auswahlzeile ${String(n).padStart(2, "0")}` }).filter({ visible: true }).first();
+    const panel = page.locator('[data-testid="ledger-detail-panel"]').filter({ visible: true });
+    assert.equal(await panel.getByTestId("ledger-panel-empty").count(), 1, "ohne Auswahl steht das leere Panel");
+
+    await row(1).getByText("Auswahlzeile 01").click({ modifiers: ["ControlOrMeta"] });
+    await visibleBar(page).waitFor();
+    assert.match(await visibleBar(page).innerText(), /1 ausgewählt/, "Strg-Klick wählt eine Zeile");
+    await panel.and(page.locator('[aria-label="Detail Auswahlzeile 01"]')).waitFor();
+
+    await row(3).getByText("Auswahlzeile 03").click({ modifiers: ["ControlOrMeta"] });
+    await row(6).getByText("Auswahlzeile 06").click({ modifiers: ["Shift"] });
+    const bar = visibleBar(page);
+    assert.match(await bar.innerText(), /5 ausgewählt/, "Umschalt-Klick wählt 3 bis 6 dazu");
+    assert.equal(await bar.getByRole("button", { name: "Geprüft", exact: true }).count(), 0, "ab zwei keine Aktionen in der Leiste");
+
+    const summary = panel.getByTestId("selection-summary");
+    await summary.waitFor();
+    assert.equal(await panel.getByTestId("selection-summary-title").innerText(), "5 Buchungen ausgewählt", "Kopf");
+    const text = await summary.innerText();
+    assert.ok(text.includes("-50,00"), `Summe, war: ${text}`);
+    for (const word of ["Ausgaben", "Einnahmen", "Davon zu prüfen", "Nach Kategorie", "Testkategorie", "Alle geprüft", "Kategorie setzen", "Lena fragen"]) {
+      assert.ok(text.toLowerCase().includes(word.toLowerCase()), `'${word}' steht in der Zusammenfassung`);
+    }
+    await screenshotIfRequested(page, "pc-1440x900-zusammenfassung");
+
+    // Strg-Klick nimmt eine Zeile wieder heraus.
+    await row(4).getByText("Auswahlzeile 04").click({ modifiers: ["ControlOrMeta"] });
+    assert.match(await visibleBar(page).innerText(), /4 ausgewählt/, "Strg-Klick nimmt heraus");
+    await panel.getByRole("button", { name: "Auswahl aufheben" }).click();
+    assert.equal(await visibleBar(page).count(), 0, "das × der Zusammenfassung hebt auf");
+  } finally {
+    await context.close();
+  }
+}
+
+async function mobileSelectionFlow() {
   const { page, context } = await openLedger({ width: 390, height: 844 }, true);
   try {
     const rowButton = (n) =>
@@ -208,7 +253,7 @@ test("[flow:mehrfachauswahl] Handy 390x844: langes Drücken, Tippen, Alle und Au
   } finally {
     await context.close();
   }
-});
+}
 
 test("[tastatur] PC 1440x900: Kästchen, Shift-Spanne mit Anker, Kopfzeilen-Kästchen und Leiste", async () => {
   const { page, context } = await openLedger({ width: 1440, height: 900 }, false);
@@ -267,26 +312,24 @@ const countIn = async (page) => {
   return match ? Number(match[1]) : 0;
 };
 
-test("[tastatur] PC 1440x900: Leertaste wählt genau einmal, schließt das Panel, Prüf-Schaltfläche ruht, Esc-Kette (ledger-w4vte)", async () => {
+test("[tastatur] PC 1440x900: Leertaste wählt genau einmal, das Panel zeigt die eine gewählte Buchung, keine Prüf-Schaltfläche an der Zeile, Esc-Kette", async () => {
   const { page, context } = await openLedger({ width: 1440, height: 900 }, false);
   try {
     const box = (n) =>
       page.getByRole("checkbox", { name: `Auswahlzeile ${String(n).padStart(2, "0")} auswählen` }).filter({ visible: true });
     const row = (n) => page.locator("tr", { hasText: `Auswahlzeile ${String(n).padStart(2, "0")}` }).filter({ visible: true }).first();
-    const panel = page.locator('[data-testid="ledger-detail-panel"]');
+    const detail = (n) => page.locator(`[data-testid="ledger-detail-panel"][aria-label="Detail Auswahlzeile ${String(n).padStart(2, "0")}"]`);
     const reviewButtons = (n) => row(n).locator('button[title^="Als "]');
+
+    // Keine Prüf-Schaltfläche an der Zeile, auch nicht bei Hover (ledger-cnaz3).
+    await row(3).hover();
+    assert.equal(await reviewButtons(3).count(), 0, "keine Prüf-Schaltfläche bei Hover");
 
     // Mausklick auf ein Kästchen, danach Leertaste: der Fokus liegt auf dem Knopf, die native
     // Wirkung gewinnt und die Auswahl ändert sich genau einmal.
-    assert.ok((await reviewButtons(3).count()) >= 1, "ohne Auswahl trägt die Zeile die Prüf-Schaltfläche");
     await box(1).click();
     await box(2).click();
     assert.equal(await countIn(page), 2, "zwei gewählt");
-    const heightWithBar = await row(3).evaluate((el) => el.getBoundingClientRect().height);
-    assert.equal(await reviewButtons(3).count(), 0, "bei laufender Auswahl keine Prüf-Schaltfläche in der Zeile");
-    // Ein unsichtbarer Platzhalter hält die Stelle der Schaltfläche, die Zeile springt nicht.
-    assert.equal(await row(3).locator("td").last().locator('span[aria-hidden="true"]').count(), 1, "unsichtbarer Platzhalter statt der Schaltfläche");
-    assert.ok(heightWithBar > 0, "Zeile steht");
     await page.keyboard.press("Space");
     assert.equal(await countIn(page), 1, "Maus plus Leertaste kippt genau einmal (nicht zweimal)");
     await page.keyboard.press("Space");
@@ -294,22 +337,18 @@ test("[tastatur] PC 1440x900: Leertaste wählt genau einmal, schließt das Panel
     await visibleBar(page).getByRole("button", { name: "Auswahl aufheben" }).click();
     assert.equal(await countIn(page), 0, "Auswahl aufgehoben");
 
-    // Leertaste auf der markierten Zeile ohne vorherigen Klick auf ein Kästchen: Zeile gewählt,
-    // ein offenes Panel ist zu.
+    // Leertaste auf der markierten Zeile: sie ist gewählt, das Panel zeigt weiter ihr Detail.
     await row(3).getByText("Auswahlzeile 03").click();
-    await panel.waitFor();
+    await detail(3).waitFor();
     await page.keyboard.press("Space");
-    await panel.waitFor({ state: "detached" });
     assert.equal(await countIn(page), 1, "eine Zeile gewählt");
     assert.equal(await box(3).getAttribute("aria-checked"), "true", "es ist die markierte Zeile");
-    assert.ok(
-      (await visibleBar(page).innerText()).includes("Esc aufheben"),
-      "die PC-Leiste nennt Esc aufheben"
-    );
+    assert.equal(await detail(3).count(), 1, "das Panel zeigt die gewählte Buchung");
+    assert.ok((await visibleBar(page).innerText()).includes("Esc aufheben"), "die PC-Leiste nennt Esc aufheben");
 
-    // Bei laufender Auswahl öffnet ein Klick auf die Zeile kein Detail.
+    // Bei laufender Auswahl öffnet ein Klick auf die Zeile kein anderes Detail.
     await row(5).getByText("Auswahlzeile 05").click();
-    assert.equal(await panel.count(), 0, "kein Panel bei laufender Auswahl");
+    assert.equal(await detail(5).count(), 0, "kein Detail der geklickten Zeile");
     // G ruht bei laufender Auswahl: kein Aufruf, die Auswahl bleibt.
     let reviewCalls = 0;
     page.on("request", (request) => {
@@ -319,9 +358,35 @@ test("[tastatur] PC 1440x900: Leertaste wählt genau einmal, schließt das Panel
     await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
     assert.equal(reviewCalls, 0, "G schreibt bei laufender Auswahl nichts");
 
-    // Esc hebt die Auswahl auf (kein Popover, kein Detail offen).
+    // Esc schließt erst das Detail, dann die Auswahl.
     await page.keyboard.press("Escape");
-    assert.equal(await countIn(page), 0, "Esc hebt die Auswahl auf");
+    await page.getByTestId("ledger-panel-empty").waitFor();
+    assert.equal(await countIn(page), 1, "1. Esc: Detail zu, Auswahl bleibt");
+    await page.keyboard.press("Escape");
+    assert.equal(await countIn(page), 0, "2. Esc hebt die Auswahl auf");
+  } finally {
+    await context.close();
+  }
+});
+
+test("[tastatur] PC 1440x900: „/“ setzt den Fokus in die Suche, die Pfeile wirken von dort auf die Liste", async () => {
+  const { page, context } = await openLedger({ width: 1440, height: 900 }, false);
+  try {
+    const search = page.getByRole("searchbox", { name: "Buchungen durchsuchen" }).filter({ visible: true });
+    await page.keyboard.press("/");
+    await page.waitForFunction(() => document.activeElement?.closest("[data-testid='ledger-search']") !== null);
+    assert.equal(await search.inputValue(), "", "das „/“ steht nicht im Feld");
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("ArrowDown");
+    const focused = page.locator('tr[data-keyboard-focus="true"]');
+    await focused.waitFor();
+    assert.ok((await focused.innerText()).includes("Auswahlzeile 02"), "zwei Zeilen nach unten");
+    assert.ok(
+      await page.evaluate(() => document.activeElement?.closest("[data-testid='ledger-search']") !== null),
+      "der Fokus bleibt in der Suche"
+    );
+    await page.keyboard.press("Shift+ArrowDown");
+    assert.equal(await countIn(page), 2, "Umschalt+↓ aus der Suche wählt die Zeilen 2 und 3");
   } finally {
     await context.close();
   }
@@ -350,9 +415,10 @@ test("[tastatur] PC 1440x900: bei offenem Popover Kategorie setzen schließt Esc
     await box(1).click();
     await box(2).click();
     await box(3).click();
-    const bar = visibleBar(page);
-    await bar.waitFor();
-    await bar.getByRole("button", { name: "Kategorie setzen", exact: true }).click();
+    // Ab zwei gewählten steht „Kategorie setzen“ in der Zusammenfassung im Panel (ledger-cnaz3).
+    const summary = page.getByTestId("selection-summary").filter({ visible: true });
+    await summary.waitFor();
+    await summary.getByRole("button", { name: "Kategorie setzen", exact: true }).click();
     const listbox = page.locator('[role="listbox"]').filter({ visible: true });
     await listbox.waitFor();
     assert.equal(await listbox.locator('[aria-selected="true"]').count(), 0, "keine Zeile mit Haken, auch nicht Ohne Kategorie");

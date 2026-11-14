@@ -447,7 +447,8 @@ const openFilteredOut = async (page, { mobile }) => {
     const layer = page.locator('[data-layer="popover"]').first();
     await layer.getByText("Lebensmittel", { exact: true }).last().click();
     await layer.getByRole("button", { name: "Übernehmen (1)" }).click();
-    await page.getByRole("button", { name: "Kategorie: 1" }).locator("visible=true").first().waitFor();
+    // Seit ledger-cnaz3 nennt der Chip am PC die Kategorie beim Namen.
+    await page.getByRole("button", { name: "Kategorie: Lebensmittel", exact: true }).locator("visible=true").first().waitFor();
   }
   await openLedger(page);
   const payee = page.getByText("Bauhaus", { exact: true }).locator("visible=true").first();
@@ -458,11 +459,18 @@ const openFilteredOut = async (page, { mobile }) => {
   await page.locator('[role="option"]', { hasText: "Nebenkosten" }).filter({ visible: true }).last().click();
   await page.locator('[data-toast-action="true"]').first().waitFor();
   await page.locator('[data-testid="filtered-out-note"]').filter({ visible: true }).first().waitFor();
-  // Erst wenn der Picker zu ist und das Detail steht, schließt „Schließen“ es.
-  await page.waitForFunction(() => document.querySelectorAll(".bottom-sheet.active").length === 1);
-  await settle(page, { where: "ausgegraute Zeile, Detail offen" });
-  await ledgerSheet(page).getByRole("button", { name: "Schließen" }).click();
-  await page.waitForFunction(() => document.querySelectorAll(".bottom-sheet.active").length === 0);
+  if (mobile) {
+    // Erst wenn der Picker zu ist und das Detail steht, schließt „Schließen“ es.
+    await page.waitForFunction(() => document.querySelectorAll(".bottom-sheet.active").length === 1);
+    await settle(page, { where: "ausgegraute Zeile, Detail offen" });
+    await ledgerSheet(page).getByRole("button", { name: "Schließen" }).click();
+    await page.waitForFunction(() => document.querySelectorAll(".bottom-sheet.active").length === 0);
+  } else {
+    // Ab 1024 px steht das Detail im Panel, das immer da ist (ledger-cnaz3): es schließt zum leeren Panel.
+    await settle(page, { where: "ausgegraute Zeile, Detail offen" });
+    await page.getByTestId("detail-close").filter({ visible: true }).first().click();
+    await page.getByTestId("ledger-panel-empty").filter({ visible: true }).waitFor();
+  }
 };
 
 /// Die Gesamtsicht aus der Seitenleiste, unter 1024 px aus dem Auswahlfeld „Konto“ (ledger-d9z3n): gewartet wird
@@ -1087,7 +1095,7 @@ export const STATES = [
       await page.getByTestId("ledger-active-filters").getByRole("button", { name: "Ohne Kategorie entfernen" }).waitFor();
     },
   },
-  // ledger-dn4vy: die ausgegraute Zeile („passt nicht mehr zum Filter“) am PC ohne Panel und am Handy. Vorher
+  // ledger-dn4vy: die ausgegraute Zeile („passt nicht mehr zum Filter“) am PC mit leerem Panel und am Handy. Vorher
   // `opacity-50`: alle Texte der Zeile fielen unter 4,5:1 (Invariante 10).
   {
     name: "kassenbuch-ausgegraut",
@@ -1610,6 +1618,23 @@ export const STATES = [
       await page.locator('[data-layer] [role="option"]').first().waitFor();
     },
   },
+  // ledger-cnaz3: drei gewählte Buchungen am PC, das Panel zeigt die Zusammenfassung (Summe, Ausgaben, Einnahmen,
+  // nach Kategorie, Sammelaktionen), die Leiste unten nur Anzahl, Summe und „Auswahl aufheben“.
+  {
+    name: "kassenbuch-auswahl-pc",
+    route: "/ledger",
+    widths: [1440],
+    mock: mockLedger,
+    open: async (page) => {
+      await openLedger(page);
+      const rows = page.locator("table tbody tr").filter({ has: page.getByRole("checkbox") });
+      for (const n of [0, 1, 2]) {
+        await rows.nth(n).getByRole("checkbox").click();
+      }
+      await page.getByTestId("selection-summary").filter({ visible: true }).waitFor();
+    },
+    primary: (page) => page.getByTestId("selection-summary").getByRole("button", { name: "Alle geprüft", exact: true }),
+  },
   // ledger-skpcx: das Sortier-Sheet am Handy mit allen Optionen.
   {
     name: "kassenbuch-sortieren",
@@ -1641,7 +1666,8 @@ export const STATES = [
     mock: (page) => mockLedger(page, { accounts: 30 }),
     open: async (page) => {
       await openLedger(page);
-      await page.locator("table tbody tr", { hasText: "Bauhaus" }).first().getByRole("checkbox").click();
+      // Bei 1024 px steht neben dem Panel die Kompaktliste (ledger-cnaz3): das Kästchen über seinen Namen.
+      await page.getByRole("checkbox", { name: /^Bauhaus.* auswählen$/ }).locator("visible=true").first().click();
       await page.locator(".selection-bar").filter({ visible: true }).waitFor();
     },
   },

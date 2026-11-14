@@ -96,7 +96,9 @@ let private positionToClasses position =
     | TopRight -> "md:top-4 md:right-4"
     | TopLeft -> "md:top-4 md:left-4"
     | TopCenter -> "md:top-4 md:left-1/2 md:-translate-x-1/2"
-    | BottomRight -> "md:bottom-4 md:right-4"
+    // Über einer festen Leiste unten (Auswahl-Leiste, Tastenleiste des Kassenbuchs, §7.13): `toast-above-bar`
+    // (styles.css) liest ihre gemessene Höhe aus `--ledger-bottom-bar-height`, ohne Leiste 0.
+    | BottomRight -> "md:right-4 toast-above-bar"
     | BottomLeft -> "md:bottom-4 md:left-4"
     | BottomCenter -> "md:bottom-4 md:left-1/2 md:-translate-x-1/2"
 

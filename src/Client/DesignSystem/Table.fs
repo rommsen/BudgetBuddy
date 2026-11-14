@@ -252,6 +252,9 @@ let tbody (rows: ReactElement list) =
 // Table Row Component
 // ============================================
 
+/// Welche Tasten ein Klick auf eine Zeile trug (§7.7 Mehrfachauswahl, ledger-cnaz3): Strg oder Cmd, Umschalt.
+type RowClickKeys = { CtrlOrMeta: bool; Shift: bool }
+
 type RowProps = {
     IsSelected: bool
     /// 3px-Kante in Gelb links ("zu prüfen", ADR 0087 Punkt 3), ohne Zellinhalte zu verschieben
@@ -260,6 +263,9 @@ type RowProps = {
     /// `surface-hover` ohne Leuchtfarbe, dazu `aria-selected` und eine Marke zum Scrollen.
     IsFocused: bool
     OnClick: (unit -> unit) option
+    /// Wie `OnClick`, mit den Tasten des Klicks (Mehrfachauswahl am PC). Gewinnt gegen `OnClick`. Ein Umschalt-Klick
+    /// markiert dabei keinen Text der Tabelle.
+    OnClickWithKeys: (RowClickKeys -> unit) option
     ClassName: string option
 }
 
@@ -268,6 +274,7 @@ let defaultRowProps = {
     StatusEdge = false
     IsFocused = false
     OnClick = None
+    OnClickWithKeys = None
     ClassName = None
 }
 
@@ -278,7 +285,7 @@ let focusedRowClass = "bg-surface-hover scroll-mt-40 scroll-mb-16"
 /// Klassen einer Tabellenzeile
 let rowClass (props: RowProps) : string =
     let selectedClass = if props.IsSelected then "bg-accent/10 border-l-2 border-l-accent" else ""
-    let clickableClass = if props.OnClick.IsSome then "cursor-pointer" else ""
+    let clickableClass = if props.OnClick.IsSome || props.OnClickWithKeys.IsSome then "cursor-pointer" else ""
     let edgeClass = if props.StatusEdge then ListRoles.statusEdge else ""
     let focusClass = if props.IsFocused then focusedRowClass else ""
     let extraClass = props.ClassName |> Option.defaultValue ""
@@ -291,9 +298,12 @@ let row (props: RowProps) (cells: ReactElement list) =
         if props.IsFocused then
             prop.custom ("aria-selected", "true")
             prop.custom ("data-keyboard-focus", "true")
-        match props.OnClick with
-        | Some handler -> prop.onClick (fun _ -> handler())
-        | None -> ()
+        match props.OnClickWithKeys, props.OnClick with
+        | Some handler, _ ->
+            prop.onMouseDown (fun e -> if e.shiftKey then e.preventDefault ())
+            prop.onClick (fun e -> handler { CtrlOrMeta = e.ctrlKey || e.metaKey; Shift = e.shiftKey })
+        | None, Some handler -> prop.onClick (fun _ -> handler())
+        | None, None -> ()
         prop.children cells
     ]
 
@@ -454,8 +464,8 @@ let calmRow (statusEdge: bool) (cells: ReactElement list) =
     ]
 
 /// Gruppenkopf-Zeile der ruhigen Tabelle (ADR 0049 Punkt 8): Datum über den ersten
-/// `labelSpan` Spalten, Tagessumme in der Betragsspalte (bündig unter den Beträgen),
-/// danach die leere Statusspalte. `labelSpan` ist die Zahl der Spalten vor dem Betrag.
+/// `labelSpan` Spalten, Tagessumme in der Betragsspalte (bündig unter den Beträgen). Der Betrag ist die
+/// letzte Spalte (ledger-cnaz3: die Spalte Status entfällt). `labelSpan` ist die Zahl der Spalten vor dem Betrag.
 let calmGroupRow (key: string) (labelSpan: int) (title: string) (sum: string) =
     Html.tr [
         prop.key key
@@ -469,7 +479,6 @@ let calmGroupRow (key: string) (labelSpan: int) (title: string) (sum: string) =
                 prop.className $"{ListRoles.cellPaddingX} pt-4 pb-1 text-right {ListRoles.date}"
                 prop.text sum
             ]
-            Html.td []
         ]
     ]
 

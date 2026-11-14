@@ -75,7 +75,11 @@ test("[flow:pruefliste-abarbeiten] PC: nach dem letzten Prüfen unter Zu prüfen
   const { page, context } = await openLedger({ width: 1440, height: 900 });
   try {
     await page.getByRole("button", { name: /^Zu prüfen/ }).first().click();
-    await page.locator("tr", { hasText: "Prüfzustand v9rq3" }).getByRole("button", { name: "Geprüft", exact: true }).click();
+    // Am PC hat die Zeile keinen Prüf-Knopf mehr (ledger-cnaz3): ↓ markiert die Zeile, G prüft.
+    await page.locator("tr", { hasText: "Prüfzustand v9rq3" }).waitFor();
+    await page.keyboard.press("ArrowDown");
+    await page.locator('tr[data-keyboard-focus="true"]', { hasText: "Prüfzustand v9rq3" }).waitFor();
+    await page.keyboard.press("g");
     await page.getByText("Alles geprüft", { exact: true }).waitFor();
     // Der Kopf des Kassenbuchs hat eigene Spiegel-Knöpfe; geprüft wird nur die Karte des Leerzustands.
     const emptyCard = page.locator("div").filter({ hasText: "Alles geprüft" }).last();

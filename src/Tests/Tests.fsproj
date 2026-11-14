@@ -136,7 +136,6 @@
     <Compile Include="LedgerPageTests.fs" />
     <Compile Include="LedgerViewTests.fs" />
     <Compile Include="SettingsViewTests.fs" />
-    <Compile Include="LedgerReviewButtonVisibilityTests.fs" />
     <Compile Include="LedgerVisibleColumnsTests.fs" />
     <Compile Include="LedgerFilterButtonTests.fs" />
     <Compile Include="LedgerPagingTests.fs" />
@@ -169,6 +168,7 @@
     <Compile Include="LedgerLenaFlagBatchClientTests.fs" />
     <Compile Include="LedgerRowLockWaysTests.fs" />
     <Compile Include="LedgerKeyboardTests.fs" />
+    <Compile Include="LedgerPcOrderTests.fs" />
     <Compile Include="MoneyFormatTests.fs" />
     <Compile Include="BudgetPageTests.fs" />
     <Compile Include="OverviewTests.fs" />

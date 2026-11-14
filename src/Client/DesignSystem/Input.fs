@@ -638,12 +638,10 @@ let selectField
         ]
     ]
 
-/// Ein Suchfeld mit Lupe (ledger-d9z3n, Prototyp `.search`): `type=search`, 48 px am Handy, die Lupe links
-/// im Feld. `ariaLabel` benennt das Feld, der Platzhalter allein reicht nicht.
-let searchField (testId: string) (ariaLabel: string) (placeholder: string) (value: string) (onChange: string -> unit) : ReactElement =
+let private searchFieldWith (size: InputSize) (widthClass: string) (testId: string) (ariaLabel: string) (placeholder: string) (value: string) (onChange: string -> unit) : ReactElement =
     Html.label [
         prop.custom ("data-testid", testId)
-        prop.className "relative flex min-w-0 flex-1 items-center"
+        prop.className ("relative flex min-w-0 items-center " + widthClass)
         prop.children [
             Html.span [
                 prop.className "pointer-events-none absolute left-3 flex items-center"
@@ -652,7 +650,7 @@ let searchField (testId: string) (ariaLabel: string) (placeholder: string) (valu
             Html.input [
                 prop.type' "search"
                 // `input-search` (styles.css) rückt den Text hinter die Lupe; `.input-field` setzt das Padding ohne Layer.
-                prop.className $"{baseInputClass} input-search {sizeToClass Medium} w-full"
+                prop.className $"{baseInputClass} input-search {sizeToClass size} w-full"
                 prop.value value
                 prop.onChange (onChange: string -> unit)
                 prop.placeholder placeholder
@@ -661,6 +659,16 @@ let searchField (testId: string) (ariaLabel: string) (placeholder: string) (valu
             ]
         ]
     ]
+
+/// Ein Suchfeld mit Lupe (ledger-d9z3n, Prototyp `.search`): `type=search`, 48 px am Handy, die Lupe links
+/// im Feld. `ariaLabel` benennt das Feld, der Platzhalter allein reicht nicht.
+let searchField (testId: string) (ariaLabel: string) (placeholder: string) (value: string) (onChange: string -> unit) : ReactElement =
+    searchFieldWith Medium "flex-1" testId ariaLabel placeholder value onChange
+
+/// Das Suchfeld am Ende einer Filterleiste am PC (ledger-cnaz3, Prototyp `.fbar .search`): 36 px hoch, Text 14 px,
+/// höchstens 280 px breit und rechtsbündig (`ml-auto`), es schrumpft vor den Chips.
+let searchFieldCompact (testId: string) (ariaLabel: string) (placeholder: string) (value: string) (onChange: string -> unit) : ReactElement =
+    searchFieldWith Small "ml-auto w-[280px] shrink" testId ariaLabel placeholder value onChange
 
 /// Ein Schalter als ganze Zeile mit kurzer Bezeichnung und gedämpfter Anzahl dahinter (ledger-d9z3n,
 /// Prototyp `.kv` mit `.toggle`, Filter-Sheet im Kassenbuch: „Zu prüfen 4“). Wie `switchRow`, nur ohne

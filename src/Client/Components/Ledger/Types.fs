@@ -417,7 +417,20 @@ type ChipId =
     | AmountChip
 
 let fixedChipOrder : ChipId list =
-    [ NeedsReviewChip; AskLenaChip; CategoryChip; WithoutCategoryChip; DateChip; AmountChip ]
+    [ NeedsReviewChip; AskLenaChip; WithoutCategoryChip; CategoryChip; DateChip; AmountChip ]
+
+/// Steht „Filter löschen“ in der Filterleiste am PC (ledger-cnaz3, Prototyp Version 17 `ledgerDesk`)? Sobald ein
+/// Filter, einer der drei Umschalter oder die Suche gesetzt ist.
+let clearFiltersChipVisible (onlyNeedsReview: bool) (f: Filters) : bool =
+    hasAnyFilter f || onlyNeedsReview || f.OnlyAskLena || f.WithoutCategory
+
+/// Der Text des Chips „Kategorie“ am PC (ledger-cnaz3): ohne Auswahl „Kategorie“, mit einer „Kategorie: <Name>“,
+/// mit mehreren der erste Name und die Zahl der übrigen („Kategorie: Strom +2“).
+let categoryChipText (names: string list) : string =
+    match names with
+    | [] -> "Kategorie"
+    | [ name ] -> $"Kategorie: {name}"
+    | first :: rest -> $"Kategorie: {first} +{List.length rest}"
 
 /// Ob jeder Chip gerade aktiv ist: reiner Datensatz statt eines Funktionswerts,
 /// damit `orderChipsForDisplay` unit-testbar bleibt, ohne ein Model zu bauen.
@@ -1138,6 +1151,12 @@ type Selection =
     | Picked of Set<Guid>
     | AllExcept of Set<Guid>
 
+/// Welche Taste ein Klick auf eine Zeile am PC trägt (ledger-cnaz3, §7.7): Strg oder Cmd nimmt die Zeile in die
+/// Auswahl oder heraus, Umschalt wählt den Bereich ab dem Anker. Ein Klick ohne Taste öffnet das Detail.
+type RowClickModifier =
+    | ToggleRow
+    | RangeToRow
+
 /// Die Form des Buchungs-Details (ADR 0053 Punkt 1): ein Seitenpanel rechts neben der
 /// Liste, oder ein BottomSheet über ihr (Handy, PC-Kompaktliste, und wo die Restbreite für
 /// keine Tabellenstufe neben dem Panel reicht).
@@ -1782,13 +1801,44 @@ let selectionTotals (model: Model) : SelectionTotals =
         let rows = entries |> List.filter (fun e -> ids.Contains e.Id)
         { Count = List.length rows; Amount = { Amount = sumOf rows; Currency = currency } }
     | AllExcept excluded ->
-        let rows = entries |> List.filter (fun e -> excluded.Contains e.Id)
+        // Eine ausgegraute Ausnahme ist schon aus `TotalCount` und `TotalAmount` heraus (`applyFilterEffect`).
+        let rows = entries |> List.filter (fun e -> excluded.Contains e.Id && not (model.FilteredOut.Contains e.Id))
         { Count = max 0 (model.TotalCount - List.length rows)
           Amount = { model.TotalAmount with Amount = model.TotalAmount.Amount - sumOf rows } }
 
 /// Läuft eine nicht leere Auswahl? Nur dann zeigt die Summenzeile die Auswahl, und am PC
 /// erscheint die Leiste.
 let hasSelection (model: Model) : bool = (selectionTotals model).Count > 0
+
+/// Die eine gewählte Buchung, wenn genau eine geladene gewählt ist (ledger-cnaz3): dann zeigt das Panel am PC ihr
+/// Detail. `AllExcept` meint den ganzen Treffer und zählt hier nie als eine.
+let singleSelectedEntry (model: Model) : LedgerEntryView option =
+    match model.Selection with
+    | Picked ids when Set.count ids = 1 ->
+        let id = Set.minElement ids
+        model.Entries |> RemoteData.withDefault [] |> List.tryFind (fun e -> e.Id = id)
+    | _ -> None
+
+/// Die gewählten geladenen Buchungen in Listenreihenfolge (ledger-cnaz3): Grundlage der Zusammenfassung im Panel.
+/// Unter `AllExcept` sind es nur die geladenen; ob weitere fehlen, sagt `selectionTotals` gegen diese Liste.
+let selectedEntries (model: Model) : LedgerEntryView list =
+    let selection = model.Selection
+    model.Entries |> RemoteData.withDefault [] |> List.filter (fun e -> isSelected selection e.Id && not (model.FilteredOut.Contains e.Id))
+
+/// Die Zeilen, die man wählen kann (ledger-cnaz3): geladen und nicht ausgegraut. Nur sie tragen ein Häkchen, deshalb
+/// nimmt kein Klick, kein Bereich und keine Taste eine andere in `Picked`.
+let selectableEntries (model: Model) : LedgerEntryView list =
+    model.Entries |> RemoteData.withDefault [] |> List.filter (fun e -> not (model.FilteredOut.Contains e.Id))
+
+/// Kann die Zeile gewählt werden (steht sie in `selectableEntries`)? Wächter jeder Nachricht, die eine Id in die
+/// Auswahl nimmt: eine nur über die Route geöffnete Buchung (Fokuszeile ohne Listenzeile) oder eine ausgegraute
+/// trägt kein Häkchen.
+let isSelectableEntry (model: Model) (id: Guid) : bool =
+    selectableEntries model |> List.exists (fun e -> e.Id = id)
+
+/// Das Suchfeld des Kassenbuchs (ledger-d9z3n): Test-Kennung des Rahmens und das Feld darin, Ziel der Taste „/“.
+let ledgerSearchTestId = "ledger-search"
+let ledgerSearchInputSelector = "[data-testid='ledger-search'] input"
 
 /// Die Auswahl, wie die Zeilen sie zeigen: eine Zeile, die nicht mehr zum Filter passt
 /// (ausgegraut), ist nie gewählt, auch nicht über "alle auswählen" (ledger-sfab0).
@@ -2586,6 +2636,11 @@ type Msg =
     | ToggleHeaderCheckbox
     /// "Auswahl aufheben": leert die Auswahl und beendet den Modus.
     | ClearSelection
+    /// Klick auf eine Zeile mit Strg/Cmd (`ToggleRow`) oder Umschalt (`RangeToRow`) am PC (ledger-cnaz3, §7.7):
+    /// Strg/Cmd nimmt die Zeile in die Auswahl oder heraus, Umschalt wählt den Bereich ab dem Anker.
+    | ClickRowWithModifier of Guid * RowClickModifier
+    /// Umschalt+↑↓ (ledger-cnaz3): die Markierung rückt eine Zeile weiter, beide Zeilen kommen in die Auswahl.
+    | ExtendSelection of delta: int
 
     // ============================================
     // "Geprüft" für die ganze Auswahl (ledger-nhwrt)
@@ -2614,6 +2669,10 @@ type Msg =
     /// Leertaste auf der markierten Zeile (ledger-w4vte): nimmt sie in die Auswahl oder
     /// heraus, wie ein Klick auf ihr Kästchen.
     | ToggleFocusedSelected
+    /// Taste L (ledger-cnaz3): fragt Lena für die Auswahl oder, ohne Auswahl, für die markierte Zeile.
+    | LenaKeyPressed
+    /// Taste „/“ (ledger-cnaz3): der Fokus springt in die Suche.
+    | FocusSearch
 
     // ============================================
     // "Kategorie setzen" für die ganze Auswahl (ledger-w29y6)
@@ -2691,24 +2750,41 @@ type Msg =
 /// Die Tastenbelegung der Kassenbuch-Liste (PC): Pfeil ab/auf und J/K bewegen den Fokus,
 /// G setzt "Geprüft", Umschalt+G "Ungeprüft", Enter öffnet das Detail der markierten Zeile
 /// und Esc schließt eine Stufe (ledger-q1hw2), die Leertaste wählt die markierte Zeile
-/// (ledger-w4vte). Ein Tastenereignis aus einem Eingabefeld oder mit
-/// Strg, Meta oder Alt löst nichts aus. Enter und Leertaste auf einem Knopf oder Link bleiben
-/// dessen eigene Aktivierung: sonst löste ein fokussierter Knopf zweimal aus (ADR 0053).
+/// (ledger-w4vte). Seit ledger-cnaz3 (§7.7, §7.8): L fragt Lena, „/“ springt in die Suche,
+/// Umschalt+↑↓ erweitert die Auswahl, und aus der Suche (`inSearch`) wirken die Pfeile auf die
+/// Liste (ADR 0087 Punkt 18); jede andere Taste gehört dort dem Feld. Ein Tastenereignis aus einem
+/// anderen Eingabefeld oder mit Strg, Meta oder Alt löst nichts aus. Enter und Leertaste auf einem
+/// Knopf oder Link bleiben dessen eigene Aktivierung: sonst löste ein fokussierter Knopf zweimal aus
+/// (ADR 0053).
 let keyCommandFor
     (tagName: string)
     (isContentEditable: bool)
+    (inSearch: bool)
     (ctrlOrMeta: bool)
     (alt: bool)
+    (shift: bool)
     (key: string)
     : Msg option =
-    if isTypingTarget tagName isContentEditable || ctrlOrMeta || alt then
+    let arrow () =
+        match key with
+        | "ArrowDown" -> Some (if shift then ExtendSelection 1 else MoveFocus 1)
+        | "ArrowUp" -> Some (if shift then ExtendSelection -1 else MoveFocus -1)
+        | _ -> None
+    if ctrlOrMeta || alt then
+        None
+    elif inSearch then
+        arrow ()
+    elif isTypingTarget tagName isContentEditable then
         None
     else
         match key with
-        | "ArrowDown" | "j" | "J" -> Some (MoveFocus 1)
-        | "ArrowUp" | "k" | "K" -> Some (MoveFocus -1)
+        | "ArrowDown" | "ArrowUp" -> arrow ()
+        | "j" | "J" -> Some (MoveFocus 1)
+        | "k" | "K" -> Some (MoveFocus -1)
         | "g" -> Some (ReviewKeyPressed Reviewed)
         | "G" -> Some (ReviewKeyPressed Unreviewed)
+        | "l" | "L" -> Some LenaKeyPressed
+        | "/" -> Some FocusSearch
         | "Enter" when not (isActivatable tagName) -> Some OpenFocusedDetail
         | " " when not (isActivatable tagName) -> Some ToggleFocusedSelected
         | "Escape" -> Some EscapePressed
@@ -2734,11 +2810,13 @@ let ledgerKeyFor
     (ruleFormOpen: bool)
     (tagName: string)
     (isContentEditable: bool)
+    (inSearch: bool)
     (ctrlOrMeta: bool)
     (alt: bool)
+    (shift: bool)
     (key: string)
     : PageKeyTarget<Msg> option =
-    routePageKey ruleFormOpen (ctrlOrMeta || alt) key (keyCommandFor tagName isContentEditable ctrlOrMeta alt key)
+    routePageKey ruleFormOpen (ctrlOrMeta || alt) key (keyCommandFor tagName isContentEditable inSearch ctrlOrMeta alt shift key)
 
 /// Was die Seite nach oben meldet.
 /// Scheiterte mit dieser Nachricht die laufende Abfrage der Route `#/ledger/entry/<id>`?

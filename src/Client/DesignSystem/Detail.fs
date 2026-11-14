@@ -39,6 +39,17 @@ let panel (ariaLabel: string) (children: ReactElement list) : ReactElement =
         ]
     ]
 
+/// Das Panel ohne gewählte Buchung (ledger-cnaz3, §7.6, §7.12, Prototyp Version 17 `.dempty`): ab 1024 px steht
+/// es immer da, mittig ein gedämpfter Satz wie „Buchung wählen, um Details zu sehen.“, ohne Aktion.
+let emptyPanel (text: string) : ReactElement =
+    panel "Detail" [
+        Html.div [
+            prop.custom ("data-testid", "ledger-panel-empty")
+            prop.className $"grid h-full place-items-center p-6 text-center {FontSizes.sm} {Colors.textMuted}"
+            prop.text text
+        ]
+    ]
+
 /// Der scrollende Bereich unter dem Kopf (Hinweisleiste, Felder, Historie).
 let scrollBody (children: ReactElement list) : ReactElement =
     Html.div [

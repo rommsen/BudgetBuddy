@@ -232,27 +232,7 @@ let private deletedBadge () =
             Size = Badge.Small
     }
 
-/// Kennzeichen einer Buchung, die in BB steht, aber nicht in YNAB (`LinkedToYnab = false`,
-/// ledger-cks06): Gelb, braucht dich (ADR 0087 Punkt 3), Handy-Zeile und PC-Statusspalte.
-let private notInYnabBadge () =
-    Badge.view {
-        Badge.defaultProps with
-            Text = "Nicht in YNAB"
-            Variant = Badge.Warning
-            Size = Badge.Small
-    }
-
-/// Kennzeichen einer Buchung, die als unsicheres Duplikat wartet (ADR 0093 Punkt 3, Prototyp
-/// `txRow`): das Wort „doppelt?“ in Gelb, braucht dich (ADR 0087 Punkt 3).
-let private possibleDuplicateBadge () =
-    Badge.view {
-        Badge.defaultProps with
-            Text = "doppelt?"
-            Variant = Badge.Warning
-            Size = Badge.Small
-    }
-
-/// Das Zustands-Kennzeichen einer Zeile (PC-Statusspalte) in der Rangfolge: in YNAB
+/// Das Zustands-Kennzeichen einer Zeile (Handy-Zeile, Payee-Zelle der Tabelle) in der Rangfolge: in YNAB
 /// gelöscht vor wartend („doppelt?“, statt „Nicht in YNAB“) vor noch nicht in YNAB vor den
 /// übrigen Zuständen (Zu prüfen, Flag).
 type RowStatusMark =
@@ -267,43 +247,26 @@ let rowStatusMark (entry: LedgerEntryView) : RowStatusMark =
     elif not entry.LinkedToYnab then RowNotInYnab
     else RowOtherStates
 
-/// Die Kennzeichen der PC-Statusspalte in ihrer Reihenfolge (ledger-qns4j, ledger-cks06):
-/// Status, nie Herkunft. Eine nicht verknüpfte Buchung trägt nur "Nicht in YNAB", damit die
-/// 128-px-Zelle nicht überläuft; sonst "zu prüfen" (nur bei `NeedsReview`), das Flag und bei
-/// einer gelöschten Buchung das Gelöscht-Symbol.
-type TableStatusMark =
-    | StatusPossibleDuplicate
-    | StatusNotInYnab
-    | StatusNeedsReview
-    | StatusFlag of LedgerFlag
-    | StatusDeleted
+/// Die Kennzeichen hinter dem Namen in der Payee-Zelle der PC-Tabelle (ledger-cnaz3, Prototyp Version 17
+/// `ledgerDesk`), vorher in der Spalte Status: das Flag (Lena-Marke oder „Markiert“), dann der Zustand in der
+/// Rangfolge von `rowStatusMark`: „doppelt?“ in Gelb, „nicht in YNAB“ in Rot oder das Gelöscht-Zeichen. „zu
+/// prüfen“ ist kein Wort mehr, nur die gelbe Kante der Zeile.
+type PayeeMark =
+    | PayeeFlag of LedgerFlag
+    | PayeePossibleDuplicate
+    | PayeeNotInYnab
+    | PayeeDeleted
 
-let tableStatusMarks (entry: LedgerEntryView) : TableStatusMark list =
-    match rowStatusMark entry with
-    | RowNotInYnab -> [ StatusNotInYnab ]
-    | RowPossibleDuplicate -> [ StatusPossibleDuplicate ]
-    | mark ->
-        [ if entry.NeedsReview then StatusNeedsReview
-          if entry.Flag <> NoFlag then StatusFlag entry.Flag
-          if mark = RowDeleted then StatusDeleted ]
+let payeeMarks (entry: LedgerEntryView) : PayeeMark list =
+    [ if entry.Flag <> NoFlag then PayeeFlag entry.Flag
+      match rowStatusMark entry with
+      | RowPossibleDuplicate -> PayeePossibleDuplicate
+      | RowNotInYnab -> PayeeNotInYnab
+      | RowDeleted -> PayeeDeleted
+      | RowOtherStates -> () ]
 
-/// Das Status-Kennzeichen "zu prüfen" der PC-Statusspalte (ADR 0032, ADR 0049 Punkt
-/// 7, ADR 0087 Punkt 3): ein kleines Wort in Gelb statt eines Badges. Die eigentliche Markierung ist
-/// die Statuskante am Zeilenrand (`Table.RowProps.StatusEdge`); das Wort ist der
-/// Zusatz, der sie benennt. Quelle bleibt `entry.NeedsReview`.
-let private needsReviewStatusBadge () =
-    Html.span [
-        prop.className $"{Tokens.FontSizes.microPlus} {Tokens.Colors.attention} whitespace-nowrap"
-        prop.text "zu prüfen"
-    ]
-
-/// Trägt die volle Bedeutung eines gekürzten oder reinen Symbol-Kennzeichens der
-/// PC-Statusspalte nach (`flagStatusBadge`, `deletedStatusIcon`), als Hover-Hinweis
-/// (`title`) und für assistive Technologie (`aria-label`): Verifier-Befund
-/// Iteration 2, `ledger-qns4j`. `Badge.view` (Client.DesignSystem.Badge) kennt weder
-/// `title` noch `aria-label` als eigenes Prop; ein minimaler Wrapper hier ist der
-/// kleinere Eingriff gegenüber einer Erweiterung der von der ganzen App geteilten
-/// DS-Komponente um ein Feld, das nur dieser eine Aufrufer braucht.
+/// Trägt die volle Bedeutung eines reinen Symbol-Kennzeichens der Payee-Zelle nach (`payeeMarkView`), als
+/// Hover-Hinweis (`title`) und für assistive Technologie (`aria-label`, ledger-qns4j).
 let private withAccessibleName (fullMeaning: string) (badge: ReactElement) : ReactElement =
     Html.span [
         prop.title fullMeaning
@@ -311,14 +274,8 @@ let private withAccessibleName (fullMeaning: string) (badge: ReactElement) : Rea
         prop.children [ badge ]
     ]
 
-/// Das Ausnahme-Kennzeichen "in YNAB gelöscht" in der PC-Statusspalte, als Symbol
-/// statt als Text (Entscheidung Roman 2026-09-19): der volle Text aus `deletedBadge`
-/// passt neben "Zu prüfen" nicht mehr in die auf 128px zurückgesetzte Spalte
-/// (`statusColumnWidth`). Romans Vorgabe war ausdrücklich, die Beschriftungen zu
-/// kürzen oder durch Symbole zu ersetzen, statt die Spalte wieder zu verbreitern.
-/// Die Handy-Zeile (`entryRow`) behält den vollen Text über `deletedBadge`, dort
-/// ist keine Spaltenbreite zu wahren. `withAccessibleName` trägt "in YNAB gelöscht"
-/// als `title`/`aria-label` nach, weil das Symbol allein keinen Text mehr zeigt.
+/// Das Gelöscht-Zeichen in der Payee-Zelle der PC-Tabelle: ein Symbol statt des Texts aus `deletedBadge`, damit
+/// der Payee-Name Platz behält; `withAccessibleName` trägt „in YNAB gelöscht“ nach. Die Handy-Zeile behält den Text.
 let private deletedStatusIcon () =
     withAccessibleName "in YNAB gelöscht" (
         Badge.view {
@@ -339,27 +296,8 @@ let private flagBadge (flag: LedgerFlag) : ReactElement =
     | AskLena, Some label -> Badge.lenaMark label
     | _, Some label -> Badge.view { Badge.defaultProps with Text = label; Variant = Badge.Neutral; Size = Badge.Small }
 
-/// Das Kennzeichen eines gesetzten Flags in der PC-Statusspalte (Entscheidung Roman
-/// 2026-09-19, `ledger-qns4j`): derselbe volle Wortlaut aus `flagBadge` ("Rückfrage
-/// Lena") passt zusammen mit `needsReviewStatusBadge` ("Zu prüfen") nicht mehr in die
-/// auf 128px zurückgesetzte Spalte (`statusColumnWidth`), genau der Rückfall auf das
-/// Pflaster-Verhalten aus `What`, Punkt 3, den der Verifier von Iteration 1
-/// zurecht bemängelt hat. *Rückfrage Lena* bekommt hier die gekürzte Fassung: Flag-Symbol und "Lena"
-/// (ADR 0087 Punkt 8; vorher das Badge "Lena?")
-/// (Romans Vorgabe: "Beschriftungen gekürzt oder durch Symbole ersetzt").
-///
-/// *Markiert* (Iteration 3: der Verifier von Iteration 2 hat vorgerechnet, dass
-/// "Zu prüfen" + der Text "Markiert" die 128px-Zelle noch um 3px waagerecht
-/// überläuft, scrollWidth 131 gegen clientWidth 128) wird deshalb, statt weiter
-/// gekürzt, komplett zum Symbol wie `deletedStatusIcon` (`Icons.flag`, neutral,
-/// ADR 0087): das schafft deutlich mehr
-/// Reserve als eine weitere Kürzung des Wortlauts und folgt demselben, schon
-/// etablierten Muster. `withAccessibleName` trägt "Markiert" als `title`/
-/// `aria-label` nach, weil das Symbol allein keinen Text mehr zeigt.
-///
-/// Dass zwei Kennzeichen in der Statuszelle nichts abschneiden, prüft der Layout-Sweep
-/// (`scripts/layout-states.mjs`, Zustand kassenbuch mit den Kombinationen "Zu prüfen"+"Lena?",
-/// "Zu prüfen"+Ausnahme-Symbol und "Zu prüfen"+"Markiert"-Symbol).
+/// Das Flag in der Payee-Zelle der PC-Tabelle (Prototyp Version 17 `ledgerDesk`): *Rückfrage Lena* als Flag-Symbol
+/// mit „Lena“ (ADR 0087 Punkt 8), *Markiert* als neutrales Symbol mit Namen für Hover und Vorleser.
 let private flagStatusBadge (flag: LedgerFlag) : ReactElement =
     match flag with
     | NoFlag -> Html.none
@@ -529,67 +467,6 @@ let mouseRowContainerClassName (info: MouseRowInfo) (needsReview: bool) : string
 let private keepWidth (child: ReactElement) =
     Html.span [ prop.className "shrink-0"; prop.children [ child ] ]
 
-/// Der Tooltip (`title`) der Prüf-Schaltfläche: nennt die Aktion (ledger-mhe2s).
-let reviewMarkTooltip (target: ReviewMarkTarget) : string =
-    match target with
-    | Reviewed -> "Als geprüft markieren"
-    | Unreviewed -> "Als ungeprüft markieren"
-
-/// Die Klassen der Prüf-Schaltfläche (ledger-mhe2s). Immer neutral (`text-text-secondary`,
-/// bei Hover `text-text-primary`), nie Akzent: Grün ist ein Signal (ADR 0049), und der Haken
-/// neben "zu prüfen" las sich wie "erledigt". Mit `hoverOnly` (PC-Zeile) ist sie ohne
-/// Zeilen-Hover, Fokus in der Zeile oder eigenen Tastaturfokus unsichtbar, behält aber
-/// ihre Breite (`opacity-0`, kein `hidden`). `rowFocused` ist die Zeile des Tastaturcursors
-/// (ledger-rjb8w). Am Handy (`hoverOnly = false`) bleibt sie sichtbar.
-let reviewMarkButtonClassName (hoverOnly: bool) (rowFocused: bool) : string =
-    let visibility =
-        if not hoverOnly then ""
-        elif rowFocused then "opacity-100"
-        else "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
-    $"inline-flex shrink-0 items-center justify-center rounded-lg {Tokens.TouchTargets.mobileSquare} md:h-7 md:w-7 " +
-    "text-text-secondary hover:text-text-primary hover:bg-surface-hover " +
-    "transition-colors touch-manipulation aria-disabled:opacity-50 aria-disabled:cursor-not-allowed " +
-    // Gesperrt (laufender Aufruf, `aria-disabled`) ohne Hover-Rückmeldung, wie ein `disabled`-Knopf.
-    "aria-disabled:hover:text-text-secondary aria-disabled:hover:bg-transparent " +
-    visibility
-
-/// Die Schaltfläche "Geprüft" / "Ungeprüft" einer Zeile (ledger-r777c, ADR 0050): ein
-/// Symbol (Haken für "Geprüft", Pfeil zurück für "Ungeprüft") mit der Beschriftung als
-/// nur vorgelesenem Text, damit die Statusspalte der PC-Tabelle (128px) nicht
-/// überläuft. Am Handy 48px Trefferfläche, am PC 28px. Der Klick öffnet nicht die
-/// Historie der Zeile (`stopPropagation`). Ein laufender Aufruf sperrt die Schaltfläche über
-/// `aria-disabled` und `aria-busy`, nicht über `disabled`: sonst fiele der Fokus auf `body`
-/// (ledger-dn4vy). Einen zweiten Klick fängt die Zeilen-Sperre in `update` ab (ledger-smv1s).
-let private reviewMarkButton
-    (dispatch: Msg -> unit)
-    (hoverOnly: bool)
-    (rowFocused: bool)
-    (rowState: ReviewMarkRowState option)
-    (entry: LedgerEntryView)
-    : ReactElement =
-    let action = reviewMarkActionFor entry
-    let sending = (rowState = Some ReviewMarkSending)
-    let icon =
-        match action.Target with
-        | Reviewed -> Icons.check Icons.SM Icons.Default
-        | Unreviewed -> Icons.undo Icons.SM Icons.Default
-
-    Html.button [
-        prop.type'.button
-        if sending then
-            prop.ariaDisabled true
-            prop.ariaBusy true
-        prop.title (reviewMarkTooltip action.Target)
-        prop.className (reviewMarkButtonClassName hoverOnly rowFocused)
-        prop.onClick (fun e ->
-            e.stopPropagation ()
-            dispatch (StartSetReviewMark (entry.Id, action.Target)))
-        prop.children [
-            icon
-            Html.span [ prop.className "sr-only"; prop.text action.Label ]
-        ]
-    ]
-
 /// Der Hinweis "Prüfvermerk nicht in YNAB" mit Grund und "Erneut senden" (ADR 0050,
 /// Punkt 11). Ein Wort in Gelb und der Grund gedämpft: er fällt auf, ohne die ruhige
 /// Liste (ADR 0049) zu stören. Die Schaltfläche sendet den aktuellen Stand erneut.
@@ -639,6 +516,13 @@ let private rowErrorWord (text: string) : ReactElement =
 let private rowAttentionWord (text: string) : ReactElement =
     Html.span [ prop.className $"{Tokens.FontSizes.xs} {Tokens.Colors.attention} whitespace-nowrap"; prop.text text ]
 
+/// Was ein Klick auf eine Zeile am PC auslöst (§7.7, ledger-cnaz3): Strg oder Cmd nimmt sie in die Auswahl oder
+/// heraus, Umschalt wählt den Bereich ab dem Anker, ein Klick ohne Taste öffnet das Detail wie bisher.
+let rowClickMsg (entry: LedgerEntryView) (keys: Table.RowClickKeys) : Msg =
+    if keys.CtrlOrMeta then ClickRowWithModifier (entry.Id, ToggleRow)
+    elif keys.Shift then ClickRowWithModifier (entry.Id, RangeToRow)
+    else OpenDetail entry
+
 /// Eine Zeile der Buchungsliste am Handy, zweizeilig (ADR 0049 Punkt 6): Zeile 1
 /// Payee und Betrag, Zeile 2 Kategorie und Memo mit den Kennzeichen. Beide Zeilen
 /// haben eine feste Höhe (`h-5`), damit der Abstand zwischen ihnen in jeder Zeile
@@ -646,7 +530,7 @@ let private rowAttentionWord (text: string) : ReactElement =
 /// nur in der Gesamtsicht gesetzt (AC4): das Konto steht dann als Kürzel-Badge in
 /// Zeile 2. Die Herkunft steht nicht mehr in der Zeile, nur noch in der Historie.
 let private entryRow
-    (onClick: unit -> unit)
+    (onClick: Browser.Types.MouseEvent -> unit)
     (selected: bool option)
     (mouse: MouseRowInfo option)
     (accountNameOf: (Guid -> string) option)
@@ -675,7 +559,7 @@ let private entryRow
         | Some _ ->
             prop.className $"w-full text-left {Tokens.ListRoles.mobileRowPadding} cursor-pointer min-w-0 flex-1"
         | None -> prop.className $"{rowClass} min-w-0 flex-1"
-        prop.onClick (fun _ -> onClick ())
+        prop.onClick onClick
         match selected with
         | Some isOn ->
             prop.role "checkbox"
@@ -724,43 +608,19 @@ let private entryRow
         ]
     ]
 
-/// Was an der Stelle der Prüf-Schaltfläche einer Zeile steht. Eine in YNAB gelöschte Buchung
-/// nimmt keinen Prüfvermerk an (der Server lehnt sie ab). Bei laufender Auswahl schreibt nur die
-/// Leiste: in Tabelle und Maus-Zeile hält ein unsichtbarer Platzhalter gleicher Größe die Breite,
-/// damit die Kennzeichen nicht springen (ledger-r1d2f, ledger-w4vte).
-type ReviewMarkSlot =
-    | ReviewMarkButtonSlot
-    | ReviewMarkPlaceholder
-    | NoReviewMarkSlot
-
-/// Tabelle und Maus-Zeile: Schaltfläche, bei laufender Auswahl der Platzhalter.
-let pointerRowReviewMarkSlot (entry: LedgerEntryView) (selectionActive: bool) : ReviewMarkSlot =
-    if entry.DeletedInYnab || (heldLockReason entry).IsSome then NoReviewMarkSlot
-    elif selectionActive then ReviewMarkPlaceholder
-    else ReviewMarkButtonSlot
-
-/// Finger-Zeile: Schaltfläche nur ohne Maus, außerhalb des Auswahl-Modus und ohne Auswahl;
-/// sonst gar nichts (kein Platzhalter, die Zeile hat keine Spalten). Eine wartende Buchung
-/// („doppelt?“) bekommt dort den Platzhalter: ihr Betrag bleibt in der Spalte der Beträge daneben.
-let touchRowReviewMarkSlot (entry: LedgerEntryView) (mouse: bool) (inSelectionMode: bool) (selectionActive: bool) : ReviewMarkSlot =
-    if entry.DeletedInYnab || mouse || inSelectionMode || selectionActive then NoReviewMarkSlot
-    elif (heldLockReason entry).IsSome then ReviewMarkPlaceholder
-    else ReviewMarkButtonSlot
-
 let private entryRowWithReviewMark
     (dispatch: Msg -> unit)
     (accountNameOf: (Guid -> string) option)
-    (rowReviewButton: bool)
     (rowState: ReviewMarkRowState option)
     (selected: bool option)
     (mouse: MouseRowInfo option)
-    (selectionActive: bool)
     (flatDate: bool)
     (entry: LedgerEntryView)
     =
-    // Außen ein Container: die Zeile ist ein `button` (öffnet das Detail), die
-    // Schaltfläche "Geprüft"/"Ungeprüft" liegt daneben und nicht darin (ein Button im
-    // Button ist ungültig). Der Hinweis "Prüfvermerk nicht in YNAB" steht darunter.
+    // Außen ein Container: die Zeile ist ein `button` (öffnet das Detail), das Kästchen der Maus-Zeile liegt
+    // daneben und nicht darin (ein Button im Button ist ungültig). Der Hinweis "Prüfvermerk nicht in YNAB"
+    // steht darunter. Eine Prüf-Schaltfläche hat keine Zeile mehr (ledger-d9z3n unter 1024 px, ledger-cnaz3
+    // ab 1024 px): geprüft wird per Wisch, mit G, im Detail oder in der Auswahl.
     Html.div [
         prop.key (string entry.Id)
         prop.children [
@@ -805,51 +665,18 @@ let private entryRowWithReviewMark
                         ]
                     | None -> ()
                     entryRow
-                        (fun () ->
-                            match selected with
-                            | Some _ -> dispatch (ToggleRowSelected entry.Id)
-                            | None -> dispatch (OpenDetail entry))
+                        (fun e ->
+                            match selected, mouse with
+                            | Some _, _ -> dispatch (ToggleRowSelected entry.Id)
+                            // Mit Maus wie die Tabellenzeile: Strg/Cmd und Umschalt wählen (§7.7, ledger-cnaz3).
+                            | None, Some _ ->
+                                dispatch (rowClickMsg entry { CtrlOrMeta = e.ctrlKey || e.metaKey; Shift = e.shiftKey })
+                            | None, None -> dispatch (OpenDetail entry))
                         selected
                         mouse
                         accountNameOf
                         flatDate
                         entry
-                    // Mit Maus: die Schaltfläche erscheint bei Hover und bei markierter Zeile; bei
-                    // laufender Auswahl steht wie in der Tabelle ein unsichtbarer Platzhalter.
-                    // Unter 1024 px hat die Zeile keine Schaltfläche, auch mit Maus nicht (ledger-d9z3n):
-                    // geprüft wird per Wisch, im Detail oder mit G.
-                    match mouse with
-                    | Some _ when not rowReviewButton -> ()
-                    | Some info ->
-                        match pointerRowReviewMarkSlot entry selectionActive with
-                        | NoReviewMarkSlot -> ()
-                        | slot ->
-                            Html.div [
-                                prop.className "shrink-0 flex items-center px-1"
-                                prop.children [
-                                    if slot = ReviewMarkPlaceholder then
-                                        Html.span [ prop.className "h-7 w-7 shrink-0"; prop.ariaHidden true ]
-                                    else
-                                        reviewMarkButton dispatch true info.IsFocused rowState entry
-                                ]
-                            ]
-                    | None -> ()
-                    // Eine in YNAB gelöschte Buchung nimmt keinen Prüfvermerk an (wie am PC).
-                    // Bei laufender Auswahl entfällt die Schaltfläche: die Leiste schreibt,
-                    // die Zeilen nicht (ledger-r1d2f, ledger-w4vte).
-                    match touchRowReviewMarkSlot entry mouse.IsSome selected.IsSome selectionActive with
-                    | _ when not rowReviewButton -> ()
-                    | NoReviewMarkSlot -> ()
-                    | slot ->
-                        Html.div [
-                            prop.className $"shrink-0 flex items-center px-1 {Tokens.Backgrounds.dark} border-b {Tokens.Borders.subtle}"
-                            prop.children [
-                                if slot = ReviewMarkPlaceholder then
-                                    Html.span [ prop.className $"shrink-0 {Tokens.TouchTargets.mobileSquare} md:h-7 md:w-7"; prop.ariaHidden true ]
-                                else
-                                    reviewMarkButton dispatch false false rowState entry
-                            ]
-                        ]
                 ]
             ]
             match reviewMarkHintFor rowState entry with
@@ -950,10 +777,10 @@ type LedgerColumn =
     | CategoryColumn
     | MemoColumn
     | AmountColumn
-    | StatusColumn
 
 /// Kopf einer Spalte der PC-Tabelle: Text, Ausrichtung und das Sortierfeld, wenn der Kopf
-/// sortiert. Memo und Status sortieren nicht; das Auswahl-Kästchen hat einen eigenen Kopf.
+/// sortiert. Memo sortiert nicht; das Auswahl-Kästchen hat einen eigenen Kopf. Die Spalte Status
+/// entfällt seit ledger-cnaz3: ihre Kennzeichen stehen in der Payee-Zelle.
 type TableHeader =
     { HeaderText: string
       HeaderAlign: string option
@@ -969,7 +796,6 @@ let tableHeaderFor (column: LedgerColumn) : TableHeader option =
     | CategoryColumn -> header "Kategorie" None (Some SortByCategory)
     | MemoColumn -> header "Memo" None None
     | AmountColumn -> header "Betrag" (Some "right") (Some SortByAmount)
-    | StatusColumn -> header "Status" (Some "right") None
 
 /// Was die PC-Ansicht bei einer Tabellenbreite zeigt: die Tabelle mit den sichtbaren
 /// Spalten samt Breiten, oder die kompakte Liste (dieselbe wie am Handy).
@@ -980,6 +806,14 @@ type TableLayout =
 /// Kürzel des Kontos vor dem Payee: nur in der Gesamtsicht und nur, wenn die Konto-Spalte fehlt.
 let payeeAccountAbbreviation (isAllAccounts: bool) (columns: LedgerColumn list) (abbreviation: string) : string option =
     if isAllAccounts && not (List.contains AccountColumn columns) then Some abbreviation else None
+
+/// Ein Kennzeichen der Payee-Zelle (`payeeMarks`).
+let private payeeMarkView (mark: PayeeMark) : ReactElement =
+    match mark with
+    | PayeeFlag flag -> flagStatusBadge flag
+    | PayeePossibleDuplicate -> rowAttentionWord rowPossibleDuplicateText
+    | PayeeNotInYnab -> rowErrorWord rowNotInYnabText
+    | PayeeDeleted -> deletedStatusIcon ()
 
 /// Die Payee-Zelle der PC-Tabelle. Ist die Konto-Spalte ausgeblendet (schmales Fenster
 /// in der Gesamtsicht), steht das Kontokürzel klein vor dem Payee in derselben Zelle,
@@ -992,27 +826,37 @@ let private payeeCell (accountAbbreviation: string option) (entry: LedgerEntryVi
             Html.span [ prop.className $"{Tokens.ListRoles.muted} mr-1.5 shrink-0"; prop.text abbreviation ]
         | None -> Html.none
     let payee = payeeLabel entry
-    truncatedRoleCell Table.Payee payee [ abbreviation; Html.span [ prop.text payee ] ]
+    // Hinter dem Namen die Kennzeichen (ledger-cnaz3); der Name kürzt sich, die Kennzeichen behalten ihre Breite.
+    Table.roleCell Table.Payee [
+        Html.div [
+            prop.className "flex min-w-0 items-center gap-2"
+            prop.children [
+                abbreviation
+                Truncate.text "min-w-0" payee
+                for mark in payeeMarks entry do
+                    keepWidth (payeeMarkView mark)
+            ]
+        ]
+    ]
 
 let private entryTableRow
     (dispatch: Msg -> unit)
     (columns: LedgerColumn list)
     (isAllAccounts: bool)
     (accountAbbreviationOf: Guid -> string)
-    (rowState: ReviewMarkRowState option)
-    (selectionActive: bool)
+    (accountNameOf: Guid -> string)
     (selected: bool)
     (isAnchor: bool)
     (isFocused: bool)
     (isFilteredOut: bool)
     (entry: LedgerEntryView)
     =
-    // "Zu prüfen" ist die Statuskante (`StatusEdge`, ADR 0049 Punkt 7), nicht mehr
-    // ein Rahmen links. `Table.trClickable` kennt weder Kante noch Zeilenhöhe,
-    // deshalb direkt `Table.row` mit denselben Klassen wie `Table.calmRow`.
+    // "Zu prüfen" ist die Statuskante (`StatusEdge`, ADR 0049 Punkt 7), ohne Wort. `Table.trClickable` kennt weder
+    // Kante noch Zeilenhöhe, deshalb direkt `Table.row` mit denselben Klassen wie `Table.calmRow`. Eine
+    // Prüf-Schaltfläche hat die Zeile nicht mehr, auch nicht bei Hover oder Fokus (Roman, 2026-11-14).
     Table.row
         { Table.defaultRowProps with
-            OnClick = Some (fun () -> dispatch (OpenDetail entry))
+            OnClickWithKeys = Some (fun keys -> dispatch (rowClickMsg entry keys))
             StatusEdge = entry.NeedsReview
             IsFocused = isFocused
             // Ausgegraut in `text-muted` bei voller Deckkraft (`.filtered-out-text`, ledger-dn4vy).
@@ -1021,43 +865,12 @@ let private entryTableRow
             selectBoxCell dispatch selected entry
             Table.roleCell Table.DateCell [ Html.text (formatDate entry.Date) ]
             if List.contains AccountColumn columns then
-                Table.roleCell Table.Muted [ Html.text (accountAbbreviationOf entry.AccountId) ]
+                truncatedTextRoleCell Table.Muted (accountNameOf entry.AccountId)
             payeeCell (payeeAccountAbbreviation isAllAccounts columns (accountAbbreviationOf entry.AccountId)) entry
             categoryCell entry
             if List.contains MemoColumn columns then
                 truncatedTextRoleCell Table.Muted (entry.Memo |> Option.defaultValue "")
             tdMoney entry
-            Table.cell { Table.defaultCellProps with Align = Some "right" } [
-                Html.div [
-                    // `flex-nowrap`, nicht `flex-wrap`: die Kennzeichen sollen die
-                    // Spalte in die Breite gehen lassen, nicht die Zeile in die Höhe
-                    // (AC5, ledger-qns4j, siehe `statusColumnWidth`). Kein
-                    // `originBadge` (AC3): die Herkunft steht nur noch im Detail
-                    // (`detailContent`): die Statusspalte trägt nur Status.
-                    prop.className "flex flex-nowrap items-center justify-end gap-1"
-                    prop.children [
-                        // Gelöscht steht vor Nicht in YNAB (ledger-cks06): die gelöschte Buchung
-                        // behält ihre bisherigen Kennzeichen samt Symbol, die nicht verknüpfte
-                        // trägt nur das Wort, damit die 128px-Zelle nicht überläuft.
-                        for mark in tableStatusMarks entry do
-                            match mark with
-                            | StatusNotInYnab -> notInYnabBadge ()
-                            | StatusPossibleDuplicate -> possibleDuplicateBadge ()
-                            | StatusNeedsReview -> needsReviewStatusBadge ()
-                            | StatusFlag flag -> flagStatusBadge flag
-                            | StatusDeleted -> deletedStatusIcon ()
-                        // Eine in YNAB gelöschte Buchung nimmt keinen Prüfvermerk mehr an
-                        // (der Server lehnt sie ab), also bekommt sie keine Schaltfläche.
-                        // Bei laufender Auswahl ersetzt ein unsichtbarer Platzhalter gleicher
-                        // Größe die Schaltfläche (der einzige Prüfweg ist "Geprüft" in der
-                        // Leiste); so springen die Kennzeichen nicht (ledger-w4vte).
-                        match pointerRowReviewMarkSlot entry selectionActive with
-                        | ReviewMarkPlaceholder -> Html.span [ prop.className "h-7 w-7 shrink-0"; prop.ariaHidden true ]
-                        | ReviewMarkButtonSlot -> reviewMarkButton dispatch true isFocused rowState entry
-                        | NoReviewMarkSlot -> ()
-                    ]
-                ]
-            ]
         ]
 
 /// Die Zeile unter einer Buchung mit dem Hinweis "Prüfvermerk nicht in YNAB" (PC): eine
@@ -2461,9 +2274,12 @@ let private KeyboardNavigation (focusedRow: Guid option) (dispatch: Msg -> unit)
                 let target = ke.target :?> Browser.Types.HTMLElement
                 let tagName = if isNull (box target) then "" else target.tagName
                 let editable = not (isNull (box target)) && target.isContentEditable
+                // Aus der Suche wirken die Pfeile auf die Liste (ADR 0087 Punkt 18, ledger-cnaz3).
+                let inSearch =
+                    not (isNull (box target)) && (target.closest ($"[data-testid='{ledgerSearchTestId}']")).IsSome
                 if not ke.defaultPrevented then
                     let form = ruleFormRef.current
-                    match ledgerKeyFor form.IsSome tagName editable (ke.ctrlKey || ke.metaKey) ke.altKey ke.key with
+                    match ledgerKeyFor form.IsSome tagName editable inSearch (ke.ctrlKey || ke.metaKey) ke.altKey ke.shiftKey ke.key with
                     | Some (PageAction msg) ->
                         ke.preventDefault ()
                         dispatchRef.current msg
@@ -2490,26 +2306,53 @@ let private KeyboardNavigation (focusedRow: Guid option) (dispatch: Msg -> unit)
 
     Html.none
 
-/// Der Tastaturhinweis am PC (Handoff Ablauf 1, 1.9): eine Fußzeile, solange keine
-/// Auswahl läuft. Tasten in Mono, der Rest gedämpft.
-let keyboardHintText =
-    "↑ ↓ J K bewegen · Enter Detail · Leertaste auswählen · G geprüft · Umschalt+G ungeprüft"
+/// Ein Teil eines Eintrags der Tastenleiste: eine Taste (als Tastenkästchen) oder ein Wort.
+type KeyHintPart =
+    | HintKey of string
+    | HintWord of string
 
-/// Der Hinweis bei offenem Panel (ledger-q1hw2): die Tasten, die dann wirken.
-let keyboardHintPanelText = "↑ ↓ bewegen · G geprüft · Esc Panel schließen"
+/// Die Tastenleiste am PC (ledger-cnaz3, Prototyp Version 17 `.keys`), solange keine Auswahl läuft: die Einträge
+/// des Prototyps und dazu „J K“, „Enter Detail“ und „⇧+G ungeprüft“ (BB). Rein, damit die Liste unter .NET
+/// prüfbar ist.
+let keyboardHintItems : KeyHintPart list list =
+    [ [ HintKey "↑"; HintKey "↓"; HintKey "J"; HintKey "K"; HintWord "bewegen" ]
+      [ HintKey "Enter"; HintWord "Detail" ]
+      [ HintKey "G"; HintWord "geprüft" ]
+      [ HintKey "⇧"; HintWord "+"; HintKey "G"; HintWord "ungeprüft" ]
+      [ HintKey "L"; HintWord "Lena fragen" ]
+      [ HintKey "Leertaste"; HintWord "oder"; HintKey "⇧"; HintWord "+"; HintKey "↓"; HintWord "auswählen" ]
+      [ HintKey "/"; HintWord "suchen, Pfeile wirken auch dort" ]
+      [ HintKey "Esc"; HintWord "schließen" ] ]
 
-/// Der Hinweis zum Zustand: bei offenem Seitenpanel der Panel-Text, sonst der Grundtext.
-let keyboardHintTextFor (model: Model) : string =
-    if detailPanelOpen model then keyboardHintPanelText else keyboardHintText
+/// Ein Eintrag als Klartext (für Tests und den Vorleser): Tasten und Wörter mit Leerzeichen, „+“ ohne.
+let keyboardHintItemText (item: KeyHintPart list) : string =
+    item
+    |> List.map (function HintKey k -> k | HintWord w -> w)
+    |> String.concat " "
+    |> fun text -> text.Replace(" + ", "+")
 
-/// Die Leiste beginnt rechts von Rail (72 px) und Seitenleiste (232 px), design-system-k6kfw.
-let private keyboardHint (text: string) : ReactElement =
+/// Die Leiste beginnt rechts von Rail (72 px) und Seitenleiste (232 px), design-system-k6kfw; ab 1024 px endet sie
+/// am Panel (420 px und der rechte Seitenrand `px-6`, ledger-cnaz3). Die Tasten stehen als Tastenkästchen (`ReviewCard.kbd`), die Wörter gedämpft.
+let private keyboardHint () : ReactElement =
     Html.div [
+        prop.custom ("data-testid", "ledger-keys")
         prop.className (
-            $"hidden md:flex fixed bottom-0 left-0 {Tokens.NavWidths.fixedLeft} right-0 z-30 items-center gap-2 {Tokens.Backgrounds.surface} " +
-            $"border-t {Tokens.Borders.subtle} px-5 py-3 {Tokens.FontSizes.xs} {Tokens.Colors.textMuted}"
+            $"hidden md:flex flex-wrap fixed bottom-0 left-0 {Tokens.NavWidths.fixedLeft} right-0 lg:right-[calc(420px+1.5rem)] z-30 items-center gap-x-4 gap-y-1.5 " +
+            $"{Tokens.Backgrounds.surface} border-t {Tokens.Borders.subtle} px-5 py-2.5 {Tokens.FontSizes.xs} {Tokens.Colors.textMuted}"
         )
-        prop.children [ Html.span [ prop.className Tokens.Fonts.mono; prop.text text ] ]
+        prop.children [
+            for item in keyboardHintItems ->
+                Html.span [
+                    prop.key (keyboardHintItemText item)
+                    prop.className "inline-flex items-center gap-1 whitespace-nowrap"
+                    prop.children [
+                        for part in item ->
+                            match part with
+                            | HintKey k -> ReviewCard.kbd k
+                            | HintWord w -> Html.span [ prop.text w ]
+                    ]
+                ]
+        ]
     ]
 
 // ============================================
@@ -2519,16 +2362,15 @@ let private keyboardHint (text: string) : ReactElement =
 /// Die Karte der Handy-Liste mit der Wisch-Geste (ledger-th36h): Wisch nach rechts
 /// markiert eine zu prüfende Buchung als geprüft, Wisch nach links bleibt unbelegt
 /// (Handoff Ablauf 1, Screen 1.2). Eine schon geprüfte oder in YNAB gelöschte Zeile
-/// bekommt keine Geste. Die Schaltfläche an der Zeile bleibt der barrierefreie Weg.
+/// bekommt keine Geste. Der barrierefreie Weg ist der Schalter im Detail.
 let private swipeableEntryRow
     (dispatch: Msg -> unit)
     (accountNameOf: (Guid -> string) option)
-    (rowReviewButton: bool)
     (rowState: ReviewMarkRowState option)
     (flatDate: bool)
     (entry: LedgerEntryView)
     =
-    let row = entryRowWithReviewMark dispatch accountNameOf rowReviewButton rowState None None false flatDate entry
+    let row = entryRowWithReviewMark dispatch accountNameOf rowState None None flatDate entry
     if swipeAppliesTo entry then
         Html.div [
             prop.key (string entry.Id)
@@ -2638,7 +2480,6 @@ let mobileRowLongPress (selectionMode: bool) (mouse: bool) : bool = not selectio
 let private mobileEntryRow
     (dispatch: Msg -> unit)
     (accountNameOf: (Guid -> string) option)
-    (rowReviewButton: bool)
     (selectionMode: bool)
     (selectionActive: bool)
     (selection: Selection)
@@ -2651,13 +2492,13 @@ let private mobileEntryRow
     let inner =
         match mobileRowMode selectionMode mouse.IsSome selectionActive with
         | MobileSelectionRow ->
-            entryRowWithReviewMark dispatch accountNameOf rowReviewButton rowState (Some (isSelected selection entry.Id)) None true flatDate entry
+            entryRowWithReviewMark dispatch accountNameOf rowState (Some (isSelected selection entry.Id)) None flatDate entry
         | MobileMouseRow ->
-            entryRowWithReviewMark dispatch accountNameOf rowReviewButton rowState None mouse selectionActive flatDate entry
+            entryRowWithReviewMark dispatch accountNameOf rowState None mouse flatDate entry
         | MobilePlainRow ->
-            entryRowWithReviewMark dispatch accountNameOf rowReviewButton rowState None None true flatDate entry
+            entryRowWithReviewMark dispatch accountNameOf rowState None None flatDate entry
         | MobileSwipeRow ->
-            swipeableEntryRow dispatch accountNameOf rowReviewButton rowState flatDate entry
+            swipeableEntryRow dispatch accountNameOf rowState flatDate entry
     let row = LongPressRow (mobileRowLongPress selectionMode mouse.IsSome) (fun () -> dispatch (StartSelectionMode entry.Id)) inner
     React.keyedFragment (
         string entry.Id,
@@ -2683,7 +2524,6 @@ let private mobileEntryRow
 let private entryListMobile
     (dispatch: Msg -> unit)
     (accountNameOf: (Guid -> string) option)
-    (rowReviewButton: bool)
     (includeDeleted: bool)
     (reviewRows: Map<Guid, ReviewMarkRowState>)
     (selectionMode: bool)
@@ -2708,7 +2548,6 @@ let private entryListMobile
             mobileEntryRow
                 dispatch
                 accountNameOf
-                rowReviewButton
                 selectionMode
                 selectionActive
                 selection
@@ -2739,12 +2578,9 @@ let private entryListMobile
 /// Breite der Kästchen-Spalte der PC-Tabelle (Handoff Ablauf 3: 44px).
 let selectColumnWidth = 44
 
-/// Breite der Status-Spalte in der PC-Tabelle: der Handoff-Wert aus Screen 1.9
-/// (Entscheidung Roman 2026-09-19, `ledger-qns4j`).
-let private statusColumnWidth = "128"
-
 let private dateColumnWidth = 96
-let private accountColumnWidth = 72
+/// Die Konto-Spalte nennt den Kontonamen (Prototyp Version 17 `ledgerDesk`, 110 px), gekürzt mit `title`.
+let private accountColumnWidth = 110
 let private amountColumnWidth = 132
 
 /// Mindestbreiten der flexiblen Spalten (Richtwerte aus ledger-qh9qx). Keine sichtbare
@@ -2763,7 +2599,6 @@ let minColumnWidth (column: LedgerColumn) : int =
     | CategoryColumn -> categoryMinWidth
     | MemoColumn -> memoMinWidth
     | AmountColumn -> amountColumnWidth
-    | StatusColumn -> int statusColumnWidth
 
 /// Die Spaltenstufen von breit nach schmal (ADR 0049 bleibt Maßstab: ruhig statt eng):
 /// alle Spalten, ohne Memo, ohne Memo und Konto. Das Konto fällt nur in der Gesamtsicht
@@ -2775,7 +2610,7 @@ let private columnStages (allowMemo: bool) (showAccountColumn: bool) : LedgerCol
         else
             [ SelectColumn; DateColumn ] @ cols
 
-    let tail = [ AmountColumn; StatusColumn ]
+    let tail = [ AmountColumn ]
 
     [ if allowMemo then withAccount ([ PayeeColumn; CategoryColumn; MemoColumn ] @ tail)
       withAccount ([ PayeeColumn; CategoryColumn ] @ tail)
@@ -2827,7 +2662,6 @@ let listInteractionFor (layout: TableLayout) (finePointer: bool) (desktopViewpor
 /// Was ein Bedienmodus der Liste zeigt und erlaubt.
 type ListInteractionTraits =
     { CheckboxVisible: bool
-      HoverReviewButton: bool
       FocusMarkVisible: bool
       GesturesEnabled: bool
       FooterHint: bool }
@@ -2835,29 +2669,28 @@ type ListInteractionTraits =
 let listInteractionTraits (interaction: ListInteraction) : ListInteractionTraits =
     match interaction with
     | TableRows ->
-        { CheckboxVisible = true; HoverReviewButton = true; FocusMarkVisible = true; GesturesEnabled = false; FooterHint = true }
+        { CheckboxVisible = true; FocusMarkVisible = true; GesturesEnabled = false; FooterHint = true }
     | CompactMouse ->
-        { CheckboxVisible = true; HoverReviewButton = true; FocusMarkVisible = true; GesturesEnabled = false; FooterHint = true }
+        { CheckboxVisible = true; FocusMarkVisible = true; GesturesEnabled = false; FooterHint = true }
     | CompactTouch ->
-        { CheckboxVisible = false; HoverReviewButton = false; FocusMarkVisible = false; GesturesEnabled = true; FooterHint = false }
+        { CheckboxVisible = false; FocusMarkVisible = false; GesturesEnabled = true; FooterHint = false }
 
 /// Die Breite, die das Seitenpanel der Tabelle nimmt (ledger-q1hw2).
 let detailPanelWidth : float = float Detail.panelWidthPx
 
-/// Die Spalten neben einem offenen Seitenpanel: die Tabellenbreite ohne Panel abzüglich
-/// seiner 420 Pixel, und Memo fällt immer weg. Die übrigen Stufen entscheidet dieselbe
-/// Regel wie sonst, so dass in schmalen Fenstern auch die Konto-Spalte weicht.
-let visibleColumnsWithPanel (tableWidth: float) (showAccountColumn: bool) : TableLayout =
-    visibleColumnsWith false (tableWidth - detailPanelWidth) showAccountColumn
+/// Was das Panel der Liste an Breite nimmt: das Panel und 4 px Abstand, damit die Filterleiste (`-mx-1`, Platz für
+/// den Fokus-Ring) nicht unter das Panel reicht (Layout-Sweep, Invariante 6). Die Spalte hält ihn als `md:pr-[424px]`.
+let panelColumnPadding : float = detailPanelWidth + 4.0
 
-/// Die Form des Details bei der Tabellenbreite OHNE Panel (ADR 0053): ein Panel nur, wenn
-/// die Liste schon als Tabelle steht und neben dem Panel noch eine Tabellenstufe passt;
-/// sonst ein Sheet. Weil die Breite ohne Panel gemessen wird, kippt die Form nicht, wenn
-/// das Panel selbst Platz nimmt.
-let detailFormFor (tableWidth: float) (showAccountColumn: bool) : DetailForm =
-    match visibleColumns tableWidth showAccountColumn, visibleColumnsWithPanel tableWidth showAccountColumn with
-    | Columns _, Columns _ -> DetailPanel
-    | _ -> DetailSheet
+/// Ab dieser Fensterbreite darf die Spalte Memo stehen (Roman, 2026-11-14, ledger-cnaz3).
+let memoMinWindowWidth : float = 1500.0
+
+/// Die Spalten am PC (ab 1024 px, ledger-cnaz3): rechts steht immer das Panel, die Tabelle bekommt die
+/// gemessene Breite der Spalte abzüglich des Panels. Memo nur ab `memoMinWindowWidth` Fensterbreite und nur,
+/// wenn die Stufe mit Memo neben dem Panel passt; darunter entfällt sie ohne Ersatz. Reicht die Breite für
+/// keine Stufe, gilt die Kompaktliste.
+let visibleColumnsBesidePanel (windowWidth: float) (columnWidth: float) (showAccountColumn: bool) : TableLayout =
+    visibleColumnsWith (windowWidth >= memoMinWindowWidth) (columnWidth - panelColumnPadding) showAccountColumn
 
 /// Breite einer Spalte in Pixeln bei gegebener Tabellenbreite: `Rest` ist, was nach den
 /// festen Spalten übrig bleibt.
@@ -2880,10 +2713,10 @@ let private entryListDesktop
     (columns: (LedgerColumn * ColumnWidth) list)
     (isAllAccounts: bool)
     (accountAbbreviationOf: Guid -> string)
+    (accountNameOf: Guid -> string)
     (includeDeleted: bool)
     (reviewRows: Map<Guid, ReviewMarkRowState>)
     (headerState: HeaderCheckState)
-    (selectionActive: bool)
     (selection: Selection)
     (anchor: Guid option)
     (focusedRow: Guid option)
@@ -2891,9 +2724,9 @@ let private entryListDesktop
     (sort: LedgerSort)
     (entries: LedgerEntryView list)
     =
-    // Spalten vor dem Betrag: alle sichtbaren außer Betrag und Status.
+    // Spalten vor dem Betrag: alle sichtbaren außer dem Betrag (der letzten).
     let visible = columns |> List.map fst
-    let columnsBeforeAmount = List.length visible - 2
+    let columnsBeforeAmount = List.length visible - 1
 
     let sortHeader (text: string) (align: string option) (field: LedgerSortField) =
         Table.calmSortableHeaderCell text align (headerSortDirection sort field) (fun () -> dispatch (SetSort field))
@@ -2907,15 +2740,14 @@ let private entryListDesktop
                   visible
                   isAllAccounts
                   accountAbbreviationOf
-                  rowState
-                  selectionActive
+                  accountNameOf
                   (isSelected selection entry.Id)
                   (anchor = Some entry.Id)
                   (focusedRow = Some entry.Id)
                   (filteredOut.Contains entry.Id)
                   entry
-              if filteredOut.Contains entry.Id then filteredOutNoteRow (columnsBeforeAmount + 2) entry
-              match entryHintRow dispatch (columnsBeforeAmount + 2) rowState entry with
+              if filteredOut.Contains entry.Id then filteredOutNoteRow (List.length visible) entry
+              match entryHintRow dispatch (List.length visible) rowState entry with
               | Some hintRow -> hintRow
               | None -> () ]
         )
@@ -2981,15 +2813,15 @@ let private entryList
     (accounts: LedgerAccountView list)
     (isAllAccounts: bool)
     (handyForm: bool)
-    (tableWidth: float)
-    (panelOpen: bool)
+    (layout: TableLayout)
     (model: Model)
     =
     let abbreviationOf =
         let byId =
             accounts |> List.map (fun a -> a.Id, accountAbbreviation a.Name) |> Map.ofList
         fun (id: Guid) -> byId |> Map.tryFind id |> Option.defaultValue "?"
-    // Die Handy-Zeile nennt das Konto als gedämpften Text (ledger-d9z3n), die Tabelle als Kürzel.
+    // Die Handy-Zeile und die Konto-Spalte der Tabelle nennen das Konto beim Namen (ledger-d9z3n, ledger-cnaz3); das
+    // Kürzel steht nur vor dem Payee, wenn die Konto-Spalte fehlt.
     let accountNameOf =
         let byId = accounts |> List.map (fun a -> a.Id, a.Name) |> Map.ofList
         fun (id: Guid) -> byId |> Map.tryFind id |> Option.defaultValue "?"
@@ -3052,19 +2884,13 @@ let private entryList
             (Some (Button.secondary "Jetzt spiegeln" (fun () -> dispatch StartMirror)))
 
     | Success entries ->
-        // Bei offenem Panel gilt die Breite abzüglich Panel und ohne Memo; `tableWidth` ist die
-        // Breite ohne Panel (die Spalte reserviert den Platz als Innenabstand).
-        let layout =
-            if handyForm then CompactList
-            elif panelOpen then visibleColumnsWithPanel tableWidth isAllAccounts
-            else visibleColumns tableWidth isAllAccounts
+        // Die Spalten wählt der Aufrufer (`FilterBarColumn`): am PC neben dem Panel, das immer steht (ledger-cnaz3).
         let sort = Components.Ledger.State.effectiveSort model
 
         Html.div [
             entryListMobile
                 dispatch
                 (if isAllAccounts then Some accountNameOf else None)
-                (not handyForm)
                 model.IncludeDeleted
                 model.ReviewMarkRows
                 model.SelectionMode
@@ -3085,10 +2911,10 @@ let private entryList
                     columns
                     isAllAccounts
                     abbreviationOf
+                    accountNameOf
                     model.IncludeDeleted
                     model.ReviewMarkRows
                     (headerCheckState model)
-                    (hasSelection model)
                     (selectionForRows model)
                     model.SelectionAnchor
                     model.FocusedRow
@@ -3334,11 +3160,38 @@ let private chipOnClick (dispatch: Msg -> unit) (chip: ChipId) : unit -> unit =
     | WithoutCategoryChip -> fun () -> dispatch ToggleWithoutCategory
     | other -> fun () -> dispatch (OpenFilterPopover other)
 
+/// Die Namen der gewählten Kategorien in Listenreihenfolge der Kategorien (unbekannte entfallen).
+let private selectedCategoryNames (categories: YnabCategory list) (ids: Guid Set) : string list =
+    categories
+    |> List.filter (fun c -> let (YnabCategoryId g) = c.Id in ids.Contains g)
+    |> List.map (fun c -> c.Name)
+
+/// Der Text eines Chips der Filterleiste am PC (ledger-cnaz3, Prototyp Version 17): die Umschalter ohne Zahl (sie
+/// steht klein dahinter, `pcChipCount`), „Lena“ statt „Rückfrage Lena“, die Kategorie mit Namen.
+let pcChipLabel (model: Model) (categoryNames: string list) (chip: ChipId) : string =
+    match chip with
+    | NeedsReviewChip -> "Zu prüfen"
+    | AskLenaChip -> "Lena"
+    | WithoutCategoryChip -> "Ohne Kategorie"
+    | CategoryChip -> categoryChipText categoryNames
+    | DateChip
+    | AmountChip -> chipLabel model chip
+
+/// Die Zahl hinter einem Umschalter am PC: „Zu prüfen 4“, „Lena 2“, „Ohne Kategorie 1“.
+let pcChipCount (model: Model) (chip: ChipId) : int option =
+    match chip with
+    | NeedsReviewChip -> Some model.NeedsReviewCount
+    | AskLenaChip -> Some model.AskLenaCount
+    | WithoutCategoryChip -> Some model.WithoutCategoryCount
+    | CategoryChip
+    | DateChip
+    | AmountChip -> None
+
 /// Ein Chip samt seiner Chrome (Sheet/Popover), wenn er eine eigene Auswahl hat.
 let private filterChip (dispatch: Msg -> unit) (model: Model) (categories: YnabCategory list) (chip: ChipId) : ReactElement =
     let chipElement =
-        ChipBar.chip {
-            Label = chipLabel model chip
+        ChipBar.chipWith (pcChipCount model chip) (chip = CategoryChip) {
+            Label = pcChipLabel model (selectedCategoryNames categories model.Filters.CategoryIds) chip
             IsActive = isChipActive model chip
             OnClick = chipOnClick dispatch chip
             OnRemove = removeChipMsg chip |> Option.map (fun msg -> fun () -> dispatch msg)
@@ -3391,7 +3244,7 @@ let private sortChip (dispatch: Msg -> unit) (model: Model) (isAllAccounts: bool
 
 /// Das Suchfeld (ledger-d9z3n): Teiltext in Payee, Memo und Kategoriename, mit Verzögerung beim Tippen.
 let private ledgerSearchField (dispatch: Msg -> unit) (model: Model) : ReactElement =
-    Input.searchField "ledger-search" "Buchungen durchsuchen" "Suchen…" model.SearchDraft (fun text -> dispatch (SetSearchDraft text))
+    Input.searchField ledgerSearchTestId "Buchungen durchsuchen" "Suchen…" model.SearchDraft (fun text -> dispatch (SetSearchDraft text))
 
 /// Die Filterleiste selbst: Reihenfolge und "Alle Filter löschen" (AC: „Alle Filter
 /// löschen" sitzt am Ende, erscheint nur, wenn mindestens ein Filter aktiv ist).
@@ -3410,19 +3263,16 @@ let private filterChipBar
     let isDesktop = Viewport.isDesktopViewport ()
     let activity = chipActivityOf model.OnlyNeedsReview model.Filters
     let order = orderChipsForDisplay (not isDesktop) activity
+    // Prototyp Version 17 `ledgerDesk`: die Chips, „Filter löschen“ als Chip, sobald etwas gesetzt ist, und das
+    // Suchfeld rechtsbündig am Ende (ledger-cnaz3). Die Leiste bricht um.
     ChipBar.bar
         elementRef
         ((order |> List.map (filterChip dispatch model categories))
          @ (if showSortChip then [ sortChip dispatch model isAllAccounts ] else [])
-         // Die Suche am Ende der Leiste, bis ledger-cnaz3 den PC neu ordnet (ledger-d9z3n).
-         @ [ Html.div [ prop.className "w-56 shrink-0"; prop.children [ ledgerSearchField dispatch model ] ] ]
-         @ (if hasAnyFilter model.Filters then [ ChipBar.clearAllButton (fun () -> dispatch ClearAllFilters) ] else []))
-
-/// Die Namen der gewählten Kategorien in Listenreihenfolge der Kategorien (unbekannte entfallen).
-let private selectedCategoryNames (categories: YnabCategory list) (ids: Guid Set) : string list =
-    categories
-    |> List.filter (fun c -> let (YnabCategoryId g) = c.Id in ids.Contains g)
-    |> List.map (fun c -> c.Name)
+         @ (if clearFiltersChipVisible model.OnlyNeedsReview model.Filters then
+                [ ChipBar.chip { Label = "Filter löschen"; IsActive = false; OnClick = (fun () -> dispatch ClearAllFilters); OnRemove = None } ]
+            else [])
+         @ [ Input.searchFieldCompact ledgerSearchTestId "Buchungen durchsuchen" "Suchen…" model.SearchDraft (fun text -> dispatch (SetSearchDraft text)) ])
 
 // ============================================
 // Kassenbuch unter 1024 px: Kontowahl, Suche, Filter-Knopf, gesetzte Filter (ledger-d9z3n)
@@ -3742,14 +3592,14 @@ let keyboardHintVisible (model: Model) : bool =
     | _ -> false
 
 /// Die feste Leiste unten am PC (Auswahl-Leiste oder Tastatur-Hinweis) schreibt ihre gemessene Höhe als
-/// `--ledger-bottom-bar-height` auf das Dokument (bis ledger-d9z3n endete die Konten-Spalte darüber, heute liest
-/// keine Regel in `styles.css` den Wert). Die
+/// `--ledger-bottom-bar-height` auf das Dokument; die Rückmeldungen stehen darüber (`.toast-above-bar` in
+/// `styles.css`, §7.13, ledger-cnaz3). Die
 /// Leiste bricht um und wächst mit der Schrift, eine feste Höhe passte dann nicht (Layout-Sweep, Zustand
 /// kassenbuch-viele-konten-auswahl). Gemessen wird das erste Kind der Hülle, die Hülle selbst hat keine Höhe,
 /// weil die Leiste `fixed` ist. Der Aufrufer gibt jeder Leiste einen eigenen Schlüssel, damit ein Wechsel
 /// einen neuen Knoten bindet.
 [<ReactComponent>]
-let private MeasuredBottomBar (bar: ReactElement) =
+let private MeasuredBottomBar (scope: IReactProperty list) (bar: ReactElement) =
     let disconnect = React.useRef<(unit -> unit) option> None
     let measure =
         React.useCallback (
@@ -3760,7 +3610,8 @@ let private MeasuredBottomBar (bar: ReactElement) =
                     disconnect.current <- Some (Viewport.mirrorChildHeight "--ledger-bottom-bar-height" element)),
             [||]
         )
-    Html.div [ prop.ref measure; prop.children [ bar ] ]
+    // `scope`: Attribute der Hülle, etwa `data-lena-flag` für die Farbe des Flags an „Lena fragen“.
+    Html.div [ prop.ref measure; yield! scope; prop.children [ bar ] ]
 
 /// Die Props des Pickers der Auswahl-Leiste ("Kategorie setzen" für mehrere): nur Kategorien,
 /// keine Konten (Roman, ledger-qvjvs: ein Übertrag geht nur einzeln im Detail).
@@ -3786,53 +3637,210 @@ let selectionBarRun (running: BatchRun option) : SelectionBarRun =
       CategoryBusy = (running = Some CategoryBatchRun)
       LenaBusy = (running = Some LenaBatchRun) }
 
+// ============================================
+// Zusammenfassung der Auswahl (ledger-cnaz3, §7.7, Prototyp Version 17 `selSummary`)
+// ============================================
+
+/// Eine Zeile „Nach Kategorie“: Name und Summe, `WithoutCategory` für „ohne Kategorie“ (Gelb).
+type SelectionCategoryLine = {
+    Label: string
+    Amount: decimal
+    WithoutCategory: bool
+}
+
+/// Was die Zusammenfassung über die gewählten geladenen Buchungen sagt. In YNAB gelöschte Buchungen zählen mit,
+/// gehen aber in keine Summe ein (dieselbe Regel wie `selectionTotals`).
+type SelectionSummary = {
+    Count: int
+    Sum: decimal
+    Outflows: decimal
+    Inflows: decimal
+    ToReview: int
+    ByCategory: SelectionCategoryLine list
+}
+
+/// Der Name einer Zeile „Nach Kategorie“ für eine Buchung ohne Split: die Kategorie wie im Kopf des Details, ein
+/// Übertrag als „Übertrag“, sonst „ohne Kategorie“.
+let private summaryCategoryKey (entry: LedgerEntryView) : string * bool =
+    if isWithoutCategory entry then "ohne Kategorie", true else categoryLabelQualified entry, false
+
+/// Die Zusammenfassung der Auswahl, rein: Summe, Ausgaben, Einnahmen, Anzahl zu prüfen und die Aufteilung nach
+/// Kategorie. Eine Split-Buchung geht mit ihren Zeilen ein (eine Zeile ohne Ziel als „ohne Kategorie“). Sortiert
+/// von der größten Ausgabe zur größten Einnahme; gleiche Beträge nach Name.
+let selectionSummaryOf (entries: LedgerEntryView list) : SelectionSummary =
+    let counted = entries |> List.filter (fun e -> not e.DeletedInYnab)
+    let amounts = counted |> List.map (fun e -> e.Amount.Amount)
+    let parts =
+        counted
+        |> List.collect (fun entry ->
+            if List.isEmpty entry.Splits then
+                let label, missing = summaryCategoryKey entry
+                [ (label, missing), entry.Amount.Amount ]
+            else
+                entry.Splits
+                |> List.map (fun split ->
+                    match split.Target with
+                    | Uncategorized -> ("ohne Kategorie", true), split.Amount.Amount
+                    | _ -> (splitTargetLabel entry.SplitCategoryGroupNames split, false), split.Amount.Amount))
+    let byCategory =
+        parts
+        |> List.groupBy fst
+        |> List.map (fun ((label, missing), items) ->
+            { Label = label; Amount = items |> List.sumBy snd; WithoutCategory = missing })
+        |> List.sortBy (fun line -> line.Amount, line.Label)
+    { Count = List.length entries
+      Sum = List.sum amounts
+      Outflows = amounts |> List.filter (fun a -> a < 0m) |> List.sum
+      Inflows = amounts |> List.filter (fun a -> a > 0m) |> List.sum
+      ToReview = entries |> List.filter (fun e -> e.NeedsReview) |> List.length
+      ByCategory = byCategory }
+
+/// Kopf der Zusammenfassung: „n Buchungen ausgewählt“.
+let selectionSummaryTitle (count: int) : string =
+    $"{Money.formatCount count} Buchungen ausgewählt"
+
+let selectionSummaryHint = "Umschalt-Klick wählt einen Bereich, Strg- oder Cmd-Klick einzelne"
+let selectionAllReviewedLabel = "Alle geprüft"
+
+/// Der Satz unter der Karte, wenn die Auswahl mehr Buchungen meint als geladen sind („alle“ über das
+/// Kopfzeilen-Kästchen): Summe und Anzahl stimmen (`selectionTotals`), die Aufteilung kennt nur die geladenen.
+let selectionPartialNote (selectedCount: int) (loadedCount: int) : string option =
+    if loadedCount < selectedCount then
+        Some $"Ausgaben, Einnahmen und Kategorien aus den {Money.formatCount loadedCount} geladenen Buchungen."
+    else
+        None
+
+/// Steht „Rückfrage zurücknehmen“ in der Zusammenfassung? Nur, wenn eine gewählte Buchung gefragt ist (BB).
+let selectionHasAskLena (entries: LedgerEntryView list) : bool =
+    entries |> List.exists (fun e -> e.Flag = AskLena)
+
+/// Was das Panel am PC zeigt (ledger-cnaz3, ADR 0087 Punkte 16 und 17): „Neue Buchung“, ab zwei gewählten Buchungen
+/// die Zusammenfassung, sonst das Detail der offenen Buchung oder den leeren Zustand. Rein.
+type PanelContent =
+    | PanelCapture
+    | PanelSelectionSummary
+    | PanelDetail
+    | PanelEmpty
+
+let panelContentFor (model: Model) : PanelContent =
+    if model.Capture.IsSome then PanelCapture
+    elif (selectionTotals model).Count >= 2 then PanelSelectionSummary
+    elif (detailEntryOf model).IsSome then PanelDetail
+    else PanelEmpty
+
+/// Der Satz im leeren Panel (§7.12, Prototyp `panelDesk`).
+let emptyPanelText = "Buchung wählen, um Details zu sehen."
+
+/// Die Leiste am PC je Auswahl (ledger-cnaz3): ohne Auswahl die Tastenleiste, bei einer Buchung die Leiste mit allen
+/// Aktionen, ab zwei nur Anzahl, Summe und „Auswahl aufheben“ (die Aktionen stehen im Panel). Rein.
+type DesktopBar =
+    | KeysBar
+    | SingleSelectionBar
+    | CompactSelectionBar
+    | NoDesktopBar
+
+let desktopBarFor (model: Model) : DesktopBar =
+    match (selectionTotals model).Count with
+    | 0 -> if keyboardHintVisible model then KeysBar else NoDesktopBar
+    | 1 -> SingleSelectionBar
+    | _ -> CompactSelectionBar
+
+/// Die Lena-Aktionen der Auswahl (ledger-y54gr): „Lena fragen“ braucht die Flag-Farbe aus den Settings, sonst ist
+/// sie gesperrt und nennt den Grund; zurücknehmen braucht sie nicht. Am PC ohne Zahl im Text (Prototyp), am Handy
+/// mit der Zahl der Auswahl.
+let private lenaActions (dispatch: Msg -> unit) (model: Model) (withCount: bool) : MultiSelect.LenaAction * MultiSelect.LenaAction =
+    let totals = selectionTotals model
+    let run = selectionBarRun model.BatchRunning
+    { Label = (if withCount then selectionLenaLabel totals.Count else "Lena fragen")
+      IsBusy = run.LenaBusy
+      IsLocked = run.Locked
+      Reason = selectionLenaDisabledReason model.LenaFlagColor
+      OnClick = fun () -> dispatch (StartLenaBatch AssignLena) },
+    { Label = (if withCount then selectionWithdrawLabel totals.Count else "Rückfrage zurücknehmen")
+      IsBusy = false
+      IsLocked = run.Locked
+      Reason = None
+      OnClick = fun () -> dispatch (StartLenaBatch WithdrawLena) }
+
+/// „Kategorie setzen“ der Auswahl mit seinem Picker: `popover` am PC (über der Leiste oder im Panel), sonst das
+/// Sheet am Handy.
+let private categoryAction (dispatch: Msg -> unit) (model: Model) (popover: CategoryPicker.CategoryPickerProps -> ReactElement option) : MultiSelect.CategoryAction =
+    let totals = selectionTotals model
+    let run = selectionBarRun model.BatchRunning
+    let pickerProps = batchPickerProps dispatch model
+    { Label = selectionCategoryLabel
+      IsBusy = run.CategoryBusy
+      IsLocked = run.Locked
+      OnClick = fun () -> dispatch ToggleBatchCategoryPicker
+      Popover = popover pickerProps |> Option.defaultValue Html.none
+      Sheet =
+        (match popover pickerProps with
+         | Some _ -> Html.none
+         | None ->
+            CategoryPicker.selectionSheet
+                model.BatchCategoryPickerOpen
+                (Some (selectionPickerSubtitle totals.Count totals.Amount))
+                pickerProps) }
+
+/// Die Zusammenfassung der Auswahl im Panel (ledger-cnaz3, §7.7): Anzahl, Summe, Ausgaben, Einnahmen, „Davon zu
+/// prüfen“, die Aufteilung nach Kategorie und die Sammelaktionen („Alle geprüft“ primär).
+let private selectionSummaryPanel (dispatch: Msg -> unit) (model: Model) : ReactElement =
+    let totals = selectionTotals model
+    let entries = selectedEntries model
+    let summary = selectionSummaryOf entries
+    let currency = model.TotalAmount.Currency
+    let money (amount: decimal) : Money = { Amount = amount; Currency = currency }
+    let moneyText (amount: decimal) = Money.formatAmountText false true amount currency
+    let run = selectionBarRun model.BatchRunning
+    let lena, withdraw = lenaActions dispatch model false
+    Detail.panel
+        "Auswahl"
+        (MultiSelect.summaryPanel {
+            Title = selectionSummaryTitle totals.Count
+            Hint = selectionSummaryHint
+            SumLabel = "Summe"
+            Sum = totals.Amount
+            Figures =
+                [ "Ausgaben", moneyText summary.Outflows
+                  "Einnahmen", moneyText summary.Inflows
+                  "Davon zu prüfen", Money.formatCount summary.ToReview ]
+            CategoryHeading = "Nach Kategorie"
+            Categories =
+                summary.ByCategory
+                |> List.map (fun line -> { MultiSelect.SummaryLine.Label = line.Label; Amount = money line.Amount; Missing = line.WithoutCategory })
+            Note = selectionPartialNote totals.Count summary.Count
+            ReviewedLabel = selectionAllReviewedLabel
+            ReviewedBusy = run.ReviewBusy
+            Locked = run.Locked
+            OnReviewed = fun () -> dispatch StartReviewMarkBatch
+            Category =
+                categoryAction dispatch model (fun props -> Some (CategoryPicker.selectionPopoverInPanel model.BatchCategoryPickerOpen props))
+            Lena = lena
+            Withdraw = (if selectionHasAskLena entries then Some withdraw else None)
+            ClearLabel = selectionClearLabel
+            OnClear = fun () -> dispatch ClearSelection
+        })
+
 /// Die Auswahl-Leiste am unteren Rand (ledger-r1d2f), mit der einen primären Aktion
-/// "Geprüft" (ledger-nhwrt). Am Handy
-/// erscheint sie im Auswahl-Modus und ersetzt die Tab-Bar (zwei Reihen), am PC, solange die
-/// Auswahl nicht leer ist (eine Reihe, ohne "Alle"). Sie ist `fixed` und steht deshalb
-/// außerhalb der Seitenhülle mit der Eintrittsanimation (`animate-page-enter` setzt einen
-/// Transform, in dem `fixed` an der Hülle statt am Fenster haftet): der Haupt-`View.fs`
-/// rendert sie neben den Toasts.
+/// "Geprüft" (ledger-nhwrt). Am Handy erscheint sie im Auswahl-Modus und ersetzt die Tab-Bar
+/// (zwei Reihen); am PC steht sie, solange die Auswahl nicht leer ist (`desktopBarFor`): bei einer
+/// Buchung mit allen Aktionen, ab zwei nur mit Anzahl, Summe und „Auswahl aufheben“ (ledger-cnaz3).
+/// Sie ist `fixed` und steht deshalb außerhalb der Seitenhülle mit der Eintrittsanimation
+/// (`animate-page-enter` setzt einen Transform, in dem `fixed` an der Hülle statt am Fenster
+/// haftet): der Haupt-`View.fs` rendert sie neben den Toasts.
 let selectionBars (dispatch: Msg -> unit) (model: Model) : ReactElement =
     let totals = selectionTotals model
     let countText = selectionBarCountText totals.Count
     let run = selectionBarRun model.BatchRunning
     let locked = run.Locked
-    let pickerProps = batchPickerProps dispatch model
     // Popover am PC, Sheet am Handy: nie beide, denn das Sheet portalt in den Body (ADR 0043).
     let desktop = Viewport.isDesktopViewport ()
-    let category : MultiSelect.CategoryAction =
-        { Label = selectionCategoryLabel
-          IsBusy = run.CategoryBusy
-          IsLocked = locked
-          OnClick = fun () -> dispatch ToggleBatchCategoryPicker
-          Popover =
-            (if desktop then CategoryPicker.selectionPopover model.BatchCategoryPickerOpen pickerProps
-             else Html.none)
-          Sheet =
-            (if desktop then Html.none
-             else
-                CategoryPicker.selectionSheet
-                    model.BatchCategoryPickerOpen
-                    (Some (selectionPickerSubtitle totals.Count totals.Amount))
-                    pickerProps) }
-    // Die Rückfrage an Lena (ledger-y54gr): zwei sekundäre Aktionen mit der Zahl der Auswahl.
-    // "Lena fragen" braucht die Flag-Farbe aus den Settings, sonst ist sie gesperrt und nennt den
-    // Grund; zurücknehmen braucht sie nicht.
-    let lena : MultiSelect.LenaAction =
-        { Label = selectionLenaLabel totals.Count
-          IsBusy = run.LenaBusy
-          IsLocked = locked
-          Reason = selectionLenaDisabledReason model.LenaFlagColor
-          OnClick = fun () -> dispatch (StartLenaBatch AssignLena) }
-    let withdraw : MultiSelect.LenaAction =
-        { Label = selectionWithdrawLabel totals.Count
-          IsBusy = false
-          IsLocked = locked
-          Reason = None
-          OnClick = fun () -> dispatch (StartLenaBatch WithdrawLena) }
+    let category =
+        categoryAction dispatch model (fun props ->
+            if desktop then Some (CategoryPicker.selectionPopover model.BatchCategoryPickerOpen props) else None)
     React.fragment [
         if model.SelectionMode then
+            let lena, withdraw = lenaActions dispatch model true
             MultiSelect.barMobile
                 countText
                 totals.Amount
@@ -3848,11 +3856,15 @@ let selectionBars (dispatch: Msg -> unit) (model: Model) : ReactElement =
                 withdraw
                 selectionClearLabel
                 (fun () -> dispatch ClearSelection)
-        if totals.Count > 0 then
+        match desktopBarFor model with
+        | SingleSelectionBar ->
+            let lena, withdraw = lenaActions dispatch model false
             React.keyedFragment (
                 "selection-bar",
-                [ MeasuredBottomBar (
-                      MultiSelect.barDesktop
+                // Die Farbe des Flags an „Lena fragen“ (die Leiste steht außerhalb der Seite).
+                [ MeasuredBottomBar
+                      (Badge.lenaFlagScope (lenaColorOf model.LenaFlagColor))
+                      (MultiSelect.barDesktop
                           countText
                           totals.Amount
                           selectionReviewedLabel
@@ -3864,11 +3876,22 @@ let selectionBars (dispatch: Msg -> unit) (model: Model) : ReactElement =
                           withdraw
                           selectionClearLabel
                           selectionClearKeyHint
+                          (fun () -> dispatch ClearSelection)) ]
+            )
+        | CompactSelectionBar ->
+            React.keyedFragment (
+                "selection-bar-compact",
+                [ MeasuredBottomBar [] (
+                      MultiSelect.barDesktopCompact
+                          countText
+                          totals.Amount
+                          selectionClearLabel
+                          selectionClearKeyHint
                           (fun () -> dispatch ClearSelection)
                   ) ]
             )
-        elif keyboardHintVisible model then
-            React.keyedFragment ("keyboard-hint", [ MeasuredBottomBar (keyboardHint (keyboardHintTextFor model)) ])
+        | KeysBar -> React.keyedFragment ("keyboard-hint", [ MeasuredBottomBar [] (keyboardHint ()) ])
+        | NoDesktopBar -> ()
     ]
 
 /// Je ein Abstandshalter in Höhe der Leiste unter der Liste, damit die letzte Zeile
@@ -3876,9 +3899,14 @@ let selectionBars (dispatch: Msg -> unit) (model: Model) : ReactElement =
 let private selectionBarSpacers (model: Model) : ReactElement =
     React.fragment [
         if model.SelectionMode then Html.div [ prop.className "md:hidden h-52"; prop.ariaHidden true ]
-        // Neben der Seitenleiste (232 px, design-system-k6kfw) bricht die Leiste bis 1279 px zweizeilig um.
-        if hasSelection model then Html.div [ prop.className "hidden md:block h-28 xl:h-20"; prop.ariaHidden true ]
-        elif keyboardHintVisible model then Html.div [ prop.className "hidden md:block h-12"; prop.ariaHidden true ]
+        // Die Leiste bricht neben Seitenleiste und Panel mehrzeilig um: der Abstandshalter ist so hoch, wie
+        // `MeasuredBottomBar` sie misst (`--ledger-bottom-bar-height`), vor der ersten Messung 7 rem (ledger-cnaz3).
+        if hasSelection model || keyboardHintVisible model then
+            Html.div [
+                prop.className "hidden md:block"
+                prop.style [ style.custom ("height", "var(--ledger-bottom-bar-height, 7rem)") ]
+                prop.ariaHidden true
+            ]
     ]
 
 /// Steht "+ Buchung" am Handy? Nicht bei offenem Formular und nicht im Auswahl-Modus (dort steht die
@@ -4488,11 +4516,14 @@ let private FilterBarColumn
     // Unter 1024 px gilt die Handy-Form (ledger-d9z3n): Kontowahl, Suche, Filter-Knopf, Handy-Liste, Detail als
     // Sheet. Zur Renderzeit gelesen; die Spalte zeichnet bei jeder Größenänderung neu (`observeWidth`).
     let handyForm = not (Viewport.isInspectorPanelViewport ())
-    let tableLayout = if handyForm then CompactList else visibleColumns tableWidth isAllAccounts
-    // Die Form des Details hängt nur von der Breite OHNE Panel ab (`detailFormFor`): das
-    // Panel reserviert seinen Platz als Innenabstand, die gemessene Außenbreite bleibt gleich.
-    let detailForm = if handyForm then DetailSheet else detailFormFor tableWidth isAllAccounts
-    let panelOpen = (model.DetailFor.IsSome || model.Capture.IsSome) && detailForm = DetailPanel
+    // Ab 1024 px steht rechts immer das Panel (ledger-cnaz3, §7.6): die Tabelle bekommt die Breite daneben, Memo erst
+    // ab 1500 px Fensterbreite; reicht die Breite für keine Stufe, steht die Kompaktliste. Das Panel reserviert seinen
+    // Platz als Innenabstand, die gemessene Außenbreite der Spalte bleibt gleich.
+    let tableLayout =
+        if handyForm then CompactList
+        else visibleColumnsBesidePanel Browser.Dom.window.innerWidth tableWidth isAllAccounts
+    let detailForm = if handyForm then DetailSheet else DetailPanel
+    let panelShown = not handyForm
     React.useEffect (
         (fun () -> if model.DetailForm <> detailForm then dispatch (DetailFormChanged detailForm)),
         [| box detailForm; box model.DetailForm |]
@@ -4545,14 +4576,16 @@ let private FilterBarColumn
             // Das Sheet portalt nach `document.body`; es steht hier, weil die Form hier bekannt ist.
             detailSheetOrRuleForm dispatch model ruleForm (model.DetailFor.IsSome && detailForm = DetailSheet)
             captureSheetView dispatch model model.Capture (detailForm = DetailSheet)
-            match model.Capture, detailEntryOf model with
-            | Some capture, _ when panelOpen -> capturePanelView dispatch model capture
-            | None, Some entry when panelOpen -> detailPanelOrRuleForm dispatch model ruleForm entry
-            | _ -> ()
+            if panelShown then
+                match panelContentFor model, model.Capture, detailEntryOf model with
+                | PanelCapture, Some capture, _ -> capturePanelView dispatch model capture
+                | PanelSelectionSummary, _, _ -> selectionSummaryPanel dispatch model
+                | PanelDetail, _, Some entry -> detailPanelOrRuleForm dispatch model ruleForm entry
+                | _ -> Detail.emptyPanel emptyPanelText
             Html.div [
                 // Neben dem Panel macht die Spalte Platz; die Mindesthöhe hält das haftende
                 // Panel auch bei kurzer Liste im Bild.
-                prop.className (if panelOpen then "md:pr-[420px] md:min-h-[calc(100vh-7rem)]" else "")
+                prop.className (if panelShown then "md:pr-[424px] md:min-h-[calc(100vh-7rem)]" else "")
                 prop.children [
             Primitives.Stack.md [
                 // Der Lauf blockiert die Liste nicht: sie bleibt
@@ -4574,7 +4607,7 @@ let private FilterBarColumn
                 // Unter 1024 px steht „Gelöschte zeigen“ im Filter-Sheet.
                 if handyForm then Html.none else deletedToggleRow dispatch model
                 orderStaleBar dispatch model
-                entryList dispatch accounts isAllAccounts handyForm tableWidth panelOpen model
+                entryList dispatch accounts isAllAccounts handyForm tableLayout model
                 selectionBarSpacers model
                 captureFabSpacer model
             ]
@@ -4603,6 +4636,10 @@ type LedgerTabs = {
     ShowRules: unit -> unit
     /// „Abrufen“ im Kopf (ledger-d9z3n): derselbe Abruf wie auf der Übersicht.
     Fetch: unit -> unit
+    /// Die Zahl „Zu prüfen“ im ganzen Kassenbuch, wie die Übersicht sie kennt (ledger-cnaz3, „n durchgehen“).
+    OverviewReviewCount: int
+    /// „n durchgehen“ im Kopf (ledger-cnaz3): öffnet das Durchgehen.
+    StartReview: unit -> unit
 }
 
 /// Was im Kopf des Kassenbuchs steht, ohne Inhalt (categorization-n3sxw). Rein, damit die Zusicherungen unter .NET
@@ -4614,16 +4651,88 @@ type LedgerHeaderAction =
     | MirrorIcon
     /// „Jetzt spiegeln“ mit Text: auf „Buchungen“ ab 1024 px, auf „Regeln“ ab `xl`.
     | MirrorButton
+    /// „Abrufen“ mit Symbol und Text, auf „Buchungen“ ab 1024 px (ledger-cnaz3).
+    | FetchButton
+    /// „n durchgehen“, auf „Buchungen“ ab 1024 px und nur bei n > 0 (ledger-cnaz3).
+    | ReviewButton of count: int
     /// „+ Buchung“, ab 1024 px (darunter der FAB).
     | CaptureBooking
     /// Die Aktionen des Tabs selbst, auf „Regeln“ die Hauptaktion „+ Neue Regel“.
     | TabActions
 
 /// Die Kopf-Aktionen je Tab, in der Reihenfolge der Kopfzeile. Eine Hauptaktion je Ansicht: auf „Buchungen“
-/// „+ Buchung“, auf „Regeln“ „+ Neue Regel“ aus `TabActions`, dort gibt es kein „+ Buchung“.
-let headerActionsFor (onRules: bool) : LedgerHeaderAction list =
+/// „+ Buchung“, auf „Regeln“ „+ Neue Regel“ aus `TabActions`, dort gibt es kein „+ Buchung“. Auf „Buchungen“ am PC
+/// (ledger-cnaz3): „Jetzt spiegeln“, „Abrufen“, „n durchgehen“ (nur bei n > 0) und „+ Buchung“; die Symbolknöpfe
+/// stehen nur unter 1024 px.
+let headerActionsFor (onRules: bool) (reviewCount: int) : LedgerHeaderAction list =
     if onRules then [ MirrorIcon; MirrorButton; TabActions ]
-    else [ FetchIcon; MirrorIcon; MirrorButton; CaptureBooking ]
+    else
+        [ FetchIcon; MirrorIcon; MirrorButton; FetchButton
+          if reviewCount > 0 then ReviewButton reviewCount
+          CaptureBooking ]
+
+/// Der Text von „n durchgehen“.
+let reviewButtonLabel (count: int) : string = $"{Money.formatCount count} durchgehen"
+
+/// Die Zahl hinter „n durchgehen“: die zu prüfenden Buchungen im ganzen Kassenbuch. In „Alle Konten“ mit geladener
+/// Liste ist es die Zahl des Kassenbuchs selbst (sie folgt jedem Prüfen sofort), in einem Konto die der Übersicht.
+let headerReviewCount (isAllAccounts: bool) (entriesLoaded: bool) (ledgerCount: int) (overviewCount: int) : int =
+    if isAllAccounts && entriesLoaded then ledgerCount else overviewCount
+
+/// Die Zeile unter dem Titel am PC (ledger-cnaz3, Prototyp Version 17 `ledgerDesk`): das Konto oder „Alle Konten“,
+/// sein Saldo (fehlt, solange die Stände laden oder nicht lesbar sind) und dahinter der Stand des Spiegels (BB).
+type LedgerHeaderLine = {
+    Account: string
+    Balance: Money option
+    Mirror: string option
+}
+
+let ledgerHeaderLine
+    (accounts: LedgerAccountView list)
+    (balances: RemoteData<LedgerAccountBalanceView list>)
+    (selected: AccountFilter option)
+    (mirror: string option)
+    : LedgerHeaderLine =
+    let cards = buildAccountCards accounts balances
+    let active =
+        cards
+        |> List.tryFind (fun c -> Some c.Filter = selected)
+        |> Option.orElse (List.tryHead cards)
+    { Account = active |> Option.map (fun c -> c.Label) |> Option.defaultValue "Alle Konten"
+      Balance =
+        active
+        |> Option.bind (fun c -> match c.Balance with BalanceShown money -> Some money | _ -> None)
+      Mirror = mirror }
+
+/// Die Zeile als Element: am PC „Konto · Saldo · Gespiegelt …“ mit dem Saldo in Mono, unter 1024 px nur der Stand
+/// des Spiegels (Konto und Saldo stehen dort im Auswahlfeld „Konto“).
+let private ledgerHeaderLineView (line: LedgerHeaderLine) : ReactElement =
+    Html.span [
+        prop.custom ("data-testid", "ledger-header-line")
+        prop.children [
+            Html.span [
+                prop.className "hidden lg:inline"
+                prop.children [
+                    Html.span [ prop.text line.Account ]
+                    match line.Balance with
+                    | Some money ->
+                        Html.span [ prop.text " · " ]
+                        Html.span [
+                            prop.custom ("data-testid", "ledger-header-balance")
+                            prop.className $"{Tokens.Fonts.mono} tabular-nums"
+                            prop.text (Money.formatAmountText false true money.Amount money.Currency)
+                        ]
+                    | None -> ()
+                    match line.Mirror with
+                    | Some _ -> Html.span [ prop.text " · " ]
+                    | None -> ()
+                ]
+            ]
+            match line.Mirror with
+            | Some text -> Html.span [ prop.text text ]
+            | None -> ()
+        ]
+    ]
 
 /// Springt ohne Animation (`scroll-behavior: smooth` der Seite gilt hier nicht): die Liste soll stehen wie vorher.
 [<Emit("window.scrollTo({ top: $0, behavior: 'instant' })")>]
@@ -4673,7 +4782,13 @@ let view (model: Model) (dispatch: Msg -> unit) (tabs: LedgerTabs) (ruleForm: En
         // Auf „Buchungen“ gilt die Handy-Form bis 1023 px (ledger-d9z3n).
         let mirrorIconClass = if onRules then "xl:hidden" else "lg:hidden"
         let mirrorButtonClass = if onRules then "hidden xl:inline-flex" else "hidden lg:inline-flex"
-        headerActionsFor onRules
+        let reviewCount =
+            headerReviewCount
+                (model.SelectedFilter = Some AllAccounts)
+                (match model.Entries with Success _ -> true | _ -> false)
+                model.NeedsReviewCount
+                tabs.OverviewReviewCount
+        headerActionsFor onRules reviewCount
         |> List.collect (function
             | FetchIcon ->
                 [ Button.view {
@@ -4705,6 +4820,23 @@ let view (model: Model) (dispatch: Msg -> unit) (tabs: LedgerTabs) (ruleForm: En
                         IsLoading = model.MirrorRunning
                         ClassName = Some mirrorButtonClass
                         OnClick = (fun () -> dispatch StartMirror)
+                  } ]
+            | FetchButton ->
+                [ Button.view {
+                    Button.defaultProps with
+                        Text = "Abrufen"
+                        Icon = Some (Icons.refresh Icons.SM Icons.Default)
+                        Variant = Button.Secondary
+                        ClassName = Some "hidden lg:inline-flex"
+                        OnClick = tabs.Fetch
+                  } ]
+            | ReviewButton count ->
+                [ Button.view {
+                    Button.defaultProps with
+                        Text = reviewButtonLabel count
+                        Variant = Button.Secondary
+                        ClassName = Some "hidden lg:inline-flex"
+                        OnClick = tabs.StartReview
                   } ]
             | CaptureBooking ->
                 [ Button.view {
@@ -4745,7 +4877,14 @@ let view (model: Model) (dispatch: Msg -> unit) (tabs: LedgerTabs) (ruleForm: En
             tabsBar tabs dispatch
             parts.Content
         | BookingsTab ->
-            PageHeader.calm "Kassenbuch" (lastRunSubtitle model.LastMirrorRun) (headerActions [])
+            // Unter dem Titel am PC Konto und Saldo, dahinter der Stand des Spiegels (ledger-cnaz3, Abweichung (a)).
+            PageHeader.view
+                { PageHeader.defaultProps with
+                    Title = "Kassenbuch"
+                    SubtitleView =
+                        Some (ledgerHeaderLineView (ledgerHeaderLine accounts balances model.SelectedFilter (lastRunSubtitle model.LastMirrorRun)))
+                    Actions = headerActions []
+                    TitleStyle = PageHeader.Calm }
             tabsBar tabs dispatch
 
             match model.Accounts with

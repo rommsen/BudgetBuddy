@@ -707,22 +707,20 @@ let private calmListSection =
     // Gruppenkopf: Datum links, Tagessumme bündig unter den Beträgen (ADR 0049, Punkt 8).
     // Vier Spalten (Datum, Payee, Kategorie, Memo) liegen vor dem Betrag.
     let groupRow (title: string) (sum: string) = Table.calmGroupRow title 4 title sum
-    let statusWord (text: string) =
-        Html.td [
-            prop.className $"px-3 text-right {Tokens.FontSizes.microPlus} {Tokens.Colors.attention}"
-            prop.text text
-        ]
+    // Die Kennzeichen stehen hinter dem Payee (ledger-cnaz3): ein Wort in Gelb, Rot oder die Lena-Marke.
+    let markWord (colorClass: string) (text: string) =
+        Html.span [ prop.className ($"shrink-0 whitespace-nowrap {Tokens.FontSizes.xs} " + colorClass); prop.text text ]
     let noCategory =
         Table.tdContent [ Html.span [ prop.className $"text-xs {Tokens.Colors.attention}"; prop.text "Keine Kategorie" ] ]
-    let emptyCell = Table.tdContent []
-    let dataRow (edge: bool) (date: string) (payee: string) (category: ReactElement) (memo: string) (amount: decimal) (status: string) =
+    let dataRow (edge: bool) (date: string) (payee: string) (marks: ReactElement list) (category: ReactElement) (memo: string) (amount: decimal) =
         Table.calmRow edge (keyed [
             Table.roleCell Table.DateCell [ Html.text date ]
-            Table.roleCell Table.Payee [ Html.text payee ]
+            Table.roleCell Table.Payee [
+                Html.div [ prop.className "flex min-w-0 items-center gap-2"; prop.children (Html.span [ prop.text payee ] :: marks) ]
+            ]
             category
             Table.roleCell Table.Muted [ Html.text memo ]
             Table.amountCell amount "EUR"
-            if status = "" then emptyCell else statusWord status
         ])
     let cat (text: string) = Table.roleCell Table.Secondary [ Html.text text ]
     // Zweizeilige Handy-Zeile: Kante links über dieselbe Klasse wie die Tabellenzeile
@@ -755,6 +753,20 @@ let private calmListSection =
                 PageHeader.calm "Kassenbuch" (Some "Gespiegelt heute 22:24") [
                     Button.secondary "Sync" ignore
                 ]
+                note "SubtitleView (ledger-cnaz3): der Untertitel mit eigenem Aufbau, im Kassenbuch am PC Konto und Saldo in Mono vor dem Stand des Spiegels."
+                PageHeader.view
+                    { PageHeader.defaultProps with
+                        Title = "Kassenbuch"
+                        SubtitleView =
+                            Some (
+                                Html.span [
+                                    Html.span [ prop.text "Alle Konten · " ]
+                                    Html.span [ prop.className $"{Tokens.Fonts.mono} tabular-nums"; prop.text "4.300,00 €" ]
+                                    Html.span [ prop.text " · Gespiegelt heute 22:24" ]
+                                ]
+                            )
+                        Actions = [ Button.secondary "Jetzt spiegeln" ignore; Button.primary "Buchung" ignore ]
+                        TitleStyle = PageHeader.Calm }
                 note "Sortierbare Kopfzelle (ledger-bn913): aktiv aufsteigend, aktiv absteigend, nicht aktiv. Der Pfeil steht nur am aktiven Kopf, aria-sort trägt die Richtung."
                 Table.view { Table.defaultTableProps with Variant = Table.Hover } [
                     Table.thead (keyed [
@@ -910,15 +922,14 @@ let private calmListSection =
                         Table.calmHeaderCell "Kategorie" None
                         Table.calmHeaderCell "Memo" None
                         Table.calmHeaderCell "Betrag" (Some "right")
-                        Table.calmHeaderCell "Status" (Some "right")
                     ])
                     Table.tbody (keyed [
                         groupRow "HEUTE" "-54,52 €"
-                        dataRow true "Heute" "REWE Mitte" (cat "Alltag: Essen/Einkaufen") "Wocheneinkauf" -48.12m "zu prüfen"
-                        dataRow false "Heute" "Bäckerei Krause" (cat "Alltag: Essen/Einkaufen") "" -6.40m ""
+                        dataRow true "Heute" "REWE Mitte" [ Badge.lenaMark "Lena" ] (cat "Alltag: Essen/Einkaufen") "Wocheneinkauf" -48.12m
+                        dataRow false "Heute" "Bäckerei Krause" [ markWord Tokens.Colors.attention "doppelt?" ] (cat "Alltag: Essen/Einkaufen") "" -6.40m
                         groupRow "GESTERN" "+3.774,00 €"
-                        dataRow false "Gestern" "Arbeitgeber GmbH" (cat "Ready to Assign") "Gehalt Oktober" 3412.80m ""
-                        dataRow true "Gestern" "Amazon Marketplace" noCategory "" -37.45m "zu prüfen"
+                        dataRow false "Gestern" "Arbeitgeber GmbH" [] (cat "Ready to Assign") "Gehalt Oktober" 3412.80m
+                        dataRow true "Gestern" "Amazon Marketplace" [ markWord Tokens.Colors.error "nicht in YNAB" ] noCategory "" -37.45m
                     ])
                 ]
                 Html.div [
@@ -2173,6 +2184,17 @@ let private chipBarSection =
                     ChipBar.chip { Label = "Ohne Kategorie"; IsActive = false; OnClick = ignore; OnRemove = None }
                     ChipBar.clearAllButton ignore
                 ]
+                // chipWith (ledger-cnaz3): Filterleiste am PC mit Zahl hinter dem Umschalter und Pfeil am Chip
+                // „Kategorie“, „Filter löschen“ als Chip und die Suche rechtsbündig (Prototyp Version 17).
+                ChipBar.bar None [
+                    ChipBar.chipWith (Some 4) false { Label = "Zu prüfen"; IsActive = true; OnClick = ignore; OnRemove = None }
+                    ChipBar.chipWith (Some 2) false { Label = "Lena"; IsActive = false; OnClick = ignore; OnRemove = None }
+                    ChipBar.chipWith (Some 1) false { Label = "Ohne Kategorie"; IsActive = false; OnClick = ignore; OnRemove = None }
+                    ChipBar.chipWith None true { Label = "Kategorie"; IsActive = false; OnClick = ignore; OnRemove = Some ignore }
+                    ChipBar.chipWith None true { Label = "Kategorie: Strom"; IsActive = true; OnClick = ignore; OnRemove = Some ignore }
+                    ChipBar.chip { Label = "Filter löschen"; IsActive = false; OnClick = ignore; OnRemove = None }
+                    Input.searchFieldCompact "styleguide-search-compact" "Buchungen durchsuchen" "Suchen…" "" ignore
+                ]
             ]
         ]
     ]
@@ -2642,8 +2664,49 @@ let private multiSelectSection =
             barFrame [ demoBarMobile sum category ]
         ]
 
-        card "components-multiselect-bar-desktop" "Mehrfachauswahl: Leiste am PC" "Eine Reihe: Anzahl und Summe links, rechts Auswahl aufheben mit Taste, Kategorie setzen, Geprüft (ab md sichtbar)" [
+        card "components-multiselect-bar-desktop" "Mehrfachauswahl: Leiste am PC" "Eine Buchung: Anzahl und Summe links, rechts Geprüft, Kategorie setzen, Lena fragen mit Flag, Rückfrage zurücknehmen, Auswahl aufheben mit Taste (ab md sichtbar, ab 1024 px endet sie am Panel)" [
             barFrame [ demoBarDesktop sum category ]
+        ]
+
+        card "components-multiselect-bar-desktop-compact" "Mehrfachauswahl: Leiste am PC ab zwei" "Nur Anzahl, Summe und Auswahl aufheben; die Aktionen stehen im Panel (ledger-cnaz3)" [
+            barFrame [ MultiSelect.barDesktopCompact "3 ausgewählt" sum "Auswahl aufheben" "Esc aufheben" ignore ]
+        ]
+
+        card "components-multiselect-summary-panel" "Mehrfachauswahl: Zusammenfassung im Panel" "Ab zwei gewählten Buchungen: Summe, Ausgaben, Einnahmen, Davon zu prüfen, nach Kategorie, Alle geprüft (§7.7, Prototyp selSummary)" [
+            Html.div [
+                prop.className "flex h-[620px] w-[420px] max-w-full flex-col border-l border-border-default bg-surface-card"
+                prop.children (
+                    MultiSelect.summaryPanel {
+                        Title = "3 Buchungen ausgewählt"
+                        Hint = "Umschalt-Klick wählt einen Bereich, Strg- oder Cmd-Klick einzelne"
+                        SumLabel = "Summe"
+                        Sum = { Amount = -96.19m; Currency = "EUR" }
+                        Figures = [ "Ausgaben", "-96,19 €"; "Einnahmen", "0,00 €"; "Davon zu prüfen", "3" ]
+                        CategoryHeading = "Nach Kategorie"
+                        Categories =
+                            [ { Label = "Lebensmittel"; Amount = { Amount = -42.80m; Currency = "EUR" }; Missing = false }
+                              { Label = "Geschenke"; Amount = { Amount = -34.99m; Currency = "EUR" }; Missing = false }
+                              { Label = "ohne Kategorie"; Amount = { Amount = -18.40m; Currency = "EUR" }; Missing = true } ]
+                        Note = None
+                        ReviewedLabel = "Alle geprüft"
+                        ReviewedBusy = false
+                        Locked = false
+                        OnReviewed = ignore
+                        Category = category
+                        Lena = demoLena
+                        Withdraw = Some demoWithdraw
+                        ClearLabel = "Auswahl aufheben"
+                        OnClear = ignore
+                    }
+                )
+            ]
+        ]
+
+        card "components-detail-empty-panel" "Panel ohne gewählte Buchung" "Ab 1024 px steht das Panel immer; ohne Auswahl ein gedämpfter Satz ohne Aktion (§7.6, §7.12)" [
+            Html.div [
+                prop.className "relative h-72 overflow-hidden transform-gpu"
+                prop.children [ Detail.emptyPanel "Buchung wählen, um Details zu sehen." ]
+            ]
         ]
     ]
 

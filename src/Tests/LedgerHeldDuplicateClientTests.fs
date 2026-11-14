@@ -60,7 +60,7 @@ let tests =
 
         testCase "die Zeile trägt doppelt? statt Nicht in YNAB" <| fun () ->
             Expect.equal (rowStatusMark (held 1)) RowPossibleDuplicate "Handy-Zeile"
-            Expect.equal (tableStatusMarks (held 1)) [ StatusPossibleDuplicate ] "PC-Statusspalte"
+            Expect.equal (payeeMarks (held 1)) [ PayeePossibleDuplicate ] "Payee-Zelle am PC"
             Expect.equal (rowStatusMark (entryOf 1)) RowNotInYnab "ohne Wartemarke wie bisher"
             Expect.equal (rowStatusMark { held 1 with DeletedInYnab = true }) RowDeleted "gelöscht hat Vorrang"
 
@@ -86,10 +86,6 @@ let tests =
             Expect.equal (payeeLockFor entry) (Some possibleDuplicateLockedText) "Payee"
             Expect.isFalse (detailReviewSwitchVisible entry) "kein Geprüft-Schalter"
             Expect.isFalse (swipeAppliesTo entry) "kein Wisch"
-            Expect.equal (pointerRowReviewMarkSlot entry false) NoReviewMarkSlot "keine Prüf-Schaltfläche am PC"
-            // Review-Fund zu banking-import-d0fey: ohne Platzhalter rückte der Betrag am Handy aus der Spalte.
-            Expect.equal (touchRowReviewMarkSlot entry false false false) ReviewMarkPlaceholder "am Handy ein Platzhalter statt der Prüf-Schaltfläche"
-            Expect.equal (touchRowReviewMarkSlot entry false false true) NoReviewMarkSlot "bei laufender Auswahl wie jede Zeile ohne Schaltfläche"
             Expect.isFalse (detailDeleteVisible entry) "kein Löschen"
 
         testCase "ohne Wartemarke bleiben die Aktionen frei" <| fun () ->

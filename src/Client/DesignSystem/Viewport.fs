@@ -127,6 +127,11 @@ let focusAndReveal (fieldSelector: string) (revealId: string) =
 // Body scroll lock (counted, so nested sheets don't fight over the styles)
 // ---------------------------------------------------------------------------
 
+/// Gibt dem Feld `fieldSelector` den Fokus, ohne zu rollen (Taste „/“ im Kassenbuch, ledger-cnaz3).
+let focusField (fieldSelector: string) =
+    let field = document.querySelector fieldSelector
+    if not (isNull field) then (field :?> HTMLElement)?focus (createObj [ "preventScroll" ==> true ]) |> ignore
+
 let mutable private lockCount = 0
 let mutable private savedScrollY = 0.0
 
