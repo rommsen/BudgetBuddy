@@ -11,13 +11,14 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 1
-- **Todo:** 0
+- **Todo:** 1
 - **Doing:** 0
 - **Done:** 9
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **categorization-m47g8** — "Neue Regeln kommen ans Ende der Liste (niedrigste Priorität), aus der Buchung wie im Tab Regeln" (bug) — `todo/categorization-m47g8-neue-regel-ans-ende.md`
 <!-- todo-list:end -->
 
 ### Doing

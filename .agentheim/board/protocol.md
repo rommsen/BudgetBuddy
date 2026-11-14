@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-11-14 13:33 -- Modeling / Captured: categorization-m47g8 - "Neue Regeln kommen ans Ende der Liste (niedrigste Priorität), aus der Buchung wie im Tab Regeln"
+
+**Type:** Modeling / Capture
+**BC:** categorization
+**Filed to:** todo
+**Summary:** Neue Regeln ans Ende, niedrigste Priorität, beide Wege (Roman)
+
+---
+
 ## 2026-11-14 10:00 -- Capture / Captured: ledger-sre0f - "Zuletzt-Chips in „Neue Buchung“ aus den Buchungen des gewählten Kontos, fünf mit Memo"
 
 **Type:** Capture
