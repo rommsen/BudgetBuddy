@@ -790,21 +790,23 @@ let defaultsTests =
                   { Id = closedY; Name = "Alt"; Balance = eur 0m; OnBudget = true; Closed = false } ]
             Expect.equal (bookingAccounts accounts budget (Some imp) |> List.map (fun a -> a.Id)) [ bar ] "nur Bar"
 
-        testCase "die Zuletzt-Chips: drei, neueste zuerst, ohne Doppelte" <| fun () ->
+        testCase "die Zuletzt-Chips: je Konto neueste zuerst, ohne Doppelte" <| fun () ->
             let newestFirst =
                 [ entryWith bar "Bäckerei Lange" -8.60m (Some food)
                   entryWith bar "bäckerei lange " -8.60m (Some food)
-                  entryWith tag "Wochenmarkt" -23m None
                   { entryWith bar "Tankstelle" -60m None with DeletedInYnab = true }
                   entryWith bar "Tankstelle" -60m None
-                  entryWith bar "Kiosk" -2m None ]
-            let defaults = Ledger.QueryHandlers.bookingDefaultsOf today (Some imp) (Some tag) newestFirst
+                  entryWith bar "Kiosk" -2m None
+                  entryWith tag "Wochenmarkt" -23m None ]
+            let captured = [ entryWith tag "Wochenmarkt" -23m None ]
+            let defaults = Ledger.QueryHandlers.bookingDefaultsOf today (Some imp) (Some tag) captured newestFirst
             Expect.equal
                 (defaults.Recent |> List.map (fun t -> t.Payee, t.Amount, t.IsOutflow))
-                [ "Bäckerei Lange", 8.60m, true; "Wochenmarkt", 23m, true; "Tankstelle", 60m, true ]
-                "drei Kombinationen"
+                [ "Bäckerei Lange", 8.60m, true; "Tankstelle", 60m, true; "Kiosk", 2m, true; "Wochenmarkt", 23m, true ]
+                "je Konto ohne Doppelte"
             Expect.equal defaults.Recent.Head.Target (Some (BookOnCategory food.CategoryId)) "Kategorie im Chip"
-            Expect.equal defaults.LastUsedAccountId (Some bar) "zuletzt genutztes Konto"
+            // ledger-sre0f: das zuletzt genutzte Konto kommt weiter aus den in BB erfassten Buchungen.
+            Expect.equal defaults.LastUsedAccountId (Some tag) "zuletzt genutztes Konto"
             Expect.equal defaults.ImportAccountId (Some imp) "Import-Konto"
             Expect.equal defaults.QuickAddAccountId (Some tag) "Quick-Add-Konto"
 
@@ -814,7 +816,7 @@ let defaultsTests =
                 { entryWith bar "Transfer : Tagesgeld" -100m None with
                     TransferAccountId = Some target
                     PayeeBeforeTransfer = Some "Sparen" }
-            let defaults = Ledger.QueryHandlers.bookingDefaultsOf today None None [ transfer ]
+            let defaults = Ledger.QueryHandlers.bookingDefaultsOf today None None [] [ transfer ]
             Expect.equal
                 (defaults.Recent |> List.map (fun t -> t.Payee, t.Target))
                 [ "Sparen", Some (BookAsTransfer target) ]
@@ -854,6 +856,140 @@ let defaultsTests =
                 Ledger.QueryHandlers.getLedgerBookingDefaultsWith setting zone (DateTime(2026, 11, 7, 10, 0, 0, DateTimeKind.Utc))
                 |> Async.RunSynchronously
             Expect.isNone defaults.QuickAddAccountId "nicht gespiegelt"
+    ]
+
+// ============================================
+// Zuletzt-Chips je Konto (ledger-sre0f)
+// ============================================
+
+let private template (account: Guid) (payee: string) (amount: decimal) (memo: string option) : LedgerBookingTemplate =
+    { AccountId = account; Payee = payee; Target = None; Amount = amount; IsOutflow = true; Memo = memo }
+
+/// Eine Buchung, wie der Spiegel sie aus YNAB sieht (also auch eine, die Lena in YNAB angelegt hat).
+let private seedMirrored (account: LedgerAccountId) (date: DateTime) (payee: string) (amount: decimal) (splits: TransactionSplit list) : EntryId =
+    let entryId = newEntryId ()
+    let payload : EntryObservedInYnabPayload = {
+        AccountId = account
+        YnabTransactionId = $"ynab-sre0f-{Guid.NewGuid()}"
+        ImportId = None
+        Date = date
+        Amount = eur amount
+        Payee = Some payee
+        Memo = Some $"Memo {payee}"
+        Category = (if List.isEmpty splits then Some food else None)
+        Splits = splits
+        Cleared = Cleared
+        TransferAccountId = None
+        TransferYnabTransactionId = None
+        Approved = true
+        FlagColor = None
+        FlagName = None
+    }
+    appendAndApply [ { EntryId = entryId; OccurredAt = now; Actor = YnabMirror; Body = EntryObservedInYnab payload } ]
+    |> Async.RunSynchronously
+    entryId
+
+/// Eine Barbuchung mit dem angegebenen Actor (Bob über `/bot/`, Roman über "Neue Buchung").
+let private seedCash (actor: Actor) (account: LedgerAccountId) (date: DateTime) (payee: string) (amount: decimal) : EntryId =
+    let entryId = newEntryId ()
+    let input : CashExpenseInput =
+        { AccountId = account; Date = date; Amount = eur amount; Payee = Some payee; Memo = None; Category = Some food }
+    addCashExpense actor now entryId (fun () -> async.Return (Ok $"y-{Guid.NewGuid()}")) ignore input
+    |> Async.RunSynchronously
+    |> ignore
+    entryId
+
+let private recentDefaults (importYnab: YnabAccountId option) : LedgerBookingDefaults =
+    let setting key =
+        match importYnab with
+        | Some (YnabAccountId id) when key = Ledger.QueryHandlers.importAccountSettingKey -> async.Return (Some (string id))
+        | _ -> async.Return None
+    let zone = TimeZoneInfo.FindSystemTimeZoneById "Europe/Berlin"
+    Ledger.QueryHandlers.getLedgerBookingDefaultsWith setting zone now |> Async.RunSynchronously
+
+let private payeesOf (account: LedgerAccountId) (defaults: LedgerBookingDefaults) : string list =
+    defaults.Recent |> List.filter (fun t -> t.AccountId = guidOf account) |> List.map (fun t -> t.Payee)
+
+[<Tests>]
+let recentPerAccountPureTests =
+    let bar = Guid.NewGuid()
+    let tag = Guid.NewGuid()
+    testList "Buchung erfassen: Zuletzt-Chips rein (ledger-sre0f)" [
+        testCase "bei Doppelten mit verschiedenem Memo gilt das Memo der neuesten" <| fun () ->
+            let recent =
+                recentBookingTemplates
+                    [ template bar "Anastasia" 20m (Some "Putzen Mai")
+                      template bar "anastasia " 20m (Some "Putzen April")
+                      template bar "Anastasia" 20m None ]
+            Expect.equal (recent |> List.map (fun t -> t.Payee, t.Memo)) [ "Anastasia", Some "Putzen Mai" ] "eine Vorlage, neuestes Memo"
+
+        testCase "höchstens fünf je Konto, die Konten behalten ihre Reihenfolge" <| fun () ->
+            let many account prefix = [ for i in 1..7 -> template account $"{prefix} {i}" (decimal i) None ]
+            let recent = recentBookingTemplates (many bar "Bar" @ many tag "Tag")
+            Expect.equal
+                (recent |> List.map (fun t -> t.Payee))
+                ([ for i in 1..5 -> $"Bar {i}" ] @ [ for i in 1..5 -> $"Tag {i}" ])
+                "je fünf"
+
+        testCase "ein leeres Memo wird keins" <| fun () ->
+            let entry = { entryWith bar "Kiosk" -2m None with Memo = Some "   " }
+            Expect.equal (Ledger.QueryHandlers.bookingTemplateOf entry |> Option.map (fun t -> t.Memo)) (Some None) "kein Memo"
+            let withMemo = { entryWith bar "Kiosk" -2m None with Memo = Some "Zeitung" }
+            Expect.equal (Ledger.QueryHandlers.bookingTemplateOf withMemo |> Option.map (fun t -> t.Memo)) (Some (Some "Zeitung")) "Memo"
+    ]
+
+[<Tests>]
+let recentPerAccountTests =
+    testSequenced
+    <| testList "Buchung erfassen: Zuletzt-Chips aus dem Kassenbuch je Konto (ledger-sre0f)" [
+        // Kaputt-Szenario: bisher kamen nur in BB erfasste Buchungen, Bob und der Spiegel fehlten.
+        testCase "eine Bob-Buchung und eine gespiegelte Buchung erscheinen als Vorlage ihres Kontos" <| fun () ->
+            setup ()
+            let accounts = freshAccounts ()
+            seedCash Bob accounts.Bar (today.AddDays -2.0) "Anastasia" -20m |> ignore
+            seedMirrored accounts.Tagesgeld (today.AddDays -1.0) "Lenas Einkauf" -31m [] |> ignore
+            let defaults = recentDefaults None
+            Expect.equal (payeesOf accounts.Bar defaults) [ "Anastasia" ] "Bob auf Bar"
+            Expect.equal (payeesOf accounts.Tagesgeld defaults) [ "Lenas Einkauf" ] "Spiegel auf Tagesgeld"
+            let mirrored = defaults.Recent |> List.find (fun t -> t.AccountId = guidOf accounts.Tagesgeld)
+            Expect.equal mirrored.Memo (Some "Memo Lenas Einkauf") "Memo der Buchung"
+
+        testCase "zwei Konten mit je sieben Buchungen ergeben je fünf, neueste zuerst" <| fun () ->
+            setup ()
+            let accounts = freshAccounts ()
+            // Bar: verschiedene Tage, in gemischter Reihenfolge verbucht.
+            for day in [ 3; 7; 1; 5; 2; 6; 4 ] do
+                seedMirrored accounts.Bar (today.AddDays (float -day)) $"Bar {day}" -(decimal day) [] |> ignore
+            // Tagesgeld: alle am selben Tag, die zuletzt verbuchte zuerst.
+            for i in 1..7 do
+                seedCash UserInBb accounts.Tagesgeld today $"Tag {i}" -(decimal i) |> ignore
+            let defaults = recentDefaults None
+            Expect.equal (payeesOf accounts.Bar defaults) [ "Bar 1"; "Bar 2"; "Bar 3"; "Bar 4"; "Bar 5" ] "Datum absteigend"
+            Expect.equal (payeesOf accounts.Tagesgeld defaults) [ "Tag 7"; "Tag 6"; "Tag 5"; "Tag 4"; "Tag 3" ] "zuletzt verbucht zuerst"
+
+        testCase "gelöschte und aufgeteilte Buchungen erscheinen nicht" <| fun () ->
+            setup ()
+            let accounts = freshAccounts ()
+            let other : CategoryRef = { CategoryId = YnabCategoryId (Guid.NewGuid()); CategoryName = "Haushalt" }
+            let split (cat: CategoryRef) amount : TransactionSplit =
+                { Target = ToCategory (cat.CategoryId, cat.CategoryName); Amount = eur amount; Memo = None }
+            seedMirrored accounts.Bar (today.AddDays -3.0) "Bleibt" -5m [] |> ignore
+            seedMirrored accounts.Bar (today.AddDays -2.0) "Aufgeteilt" -30m [ split food -10m; split other -20m ] |> ignore
+            let deleted = seedMirrored accounts.Bar (today.AddDays -1.0) "Gelöscht" -7m []
+            appendAndApply [ { EntryId = deleted; OccurredAt = now; Actor = YnabMirror; Body = EntryDeletionObservedInYnab } ]
+            |> Async.RunSynchronously
+            Expect.equal (payeesOf accounts.Bar (recentDefaults None)) [ "Bleibt" ] "nur die normale Buchung"
+
+        testCase "das Import-Konto und ein geschlossenes Konto liefern keine Vorlagen" <| fun () ->
+            setup ()
+            let accounts = freshAccounts ()
+            seedMirrored accounts.Import (today.AddDays -1.0) "Supermarkt" -12m [] |> ignore
+            seedMirrored accounts.Closed (today.AddDays -1.0) "Alt" -3m [] |> ignore
+            seedMirrored accounts.Bar (today.AddDays -1.0) "Kiosk" -2m [] |> ignore
+            let defaults = recentDefaults (Some accounts.ImportYnab)
+            Expect.isEmpty (payeesOf accounts.Import defaults) "Import-Konto"
+            Expect.isEmpty (payeesOf accounts.Closed defaults) "geschlossenes Konto"
+            Expect.equal (payeesOf accounts.Bar defaults) [ "Kiosk" ] "Bar"
     ]
 
 [<Tests>]

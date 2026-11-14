@@ -143,7 +143,8 @@ let amountText (amount: decimal) : string =
     // Ohne Format-Angabe `D2`: Fable übersetzt sie nicht wie .NET.
     string whole + "," + (string rest).PadLeft(2, '0')
 
-/// Ein Zuletzt-Chip füllt Richtung, Betrag, Konto, Ziel und Payee; Datum und Memo bleiben. Rein.
+/// Ein Zuletzt-Chip füllt Richtung, Betrag, Konto, Ziel, Payee und Memo; das Memo wird genau das der
+/// Vorlage, ohne Memo leer (ledger-sre0f, kein altes Memo bleibt stehen). Das Datum bleibt. Rein.
 let applyTemplate (template: LedgerBookingTemplate) (form: CaptureForm) : CaptureForm =
     { form with
         IsOutflow = template.IsOutflow
@@ -151,7 +152,18 @@ let applyTemplate (template: LedgerBookingTemplate) (form: CaptureForm) : Captur
         AccountId = Some template.AccountId
         Target = template.Target
         TargetChosen = true
-        Payee = template.Payee }
+        Payee = template.Payee
+        Memo = template.Memo |> Option.defaultValue "" }
+
+/// Die Zuletzt-Chips des gewählten Kontos in der Reihenfolge vom Server, höchstens fünf; ohne Konto
+/// keine (ledger-sre0f). Wechselt das Konto, wechseln die Chips ohne neue Anfrage. Rein.
+let templatesFor (accountId: Guid option) (defaults: LedgerBookingDefaults) : LedgerBookingTemplate list =
+    match accountId with
+    | Some id ->
+        defaults.Recent
+        |> List.filter (fun t -> t.AccountId = id)
+        |> List.truncate LedgerBookingRecentCount
+    | None -> []
 
 /// Die Kategorie zum Payee übernehmen, solange Roman kein Ziel gewählt hat und der Payee noch
 /// derselbe ist. Ohne Vorschlag bleibt das Ziel. Rein.

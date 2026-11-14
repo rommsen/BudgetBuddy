@@ -76,7 +76,15 @@ export async function mockCapture(page, { catchAll = true } = {}) {
       ],
     })
   );
-  const chip = (accountId, payee, amount, target) => ({ AccountId: accountId, Payee: payee, Target: target, Amount: amount, IsOutflow: true });
+  // ledger-sre0f: jede Vorlage trägt ihr Memo (Pflichtfeld), die Chips gelten je Konto.
+  const chip = (accountId, payee, amount, target, memo = null) => ({
+    AccountId: accountId,
+    Payee: payee,
+    Target: target,
+    Amount: amount,
+    IsOutflow: true,
+    Memo: memo,
+  });
   await page.route("**/api/LedgerApi/getLedgerBookingDefaults", (r) =>
     json(r, {
       Today: berlinToday(),
@@ -85,7 +93,7 @@ export async function mockCapture(page, { catchAll = true } = {}) {
       LastUsedAccountId: TAGESGELD,
       QuickAddAccountId: BAR,
       Recent: [
-        chip(BAR, "Bäckerei Lange", 8.6, { BookOnCategory: { YnabCategoryId: CATEGORY_IDS.lebensmittel } }),
+        chip(BAR, "Bäckerei Lange", 8.6, { BookOnCategory: { YnabCategoryId: CATEGORY_IDS.lebensmittel } }, "Brötchen"),
         chip(BAR, "Wochenmarkt", 23, { BookOnCategory: { YnabCategoryId: CATEGORY_IDS.lebensmittel } }),
         chip(TAGESGELD, "Tankstelle", 60, null),
       ],

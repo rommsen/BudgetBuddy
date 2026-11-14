@@ -960,11 +960,15 @@ let resolveQuickAddAccount () : Async<Result<QuickAddAccount, string>> =
 /// Der Settings-Schlüssel des Import-Kontos (YNAB-Konto-Id als Guid).
 let importAccountSettingKey = "ynab_default_account_id"
 
-/// Wie viele erfasste Buchungen die Vorbelegung liest, um drei verschiedene Kombinationen zu finden.
+/// Wie viele erfasste Buchungen die Vorbelegung liest, um das zuletzt genutzte Konto zu finden.
 let capturedLookback = 50
 
-/// Die Kombination einer erfassten Buchung für einen Zuletzt-Chip: Konto, Payee, Ziel und
-/// Betrag ohne Vorzeichen mit Richtung. Bei einem Übertrag zählt der Payee vor dem Übertrag.
+/// Wie viele Buchungen je Konto die Vorbelegung liest, um fünf verschiedene Kombinationen zu finden
+/// (ledger-sre0f).
+let recentLookbackPerAccount = 50
+
+/// Die Kombination einer Buchung für einen Zuletzt-Chip: Konto, Payee, Ziel, Betrag ohne Vorzeichen
+/// mit Richtung und Memo (leer wird `None`). Bei einem Übertrag zählt der Payee vor dem Übertrag.
 /// Gelöschte und aufgeteilte Buchungen liefern keine. Rein.
 let bookingTemplateOf (entry: Entry) : LedgerBookingTemplate option =
     if entry.DeletedInYnab || not (List.isEmpty entry.Splits) then
@@ -982,16 +986,18 @@ let bookingTemplateOf (entry: Entry) : LedgerBookingTemplate option =
               Payee = p
               Target = target
               Amount = abs entry.Amount.Amount
-              IsOutflow = entry.Amount.Amount < 0m })
+              IsOutflow = entry.Amount.Amount < 0m
+              Memo = entry.Memo |> Option.filter (String.IsNullOrWhiteSpace >> not) })
 
-/// Die Vorbelegung aus den erfassten Buchungen (neueste zuerst): das Konto der jüngsten nicht
-/// gelöschten, die Zuletzt-Chips (`recentBookingTemplates`), dazu heute, das Import-Konto und das
-/// Quick-Add-Konto. Rein.
+/// Die Vorbelegung: das Konto der jüngsten nicht gelöschten erfassten Buchung (`capturedNewestFirst`),
+/// die Zuletzt-Chips aus den letzten Buchungen je Konto (`recentPerAccount`, je Konto neueste zuerst,
+/// `recentBookingTemplates`), dazu heute, das Import-Konto und das Quick-Add-Konto. Rein.
 let bookingDefaultsOf
     (today: DateTime)
     (importAccountId: Guid option)
     (quickAddAccountId: Guid option)
     (capturedNewestFirst: Entry list)
+    (recentPerAccount: Entry list)
     : LedgerBookingDefaults =
     { Today = today.Date
       ImportAccountId = importAccountId
@@ -1000,7 +1006,7 @@ let bookingDefaultsOf
         capturedNewestFirst
         |> List.tryFind (fun e -> not e.DeletedInYnab)
         |> Option.map (fun e -> let (LedgerAccountId id) = e.AccountId in id)
-      Recent = capturedNewestFirst |> List.choose bookingTemplateOf |> recentBookingTemplates }
+      Recent = recentPerAccount |> List.choose bookingTemplateOf |> recentBookingTemplates }
 
 /// Das YNAB-Konto des Imports aus den Settings, `None` ohne Einstellung oder bei einem Wert,
 /// der keine Guid ist. Die eine Stelle, die `importAccountSettingKey` liest.
@@ -1035,6 +1041,8 @@ let getLedgerBookingDefaultsWith
         let! entries = Ledger.Persistence.loadEntries ids
         let captured = ids |> List.choose (fun id -> Map.tryFind id entries)
         let importId = importAccount |> Option.map (fun a -> let (LedgerAccountId id) = a.Id in id)
+        let! recent =
+            Ledger.Persistence.loadRecentEntriesPerAccount (importAccount |> Option.map (fun a -> a.Id)) recentLookbackPerAccount
         // Ohne Einstellung, mit ungültiger Einstellung oder ohne Spiegel kein Quick-Add-Konto: jeder
         // Fehlschlag wird bewusst still zu `None`, das Formular nimmt dann das zuletzt genutzte.
         let! quickAdd = resolveQuickAddAccountWith setting
@@ -1042,7 +1050,7 @@ let getLedgerBookingDefaultsWith
             match quickAdd with
             | Ok account -> let (LedgerAccountId id) = account.LedgerAccountId in Some id
             | Error _ -> None
-        return bookingDefaultsOf today importId quickAddId captured
+        return bookingDefaultsOf today importId quickAddId captured recent
     }
 
 /// Die Kategorie einer Regel für diesen Payee (Payee-Text, Memo leer), wie beim Import die erste

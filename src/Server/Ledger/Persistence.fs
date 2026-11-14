@@ -2061,6 +2061,38 @@ let loadCapturedEntryIds (limit: int) : Async<EntryId list> =
         return loadCapturedEntryIdsOn conn limit
     }
 
+/// Die letzten Buchungen je offenem Kassenbuch-Konto ohne `excludedAccountId` (ledger-sre0f, Zuletzt-Chips):
+/// höchstens `perAccount` je Konto, ohne in YNAB gelöschte, gleich wer sie angelegt hat (in BB erfasst,
+/// Bob, Spiegel). Eine Abfrage für alle Konten, kein N+1. Sortiert nach Konto, je Konto neueste zuerst:
+/// Buchungsdatum absteigend, bei gleichem Tag die zuletzt verbuchte (rowid) zuerst.
+let internal loadRecentEntriesPerAccountOn
+    (conn: SqliteConnection)
+    (excludedAccountId: LedgerAccountId option)
+    (perAccount: int)
+    : Entry list =
+    let excluded =
+        match excludedAccountId with
+        | Some (LedgerAccountId id) -> id.ToString()
+        | None -> ""
+    conn.Query<EntryRow>(
+        """SELECT * FROM (
+             SELECT e.*, ROW_NUMBER() OVER (PARTITION BY e.account_id ORDER BY e.date DESC, e.rowid DESC) AS recent_rank
+             FROM ledger_entries e JOIN ledger_accounts a ON a.id = e.account_id
+             WHERE e.deleted_in_ynab = 0 AND a.closed = 0 AND e.account_id <> @excluded)
+           WHERE recent_rank <= @perAccount
+           ORDER BY account_id, recent_rank""",
+        {| excluded = excluded; perAccount = perAccount |}
+    )
+    |> Seq.map rowToEntry
+    |> Seq.toList
+
+/// Wie `loadRecentEntriesPerAccountOn`, auf der Standard-Verbindung.
+let loadRecentEntriesPerAccount (excludedAccountId: LedgerAccountId option) (perAccount: int) : Async<Entry list> =
+    async {
+        use conn = Core.getConnection ()
+        return loadRecentEntriesPerAccountOn conn excludedAccountId perAccount
+    }
+
 /// Actor und Körper des ersten Ereignisses einer Buchung (ledger-at63w: "Rückgängig" nur für
 /// eine in BB erfasste Buchung). Liest nur die Zeile mit `stream_version = 1`, nicht das ganze
 /// Log. `None` für eine unbekannte Buchung.

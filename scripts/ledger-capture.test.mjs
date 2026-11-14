@@ -46,6 +46,8 @@ test("[flow:buchung-erfassen] Handy: ein Zuletzt-Chip füllt das Formular, Buchu
 
     // ledger-ea70s: ohne Kontofilter ist das Quick-Add-Konto (Bar) vorbelegt; die Regel prüft LedgerCaptureClientTests.
     await sheet.locator('[data-testid="capture-account"]', { hasText: "Bar" }).waitFor();
+    // ledger-sre0f: nur die Chips des gewählten Kontos; „Tankstelle“ gehört zu Tagesgeld.
+    assert.equal(await sheet.getByRole("button", { name: "Tankstelle · 60,00" }).count(), 0, "kein Chip eines anderen Kontos");
     await sheet.getByRole("button", { name: "Bäckerei Lange · 8,60" }).tap();
     const amount = sheet.locator('[data-testid="capture-amount"] input');
     await amount.fill("9,20");
@@ -61,6 +63,7 @@ test("[flow:buchung-erfassen] Handy: ein Zuletzt-Chip füllt das Formular, Buchu
     assert.equal(request.PayeeName, "Bäckerei Lange", "Payee aus dem Chip");
     assert.deepEqual(request.Target, { BookOnCategory: { YnabCategoryId: calls.categoryId } }, "Kategorie aus dem Chip");
     assert.equal(request.AccountId, calls.barId, "Konto aus dem Chip");
+    assert.equal(request.Memo, "Brötchen", "Memo aus dem Chip");
   } finally {
     await context.close();
   }

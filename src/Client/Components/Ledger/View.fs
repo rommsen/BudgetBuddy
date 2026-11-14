@@ -4035,8 +4035,12 @@ let private captureFields (dispatch: Msg -> unit) (model: Model) (capture: Captu
             ]
         ]
 
-        match capture.Defaults with
-        | Success defaults when not (List.isEmpty defaults.Recent) ->
+        let recent =
+            match capture.Defaults with
+            | Success defaults -> Capture.templatesFor capture.Form.AccountId defaults
+            | _ -> []
+        match recent with
+        | _ :: _ ->
             Html.div [
                 prop.className "flex flex-col gap-1.5"
                 prop.custom ("data-testid", "capture-recent")
@@ -4045,7 +4049,7 @@ let private captureFields (dispatch: Msg -> unit) (model: Model) (capture: Captu
                     Html.div [
                         prop.className "flex flex-wrap gap-2"
                         prop.children [
-                            for template in defaults.Recent ->
+                            for template in recent ->
                                 // Gleicher Payee und Betrag auf zwei Konten ergibt denselben Text: das Konto gehört in den Key.
                                 React.keyedFragment (
                                     $"{template.AccountId}|{Capture.templateLabel template}",
@@ -4057,7 +4061,7 @@ let private captureFields (dispatch: Msg -> unit) (model: Model) (capture: Captu
                     ]
                 ]
             ]
-        | _ -> ()
+        | [] -> ()
 
         Html.div [
             prop.className "relative"

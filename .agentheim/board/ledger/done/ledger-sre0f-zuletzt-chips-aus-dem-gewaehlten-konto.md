@@ -1,7 +1,7 @@
 ---
 id: ledger-sre0f
 title: "Zuletzt-Chips in „Neue Buchung“ aus den Buchungen des gewählten Kontos, fünf mit Memo"
-status: doing
+status: done
 type: bug
 context: ledger
 created: 2026-11-14
@@ -92,3 +92,19 @@ Eine eigene Abfrage je Kontowechsel wurde verworfen: die Vorlagen aller Konten s
 Handy ohne Warten gehen.
 Bob ist nicht betroffen (die Chips sind nur im Formular).
 Kein Bug: Mit Filter auf dem Comdirect-Girokonto kommt Bar, weil das Import-Konto zum Erfassen gesperrt ist (ledger-at63w); Roman bestätigt, dass Bar dort richtig ist.
+
+## Outcome
+
+Die Zuletzt-Chips stammen jetzt aus dem Kassenbuch, je Konto.
+
+- Server: `Ledger.Persistence.loadRecentEntriesPerAccount` liest mit einer einzigen Abfrage (`ROW_NUMBER() OVER (PARTITION BY account_id ORDER BY date DESC, rowid DESC)`) je offenem Kassenbuch-Konto ohne Import-Konto die letzten 50 nicht gelöschten Buchungen (`QueryHandlers.recentLookbackPerAccount`), gleich wer sie angelegt hat. Kein N+1. `bookingDefaultsOf` hat dafür einen eigenen Parameter `recentPerAccount`. `LastUsedAccountId` kommt weiter aus den in BB erfassten Buchungen (`loadCapturedEntryIds`).
+- Shared: `LedgerBookingTemplate.Memo: string option` (leer oder nur Leerzeichen wird `None`, in `bookingTemplateOf`). `LedgerBookingRecentCount = 5`. `recentBookingTemplates` begrenzt jetzt je Konto auf fünf. Das Memo gehört nicht zum Schlüssel für Doppelte, es bleibt das der neuesten Buchung. `Recent` bleibt eine flache Liste, die Kommentare sind nachgezogen.
+- Client: `Capture.templatesFor accountId defaults` liefert die Vorlagen des gewählten Kontos in der Reihenfolge vom Server, höchstens fünf, ohne Konto keine. Die View (`src/Client/Components/Ledger/View.fs`, Block „Zuletzt“) ruft nur diese Funktion auf. Damit wechseln die Chips bei `ChooseCaptureAccount` ohne neue Anfrage. `applyTemplate` setzt das Memo auf das der Vorlage, ohne Memo leer. Der Chip-Text bleibt `templateLabel` („Payee · Betrag“).
+- Tests: `src/Tests/LedgerBookingCaptureTests.fs` hat drei neue reine Tests (Doppelte mit verschiedenem Memo, Fünfer-Grenze je Konto, leeres Memo) und vier neue Tests mit In-Memory-SQLite über `getLedgerBookingDefaultsWith`: Bob- und Spiegel-Buchung erscheinen (kaputt-Szenario), zwei Konten mit je sieben Buchungen ergeben je fünf mit Datum und Verbuchungsreihenfolge, gelöschte und aufgeteilte erscheinen nicht, Import-Konto und geschlossenes Konto liefern keine. `src/Tests/LedgerCaptureClientTests.fs` hat sechs neue Tests: Auswahl je Konto, ohne Konto, höchstens fünf, Kontowechsel über `update` ohne Anfrage, Memo bei zwei Tipps und Datum bleibt, Chip-Text ohne Memo. Die bestehenden Tests sind angepasst, ebenso der Endpunkt-Test (fünf je Konto) in `RemotingEndpointNegativeTests.fs`.
+- Playwright: `scripts/ledger-capture-fixture.mjs` trägt `Memo` an jeder Vorlage, Vorlagen liegen auf Bar und Tagesgeld. `scripts/ledger-capture.test.mjs` prüft zusätzlich, dass der Tagesgeld-Chip auf Bar fehlt und dass das Memo „Brötchen“ mitgeht.
+- README-Delta: im Bullet „Buchung erfassen (Neue Buchung)“ ist der Satz zu den Zuletzt-Chips ersetzt. Das Gate `check:readme-delta` gab Exit 0. Unter „Ganz nachlesen“ stand `## Key commands` BuchungErfassen (Zeile 399): passt (nennt nur `getLedgerBookingDefaults` und den Handler, keine Chip-Regeln).
+- Gleichstand am selben Tag ordnet die `rowid` von `ledger_entries` (Einfügereihenfolge, ein Upsert behält sie). So arbeitet schon `loadLastPayeeCategory`.
+- `./verify.sh`: VERIFY: PASS (dotnet 5029 grün, node 340 grün).
+- Offen: das [human-eye]-Kriterium (Anastasia mit einem Tipp) prüft Roman nach dem Deploy.
+
+Verifier: PASS (Iteration 1). Das [human-eye]-Kriterium (Anastasia mit einem Tipp) prüft Roman nach dem Deploy.

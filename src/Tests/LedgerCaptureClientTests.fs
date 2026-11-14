@@ -22,7 +22,7 @@ let private fuel = YnabCategoryId (Guid.Parse "0195c000-0000-7000-8000-000000000
 let private today = DateTime(2026, 11, 8)
 
 let private template : LedgerBookingTemplate =
-    { AccountId = tagesgeld; Payee = "Wochenmarkt"; Target = Some (BookOnCategory food); Amount = 23m; IsOutflow = true }
+    { AccountId = tagesgeld; Payee = "Wochenmarkt"; Target = Some (BookOnCategory food); Amount = 23m; IsOutflow = true; Memo = Some "Obst" }
 
 let private defaults : LedgerBookingDefaults =
     { Today = today; ImportAccountId = Some giro; LastUsedAccountId = Some tagesgeld; QuickAddAccountId = None; Recent = [ template ] }
@@ -173,6 +173,60 @@ let openTests =
             let entry = LedgerSelectionTests.entryOf 1 -5m false false
             let model = step (OpenDetail entry) (opened None)
             Expect.isNone model.Capture "Formular zu"
+    ]
+
+let private barTemplate (payee: string) (memo: string option) : LedgerBookingTemplate =
+    { AccountId = bar; Payee = payee; Target = Some (BookOnCategory fuel); Amount = 5m; IsOutflow = true; Memo = memo }
+
+/// Vorlagen auf zwei Konten, so wie der Server sie liefert: je Konto neueste zuerst (ledger-sre0f).
+let private twoAccounts : LedgerBookingDefaults =
+    { defaults with
+        Recent =
+            [ barTemplate "Anastasia" (Some "Putzen")
+              barTemplate "Kiosk" None
+              template
+              { template with Payee = "Bäckerei Lange"; Amount = 8.60m; Memo = None } ] }
+
+let private recentOf (model: Model) : string list =
+    let capture = captureOf model
+    match capture.Defaults with
+    | Success d -> Components.Ledger.Capture.templatesFor capture.Form.AccountId d |> List.map (fun t -> t.Payee)
+    | _ -> failtest "Vorbelegung erwartet"
+
+[<Tests>]
+let recentPerAccountTests =
+    testList "Neue Buchung: Zuletzt-Chips des gewählten Kontos (ledger-sre0f)" [
+        testCase "nur die Vorlagen des gewählten Kontos, in der Reihenfolge vom Server" <| fun () ->
+            let shown = Components.Ledger.Capture.templatesFor (Some bar) twoAccounts |> List.map (fun t -> t.Payee)
+            Expect.equal shown [ "Anastasia"; "Kiosk" ] "nur Bar"
+            let other = Components.Ledger.Capture.templatesFor (Some tagesgeld) twoAccounts |> List.map (fun t -> t.Payee)
+            Expect.equal other [ "Wochenmarkt"; "Bäckerei Lange" ] "nur Tagesgeld"
+
+        testCase "ohne gewähltes Konto keine Chips" <| fun () ->
+            Expect.isEmpty (Components.Ledger.Capture.templatesFor None twoAccounts) "keine"
+
+        testCase "höchstens fünf" <| fun () ->
+            let many = { defaults with Recent = [ for i in 1..7 -> barTemplate $"P{i}" None ] }
+            Expect.equal (Components.Ledger.Capture.templatesFor (Some bar) many).Length 5 "fünf"
+
+        testCase "wechselt das Konto im Formular, zeigt Zuletzt sofort dessen Vorlagen, ohne neue Anfrage" <| fun () ->
+            let model =
+                baseModel (Some (OneAccount bar)) |> step OpenCapture |> step (CaptureDefaultsLoaded (Ok twoAccounts))
+            Expect.equal (recentOf model) [ "Anastasia"; "Kiosk" ] "Bar vorbelegt"
+            let model', sent, _ = run (ChooseCaptureAccount tagesgeld) model
+            Expect.equal (recentOf model') [ "Wochenmarkt"; "Bäckerei Lange" ] "Tagesgeld"
+            Expect.isEmpty sent "keine neue Anfrage"
+
+        testCase "ein Chip füllt das Memo der Vorlage, ein zweiter ohne Memo lässt kein altes stehen, das Datum bleibt" <| fun () ->
+            let start = baseModel (Some (OneAccount bar)) |> step OpenCapture |> step (CaptureDefaultsLoaded (Ok twoAccounts))
+            let first = start |> step (ApplyCaptureTemplate (barTemplate "Anastasia" (Some "Putzen")))
+            Expect.equal (formOf first).Memo "Putzen" "Memo der Vorlage"
+            let second = first |> step (ApplyCaptureTemplate (barTemplate "Kiosk" None))
+            Expect.equal (formOf second).Memo "" "kein altes Memo"
+            Expect.equal (formOf second).Date today "Datum bleibt"
+
+        testCase "der Text des Chips bleibt Payee und Betrag, ohne Memo" <| fun () ->
+            Expect.equal (Components.Ledger.Capture.templateLabel (barTemplate "Anastasia" (Some "Putzen"))) "Anastasia · 5,00" "ohne Memo"
     ]
 
 [<Tests>]

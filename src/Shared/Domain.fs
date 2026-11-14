@@ -1174,13 +1174,16 @@ type LedgerBookingCreated = {
     PushFailure: string option
 }
 
-/// Eine zuletzt erfasste Kombination für die Zuletzt-Chips: ein Tipp füllt alles.
+/// Eine Kombination aus den letzten Buchungen eines Kontos für die Zuletzt-Chips: ein Tipp füllt alles,
+/// auch das Memo (ledger-sre0f).
 type LedgerBookingTemplate = {
     AccountId: Guid
     Payee: string
     Target: LedgerBookingTarget option
     Amount: decimal
     IsOutflow: bool
+    /// Das Memo der neuesten Buchung dieser Kombination; leer oder nur Leerzeichen ist `None`.
+    Memo: string option
 }
 
 /// Die Vorbelegung des Formulars "Neue Buchung".
@@ -1194,21 +1197,24 @@ type LedgerBookingDefaults = {
     /// Das Kassenbuch-Konto zum Quick-Add-Konto aus den Settings (ledger-ea70s); `None` ohne Einstellung oder
     /// ohne gespiegeltes Konto. Ohne Kontofilter belegt "Neue Buchung" es vor.
     QuickAddAccountId: Guid option
-    /// Die letzten drei Kombinationen, neueste zuerst, ohne Doppelte.
+    /// Je buchbarem Konto die letzten fünf Kombinationen aus seinen Buchungen im Kassenbuch, gleich wer sie
+    /// angelegt hat (ledger-sre0f). Flach, jede Vorlage trägt ihr Konto; je Konto neueste zuerst, ohne Doppelte.
     Recent: LedgerBookingTemplate list
 }
 
-/// Wie viele Zuletzt-Chips das Formular zeigt.
+/// Wie viele Zuletzt-Chips das Formular je Konto zeigt.
 [<Literal>]
-let LedgerBookingRecentCount = 3
+let LedgerBookingRecentCount = 5
 
-/// Die Zuletzt-Chips aus den erfassten Kombinationen, neueste zuerst: Doppelte fallen weg
-/// (Payee ohne Rand und ohne Groß-/Kleinschreibung), höchstens drei bleiben. Rein.
+/// Die Zuletzt-Chips aus den Kombinationen, je Konto neueste zuerst: Doppelte fallen weg (Konto, Payee
+/// ohne Rand und ohne Groß-/Kleinschreibung, Ziel, Betrag, Richtung; das Memo zählt nicht, es bleibt das
+/// der neuesten), höchstens fünf je Konto bleiben. Die Konten behalten ihre Reihenfolge. Rein.
 let recentBookingTemplates (newestFirst: LedgerBookingTemplate list) : LedgerBookingTemplate list =
     newestFirst
     |> List.filter (fun t -> not (String.IsNullOrWhiteSpace t.Payee) && t.Amount > 0m)
     |> List.distinctBy (fun t -> t.AccountId, t.Payee.Trim().ToLowerInvariant(), t.Target, t.Amount, t.IsOutflow)
-    |> List.truncate LedgerBookingRecentCount
+    |> List.groupBy (fun t -> t.AccountId)
+    |> List.collect (fun (_, templates) -> List.truncate LedgerBookingRecentCount templates)
 
 /// Die Konten, auf denen das Formular erfasst: gespiegelte, offene Budget-Konten, ohne das
 /// Import-Konto. `budget` sind die Konten des YNAB-Budgets (für "Budget-Konto"). Rein.
