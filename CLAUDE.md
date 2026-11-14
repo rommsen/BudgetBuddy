@@ -100,8 +100,11 @@ beheben, nicht umgehen.
   streicht (Prototyp Version 14: Split ohne Konten, Historie ohne Beträge, springende Tabs).
 - Bevor Roman eine Skizze oder einen Prototyp freigibt, gleicht der Conductor jede Ansicht Funktion für Funktion
   mit der heutigen Seite in BB ab (Screenshot von BB daneben) und nennt jede Funktion, die fehlt oder schlechter
-  gelöst ist. Eingaben prüft er mit Touch bei 412 px (Romans Galaxy S25 Ultra): Betragsfelder ohne Vorzeichen,
-  weil die Zifferntastatur zu `inputmode="decimal"` je nach Tastatur-App kein Minus hat (die Richtung kommt aus
+  gelöst ist. Dasselbe gilt, wenn zwei Wege zu einem werden (Quick Add in „Neue Buchung“): Hat eine Funktion auf
+  beiden Seiten denselben Namen, vergleicht er, woraus sie gespeist wird, für welches Konto sie gilt, wie viel sie
+  zeigt und welche Felder sie füllt, nicht nur, ob es sie gibt (ledger-ea70s: Zuletzt-Chips nur aus BB-Erfassungen,
+  drei, ohne Memo, statt fünf aus YNAB mit Memo). Eingaben prüft er mit Touch bei 412 px (Romans Galaxy S25 Ultra):
+  Betragsfelder ohne Vorzeichen, weil die Zifferntastatur zu `inputmode="decimal"` je nach Tastatur-App kein Minus hat (die Richtung kommt aus
   Ausgabe/Einnahme oder der Buchung). Der Wechsel zwischen zwei Feldern darf die Tastatur nicht schließen.
 - Worker und Verifier können claude.ai-Artifacts nicht öffnen. Der Conductor liest die Skizze (`Artifact`
   read), legt ihre Dateien und einen Screenshot je Ansicht in den Scratchpad und gibt Worker, Verifier und
