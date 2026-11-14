@@ -2070,6 +2070,8 @@ let internal loadRecentEntriesPerAccountOn
     (excludedAccountId: LedgerAccountId option)
     (perAccount: int)
     : Entry list =
+    // Ohne Import-Konto ein leerer Text, keine Id passt darauf. Nicht NULL: `account_id <> NULL` ist in SQL
+    // nie wahr und die Abfrage gäbe still keine Zeile zurück.
     let excluded =
         match excludedAccountId with
         | Some (LedgerAccountId id) -> id.ToString()

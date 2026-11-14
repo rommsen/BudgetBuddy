@@ -1197,8 +1197,9 @@ type LedgerBookingDefaults = {
     /// Das Kassenbuch-Konto zum Quick-Add-Konto aus den Settings (ledger-ea70s); `None` ohne Einstellung oder
     /// ohne gespiegeltes Konto. Ohne Kontofilter belegt "Neue Buchung" es vor.
     QuickAddAccountId: Guid option
-    /// Je buchbarem Konto die letzten fünf Kombinationen aus seinen Buchungen im Kassenbuch, gleich wer sie
-    /// angelegt hat (ledger-sre0f). Flach, jede Vorlage trägt ihr Konto; je Konto neueste zuerst, ohne Doppelte.
+    /// Je offenem Kassenbuch-Konto ohne Import-Konto die letzten fünf Kombinationen aus seinen Buchungen im
+    /// Kassenbuch, gleich wer sie angelegt hat (ledger-sre0f). Flach, jede Vorlage trägt ihr Konto; je Konto
+    /// neueste zuerst, ohne Doppelte.
     Recent: LedgerBookingTemplate list
 }
 
