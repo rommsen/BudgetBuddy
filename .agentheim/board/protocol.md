@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-11-14 10:00 -- Capture / Captured: ledger-sre0f - "Zuletzt-Chips in „Neue Buchung“ aus den Buchungen des gewählten Kontos, fünf mit Memo"
+
+**Type:** Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Zuletzt-Chips aus den Buchungen des gewählten Kontos, gleich wer sie anlegte, fünf mit Memo (Romans Blick nach ledger-ea70s)
+
+---
+
 ## 2026-11-14 00:35 -- Review-Lauf: 9067dcd6..3cb4257a
 
 **Type:** Review / Review-Lauf
