@@ -164,7 +164,7 @@ Zuletzt aktualisiert: 2026-11-14 abends, nach work-Lauf und Review ledger-sre0f.
   frontend-architecture und qa-milestone-reviewer, 5 Funde behoben in 511db775..9465fd5c: zwei Chips mit gleichem Text
   teilten sich einen React-Key, jetzt aus Konto, Payee, Ziel, Betrag und Richtung; Abfrage-Test für Gelöschte und die
   Grenze; Endpoint-Zeile ohne Abhängigkeit von der geteilten DB. Kann-Sammlung ledger 123 bis 125. Gate: VERIFY: PASS
-  (dotnet 5031, node 340). Nicht gepusht, nicht deployt. Offene Rückfrage: ein „+“ vor dem Betrag bei Einnahmen im Chip?
+  (dotnet 5031, node 340). Nicht gepusht, nicht deployt. Entschieden (Roman): Einnahmen stehen im Chip mit „+“ vor dem Betrag.
   Für Romans Blick nach dem Deploy: „+ Buchung“, Konto Bar wählen, die üblichen Bar-Buchungen stehen als Chips, ein Tipp
   füllt Payee, Kategorie, Betrag und Memo.
 - **Nächster Schritt:** Deploy von ledger-sre0f auf Romans Anweisung. Danach Schnitt 8 ledger-f8d7x (Kassenbuch ordnen)
