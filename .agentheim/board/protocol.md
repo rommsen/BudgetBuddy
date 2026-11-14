@@ -5,6 +5,21 @@ Newest entries on top.
 
 ---
 
+## 2026-11-14 19:36 -- Review-Lauf: 814e1002~1..d021f49a
+
+**Type:** Review / Review-Lauf
+**Bereich:** 814e1002~1..d021f49a (ledger-sre0f)
+**Agents:** backend-code-quality, frontend-architecture, qa-milestone-reviewer (ohne design-quality, nichts Sichtbares geändert)
+**Funde:** behoben 5, verworfen 2, Rückfrage 1, Ticket 0, Kann-Sammlung 3
+**Commits:** 511db775, fad7dcc0, 9465fd5c
+**Behoben:** Chip-Key aus Konto, Payee, Ziel, Betrag und Richtung statt Anzeigetext (Regressionstest mit gleichem Text, verschiedenen Keys); Abfrage-Test: je Konto nur nicht gelöschte Buchungen, Grenze gehalten; Endpoint-Zeile prüft nur noch Today, ohne Abhängigkeit von der geteilten DB; Kommentar zu leerem Text statt NULL beim Ausschluss-Konto; Kommentar zum Umfang von Recent.
+**Verworfen:** doppeltes List.truncate (gewollt, Server und reine Funktion halten die Grenze je für sich); Memo, das ein Tipp überschreibt (Romans Entscheidung: der Tipp setzt das Memo genau).
+**Rückfrage:** Einnahme und Ausgabe mit gleichem Payee und Betrag sehen im Chip gleich aus, ein + vor Einnahmen?
+**Kann-Sammlung:** ledger-k4n2s 123 (Index account_id, date), 124 (LastUsedAccountId-Verdrahtung ungetestet), 125 (Rot vor dem Fix nicht vorgeführt).
+**Verifikation:** VERIFY: PASS (dotnet 5031 grün, node 340 grün, dotnet build, npm run build, guard:classes, guard:tokens grün)
+
+---
+
 ## 2026-11-14 19:27 -- Work session ended
 
 **Type:** Work / Session end
