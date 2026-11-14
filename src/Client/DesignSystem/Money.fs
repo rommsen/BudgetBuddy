@@ -438,3 +438,35 @@ let balanceUnavailable () =
             Html.span [ prop.className "sr-only"; prop.text "Kontostand nicht geladen" ]
         ]
     ]
+
+/// Eine Zeile der Kontowahl im Sheet (ledger-d9z3n, Prototyp Sheet „Konto“): links der Name, rechts der Saldo
+/// (negativ in Rot) und beim gewählten Konto ein Haken im Akzent. Name und Saldo stehen auf jeder Zeile in Primärtext,
+/// die Zeilen trennt eine Linie. Die gewählte Zeile trägt einen Akzentrahmen, die übrigen einen Rahmen gleicher Stärke,
+/// der nur unten sichtbar ist, damit nichts springt. 56 px hoch wie die Zeile im Prototyp. Der Aufrufer legt die Karte
+/// darum (`rounded-xl border border-border-subtle bg-surface-card`).
+let accountChoiceRow (testId: string) (label: string) (value: ReactElement) (isActive: bool) (onClick: unit -> unit) =
+    Html.button [
+        prop.type' "button"
+        prop.custom ("data-testid", testId)
+        prop.custom ("aria-pressed", (if isActive then "true" else "false"))
+        prop.onClick (fun _ -> onClick ())
+        prop.className (
+            // Alle Zeilen in Primärtext mit Trennlinie (Prototyp `.row`: 56 px, 500); das gewählte Konto
+            // markieren nur Haken und Akzentrahmen (ledger-d9z3n, Iteration 2).
+            "w-full flex items-center gap-3 px-3 py-2 min-h-14 text-left transition-colors hover:bg-surface-hover "
+            + if isActive then "border rounded-xl border-accent" else "border border-transparent border-b-border-subtle last:border-b-transparent"
+        )
+        prop.children [
+            Html.span [
+                prop.className "flex-1 min-w-0"
+                prop.children [
+                    Truncate.text $"block text-sm font-medium {Tokens.Colors.textPrimary}" label
+                ]
+            ]
+            Html.span [ prop.className "shrink-0"; prop.children [ value ] ]
+            Html.span [
+                prop.className "w-[18px] shrink-0 flex items-center"
+                prop.children [ if isActive then Client.DesignSystem.Icons.check Client.DesignSystem.Icons.SM Client.DesignSystem.Icons.Accent ]
+            ]
+        ]
+    ]

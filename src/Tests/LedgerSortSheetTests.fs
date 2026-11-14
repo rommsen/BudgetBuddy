@@ -19,7 +19,7 @@ let private baseModel () : Model =
         NextPage = 3
         LocallyRemoved = 2
         Selection = Picked (Set.singleton (Guid.Parse "0195f900-0000-7000-8000-000000000001"))
-        Filters = { noFilters with Payee = Some "rewe" } }
+        Filters = { noFilters with Search = Some "rewe" } }
 
 let private dispatched (cmd: Elmish.Cmd<Msg>) : Msg list =
     let sink = ResizeArray<Msg>()
@@ -68,17 +68,19 @@ let sortSheetTests =
             Expect.equal (sortChipLabel (desc SortByPayee)) "Payee ↓" "Payee"
         }
 
-        test "Sortierung bleibt von Filtern unberührt: hasAnyFilter und ClearAllFilters" {
+        // ledger-d9z3n: eine andere Sortierung steht als Chip unter den gesetzten Filtern, „Filter löschen“
+        // nimmt sie mit zurück. Zu `hasAnyFilter` (Summenzeile) zählt sie weiter nicht.
+        test "Sortierung zählt nicht zu hasAnyFilter, ClearAllFilters setzt sie zurück" {
             let model = { baseModel () with Sort = asc SortByAmount }
-            Expect.isTrue (hasAnyFilter model.Filters) "Payee-Filter zählt"
-            Expect.isFalse (hasAnyFilter noFilters) "Sortierung ist kein Filter"
+            Expect.isTrue (hasAnyFilter model.Filters) "Suche zählt"
+            Expect.isFalse (hasAnyFilter noFilters) "Sortierung ist kein Such-Filter"
             let cleared, _ = step ClearAllFilters model
-            Expect.equal cleared.Sort (asc SortByAmount) "Sort bleibt stehen"
+            Expect.equal cleared.Sort LedgerSort.defaultSort "Standard-Sortierung"
         }
 
         test "Der Sortier-Chip steht nicht in den Filter-Chips" {
             let order = orderChipsForDisplay true (chipActivityOf false noFilters)
-            Expect.equal order.Length 8 "die acht Filter-Chips, kein Sortier-Chip"
+            Expect.equal order.Length 6 "die sechs Filter-Chips, kein Sortier-Chip"
         }
 
         test "SetSortExactly setzt die Sortierung genau, auch wenn sie gleich bleibt" {

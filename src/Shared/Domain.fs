@@ -1658,6 +1658,14 @@ module LedgerSort =
     let orDefault (sort: LedgerSort) : LedgerSort =
         if isNull (box sort) then defaultSort else sort
 
+/// Die Richtung im Betragsfilter (ledger-d9z3n, ADR 0095): `AmountMin`/`AmountMax` grenzen die Höhe
+/// ohne Vorzeichen ein, die Richtung trennt Ausgaben (Betrag unter 0) und Einnahmen (über 0). Sie wirkt
+/// auch ohne Betrag. Ein Betrag von 0 ist weder Ausgabe noch Einnahme.
+type AmountDirection =
+    | AllDirections
+    | OnlyOutflows
+    | OnlyInflows
+
 /// Parameter einer Seiten-Abfrage der Buchungsliste: ein Konto (optional — `None`
 /// heisst alle Konten, die Gesamtsicht), ein 0-basierter Seitenzeiger und die
 /// Seitengröße. `IncludeDeleted` (ledger-p3n8k): in YNAB gelöschte Buchungen
@@ -1668,15 +1676,16 @@ module LedgerSort =
 /// `true` und lässt nur ungeprüfte Buchungen (`approved = false` oder
 /// `cleared = Uncleared`) im Treffer.
 ///
-/// Die fünf Such-Filter (ledger-vgfw3, ADR 0036): `CategoryIds`, `DateFrom`/`DateTo`,
-/// `Payee`, `Memo`. Leer/`None` heisst "kein Filter" — ein Aufruf ohne gesetzte
+/// Die Such-Filter (ledger-vgfw3, ADR 0036): `CategoryIds`, `DateFrom`/`DateTo`,
+/// `Search`. Leer/`None` heisst "kein Filter" — ein Aufruf ohne gesetzte
 /// Filter liefert dasselbe Ergebnis wie vor dieser Erweiterung. Alle gesetzten Filter
 /// wirken als Und-Verknüpfung; `CategoryIds` selbst ist eine Mehrfachauswahl
 /// (Oder-Verknüpfung innerhalb der Liste) — der Punkt, an dem BB mehr kann als
-/// YNAB-Web (nur eine Kategorie je Filter). `Payee` ist eine exakte, `Memo` eine
-/// Teiltext-Übereinstimmung (beide ohne Berücksichtigung der Groß-/Kleinschreibung),
-/// `DateFrom`/`DateTo` schließen die Randtage ein. `AmountMin`/`AmountMax` grenzen
-/// den Betrag ein (beide Enden unabhängig voneinander, offen wenn `None`); weil der
+/// YNAB-Web (nur eine Kategorie je Filter). `Search` ist die freie Suche (ledger-d9z3n): ein
+/// Teiltext in Payee, Memo oder Kategoriename, ohne Berücksichtigung der Groß-/Kleinschreibung.
+/// Sie ersetzt die früheren Filter Payee und Memo. `DateFrom`/`DateTo` schließen die Randtage ein. `AmountMin`/`AmountMax` grenzen
+/// die Höhe des Betrags ohne Vorzeichen ein (ADR 0095; beide Enden unabhängig voneinander, offen wenn
+/// `None`), `AmountDirection` trennt Ausgaben und Einnahmen; weil der
 /// Betrag als Text liegt (ADR 0017), wertet `Ledger.Persistence` sie in F# aus, nie
 /// per SQL-Vergleich (ADR 0036).
 type LedgerEntryPageQuery = {
@@ -1699,10 +1708,14 @@ type LedgerEntryPageQuery = {
     CategoryIds: Guid list
     DateFrom: DateTime option
     DateTo: DateTime option
-    Payee: string option
-    Memo: string option
+    /// Die freie Suche (ledger-d9z3n): Teiltext in Payee, Memo oder Kategoriename.
+    Search: string option
+    /// Untergrenze der Höhe ohne Vorzeichen (ADR 0095).
     AmountMin: decimal option
+    /// Obergrenze der Höhe ohne Vorzeichen (ADR 0095).
     AmountMax: decimal option
+    /// Ausgaben, Einnahmen oder beide (ADR 0095), auch ohne Betrag.
+    AmountDirection: AmountDirection
     /// Reihenfolge der Seite (ADR 0051). Wirkt nur auf `loadEntriesPage`, nicht auf Zählwege.
     Sort: LedgerSort
 }
@@ -1747,6 +1760,9 @@ type LedgerEntryPage = {
     /// Die Zahl der Buchungen mit Flag "Lena" im Filter (Konto oder alle), unabhängig von
     /// `OnlyAskLena` (ADR 0056, Punkt 6): der Zähler des Chips "Rückfrage Lena (n)".
     AskLenaCount: int
+    /// Die Zahl der Buchungen ohne Kategorie im Konto (oder allen Konten), unabhängig von den Filtern
+    /// (ledger-d9z3n): die Anzahl hinter dem Schalter „Ohne Kategorie“ im Filter-Sheet.
+    WithoutCategoryCount: int
 }
 
 /// Ein Payee-Vorschlag mit seiner Anzahl **innerhalb des übergebenen Filters**
@@ -1761,8 +1777,7 @@ type LedgerPayeeSuggestion = {
 
 /// Die Filter für die Payee-Vorschlagsabfrage: dieselben Such-Filter wie
 /// `LedgerEntryPageQuery`, ohne Seiten-Parameter (eine Vorschlagsliste hat keine
-/// Seite) und ohne `Payee` selbst — der ist ja gerade das, was gleich ausgewählt
-/// wird.
+/// Seite). Heute fragt nur die Payee-Auswahl im Detail, ohne Filter.
 type LedgerPayeeSuggestionQuery = {
     AccountId: Guid option
     IncludeDeleted: bool
@@ -1775,9 +1790,13 @@ type LedgerPayeeSuggestionQuery = {
     CategoryIds: Guid list
     DateFrom: DateTime option
     DateTo: DateTime option
-    Memo: string option
+    Search: string option
+    /// Untergrenze der Höhe ohne Vorzeichen (ADR 0095).
     AmountMin: decimal option
+    /// Obergrenze der Höhe ohne Vorzeichen (ADR 0095).
     AmountMax: decimal option
+    /// Ausgaben, Einnahmen oder beide (ADR 0095), auch ohne Betrag.
+    AmountDirection: AmountDirection
 }
 
 // ============================================

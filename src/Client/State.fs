@@ -396,9 +396,10 @@ let isInputActive (model: Model) : bool =
         ledger.DetailFor.IsSome
         || ledger.OpenPopover.IsSome
         || ledger.SortSheetOpen
+        || ledger.FilterSheetOpen
         || ledger.SelectionMode
         || selectionActive
-        || draftDiffers ledger.MemoDraft (filters.Memo |> Option.defaultValue "")
+        || draftDiffers ledger.SearchDraft (filters.Search |> Option.defaultValue "")
         || draftDiffers ledger.AmountMinDraft (amountText filters.AmountMin)
         || draftDiffers ledger.AmountMaxDraft (amountText filters.AmountMax)
         || ledger.BatchRunning.IsSome

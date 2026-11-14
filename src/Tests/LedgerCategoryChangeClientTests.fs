@@ -510,7 +510,7 @@ let listTests =
 
         testCase "TotalsRefreshed ersetzt nur Treffer und Summe, und nur im Stale-Zustand" <| fun () ->
             let page : LedgerEntryPage =
-                { Entries = []; TotalCount = 7; TotalAmount = eur -70m; DeletedCount = 1; NeedsReviewCount = 2; AskLenaCount = 0 }
+                { Entries = []; TotalCount = 7; TotalAmount = eur -70m; DeletedCount = 1; NeedsReviewCount = 2; AskLenaCount = 0; WithoutCategoryCount = 0 }
             let stale = { defaultModel () with OrderStale = true }
             let model, _, _ = update (TotalsRefreshed (0, Ok page)) stale
             Expect.equal model.TotalCount 7 "Treffer"

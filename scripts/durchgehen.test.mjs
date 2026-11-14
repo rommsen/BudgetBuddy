@@ -59,7 +59,7 @@ test("[flow:durchgehen] Am Handy ein Duplikat verwerfen, eine Kategorie wählen,
     await stateNamed("uebersicht").mock(page);
     const state = await mockReview(page, [REVIEW_QUEUE.held, REVIEW_QUEUE.open]);
     await page.route("**/api/LedgerApi/getLedgerEntriesPage", (r) =>
-      json(r, { Entries: [], TotalCount: 0, TotalAmount: { Amount: 0, Currency: "EUR" }, DeletedCount: 0, NeedsReviewCount: 2, AskLenaCount: 0 })
+      json(r, { Entries: [], TotalCount: 0, TotalAmount: { Amount: 0, Currency: "EUR" }, DeletedCount: 0, NeedsReviewCount: 2, AskLenaCount: 0, WithoutCategoryCount: 0 })
     );
 
     await page.goto(`http://127.0.0.1:${port}/#/`, { waitUntil: "load" });

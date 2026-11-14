@@ -257,6 +257,8 @@ let private buttonSection =
                 row [
                     Button.view { Button.defaultProps with Text = "Abbrechen"; Variant = Button.Outline }
                     Button.view { Button.defaultProps with Text = "Neue Regel"; Variant = Button.Outline; Icon = Some (Icons.plus Icons.SM Icons.Default) }
+                    // OutlineSelected: der Knopf „Filter (n)“ im Kassenbuch bei gesetzten Filtern (ledger-d9z3n).
+                    Button.view { Button.defaultProps with Text = "Filter (2)"; Variant = Button.OutlineSelected; Icon = Some (Icons.filter Icons.SM Icons.Default) }
                 ]
                 row [
                     Button.primaryWithIcon "Hinzufügen" (Icons.plus Icons.SM Icons.Primary) ignore
@@ -1169,6 +1171,31 @@ let private InputDemo () =
                 Input.pickerField "styleguide-picker-empty" "Kategorie" None "wählen" None false ignore
                 Input.pickerField "styleguide-picker-value" "Kategorie" (Some "Lebensmittel") "wählen" None false ignore
                 Input.pickerField "styleguide-picker-balance" "Konto" (Some "Girokonto") "wählen" (Some (Money.accountBalance 1250.40m "EUR")) false ignore
+                // selectField: Kontowahl im Kassenbuch unter 1024 px (ledger-d9z3n), Saldo neben dem Namen, Pfeil nach unten.
+                Input.selectField
+                    "styleguide-select-field"
+                    "Konto"
+                    "Alle Konten"
+                    (Some (Html.span [ prop.className $"{Tokens.FontSizes.xs} {Tokens.Fonts.mono} {Tokens.Colors.textMuted}"; prop.text "4.300,00 €" ]))
+                    false
+                    ignore
+                // searchField: Suche mit Lupe (Kassenbuch, ledger-d9z3n).
+                Input.searchField "styleguide-search-field" "Buchungen durchsuchen" "Suchen…" "" ignore
+                // countSwitchRow und valueRow: Zeilen des Filter-Sheets im Kassenbuch (ledger-d9z3n).
+                Html.div [
+                    prop.children [
+                        Input.countSwitchRow "styleguide-count-switch" "Zu prüfen" (Some 4) true ignore
+                        Input.valueRow "styleguide-value-row" "Kategorie" "alle" false ignore
+                    ]
+                ]
+                // accountChoiceRow: Zeile im Sheet „Konto“, die gewählte mit Haken und Akzentrahmen (ledger-d9z3n).
+                Html.div [
+                    prop.className "flex flex-col overflow-hidden rounded-xl border border-border-subtle bg-surface-card"
+                    prop.children [
+                        Money.accountChoiceRow "styleguide-account-choice" "Girokonto" (Money.accountBalanceFor true 1250.40m "EUR") true ignore
+                        Money.accountChoiceRow "styleguide-account-choice" "Kreditkarte" (Money.accountBalanceFor true -312.55m "EUR") false ignore
+                    ]
+                ]
                 // input-amount-hero: der große Betrag im Formular "Neue Buchung" (Mono, rechtsbündig, 30 px).
                 Input.text
                     { Input.textInputDefaults with

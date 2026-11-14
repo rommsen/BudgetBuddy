@@ -384,15 +384,6 @@ let private entryMoney (entry: LedgerEntryView) =
     else
         Money.listAmount entry.Amount.Amount entry.Amount.Currency
 
-/// Das Konto-Kuerzel einer Zeile in der Gesamtsicht (AC4).
-let private accountBadge (abbreviation: string) =
-    Badge.view {
-        Badge.defaultProps with
-            Text = abbreviation
-            Variant = Badge.Neutral
-            Size = Badge.Small
-    }
-
 /// Die Kategorie-Beschriftung einer Buchung, als Blattname (AC1/AC2,
 /// ledger-w9skm): der Kategoriename, bei einer aufgeteilten Buchung ohne eigene
 /// Kategorie die Anzahl der Split-Zeilen, sonst der Platzhaltertext für eine
@@ -634,6 +625,20 @@ let private reviewMarkHintView
         ]
     ]
 
+/// Die Wörter in Zeile 2 der Handy-Zeile (ledger-d9z3n, Prototyp `txRow`): „nicht in YNAB“ in Rot,
+/// „doppelt?“ in Gelb, „zu prüfen“ unter dem Betrag in Gelb.
+let rowNotInYnabText = "nicht in YNAB"
+let rowPossibleDuplicateText = "doppelt?"
+let rowNeedsReviewText = "zu prüfen"
+
+/// Ein Zustandswort in Zeile 2 der Handy-Zeile, klein, in der Farbe seiner Bedeutung: Rot für Fehler,
+/// Gelb für „braucht dich“ (ADR 0087 Punkte 3 und 4).
+let private rowErrorWord (text: string) : ReactElement =
+    Html.span [ prop.className $"{Tokens.FontSizes.xs} {Tokens.Colors.error} whitespace-nowrap"; prop.text text ]
+
+let private rowAttentionWord (text: string) : ReactElement =
+    Html.span [ prop.className $"{Tokens.FontSizes.xs} {Tokens.Colors.attention} whitespace-nowrap"; prop.text text ]
+
 /// Eine Zeile der Buchungsliste am Handy, zweizeilig (ADR 0049 Punkt 6): Zeile 1
 /// Payee und Betrag, Zeile 2 Kategorie und Memo mit den Kennzeichen. Beide Zeilen
 /// haben eine feste Höhe (`h-5`), damit der Abstand zwischen ihnen in jeder Zeile
@@ -644,7 +649,7 @@ let private entryRow
     (onClick: unit -> unit)
     (selected: bool option)
     (mouse: MouseRowInfo option)
-    (accountAbbreviationOf: (Guid -> string) option)
+    (accountNameOf: (Guid -> string) option)
     (flatDate: bool)
     (entry: LedgerEntryView)
     =
@@ -690,20 +695,30 @@ let private entryRow
                     match mobileRowDateText DateTime.Today flatDate entry with
                     | Some text -> Html.span [ prop.className $"{Tokens.ListRoles.muted} shrink-0"; prop.text text ]
                     | None -> ()
-                    match accountAbbreviationOf with
-                    | Some abbreviationOf -> keepWidth (accountBadge (abbreviationOf entry.AccountId))
+                    // Das Konto als gedämpfter Text, nur in „Alle Konten“ (ledger-d9z3n, Prototyp `txRow`).
+                    match accountNameOf with
+                    | Some nameOf -> Truncate.text $"{Tokens.ListRoles.muted} shrink-0 max-w-1/3" (nameOf entry.AccountId)
                     | None -> ()
-                    Truncate.text $"{categoryClassName entry} shrink-0 max-w-3/5" (listCategoryLabel PhoneRow entry)
+                    // Die Kategorie darf schrumpfen, damit „zu prüfen“ auch bei 320 px im Bild bleibt (ledger-d9z3n).
+                    Truncate.text $"{categoryClassName entry} min-w-0 max-w-3/5" (listCategoryLabel PhoneRow entry)
+                    if entry.Flag <> NoFlag then keepWidth (flagBadge entry.Flag)
+                    // Das Memo gibt zuerst Platz ab (`shrink-8`), die Kategorie erst danach.
                     match entry.Memo |> Option.filter (String.IsNullOrWhiteSpace >> not) with
                     | Some memo ->
-                        Truncate.text Tokens.ListRoles.muted memo
+                        Truncate.text $"{Tokens.ListRoles.muted} shrink-8" memo
                     | None -> ()
-                    if entry.Flag <> NoFlag then keepWidth (flagBadge entry.Flag)
                     match rowStatusMark entry with
                     | RowDeleted -> keepWidth (deletedBadge ())
-                    | RowNotInYnab -> keepWidth (notInYnabBadge ())
-                    | RowPossibleDuplicate -> keepWidth (possibleDuplicateBadge ())
+                    | RowNotInYnab -> keepWidth (rowErrorWord rowNotInYnabText)
+                    | RowPossibleDuplicate -> keepWidth (rowAttentionWord rowPossibleDuplicateText)
                     | RowOtherStates -> ()
+                    // „zu prüfen“ steht unter dem Betrag, zur gelben Kante (Prototyp `txRow`).
+                    if entry.NeedsReview then
+                        Html.span [
+                            prop.custom ("data-testid", "row-needs-review")
+                            prop.className $"ml-auto shrink-0 pl-2 {Tokens.ListRoles.missing}"
+                            prop.text rowNeedsReviewText
+                        ]
                 ]
             ]
         ]
@@ -734,7 +749,8 @@ let touchRowReviewMarkSlot (entry: LedgerEntryView) (mouse: bool) (inSelectionMo
 
 let private entryRowWithReviewMark
     (dispatch: Msg -> unit)
-    (accountAbbreviationOf: (Guid -> string) option)
+    (accountNameOf: (Guid -> string) option)
+    (rowReviewButton: bool)
     (rowState: ReviewMarkRowState option)
     (selected: bool option)
     (mouse: MouseRowInfo option)
@@ -795,12 +811,15 @@ let private entryRowWithReviewMark
                             | None -> dispatch (OpenDetail entry))
                         selected
                         mouse
-                        accountAbbreviationOf
+                        accountNameOf
                         flatDate
                         entry
                     // Mit Maus: die Schaltfläche erscheint bei Hover und bei markierter Zeile; bei
                     // laufender Auswahl steht wie in der Tabelle ein unsichtbarer Platzhalter.
+                    // Unter 1024 px hat die Zeile keine Schaltfläche, auch mit Maus nicht (ledger-d9z3n):
+                    // geprüft wird per Wisch, im Detail oder mit G.
                     match mouse with
+                    | Some _ when not rowReviewButton -> ()
                     | Some info ->
                         match pointerRowReviewMarkSlot entry selectionActive with
                         | NoReviewMarkSlot -> ()
@@ -819,6 +838,7 @@ let private entryRowWithReviewMark
                     // Bei laufender Auswahl entfällt die Schaltfläche: die Leiste schreibt,
                     // die Zeilen nicht (ledger-r1d2f, ledger-w4vte).
                     match touchRowReviewMarkSlot entry mouse.IsSome selected.IsSome selectionActive with
+                    | _ when not rowReviewButton -> ()
                     | NoReviewMarkSlot -> ()
                     | slot ->
                         Html.div [
@@ -1093,100 +1113,11 @@ let private cardBalanceElement (isActive: bool) (balance: CardBalance) : ReactEl
     | BalancePending -> Loading.amountSkeleton ()
     | BalanceUnavailable -> Money.balanceUnavailable ()
 
-/// Eine Karte der Handy-Kontostaende-Leiste (AC6): waagerecht scrollbare
-/// `Stats`-Kachel, Betrag ueber `Money.accountBalance` (Farbsemantik + Ziffernschrift
-/// statt reinem Text). Die PC-Ansicht nutzt seit `ledger-x0yga` `Money.accountListRow`
-/// statt dieser Karte: eine hohe Kachel passt für eine Kennzahl,
-/// nicht fuer eine scanbare Kontoliste.
-let private accountCardView (dispatch: Msg -> unit) (selected: AccountFilter option) (card: AccountCard) =
-    Stats.view {
-        Stats.defaultProps with
-            Label = card.Label
-            ValueElement = Some (cardBalanceElement true card.Balance)
-            Size = Stats.Compact
-            IsActive = selected = Some card.Filter
-            OnClick = Some (fun () -> dispatch (SelectFilter card.Filter))
-    }
-
-/// Eine Zeile der PC-Kontostaende-Liste (AC6): kompakt, Name links, Betrag rechts,
-/// aktives Konto hervorgehoben — siehe `Money.accountListRow`.
-let private accountListRowView (dispatch: Msg -> unit) (selected: AccountFilter option) (card: AccountCard) =
-    let isActive = selected = Some card.Filter
-    Money.accountListRowWith
-        card.Label
-        (cardBalanceElement isActive card.Balance)
-        isActive
-        (fun () -> dispatch (SelectFilter card.Filter))
-
-/// „Erneut laden“ bei gescheiterten Kontoständen: in der Kontenspalte bis 1023 px, ab 1024 px über der Liste, weil
-/// die Spalte dort der Seitenleiste weicht. Der Aufrufer legt den Rahmen fest.
+/// „Erneut laden“ bei gescheiterten Kontoständen, über der Liste auf allen Breiten (ledger-d9z3n). Der Aufrufer legt
+/// den Rahmen fest.
 let private balancesNoticeView (dispatch: Msg -> unit) (balances: RemoteData<LedgerAccountBalanceView list>) =
     balancesNotice balances
     |> Option.map (fun n -> ErrorDisplay.cardCompactWith n.RetryLabel n.Text (Some (fun () -> dispatch n.Retry)))
-
-let private accountStrip
-    (dispatch: Msg -> unit)
-    (accounts: LedgerAccountView list)
-    (balances: RemoteData<LedgerAccountBalanceView list>)
-    (selected: AccountFilter option)
-    =
-    if List.isEmpty accounts then
-        Html.none
-    else
-        let cards = buildAccountCards accounts balances
-        let notice =
-            match balancesNoticeView dispatch balances with
-            | Some card -> Html.div [ prop.className "pb-2"; prop.children [ card ] ]
-            | None -> Html.none
-        Html.div [
-            // Breite nach Handoff Screen 1.9 (Konten-Spalte: 268px). Kein eigener
-            // Hintergrund (der Entwurf setzt dort `surface-app`, also denselben
-            // Grund wie die Seite) — die Spalte hebt sich nur ueber die rechte
-            // Kante ab.
-            //
-            // `ledger-account-strip` (styles.css, AC1/AC2 ledger-qns4j): haftet beim
-            // Scrollen unter der fixen Navbar, wie `.table-sticky-thead`. Ohne sie
-            // scrollte die Spalte mit weg und die Kontostände verschwanden nach
-            // wenigen Buchungen. Eine `max-height` plus eigener `overflow-y: auto`
-            // sorgt dafür, dass eine Kontoliste, die höher als der sichtbare
-            // Bereich ist (AC2, z. B. zwanzig Konten), in sich scrollt statt den
-            // Seiteninhalt abzuschneiden oder die Haftung zu verlieren. Nur ab `md`
-            // wirksam (die Klasse selbst ist per `@media` in styles.css auf md+
-            // begrenzt): am Handy zeigt dieselbe Zelle die waagerechte Kartenleiste
-            // ohne Sticky.
-            // Ab 1024 px stehen die Konten in der Seitenleiste (design-system-k6kfw, Styleguide §7.14: eine
-            // Kontowahl je Ansicht); die Spalte gilt nur noch zwischen 768 und 1023 px neben der Rail.
-            prop.className $"md:w-[268px] md:shrink-0 md:border-r {Tokens.Borders.subtle} md:pr-3 lg:hidden ledger-account-strip"
-            prop.children [
-                notice
-                Primitives.Responsive.mobileOnlyFlex [
-                    Primitives.ScrollContainer.horizontal [
-                        Html.div [
-                            prop.className "flex gap-3 pb-1"
-                            prop.children (
-                                cards
-                                |> List.map (fun card ->
-                                    Html.div [
-                                        prop.key (string card.Label)
-                                        prop.className "min-w-[9.5rem]"
-                                        prop.children [ accountCardView dispatch selected card ]
-                                    ])
-                            )
-                        ]
-                    ]
-                ]
-                Primitives.Responsive.desktopOnly [
-                    Html.div [
-                        prop.className $"{Tokens.FontSizes.xs} {Tokens.Colors.textMuted} {Tokens.Fonts.mono} uppercase tracking-wider px-3 pb-1"
-                        prop.text "Konten"
-                    ]
-                    Html.div [
-                        prop.className "flex flex-col gap-0.5"
-                        prop.children (cards |> List.map (accountListRowView dispatch selected))
-                    ]
-                ]
-            ]
-        ]
 
 /// Der Untertitel der Seite nach einem Spiegel-Lauf, kurz (`ledger-n4vte`):
 /// "Gespiegelt heute 22:24". Ein gescheiterter Lauf steht genauso sichtbar da wie
@@ -2591,12 +2522,13 @@ let private keyboardHint (text: string) : ReactElement =
 /// bekommt keine Geste. Die Schaltfläche an der Zeile bleibt der barrierefreie Weg.
 let private swipeableEntryRow
     (dispatch: Msg -> unit)
-    (accountAbbreviationOf: (Guid -> string) option)
+    (accountNameOf: (Guid -> string) option)
+    (rowReviewButton: bool)
     (rowState: ReviewMarkRowState option)
     (flatDate: bool)
     (entry: LedgerEntryView)
     =
-    let row = entryRowWithReviewMark dispatch accountAbbreviationOf rowState None None false flatDate entry
+    let row = entryRowWithReviewMark dispatch accountNameOf rowReviewButton rowState None None false flatDate entry
     if swipeAppliesTo entry then
         Html.div [
             prop.key (string entry.Id)
@@ -2705,7 +2637,8 @@ let mobileRowLongPress (selectionMode: bool) (mouse: bool) : bool = not selectio
 /// unter derselben Hülle für das lange Drücken.
 let private mobileEntryRow
     (dispatch: Msg -> unit)
-    (accountAbbreviationOf: (Guid -> string) option)
+    (accountNameOf: (Guid -> string) option)
+    (rowReviewButton: bool)
     (selectionMode: bool)
     (selectionActive: bool)
     (selection: Selection)
@@ -2718,13 +2651,13 @@ let private mobileEntryRow
     let inner =
         match mobileRowMode selectionMode mouse.IsSome selectionActive with
         | MobileSelectionRow ->
-            entryRowWithReviewMark dispatch accountAbbreviationOf rowState (Some (isSelected selection entry.Id)) None true flatDate entry
+            entryRowWithReviewMark dispatch accountNameOf rowReviewButton rowState (Some (isSelected selection entry.Id)) None true flatDate entry
         | MobileMouseRow ->
-            entryRowWithReviewMark dispatch accountAbbreviationOf rowState None mouse selectionActive flatDate entry
+            entryRowWithReviewMark dispatch accountNameOf rowReviewButton rowState None mouse selectionActive flatDate entry
         | MobilePlainRow ->
-            entryRowWithReviewMark dispatch accountAbbreviationOf rowState None None true flatDate entry
+            entryRowWithReviewMark dispatch accountNameOf rowReviewButton rowState None None true flatDate entry
         | MobileSwipeRow ->
-            swipeableEntryRow dispatch accountAbbreviationOf rowState flatDate entry
+            swipeableEntryRow dispatch accountNameOf rowReviewButton rowState flatDate entry
     let row = LongPressRow (mobileRowLongPress selectionMode mouse.IsSome) (fun () -> dispatch (StartSelectionMode entry.Id)) inner
     React.keyedFragment (
         string entry.Id,
@@ -2749,7 +2682,8 @@ let private mobileEntryRow
 
 let private entryListMobile
     (dispatch: Msg -> unit)
-    (accountAbbreviationOf: (Guid -> string) option)
+    (accountNameOf: (Guid -> string) option)
+    (rowReviewButton: bool)
     (includeDeleted: bool)
     (reviewRows: Map<Guid, ReviewMarkRowState>)
     (selectionMode: bool)
@@ -2773,7 +2707,8 @@ let private entryListMobile
         let row (flat: bool) (entry: LedgerEntryView) =
             mobileEntryRow
                 dispatch
-                accountAbbreviationOf
+                accountNameOf
+                rowReviewButton
                 selectionMode
                 selectionActive
                 selection
@@ -3038,10 +2973,14 @@ let accountScopeText (accounts: LedgerAccountView list) (selected: AccountFilter
 let allReviewedText (scope: string) : string =
     if scope = "alle Konten" then "In allen Konten steht nichts mehr zu prüfen." else $"In {scope} steht nichts mehr zu prüfen."
 
+/// Satz im leeren Zustand „Kein Treffer“ (ledger-d9z3n, §7.12).
+let noMatchText = "Keine Buchung passt zu Suche und Filtern."
+
 let private entryList
     (dispatch: Msg -> unit)
     (accounts: LedgerAccountView list)
     (isAllAccounts: bool)
+    (handyForm: bool)
     (tableWidth: float)
     (panelOpen: bool)
     (model: Model)
@@ -3049,6 +2988,10 @@ let private entryList
     let abbreviationOf =
         let byId =
             accounts |> List.map (fun a -> a.Id, accountAbbreviation a.Name) |> Map.ofList
+        fun (id: Guid) -> byId |> Map.tryFind id |> Option.defaultValue "?"
+    // Die Handy-Zeile nennt das Konto als gedämpften Text (ledger-d9z3n), die Tabelle als Kürzel.
+    let accountNameOf =
+        let byId = accounts |> List.map (fun a -> a.Id, a.Name) |> Map.ofList
         fun (id: Guid) -> byId |> Map.tryFind id |> Option.defaultValue "?"
 
     match model.Entries with
@@ -3058,6 +3001,8 @@ let private entryList
             "Noch kein Konto"
             "Sobald ein Spiegel-Lauf gelaufen ist, stehen hier die Konten und ihre Buchungen."
             (Some (Button.primary "Jetzt spiegeln" (fun () -> dispatch StartMirror)))
+
+    | Loading when handyForm -> Loading.txListSkeleton 6
 
     | Loading ->
         Html.div [
@@ -3092,11 +3037,12 @@ let private entryList
         // AC "Leerzustand ohne Treffer": nennt eine nächste Handlung, statt nur
         // Leere zu melden, anders als der Fall ohne jeden Filter (Zweig darunter),
         // der auf den fehlenden Spiegel-Lauf hinweist.
+        // „Filter löschen“ nimmt alle Filter und die Suche zurück, das Konto bleibt (ledger-d9z3n, §7.12).
         Card.emptyState
             (Icons.banknotes Icons.XL Icons.Default)
             "Kein Treffer"
-            "Filter lockern oder alle Filter löschen."
-            (if hasAnyFilter model.Filters then Some (Button.secondary "Alle Filter löschen" (fun () -> dispatch ClearAllFilters)) else None)
+            noMatchText
+            (Some (Button.secondary "Filter löschen" (fun () -> dispatch ClearAllFilters)))
 
     | Success [] ->
         Card.emptyState
@@ -3109,14 +3055,16 @@ let private entryList
         // Bei offenem Panel gilt die Breite abzüglich Panel und ohne Memo; `tableWidth` ist die
         // Breite ohne Panel (die Spalte reserviert den Platz als Innenabstand).
         let layout =
-            if panelOpen then visibleColumnsWithPanel tableWidth isAllAccounts
+            if handyForm then CompactList
+            elif panelOpen then visibleColumnsWithPanel tableWidth isAllAccounts
             else visibleColumns tableWidth isAllAccounts
         let sort = Components.Ledger.State.effectiveSort model
 
         Html.div [
             entryListMobile
                 dispatch
-                (if isAllAccounts then Some abbreviationOf else None)
+                (if isAllAccounts then Some accountNameOf else None)
+                (not handyForm)
                 model.IncludeDeleted
                 model.ReviewMarkRows
                 model.SelectionMode
@@ -3248,151 +3196,6 @@ let private datePickerBody (dispatch: Msg -> unit) (model: Model) =
         ]
     ]
 
-/// Überschrift der Payee-Vorschläge, die Zahl mit Tausenderpunkt
-let payeeSuggestionsHeading (totalCount: int) : string =
-    $"Vorschläge aus den {Money.formatCount totalCount} Treffern"
-
-/// Was eine Taste in der Suche des Payee-Filters tut (ledger-dn4vy): wie `PayeePicker.keyAction`, aber ohne
-/// Zeile wählt Enter nichts (ein getippter Name ohne Buchung fände keinen Treffer). Esc gehört dem
-/// Popover, das schließt nur sich selbst. Rein.
-let payeeFilterKeyAction (key: string) (rows: PayeePicker.PayeeOption list) (active: int option) (search: string) : PayeePicker.KeyAction =
-    match PayeePicker.keyAction key rows active search with
-    | PayeePicker.Pick _ when List.isEmpty rows -> PayeePicker.NoAction
-    | PayeePicker.CloseOnly -> PayeePicker.NoAction
-    | action -> action
-
-type private PayeeFilterListProps = {
-    Suggestions: RemoteData<LedgerPayeeSuggestion list>
-    Heading: string
-    Search: string
-    FocusSearch: bool
-    OnSearch: string -> unit
-    OnPick: string -> unit
-}
-
-/// Suche und Vorschläge des Payee-Filters (ledger-dn4vy): Zeilen und Tasten aus `PayeePicker`, ohne die Zeile
-/// „übernehmen“. Am PC steht der Fokus beim Öffnen in der Suche, ↑↓ markieren, Enter filtert nach der
-/// markierten (ohne Markierung der ersten) Zeile.
-[<ReactComponent>]
-let private PayeeFilterList (props: PayeeFilterListProps) =
-    let active, setActive = React.useState<int option> None
-    let containerRef = React.useRef<Browser.Types.HTMLElement option> None
-    let loaded = props.Suggestions |> RemoteData.toOption |> Option.defaultValue []
-    let rows = PayeePicker.suggestedOptions [ for s in loaded -> s.Payee, s.Count ] props.Search
-
-    React.useEffectOnce (fun () ->
-        if props.FocusSearch then
-            match containerRef.current with
-            | Some el ->
-                let field = el.querySelector "input"
-                if not (isNull field) then (field :?> Browser.Types.HTMLInputElement).focus ()
-            | None -> ())
-
-    Html.div [
-        prop.ref containerRef
-        prop.className "flex flex-col gap-3"
-        prop.onKeyDown (fun e ->
-            match payeeFilterKeyAction e.key rows active props.Search with
-            | PayeePicker.MoveTo i ->
-                e.preventDefault ()
-                setActive (Some i)
-            | PayeePicker.Pick payee ->
-                e.preventDefault ()
-                props.OnPick payee
-            | PayeePicker.CloseOnly
-            | PayeePicker.NoAction -> ())
-        prop.children [
-            Input.text { Input.textInputDefaults with
-                            Value = props.Search
-                            OnChange = (fun text -> setActive None; props.OnSearch text)
-                            Placeholder = "Payee suchen…"
-                            Size = Input.Small
-                            AriaLabel = Some "Payee suchen"
-                            Combobox =
-                                Some
-                                    { ListboxId = "payee-filter-listbox"
-                                      Expanded = not (List.isEmpty rows)
-                                      ActiveOptionId = active |> Option.filter (fun i -> i < List.length rows) |> Option.map (fun i -> $"payee-filter-option-{i}") }
-                            ClassName = Some "w-full" }
-            Html.div [
-                prop.className $"{Tokens.FontSizes.xs} {Tokens.Colors.textMuted} {Tokens.Fonts.mono} uppercase tracking-wider"
-                prop.text props.Heading
-            ]
-            match props.Suggestions with
-            | Loading -> Loading.centered "Vorschläge werden geladen…"
-            | Failure message -> ErrorDisplay.inline' message
-            | NotAsked -> Html.none
-            | Success _ ->
-                Html.div [
-                    prop.id "payee-filter-listbox"
-                    prop.role "listbox"
-                    prop.ariaLabel "Payees"
-                    prop.className "flex flex-col max-h-64 overflow-y-auto"
-                    prop.children [
-                        for index, row in List.indexed rows do
-                            match row with
-                            | PayeePicker.Suggested (payee, count) ->
-                                PickerParts.row
-                                    (PayeePicker.rowClassFor (active = Some index))
-                                    [
-                                        prop.key payee
-                                        prop.id $"payee-filter-option-{index}"
-                                        prop.role "option"
-                                        prop.custom ("aria-selected", (active = Some index))
-                                        // Der Fokus bleibt in der Suche: am Handy bleibt die Tastatur offen (§7.1).
-                                        prop.onMouseDown (fun e -> e.preventDefault ())
-                                        prop.onClick (fun _ -> props.OnPick payee)
-                                    ]
-                                    (Html.span [
-                                        prop.className "flex min-w-0 flex-1 items-center justify-between gap-3"
-                                        prop.children [
-                                            PickerParts.name payee
-                                            Html.span [
-                                                prop.className $"{Tokens.Fonts.mono} {Tokens.Colors.textMuted} {Tokens.FontSizes.xs} tabular-nums shrink-0"
-                                                prop.text (Money.formatCount count)
-                                            ]
-                                        ]
-                                    ])
-                                    None
-                            | PayeePicker.TakeTyped _ -> ()
-                    ]
-                ]
-        ]
-    ]
-
-/// Die Payee-Auswahl (AC: Vorschläge kommen mit Anzahl aus dem aktuellen Treffer;
-/// Einzelauswahl, ein Klick filtert sofort, kein "Übernehmen").
-let private payeePickerBody (dispatch: Msg -> unit) (model: Model) =
-    Html.div [
-        prop.className "flex flex-col gap-3"
-        prop.children [
-            PayeeFilterList
-                { Suggestions = model.PayeeSuggestions
-                  Heading = payeeSuggestionsHeading model.TotalCount
-                  Search = model.PayeeSearch
-                  FocusSearch = Viewport.isFinePointer ()
-                  OnSearch = fun text -> dispatch (SetPayeeSearch text)
-                  OnPick = fun payee -> dispatch (SelectPayeeFilter payee) }
-            Html.p [
-                prop.className $"{Tokens.FontSizes.xs} {Tokens.Colors.textMuted}"
-                prop.text "Ein Tipp auf den Vorschlag filtert sofort: Payee ist immer nur einer."
-            ]
-        ]
-    ]
-
-/// Das Memo-Suchfeld (AC: Suchfeld mit kurzer Verzögerung beim Tippen).
-let private memoPickerBody (dispatch: Msg -> unit) (model: Model) =
-    Html.div [
-        prop.className "flex flex-col gap-3"
-        prop.children [
-            Input.text { Input.textInputDefaults with
-                            Value = model.MemoDraft
-                            OnChange = (fun text -> dispatch (SetMemoDraft text))
-                            Placeholder = "Memo durchsuchen…"
-                            Size = Input.Small }
-        ]
-    ]
-
 /// Betragsfeld des Filters mit sichtbarem Euro-Hinweis rechts im Feld (ledger-dn4vy): Zifferntastatur
 /// (`decimal`), Mono, 48 px und 16 px am Handy (`Input.Medium`), benannt als „Betrag von“ bzw. „Betrag bis“.
 /// Ein unlesbarer Text gilt sofort beim Tippen als ungültig und nennt den Grund am Feld.
@@ -3426,13 +3229,28 @@ let private amountField (name: string) (value: string) (onChange: string -> unit
         ]
     ]
 
-/// Das Betrags-Suchfeld, Von/Bis (AC: Suchfeld mit kurzer Verzögerung beim Tippen).
+/// Der Umschalter „Alle | Ausgaben | Einnahmen“ unter dem Betrag (ADR 0095): die Felder nehmen kein
+/// Vorzeichen an, die Richtung kommt von hier. Wirkt sofort und auch ohne Betrag.
+let private amountDirectionSegments (testId: string) (direction: AmountDirection) (dispatch: Msg -> unit) : ReactElement =
+    Segmented.view
+        testId
+        "Richtung"
+        [ for value, label in directionOptions ->
+              Segmented.segment label (direction = value) (fun () -> dispatch (SetAmountDirection value)) ]
+
+/// Das Betrags-Suchfeld, Von/Bis (AC: Suchfeld mit kurzer Verzögerung beim Tippen), darunter die Richtung.
 let private amountPickerBody (dispatch: Msg -> unit) (model: Model) =
     Html.div [
-        prop.className "grid grid-cols-2 gap-3"
+        prop.className "space-y-3"
         prop.children [
-            fieldLabel "Von" (amountField "Betrag von" model.AmountMinDraft (fun text -> dispatch (SetAmountMinDraft text)) "z. B. 5")
-            fieldLabel "Bis" (amountField "Betrag bis" model.AmountMaxDraft (fun text -> dispatch (SetAmountMaxDraft text)) "z. B. 50")
+            Html.div [
+                prop.className "grid grid-cols-2 gap-3"
+                prop.children [
+                    fieldLabel "Von" (amountField "Betrag von" model.AmountMinDraft (fun text -> dispatch (SetAmountMinDraft text)) "z. B. 5")
+                    fieldLabel "Bis" (amountField "Betrag bis" model.AmountMaxDraft (fun text -> dispatch (SetAmountMaxDraft text)) "z. B. 50")
+                ]
+            ]
+            amountDirectionSegments "amount-filter-direction" model.Filters.AmountDirection dispatch
         ]
     ]
 
@@ -3443,15 +3261,12 @@ let private chipTitle (chip: ChipId) : string =
     | CategoryChip -> "Kategorie"
     | WithoutCategoryChip -> "Ohne Kategorie"
     | DateChip -> "Zeitraum"
-    | PayeeChip -> "Payee"
-    | MemoChip -> "Memo"
     | AmountChip -> "Betrag"
 
-/// Breite des PC-Popovers: Kategorie 460px, Payee 340px, sonst 320px (K5).
+/// Breite des PC-Popovers: Kategorie 460px, sonst 320px (K5).
 let popoverWidth (chip: ChipId) : string =
     match chip with
     | CategoryChip -> FilterPopover.categoryWidthClass
-    | PayeeChip -> FilterPopover.payeeWidthClass
     | _ -> FilterPopover.defaultWidthClass
 
 let private popoverBody (dispatch: Msg -> unit) (model: Model) (categories: YnabCategory list) (chip: ChipId) : ReactElement =
@@ -3461,15 +3276,14 @@ let private popoverBody (dispatch: Msg -> unit) (model: Model) (categories: Ynab
     | WithoutCategoryChip -> Html.none
     | CategoryChip -> categoryPickerBody dispatch model categories
     | DateChip -> datePickerBody dispatch model
-    | PayeeChip -> payeePickerBody dispatch model
-    | MemoChip -> memoPickerBody dispatch model
     | AmountChip -> amountPickerBody dispatch model
 
 /// Die Chrome um einen Popover-Inhalt: BottomSheet am Handy, `FilterPopover` am
 /// PC. Siehe Modul-Kommentar oben, warum das zur Renderzeit entschieden wird,
 /// statt beide Varianten gleichzeitig (versteckt) zu montieren.
 let private filterChrome (dispatch: Msg -> unit) (chip: ChipId) (isOpen: bool) (body: ReactElement) : ReactElement =
-    if Viewport.isDesktopViewport () then
+    // Unter 1024 px öffnen Kategorie und Zeitraum aus dem Filter-Sheet, als Sheet (ledger-d9z3n).
+    if Viewport.isInspectorPanelViewport () then
         FilterPopover.view
             { IsOpen = isOpen; OnClose = (fun () -> dispatch CloseFilterPopover); WidthClassName = popoverWidth chip }
             [ body ]
@@ -3493,8 +3307,6 @@ let chipLabel (model: Model) (chip: ChipId) : string =
     | CategoryChip -> if hasCategoryFilter model.Filters then categoryChipLabel model.Filters else "Kategorie"
     | WithoutCategoryChip -> "Ohne Kategorie"
     | DateChip -> if hasDateFilter model.Filters then dateChipLabel model.Filters else "Zeitraum"
-    | PayeeChip -> model.Filters.Payee |> Option.defaultValue "Payee"
-    | MemoChip -> model.Filters.Memo |> Option.defaultValue "Memo"
     | AmountChip -> "Betrag"
 
 let private isChipActive (model: Model) (chip: ChipId) : bool =
@@ -3504,9 +3316,7 @@ let private isChipActive (model: Model) (chip: ChipId) : bool =
     | CategoryChip -> hasCategoryFilter model.Filters
     | WithoutCategoryChip -> model.Filters.WithoutCategory
     | DateChip -> hasDateFilter model.Filters
-    | PayeeChip -> hasPayeeFilter model.Filters
-    | MemoChip -> hasMemoFilter model.Filters
-    | AmountChip -> hasAmountFilter model.Filters
+    | AmountChip -> hasAmountFilter model.Filters || hasDirectionFilter model.Filters
 
 let private removeChipMsg (chip: ChipId) : Msg option =
     match chip with
@@ -3515,9 +3325,7 @@ let private removeChipMsg (chip: ChipId) : Msg option =
     | CategoryChip -> Some RemoveCategoryFilter
     | WithoutCategoryChip -> None
     | DateChip -> Some RemoveDateFilter
-    | PayeeChip -> Some RemovePayeeFilter
-    | MemoChip -> Some RemoveMemoFilter
-    | AmountChip -> Some RemoveAmountFilter
+    | AmountChip -> Some RemoveAmountAndDirection
 
 let private chipOnClick (dispatch: Msg -> unit) (chip: ChipId) : unit -> unit =
     match chip with
@@ -3550,18 +3358,10 @@ let sortChipVisible (layout: TableLayout) : bool = layout = CompactList
 /// wenn die Liste als Handy-Liste gerendert wird (`visibleColumns` liefert `CompactList`);
 /// dann ist er die einzige Chrome dieser Art (ADR 0043). Aktiv gefärbt, wenn die wirksame
 /// Sortierung von der Standardsortierung abweicht. Ohne "×", kein Teil von `hasAnyFilter`.
-let private sortChip (dispatch: Msg -> unit) (model: Model) (isAllAccounts: bool) : ReactElement =
+let private sortSheet (dispatch: Msg -> unit) (model: Model) (isAllAccounts: bool) : ReactElement =
     let sort = Components.Ledger.State.effectiveSort model
-    let chipElement =
-        ChipBar.chip {
-            Label = Components.Ledger.State.sortChipLabel sort
-            IsActive = Components.Ledger.State.sortChipActive sort
-            OnClick = (fun () -> dispatch OpenSortSheet)
-            OnRemove = None
-        }
     let options = Components.Ledger.State.sortOptions isAllAccounts
-    let sheet =
-        BottomSheet.view
+    BottomSheet.view
             { IsOpen = model.SortSheetOpen
               OnClose = (fun () -> dispatch CloseSortSheet)
               Title = "Sortieren"
@@ -3577,7 +3377,21 @@ let private sortChip (dispatch: Msg -> unit) (model: Model) (isAllAccounts: bool
                                 [ BottomSheet.optionRow label (optionSort = sort) (fun () -> dispatch (SetSortExactly optionSort)) ]
                             ) ]
                   ) ]
-    ChipBar.chipWithPopover chipElement sheet
+
+let private sortChip (dispatch: Msg -> unit) (model: Model) (isAllAccounts: bool) : ReactElement =
+    let sort = Components.Ledger.State.effectiveSort model
+    let chipElement =
+        ChipBar.chip {
+            Label = Components.Ledger.State.sortChipLabel sort
+            IsActive = Components.Ledger.State.sortChipActive sort
+            OnClick = (fun () -> dispatch OpenSortSheet)
+            OnRemove = None
+        }
+    ChipBar.chipWithPopover chipElement (sortSheet dispatch model isAllAccounts)
+
+/// Das Suchfeld (ledger-d9z3n): Teiltext in Payee, Memo und Kategoriename, mit Verzögerung beim Tippen.
+let private ledgerSearchField (dispatch: Msg -> unit) (model: Model) : ReactElement =
+    Input.searchField "ledger-search" "Buchungen durchsuchen" "Suchen…" model.SearchDraft (fun text -> dispatch (SetSearchDraft text))
 
 /// Die Filterleiste selbst: Reihenfolge und "Alle Filter löschen" (AC: „Alle Filter
 /// löschen" sitzt am Ende, erscheint nur, wenn mindestens ein Filter aktiv ist).
@@ -3600,7 +3414,241 @@ let private filterChipBar
         elementRef
         ((order |> List.map (filterChip dispatch model categories))
          @ (if showSortChip then [ sortChip dispatch model isAllAccounts ] else [])
+         // Die Suche am Ende der Leiste, bis ledger-cnaz3 den PC neu ordnet (ledger-d9z3n).
+         @ [ Html.div [ prop.className "w-56 shrink-0"; prop.children [ ledgerSearchField dispatch model ] ] ]
          @ (if hasAnyFilter model.Filters then [ ChipBar.clearAllButton (fun () -> dispatch ClearAllFilters) ] else []))
+
+/// Die Namen der gewählten Kategorien in Listenreihenfolge der Kategorien (unbekannte entfallen).
+let private selectedCategoryNames (categories: YnabCategory list) (ids: Guid Set) : string list =
+    categories
+    |> List.filter (fun c -> let (YnabCategoryId g) = c.Id in ids.Contains g)
+    |> List.map (fun c -> c.Name)
+
+// ============================================
+// Kassenbuch unter 1024 px: Kontowahl, Suche, Filter-Knopf, gesetzte Filter (ledger-d9z3n)
+// ============================================
+
+/// Der Saldo neben dem Kontonamen im Auswahlfeld: Mono, klein, gedämpft (Prototyp). Beim Laden und nach
+/// einem Fehler steht nichts (die Zeile „Kontostände konnten nicht geladen werden“ nennt den Fehler).
+let private accountFieldBalance (balance: CardBalance) : ReactElement option =
+    match balance with
+    | BalanceShown money ->
+        Some (
+            Html.span [
+                prop.custom ("data-testid", "ledger-account-field-balance")
+                prop.className $"{Tokens.FontSizes.xs} {Tokens.Fonts.mono} {Tokens.Colors.textMuted} tabular-nums whitespace-nowrap"
+                prop.text (Money.formatAmountText false true money.Amount money.Currency)
+            ]
+        )
+    | BalancePending
+    | BalanceUnavailable -> None
+
+/// Die eine Kontowahl unter 1024 px (ledger-d9z3n, §7.5): ein Auswahlfeld „Konto“ mit Saldo, das ein Sheet
+/// „Konto“ öffnet: „Alle Konten“ mit Gesamtsaldo, danach jedes Konto mit Saldo. Ein Tipp wählt und schließt.
+let private accountField
+    (dispatch: Msg -> unit)
+    (model: Model)
+    (accounts: LedgerAccountView list)
+    (balances: RemoteData<LedgerAccountBalanceView list>)
+    : ReactElement =
+    if List.isEmpty accounts then
+        Html.none
+    else
+        let cards = buildAccountCards accounts balances
+        let active = cards |> List.tryFind (fun c -> Some c.Filter = model.SelectedFilter)
+        React.fragment [
+            Input.selectField
+                "ledger-account-field"
+                "Konto"
+                (active |> Option.map (fun c -> c.Label) |> Option.defaultValue "Alle Konten")
+                (active |> Option.bind (fun c -> accountFieldBalance c.Balance))
+                model.AccountSheetOpen
+                (fun () -> dispatch OpenAccountSheet)
+            BottomSheet.view
+                { IsOpen = model.AccountSheetOpen
+                  OnClose = (fun () -> dispatch CloseAccountSheet)
+                  Title = "Konto"
+                  Subtitle = None
+                  Footer = None }
+                [ Html.div [
+                    prop.className "flex flex-col overflow-hidden rounded-xl border border-border-subtle bg-surface-card"
+                    prop.custom ("data-testid", "ledger-account-sheet")
+                    prop.children [
+                        for card in cards ->
+                            let isActive = model.SelectedFilter = Some card.Filter
+                            React.keyedFragment (
+                                card.Label,
+                                [ Money.accountChoiceRow
+                                      "ledger-account-choice"
+                                      card.Label
+                                      // Saldo in Primärtext auf jeder Zeile, negativ rot (Prototyp).
+                                      (cardBalanceElement true card.Balance)
+                                      isActive
+                                      (fun () -> dispatch (SelectFilter card.Filter)) ]
+                            )
+                    ]
+                  ] ]
+        ]
+
+/// Die Werte der Zeilen im Filter-Sheet: Kategorie „alle“ oder die gewählten Namen, Zeitraum „alle“ oder kurz.
+let filterSheetCategoryValue (categoryNames: string list) (selectedCount: int) : string =
+    match categoryNames with
+    | [] when selectedCount = 0 -> "alle"
+    | [] -> $"{selectedCount} gewählt"
+    | names -> String.Join(", ", names)
+
+let filterSheetDateValue (filters: Filters) : string =
+    filters.DateRange |> Option.map dateRangeShortText |> Option.defaultValue "alle"
+
+/// Der Text des Hauptknopfs im Fuß des Filter-Sheets: „n zeigen“ mit der Trefferzahl, beim Laden nur „Zeigen“.
+let filterSheetShowLabel (entries: RemoteData<LedgerEntryView list>) (totalCount: int) : string =
+    match entries with
+    | Success _ -> $"{Money.formatCount totalCount} zeigen"
+    | _ -> "Zeigen"
+
+/// Das Filter-Sheet (ledger-d9z3n, Prototyp `sheetHtml` Zweig `filter`): Schalter „Zu prüfen“, „Lena gefragt“,
+/// „Ohne Kategorie“ mit Anzahl, Zeilen „Kategorie“ und „Zeitraum“ (öffnen die Auswahl darüber), „Betrag von“ und
+/// „bis“, Zeile „Sortieren“ und „Gelöschte zeigen“, wenn es gelöschte Buchungen gibt. Jede Änderung wirkt sofort.
+/// Es ist verdeckt, solange Kategorie-, Zeitraum- oder Sortier-Auswahl darüber stehen.
+let private filterSheet (dispatch: Msg -> unit) (model: Model) (categories: YnabCategory list) : ReactElement =
+    let names = selectedCategoryNames categories model.Filters.CategoryIds
+    let sort = Components.Ledger.State.effectiveSort model
+    let footer =
+        Html.div [
+            prop.className "grid w-full grid-cols-2 gap-3"
+            prop.children [
+                Button.view
+                    { Button.defaultProps with
+                        Text = "Zurücksetzen"
+                        Variant = Button.Outline
+                        ClassName = Some "w-full"
+                        OnClick = fun () -> dispatch ClearAllFilters }
+                Button.view
+                    { Button.defaultProps with
+                        Text = filterSheetShowLabel model.Entries model.TotalCount
+                        Variant = Button.Primary
+                        ClassName = Some "w-full"
+                        OnClick = fun () -> dispatch CloseFilterSheet }
+            ]
+        ]
+    BottomSheet.view
+        { IsOpen = model.FilterSheetOpen && model.OpenPopover.IsNone && not model.SortSheetOpen
+          OnClose = (fun () -> dispatch CloseFilterSheet)
+          Title = "Filter"
+          Subtitle = None
+          Footer = Some [ footer ] }
+        [ Html.div [
+            prop.custom ("data-testid", "ledger-filter-sheet")
+            prop.className "flex flex-col"
+            prop.children [
+                Input.countSwitchRow "filter-needs-review" "Zu prüfen" (Some model.NeedsReviewCount) model.OnlyNeedsReview (fun _ -> dispatch ToggleOnlyNeedsReview)
+                Input.countSwitchRow "filter-ask-lena" "Lena gefragt" (Some model.AskLenaCount) model.Filters.OnlyAskLena (fun _ -> dispatch ToggleOnlyAskLena)
+                Input.countSwitchRow "filter-without-category" "Ohne Kategorie" (Some model.WithoutCategoryCount) model.Filters.WithoutCategory (fun _ -> dispatch ToggleWithoutCategory)
+                Input.valueRow
+                    "filter-category"
+                    "Kategorie"
+                    (filterSheetCategoryValue names (Set.count model.Filters.CategoryIds))
+                    (hasCategoryFilter model.Filters)
+                    (fun () -> dispatch (OpenFilterPopover CategoryChip))
+                Input.valueRow
+                    "filter-date"
+                    "Zeitraum"
+                    (filterSheetDateValue model.Filters)
+                    (hasDateFilter model.Filters)
+                    (fun () -> dispatch (OpenFilterPopover DateChip))
+                Html.div [
+                    prop.className "space-y-3 py-3 border-b border-border-subtle"
+                    prop.children [
+                        Html.div [
+                            prop.className "grid grid-cols-2 gap-3"
+                            prop.children [
+                                fieldLabel "Betrag von" (amountField "Betrag von" model.AmountMinDraft (fun text -> dispatch (SetAmountMinDraft text)) "0,00")
+                                fieldLabel "bis" (amountField "Betrag bis" model.AmountMaxDraft (fun text -> dispatch (SetAmountMaxDraft text)) "0,00")
+                            ]
+                        ]
+                        amountDirectionSegments "filter-sheet-direction" model.Filters.AmountDirection dispatch
+                    ]
+                ]
+                Input.valueRow
+                    "filter-sort"
+                    "Sortieren"
+                    (Components.Ledger.State.sortValueText sort)
+                    (sort <> LedgerSort.defaultSort)
+                    (fun () -> dispatch OpenSortSheet)
+                if model.DeletedCount > 0 || model.IncludeDeleted then
+                    Input.countSwitchRow "filter-deleted" "Gelöschte zeigen" (Some model.DeletedCount) model.IncludeDeleted (fun _ -> dispatch ToggleIncludeDeleted)
+            ]
+          ] ]
+
+/// Die Kategorie- und die Zeitraum-Auswahl unter 1024 px: dieselben Inhalte wie die Popover am PC, als Sheet über
+/// dem Filter-Sheet (das sich verdeckt und nach dem Schließen wieder zeigt).
+let private handyFilterPickers (dispatch: Msg -> unit) (model: Model) (categories: YnabCategory list) : ReactElement =
+    React.fragment [
+        filterChrome dispatch CategoryChip (model.OpenPopover = Some CategoryChip) (categoryPickerBody dispatch model categories)
+        filterChrome dispatch DateChip (model.OpenPopover = Some DateChip) (datePickerBody dispatch model)
+    ]
+
+/// Der Knopf „Filter“ neben der Suche: mit gesetzten Filtern „Filter (n)“ in Akzentrahmen und Akzentschrift.
+let private filterButton (dispatch: Msg -> unit) (model: Model) (count: int) : ReactElement =
+    Button.view
+        { Button.defaultProps with
+            Text = filterButtonText count
+            Icon = Some (Icons.filter Icons.SM Icons.Default)
+            Variant = (if count > 0 then Button.OutlineSelected else Button.Outline)
+            AriaExpanded = Some model.FilterSheetOpen
+            ClassName = Some "shrink-0 min-h-12"
+            OnClick = fun () -> dispatch OpenFilterSheet }
+
+/// Die gesetzten Filter als Chips mit „×“ (§7.5): sie brechen um, die Zeile wischt nicht seitlich. Ohne gesetzten
+/// Filter gibt es die Zeile nicht. Ein Tipp auf den Chip öffnet das Filter-Sheet, „×“ nimmt genau diesen Filter zurück.
+let private activeFilterChipRow (dispatch: Msg -> unit) (chips: (ActiveFilter * string) list) : ReactElement =
+    match chips with
+    | [] -> Html.none
+    | _ ->
+        Html.div [
+            prop.custom ("data-testid", "ledger-active-filters")
+            prop.className "flex flex-wrap gap-2"
+            prop.children [
+                for (filter, label) in chips ->
+                    React.keyedFragment (
+                        string filter,
+                        [ ChipBar.chip
+                              { Label = label
+                                IsActive = true
+                                OnClick = (fun () -> dispatch OpenFilterSheet)
+                                OnRemove = Some (fun () -> dispatch (Components.Ledger.State.removeActiveFilterMsg filter)) } ]
+                    )
+            ]
+        ]
+
+/// Kontowahl, Suche mit Filter-Knopf und die gesetzten Filter unter 1024 px, samt ihrer Sheets (ledger-d9z3n).
+let private handyControls
+    (dispatch: Msg -> unit)
+    (model: Model)
+    (accounts: LedgerAccountView list)
+    (balances: RemoteData<LedgerAccountBalanceView list>)
+    (categories: YnabCategory list)
+    (isAllAccounts: bool)
+    : ReactElement =
+    let chips = Components.Ledger.State.activeFilters model
+    Html.div [
+        prop.custom ("data-testid", "ledger-handy-controls")
+        prop.className "flex flex-col gap-3"
+        prop.children [
+            accountField dispatch model accounts balances
+            Html.div [
+                prop.className "flex items-center gap-2"
+                prop.children [
+                    ledgerSearchField dispatch model
+                    filterButton dispatch model (List.length chips)
+                ]
+            ]
+            activeFilterChipRow dispatch chips
+            filterSheet dispatch model categories
+            handyFilterPickers dispatch model categories
+            sortSheet dispatch model isAllAccounts
+        ]
+    ]
 
 /// Zustand der Summenzeile: ohne Filter nichts, beim Laden ein Platzhalter, danach
 /// Trefferzahl und Summe (auch bei 0 Treffern). Ein Ladefehler zeigt keine Zeile, weil
@@ -3634,11 +3682,6 @@ let summaryLineText (desktop: bool) (count: int) (plainText: unit -> string) : s
 /// Filter aktiv ist; Trefferzahl und Summe über den ganzen Treffer, nicht die Seite
 /// (beide kommen unverändert vom Server, `model.TotalCount`/`model.TotalAmount`).
 /// Ohne Karte, eine schlanke Zeile; beim Laden bleibt sie als Skeleton stehen.
-/// Die Namen der gewählten Kategorien in Listenreihenfolge der Kategorien (unbekannte entfallen).
-let private selectedCategoryNames (categories: YnabCategory list) (ids: Guid Set) : string list =
-    categories
-    |> List.filter (fun c -> let (YnabCategoryId g) = c.Id in ids.Contains g)
-    |> List.map (fun c -> c.Name)
 
 let private summaryRow (accounts: LedgerAccountView list) (categories: YnabCategory list) (model: Model) : ReactElement =
     match summaryState model with
@@ -3656,7 +3699,7 @@ let private summaryRow (accounts: LedgerAccountView list) (categories: YnabCateg
                         prop.className Tokens.ListRoles.secondary
                         prop.custom ("data-testid", "ledger-summary-text")
                         prop.text (
-                            summaryLineText (Viewport.isDesktopViewport ()) model.TotalCount (fun () ->
+                            summaryLineText (Viewport.isInspectorPanelViewport ()) model.TotalCount (fun () ->
                                 filterPlainText
                                     (accountScopeText accounts model.SelectedFilter)
                                     model.OnlyNeedsReview
@@ -3699,7 +3742,8 @@ let keyboardHintVisible (model: Model) : bool =
     | _ -> false
 
 /// Die feste Leiste unten am PC (Auswahl-Leiste oder Tastatur-Hinweis) schreibt ihre gemessene Höhe als
-/// `--ledger-bottom-bar-height` auf das Dokument, `.ledger-account-strip` in `styles.css` endet darüber. Die
+/// `--ledger-bottom-bar-height` auf das Dokument (bis ledger-d9z3n endete die Konten-Spalte darüber, heute liest
+/// keine Regel in `styles.css` den Wert). Die
 /// Leiste bricht um und wächst mit der Schrift, eine feste Höhe passte dann nicht (Layout-Sweep, Zustand
 /// kassenbuch-viele-konten-auswahl). Gemessen wird das erste Kind der Hülle, die Hülle selbst hat keine Höhe,
 /// weil die Leiste `fixed` ist. Der Aufrufer gibt jeder Leiste einen eigenen Schlüssel, damit ein Wechsel
@@ -3845,7 +3889,7 @@ let captureFabVisible (model: Model) : bool =
 /// Am Handy, solange "+ Buchung" schwebt: unter der Liste Platz für den Knopf (48 px) und seinen
 /// Abstand (16 px), sonst verdeckt er am Ende Betrag und Symbol der letzten Buchung.
 let private captureFabSpacer (model: Model) : ReactElement =
-    if captureFabVisible model then Html.div [ prop.custom ("data-testid", "ledger-capture-fab-spacer"); prop.className "md:hidden h-16"; prop.ariaHidden true ] else Html.none
+    if captureFabVisible model then Html.div [ prop.custom ("data-testid", "ledger-capture-fab-spacer"); prop.className "lg:hidden h-16"; prop.ariaHidden true ] else Html.none
 
 /// Die Hinweisleiste über der Liste, wenn eine Kategorieänderung den Sortierschlüssel verschoben
 /// hat (ADR 0055, Punkt 9). Sie steht nur bei `OrderStale`; "Neu laden" setzt die Liste ab
@@ -4377,7 +4421,7 @@ let captureFab (dispatch: Msg -> unit) (model: Model) : ReactElement =
         Html.none
     else
         Html.div [
-            prop.className "md:hidden ledger-capture-fab"
+            prop.className "lg:hidden ledger-capture-fab"
             prop.children [
                 Button.view
                     { Button.defaultProps with
@@ -4433,6 +4477,7 @@ let private FilterBarColumn
     (model: Model)
     (categories: YnabCategory list)
     (accounts: LedgerAccountView list)
+    (balances: RemoteData<LedgerAccountBalanceView list>)
     (isAllAccounts: bool)
     (ruleForm: EntryRuleFormSlot)
     =
@@ -4440,9 +4485,13 @@ let private FilterBarColumn
     // 0 = noch nicht gemessen, dann gilt `assumedTableWidth`.
     let measuredWidth, setMeasuredWidth = React.useState 0.0
     let tableWidth = if measuredWidth > 0.0 then measuredWidth else assumedTableWidth
+    // Unter 1024 px gilt die Handy-Form (ledger-d9z3n): Kontowahl, Suche, Filter-Knopf, Handy-Liste, Detail als
+    // Sheet. Zur Renderzeit gelesen; die Spalte zeichnet bei jeder Größenänderung neu (`observeWidth`).
+    let handyForm = not (Viewport.isInspectorPanelViewport ())
+    let tableLayout = if handyForm then CompactList else visibleColumns tableWidth isAllAccounts
     // Die Form des Details hängt nur von der Breite OHNE Panel ab (`detailFormFor`): das
     // Panel reserviert seinen Platz als Innenabstand, die gemessene Außenbreite bleibt gleich.
-    let detailForm = detailFormFor tableWidth isAllAccounts
+    let detailForm = if handyForm then DetailSheet else detailFormFor tableWidth isAllAccounts
     let panelOpen = (model.DetailFor.IsSome || model.Capture.IsSome) && detailForm = DetailPanel
     React.useEffect (
         (fun () -> if model.DetailForm <> detailForm then dispatch (DetailFormChanged detailForm)),
@@ -4452,7 +4501,7 @@ let private FilterBarColumn
     // Renderzeit gelesen, ein Gerätewechsel im Betrieb wird nicht nachgeführt). Der Hinweis
     // und sein Abstandshalter lesen nur das Modellfeld (ledger-m6zpd).
     let listInteraction =
-        listInteractionFor (visibleColumns tableWidth isAllAccounts) (Viewport.isFinePointer ()) (Viewport.isDesktopViewport ())
+        listInteractionFor tableLayout (Viewport.isFinePointer ()) (Viewport.isDesktopViewport ())
     React.useEffect (
         (fun () -> if model.ListInteraction <> listInteraction then dispatch (ListInteractionChanged listInteraction)),
         [| box listInteraction; box model.ListInteraction |]
@@ -4516,11 +4565,16 @@ let private FilterBarColumn
                 else
                     Html.none
 
-                filterChipBar dispatch model categories (sortChipVisible (visibleColumns tableWidth isAllAccounts)) isAllAccounts (Some barCallbackRef)
+                // Eine Stelle für beide Formen, damit die keylosen Kinder ihre Plätze behalten.
+                if handyForm then
+                    handyControls dispatch model accounts balances categories isAllAccounts
+                else
+                    filterChipBar dispatch model categories (sortChipVisible tableLayout) isAllAccounts (Some barCallbackRef)
                 summaryOrSelectionRow accounts categories model
-                deletedToggleRow dispatch model
+                // Unter 1024 px steht „Gelöschte zeigen“ im Filter-Sheet.
+                if handyForm then Html.none else deletedToggleRow dispatch model
                 orderStaleBar dispatch model
-                entryList dispatch accounts isAllAccounts tableWidth panelOpen model
+                entryList dispatch accounts isAllAccounts handyForm tableWidth panelOpen model
                 selectionBarSpacers model
                 captureFabSpacer model
             ]
@@ -4528,55 +4582,6 @@ let private FilterBarColumn
             ]
         ]
     ]
-
-/// Der Konto-Wechsler am Handy (ledger-ybmqc, Tafeln 6.1 und 6.2): der Kontoname als Titel
-/// mit Chevron öffnet ein BottomSheet mit "Alle Konten" zuoberst und jedem Konto samt Stand.
-/// Die Kartenleiste bleibt am Handy stehen (Tafel 6.1 zeigt sie unter dem Titel).
-let private accountSwitcher
-    (dispatch: Msg -> unit)
-    (model: Model)
-    (accounts: LedgerAccountView list)
-    (balances: RemoteData<LedgerAccountBalanceView list>)
-    : ReactElement =
-    if List.isEmpty accounts then
-        Html.none
-    else
-        let cards = buildAccountCards accounts balances
-        let activeLabel =
-            cards
-            |> List.tryFind (fun c -> Some c.Filter = model.SelectedFilter)
-            |> Option.map (fun c -> c.Label)
-            |> Option.defaultValue "Konto wählen"
-        Primitives.Responsive.mobileOnly [
-            Html.button [
-                prop.type' "button"
-                prop.className $"flex items-center gap-1 {Tokens.TouchTargets.alwaysMinHeight} mb-2 text-left text-text-primary"
-                prop.custom ("data-testid", "ledger-account-switcher")
-                prop.custom ("aria-haspopup", "dialog")
-                prop.onClick (fun _ -> dispatch OpenAccountSheet)
-                prop.children [
-                    Truncate.text "text-base font-semibold font-display" activeLabel
-                    Icons.chevronDown Icons.SM Icons.Default
-                ]
-            ]
-            BottomSheet.view
-                { IsOpen = model.AccountSheetOpen
-                  OnClose = (fun () -> dispatch CloseAccountSheet)
-                  Title = "Konto wechseln"
-                  Subtitle = None
-                  Footer = None }
-                [ Html.div [
-                    prop.className "flex flex-col gap-0.5"
-                    prop.custom ("data-testid", "ledger-account-sheet")
-                    prop.children [
-                        for card in cards ->
-                            React.keyedFragment (
-                                card.Label,
-                                [ accountListRowView dispatch model.SelectedFilter card ]
-                            )
-                    ]
-                  ] ]
-        ]
 
 /// Der Tab „Regeln“ (categorization-n3sxw): Untertitel, Knöpfe im Kopf und Inhalt kommen vom Regel-Tab, der Root
 /// reicht sie herein (das Kassenbuch kennt den Regel-Baustein nicht).
@@ -4596,16 +4601,20 @@ type LedgerTabs = {
     Active: LedgerTab
     ShowBookings: unit -> unit
     ShowRules: unit -> unit
+    /// „Abrufen“ im Kopf (ledger-d9z3n): derselbe Abruf wie auf der Übersicht.
+    Fetch: unit -> unit
 }
 
 /// Was im Kopf des Kassenbuchs steht, ohne Inhalt (categorization-n3sxw). Rein, damit die Zusicherungen unter .NET
 /// prüfbar sind: wo „+ Buchung“ steht und dass „Jetzt spiegeln“ auf beiden Tabs bleibt (Abweichung (g) der Task).
 type LedgerHeaderAction =
-    /// „Jetzt spiegeln“ als Symbolknopf: am Handy, auf „Regeln“ bis 1279 px.
+    /// „Abrufen“ als Symbolknopf, auf „Buchungen“ unter 1024 px (ledger-d9z3n).
+    | FetchIcon
+    /// „Jetzt spiegeln“ als Symbolknopf: auf „Buchungen“ unter 1024 px, auf „Regeln“ bis 1279 px.
     | MirrorIcon
-    /// „Jetzt spiegeln“ mit Text: ab `md`, auf „Regeln“ ab `xl`.
+    /// „Jetzt spiegeln“ mit Text: auf „Buchungen“ ab 1024 px, auf „Regeln“ ab `xl`.
     | MirrorButton
-    /// „+ Buchung“, ab `md` (am Handy der FAB).
+    /// „+ Buchung“, ab 1024 px (darunter der FAB).
     | CaptureBooking
     /// Die Aktionen des Tabs selbst, auf „Regeln“ die Hauptaktion „+ Neue Regel“.
     | TabActions
@@ -4614,7 +4623,7 @@ type LedgerHeaderAction =
 /// „+ Buchung“, auf „Regeln“ „+ Neue Regel“ aus `TabActions`, dort gibt es kein „+ Buchung“.
 let headerActionsFor (onRules: bool) : LedgerHeaderAction list =
     if onRules then [ MirrorIcon; MirrorButton; TabActions ]
-    else [ MirrorIcon; MirrorButton; CaptureBooking ]
+    else [ FetchIcon; MirrorIcon; MirrorButton; CaptureBooking ]
 
 /// Springt ohne Animation (`scroll-behavior: smooth` der Seite gilt hier nicht): die Liste soll stehen wie vorher.
 [<Emit("window.scrollTo({ top: $0, behavior: 'instant' })")>]
@@ -4661,10 +4670,21 @@ let view (model: Model) (dispatch: Msg -> unit) (tabs: LedgerTabs) (ruleForm: En
     // Invariante 5). Dort bleibt es bis `xl` der Symbol-Knopf, wie die Karte statt der Tabelle (Abweichung (f)).
     let headerActions (tabActions: ReactElement list) =
         let onRules = match tabs.Active with RulesTab _ -> true | BookingsTab -> false
-        let mirrorIconClass = if onRules then "xl:hidden" else "md:hidden"
-        let mirrorButtonClass = if onRules then "hidden xl:inline-flex" else "hidden md:inline-flex"
+        // Auf „Buchungen“ gilt die Handy-Form bis 1023 px (ledger-d9z3n).
+        let mirrorIconClass = if onRules then "xl:hidden" else "lg:hidden"
+        let mirrorButtonClass = if onRules then "hidden xl:inline-flex" else "hidden lg:inline-flex"
         headerActionsFor onRules
         |> List.collect (function
+            | FetchIcon ->
+                [ Button.view {
+                    Button.defaultProps with
+                        Icon = Some (Icons.refresh Icons.SM Icons.Default)
+                        Variant = Button.Secondary
+                        Title = Some "Abrufen"
+                        AriaLabel = Some "Abrufen"
+                        ClassName = Some "lg:hidden"
+                        OnClick = tabs.Fetch
+                  } ]
             | MirrorIcon ->
                 [ Button.view {
                     Button.defaultProps with
@@ -4693,7 +4713,7 @@ let view (model: Model) (dispatch: Msg -> unit) (tabs: LedgerTabs) (ruleForm: En
                         Icon = Some (Icons.plus Icons.SM Icons.Default)
                         Variant = Button.Primary
                         AriaLabel = Some captureTitle
-                        ClassName = Some "hidden md:inline-flex"
+                        ClassName = Some "hidden lg:inline-flex"
                         OnClick = (fun () -> dispatch OpenCapture)
                   } ]
             | TabActions -> tabActions)
@@ -4733,17 +4753,14 @@ let view (model: Model) (dispatch: Msg -> unit) (tabs: LedgerTabs) (ruleForm: En
                 ErrorDisplay.cardWithTitle "Konten konnten nicht geladen werden" message (Some (fun () -> dispatch LoadAccounts))
             | Loading -> Loading.centered "Kassenbuch wird geöffnet…"
             | NotAsked | Success _ ->
+                // Unter 1024 px gibt es keine Konten-Spalte mehr (ledger-d9z3n): die Kontowahl steht als Feld
+                // in der Spalte, ab 1024 px in der Seitenleiste. Der Hinweis zu gescheiterten Ständen steht oben.
                 match balancesNoticeView dispatch balances with
-                | Some card when not (List.isEmpty accounts) -> Html.div [ prop.className "hidden lg:block pb-3"; prop.children [ card ] ]
+                | Some card when not (List.isEmpty accounts) -> Html.div [ prop.className "pb-3"; prop.children [ card ] ]
                 | _ -> ()
                 Html.div [
-                    prop.className "flex flex-col md:flex-row md:items-start md:gap-6 gap-4"
-                    prop.children [
-                        accountSwitcher dispatch model accounts balances
-                        accountStrip dispatch accounts balances model.SelectedFilter
-
-                        FilterBarColumn dispatch model categories accounts isAllAccounts ruleForm
-                    ]
+                    prop.className "flex flex-col"
+                    prop.children [ FilterBarColumn dispatch model categories accounts balances isAllAccounts ruleForm ]
                 ]
                 BookingsScrollRestore model.BookingsScroll dispatch
 

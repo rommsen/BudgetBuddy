@@ -86,8 +86,7 @@ let private barClassName =
 /// Die Leiste selbst: sticky auf beiden Geräten (Styleguide 7.3, Aufgaben-
 /// `## What`: "auf beiden Geräten"), am Handy waagerecht scrollbar, am PC
 /// umbrechend. `ledger-filter-bar` (`styles.css`) hält sie unter der fixen
-/// Navbar fest, wie `.table-sticky-thead`/`.ledger-account-strip` es für
-/// Tabellenkopf und Konten-Spalte tun.
+/// Navbar fest, wie `.table-sticky-thead` es für den Tabellenkopf tut.
 ///
 /// `elementRef` (dritte Iteration, ledger-j8xq4): optionaler Anker für den
 /// Aufrufer (`Components.Ledger.View.FilterBarColumn`), der die tatsächlich

@@ -152,7 +152,7 @@ let tests =
                   "Components/Ledger/State.fs",
                   [ "getLedgerAccounts"; "getLedgerAccounts"; "getLastMirrorRun"; "getLenaFlagSettings"
                     "getLedgerAccountBalances"; "getLedgerEntriesPage"; "getLedgerEntriesPage"; "getLedgerEntriesPage"
-                    "getEntryHistory"; "getLedgerPayeeSuggestions"; "getPayeeCategorySuggestions"
+                    "getEntryHistory"; "getPayeeCategorySuggestions"
                     // ledger-fxt09: die Payees des ganzen Kassenbuchs für die Payee-Auswahl.
                     "getLedgerPayeeSuggestions"
                     "getBudgetAccounts"; "getSettings"; "getLedgerEntry"; "getLedgerEntry"

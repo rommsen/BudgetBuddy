@@ -59,7 +59,7 @@ async function openLedger(contextOptions) {
         TotalCount: TOTAL,
         TotalAmount: { Amount: -200, Currency: "EUR" },
         DeletedCount: 0,
-        NeedsReviewCount: TOTAL, AskLenaCount: 0,
+        NeedsReviewCount: TOTAL, AskLenaCount: 0, WithoutCategoryCount: 0,
       }),
     })
   );
@@ -145,7 +145,8 @@ test("[tastatur] Maus 900 px: Klick und Umschalt-Klick wählen, Esc hebt auf, Pf
     assert.equal(await marked.getAttribute("aria-selected"), "true");
 
     await page.keyboard.press("g");
-    await rowOf(page, 1).getByRole("button", { name: "Ungeprüft", exact: true }).waitFor();
+    // Unter 1024 px hat die Zeile keinen Prüfknopf mehr (ledger-d9z3n): geprüft heißt, „zu prüfen“ verschwindet.
+    await rowOf(page, 1).getByTestId("row-needs-review").waitFor({ state: "detached" });
     const call = calls.find((c) => c.endpoint === "setReviewMark");
     assert.ok(call, "G ruft setReviewMark");
     assert.deepEqual(JSON.parse(call.body), [entries[0].Id, "Reviewed"]);
@@ -156,8 +157,6 @@ test("[tastatur] Maus 900 px: Klick und Umschalt-Klick wählen, Esc hebt auf, Pf
     await visibleBar(page).waitFor();
     assert.equal(await box(page, 2).getAttribute("aria-checked"), "true", "Leertaste wählt die markierte Zeile");
     assert.equal(await page.locator(".bottom-sheet.active").count(), 0, "Leertaste öffnet kein Detail");
-    // Bei laufender Auswahl ruht die Schaltfläche (Platzhalter wie in der Tabelle).
-    assert.equal(await rowOf(page, 3).getByRole("button", { name: "Geprüft", exact: true }).count(), 0, "Schaltfläche ruht");
 
     await page.keyboard.press("Escape");
     assert.equal(await visibleBar(page).count(), 0, "Esc hebt die Auswahl auf");

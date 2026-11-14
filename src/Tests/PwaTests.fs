@@ -250,8 +250,8 @@ let inputActiveTests =
                 baseModel ()
                 |> withLedger (fun l ->
                     { l with
-                        Filters = { l.Filters with Memo = Some "Miete"; AmountMin = Some 12.5m }
-                        MemoDraft = "Miete"
+                        Filters = { l.Filters with Search = Some "Miete"; AmountMin = Some 12.5m }
+                        SearchDraft = "Miete"
                         AmountMinDraft = formatAmountDraft 12.5m })
             Expect.isFalse (State.isInputActive model) "Entwurf = Filter"
         active "Kassenbuch: DetailFor" (withLedger (fun l -> { l with DetailFor = Some anEntry }))
@@ -259,7 +259,8 @@ let inputActiveTests =
         active "Kassenbuch: SortSheetOpen" (withLedger (fun l -> { l with SortSheetOpen = true }))
         active "Kassenbuch: SelectionMode" (withLedger (fun l -> { l with SelectionMode = true }))
         active "Kassenbuch: nicht leere Selection" (withLedger (fun l -> { l with Selection = Picked (Set.singleton anEntry.Id) }))
-        active "Kassenbuch: MemoDraft weicht ab" (withLedger (fun l -> { l with MemoDraft = "Mie" }))
+        active "Kassenbuch: SearchDraft weicht ab" (withLedger (fun l -> { l with SearchDraft = "Mie" }))
+        active "Kassenbuch: FilterSheetOpen" (withLedger (fun l -> { l with FilterSheetOpen = true }))
         active "Kassenbuch: AmountMinDraft weicht ab" (withLedger (fun l -> { l with AmountMinDraft = "5" }))
         active "Kassenbuch: AmountMaxDraft weicht ab" (withLedger (fun l -> { l with AmountMaxDraft = "9" }))
         // ledger-r8h19, ledger-sjbvc: je Fall des laufenden Sammellaufs ein Eintrag.

@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 7
 - **Todo:** 2
-- **Doing:** 1
-- **Done:** 140
+- **Doing:** 0
+- **Done:** 141
 <!-- task-counts:end -->
 
 ### Todo
@@ -24,11 +24,11 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **ledger-d9z3n** — "Kassenbuch am Handy ordnen: eine Kontowahl als Feld mit Saldo, freie Suche statt Payee- und Memo-Filter, Filter-Knopf mit Sheet und gesetzte Filter als Chips; gilt unter 1024 px" (feature) — `doing/ledger-d9z3n-kassenbuch-handy-ordnen.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)
 <!-- done-list:start -->
+- **ledger-d9z3n** — "Kassenbuch am Handy ordnen: eine Kontowahl als Feld mit Saldo, freie Suche statt Payee- und Memo-Filter, Filter-Knopf mit Sheet und gesetzte Filter als Chips; gilt unter 1024 px" (feature) — `done/ledger-d9z3n-kassenbuch-handy-ordnen.md`
 - **ledger-sre0f** — "Zuletzt-Chips in „Neue Buchung“ aus den Buchungen des gewählten Kontos, fünf mit Memo" (bug) — `done/ledger-sre0f-zuletzt-chips-aus-dem-gewaehlten-konto.md`
 - **ledger-pnjz3** — "Kassenbuch zeigt keine leeren Tagesblöcke, jeder Tag einmal und in der richtigen Reihenfolge" (bug) — `done/ledger-pnjz3-keine-leeren-tagesbloecke.md`
 - **ledger-wj0b8** — "Einstellungen: Satz unter „Quick-Add-Konto“ lautet „Vorbelegt bei „+ Buchung“ ohne Kontofilter“" (chore) — `done/ledger-wj0b8-satz-quick-add-konto.md`

@@ -162,10 +162,10 @@ let private query (page: int) (removed: int) : LedgerEntryPageQuery = {
     CategoryIds = []
     DateFrom = None
     DateTo = None
-    Payee = None
-    Memo = None
+    Search = None
     AmountMin = None
     AmountMax = None
+    AmountDirection = AllDirections
     Sort = LedgerSort.defaultSort
 }
 

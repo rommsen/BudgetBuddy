@@ -157,6 +157,7 @@ let reducerTests =
                 DeletedCount = 0
                 NeedsReviewCount = 0
                 AskLenaCount = 0
+                WithoutCategoryCount = 0
             }
             let loaded = first |> step (EntriesPageLoaded (0, 1, Ok page))
             Expect.isTrue (isSelected loaded.Selection (idOf 5)) "eine nachgeladene Zeile gilt als gewählt"
@@ -229,7 +230,7 @@ let reducerTests =
                   "Chip Ohne Kategorie", ToggleWithoutCategory
                   "Gelöschte zeigen", ToggleIncludeDeleted
                   "Kategorie-Filter entfernt", RemoveCategoryFilter
-                  "Payee-Filter gewählt", SelectPayeeFilter "Payee 1"
+                  "Suche aus dem Detail", FilterByRowPayee "Payee 1"
                   "Alle Filter löschen", ClearAllFilters
                   "Neu laden", LoadEntries ] do
                 testCase name <| fun () ->

@@ -17,6 +17,9 @@ type ButtonVariant =
     /// Neutral nur mit Rand `border-strong`, ohne Füllung (Prototyp `.btn`): „Abbrechen“ neben dem Hauptknopf im Fuß
     /// eines Panels oder Sheets und „+ Neue Regel“ unter der Liste am Handy (categorization-n3sxw).
     | Outline
+    /// Wie `Outline`, aber mit Rand und Schrift im Akzent (Auswahl, ADR 0087 Punkt 2): der Knopf „Filter (n)“ im
+    /// Kassenbuch, solange Filter gesetzt sind (ledger-d9z3n, Prototyp Version 17).
+    | OutlineSelected
 
 /// Button size variants
 type ButtonSize =
@@ -109,6 +112,8 @@ let private variantToClass = function
         $"bg-error/10 border {Borders.error} {Colors.error} hover:bg-error/20 active:scale-[0.98]"
     | Outline ->
         $"bg-transparent border {Borders.strong} text-text-primary hover:bg-surface-hover active:scale-[0.98]"
+    | OutlineSelected ->
+        "bg-transparent border border-accent text-accent [&_svg]:text-accent hover:bg-surface-hover active:scale-[0.98]"
 
 /// Setzt der Aufrufer in `ClassName` eine eigene Anzeige-Klasse ohne Breakpoint (z. B. `hidden` in `hidden md:inline-flex`)?
 /// Dann entfällt das feste `inline-flex`: Tailwind 4 ordnet Utilities im erzeugten CSS,

@@ -557,10 +557,10 @@ let private pageQueryOn (account: LedgerAccountId) : LedgerEntryPageQuery =
         CategoryIds = []
         DateFrom = None
         DateTo = None
-        Payee = None
-        Memo = None
+        Search = None
         AmountMin = None
         AmountMax = None
+        AmountDirection = AllDirections
         Sort = LedgerSort.defaultSort
     }
 
@@ -637,9 +637,10 @@ let flagQueryTests =
                 CategoryIds = []
                 DateFrom = None
                 DateTo = None
-                Memo = None
+                Search = None
                 AmountMin = None
                 AmountMax = None
+                AmountDirection = AllDirections
             }
             let suggestions = getLedgerPayeeSuggestions query |> Async.RunSynchronously
             Expect.equal (suggestions |> List.map (fun s -> s.Count)) [ 1 ] "nur die Lena-Buchung zählt"

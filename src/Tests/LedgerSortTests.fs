@@ -105,10 +105,10 @@ let private baseQuery (tag: int) (sort: LedgerSort) : LedgerEntryPageQuery = {
     CategoryIds = []
     DateFrom = None
     DateTo = None
-    Payee = None
-    Memo = Some $"memo-r72-{tag}"
+    Search = Some $"memo-r72-{tag}"
     AmountMin = None
     AmountMax = None
+    AmountDirection = AllDirections
     Sort = sort
 }
 
@@ -289,7 +289,9 @@ let sortTests =
 
         testCase "Betragsfilter mit Sortierung nach Betrag, Kategorie und Payee liefert die gefilterte, sortierte Seite" <| fun () ->
             seed 8 mixedSpecs
-            let filtered sort = { baseQuery 8 sort with AmountMin = Some -100m; AmountMax = Some -5m }
+            // Höhe 5 bis 100, nur Ausgaben (ADR 0095): dieselbe Menge wie früher -100 bis -5.
+            let filtered sort =
+                { baseQuery 8 sort with AmountMin = Some 5m; AmountMax = Some 100m; AmountDirection = OnlyOutflows }
             let inRange = mixedSpecs |> List.filter (fun s -> s.Amount >= -100m && s.Amount <= -5m)
             for field in [ SortByAmount; SortByCategory; SortByPayee ] do
                 for direction in [ SortAsc; SortDesc ] do

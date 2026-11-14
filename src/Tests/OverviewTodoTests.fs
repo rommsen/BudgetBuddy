@@ -175,7 +175,7 @@ let todoStateTests =
 
         testCase "Die Antwort der neuesten Buchungen bringt die Zähler mit, die Zahl an der Übersicht folgt" <| fun () ->
             let page : LedgerEntryPage =
-                { Entries = []; TotalCount = 0; TotalAmount = eur 0m; DeletedCount = 0; NeedsReviewCount = 4; AskLenaCount = 2 }
+                { Entries = []; TotalCount = 0; TotalAmount = eur 0m; DeletedCount = 0; NeedsReviewCount = 4; AskLenaCount = 2; WithoutCategoryCount = 0 }
             let answered = Components.Overview.State.applyAnswer (RecentLoaded (init.RecentRequest, Ok page)) init
             Expect.equal (answered.NeedsReviewCount, answered.AskLenaCount) (4, 2) "Zähler"
             Expect.equal (reviewCount answered) 4 "Zahl"
@@ -194,7 +194,7 @@ let todoStateTests =
         // Import) oder `ReloadRequested` nach dem Erfassen, setzte eine langsame alte Antwort Zähler und Liste zurück.
         testCase "Eine Antwort auf eine überholte Anfrage setzt Zähler und Liste nicht zurück" <| fun () ->
             let page (needsReview: int) : LedgerEntryPage =
-                { Entries = []; TotalCount = 0; TotalAmount = eur 0m; DeletedCount = 0; NeedsReviewCount = needsReview; AskLenaCount = 0 }
+                { Entries = []; TotalCount = 0; TotalAmount = eur 0m; DeletedCount = 0; NeedsReviewCount = needsReview; AskLenaCount = 0; WithoutCategoryCount = 0 }
             let apply msg model = Components.Overview.State.applyAnswer msg model
             let entered = Components.Overview.State.beginEnter (DateTime(2026, 11, 7)) init
             let counting = Components.Overview.State.beginCounts entered
@@ -323,11 +323,11 @@ let todoTargetTests =
                     Ledger =
                         { start.Ledger with
                             OnlyNeedsReview = true
-                            Filters = { start.Ledger.Filters with Payee = Some "Rewe" } } }
+                            Filters = { start.Ledger.Filters with Search = Some "Rewe" } } }
             let model, cmd = State.update (State.OpenOverviewTodo TodoAskLena) filtered
             Expect.isTrue model.Ledger.Filters.OnlyAskLena "Lena"
             Expect.isFalse model.Ledger.OnlyNeedsReview "nicht Zu prüfen"
-            Expect.equal model.Ledger.Filters.Payee None "Payee-Filter leer"
+            Expect.equal model.Ledger.Filters.Search None "Suche leer"
             Expect.contains (dispatched cmd) (State.NavigateTo Ledger) "ins Kassenbuch"
 
         testCase "5 öffnet die Buchung, 6 das Budget" <| fun () ->

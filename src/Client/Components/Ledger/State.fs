@@ -123,10 +123,9 @@ let init () : Model * Cmd<Msg> =
         DateDraft = emptyDateRange
         DateDraftFromInvalid = false
         DateDraftToInvalid = false
-        PayeeSuggestions = NotAsked
-        PayeeSearch = ""
-        MemoDraft = ""
-        MemoVersion = 0
+        SearchDraft = ""
+        SearchVersion = 0
+        FilterSheetOpen = false
         AmountMinDraft = ""
         AmountMaxDraft = ""
         AmountVersion = 0
@@ -152,6 +151,7 @@ let init () : Model * Cmd<Msg> =
         FlagRows = Map.empty
         LenaFlagColor = NotAsked
         AskLenaCount = 0
+        WithoutCategoryCount = 0
         CategoryCard = None
         CategoryCardVersion = 0
         RuleOffer = None
@@ -265,9 +265,70 @@ let effectiveSort (model: Model) : LedgerSort =
     | SortByAccount, Some (OneAccount _) -> LedgerSort.defaultSort
     | _ -> model.Sort
 
-/// Die Seitenanfrage an den Server. Rein, damit der Versatz testbar ist. Die fünf
-/// Such-Filter (Kategorie/Zeitraum/Payee/Betrag/Memo, ledger-vgfw3) sind Server-seitig
-/// da (ADR 0036). `LocallyRemoved` stammt aus dem Modell: jede Aktion, die Zeilen lokal
+/// Die Sortierung in Worten für die Zeile „Sortieren“ im Filter-Sheet und den Chip (ledger-d9z3n):
+/// Feld und Richtung wie im Sortier-Sheet, etwa „Datum, neueste zuerst“ oder „Payee, A bis Z“.
+let sortValueText (sort: LedgerSort) : string =
+    let label =
+        sortOptions true
+        |> List.tryFind (fun (option, _) -> option = sort)
+        |> Option.map snd
+        |> Option.defaultValue ""
+    // „Neueste zuerst“ wird klein, „A bis Z“ bleibt, wie es ist.
+    let lowered =
+        if label.Length > 1 && label.[1] <> ' ' then string (Char.ToLowerInvariant label.[0]) + label.Substring 1
+        else label
+    $"{sortFieldName sort.Field}, {lowered}"
+
+/// Der Suchtext als Filter: getrimmt, leer heißt keine Suche (ledger-d9z3n).
+let searchOfText (text: string) : string option =
+    let trimmed = if isNull text then "" else text.Trim()
+    if trimmed = "" then None else Some trimmed
+
+/// Die gesetzten Filter als Chips unter Suche und Filter-Knopf (ledger-d9z3n). Kategorienamen kommen
+/// aus den geladenen Kategorien in ihrer Reihenfolge; eine Sortierung zählt nur, wenn die wirksame
+/// vom Standard abweicht.
+let activeFilters (model: Model) : (ActiveFilter * string) list =
+    let categories = model.Categories |> RemoteData.toOption |> Option.defaultValue []
+    let names =
+        categories
+        |> List.filter (fun c -> let (YnabCategoryId g) = c.Id in model.Filters.CategoryIds.Contains g)
+        |> List.map (fun c -> c.Name)
+    let sort = effectiveSort model
+    let sortLabel = if sort <> LedgerSort.defaultSort then Some (sortValueText sort) else None
+    activeFilterChips model.OnlyNeedsReview model.IncludeDeleted sortLabel names model.Filters
+
+/// Was das „×“ eines Chips schickt: genau dieser Filter fällt weg, die übrigen bleiben.
+let removeActiveFilterMsg (filter: ActiveFilter) : Msg =
+    match filter with
+    | ActiveFilter.NeedsReview -> ToggleOnlyNeedsReview
+    | ActiveFilter.AskLena -> ToggleOnlyAskLena
+    | ActiveFilter.WithoutCategory -> ToggleWithoutCategory
+    | ActiveFilter.Category -> RemoveCategoryFilter
+    | ActiveFilter.Date -> RemoveDateFilter
+    | ActiveFilter.Amount -> RemoveAmountFilter
+    | ActiveFilter.Direction -> SetAmountDirection AllDirections
+    | ActiveFilter.Sort -> SetSortExactly LedgerSort.defaultSort
+    | ActiveFilter.WithDeleted -> ToggleIncludeDeleted
+
+/// „Filter löschen“ und „Zurücksetzen“ (ledger-d9z3n): alle Filter fallen weg, auch „Zu prüfen“,
+/// „Lena“, „Ohne Kategorie“, Sortierung, „Gelöschte zeigen“ und die Suche. Das Konto bleibt. Die
+/// Versionen steigen, damit eine wartende Eingabe den Filter nicht zurückholt (ledger-ct3cx). Rein,
+/// ohne Neuaufbau (den macht `update`).
+let clearAllFilters (model: Model) : Model =
+    { model with
+        Filters = noFilters
+        OnlyNeedsReview = false
+        IncludeDeleted = false
+        Sort = LedgerSort.defaultSort
+        SearchDraft = ""
+        SearchVersion = model.SearchVersion + 1
+        AmountMinDraft = ""
+        AmountMaxDraft = ""
+        AmountVersion = model.AmountVersion + 1 }
+
+/// Die Seitenanfrage an den Server. Rein, damit der Versatz testbar ist. Die
+/// Such-Filter (Kategorie/Zeitraum/Betrag, ledger-vgfw3) und die freie Suche (ledger-d9z3n)
+/// sind Server-seitig da (ADR 0036). `LocallyRemoved` stammt aus dem Modell: jede Aktion, die Zeilen lokal
 /// aus der Liste nimmt, zählt dort hoch, und die Anfrage gleicht den Versatz damit aus
 /// (ledger-be1yh), sonst fehlt die Buchung an der Seitengrenze.
 let buildPageQuery (model: Model) (accountId: Guid option) (page: int) : LedgerEntryPageQuery = {
@@ -282,10 +343,10 @@ let buildPageQuery (model: Model) (accountId: Guid option) (page: int) : LedgerE
     CategoryIds = model.Filters.CategoryIds |> Set.toList
     DateFrom = model.Filters.DateRange |> Option.bind (fun d -> d.From)
     DateTo = model.Filters.DateRange |> Option.bind (fun d -> d.To)
-    Payee = model.Filters.Payee
-    Memo = model.Filters.Memo
+    Search = model.Filters.Search
     AmountMin = model.Filters.AmountMin
     AmountMax = model.Filters.AmountMax
+    AmountDirection = model.Filters.AmountDirection
     Sort = effectiveSort model
 }
 
@@ -501,12 +562,6 @@ let refreshRequest (model: Model) : (LedgerEntryPageQuery * (Result<LedgerEntryP
                 LocallyRemoved = 0 }
         Some (query, entriesRefreshAnswer model)
     | _ -> None
-
-/// Die Antwort der Payee-Vorschläge, gebunden an die Liste beim Start der Abfrage. Trüge das
-/// Scheitern eine andere Generation, gälte es als alt und das offene Popover fragte ohne Ende neu.
-let payeeSuggestionsAnswer (model: Model) : Result<LedgerPayeeSuggestion list, string> -> Msg =
-    let generation = model.EntriesGeneration
-    fun result -> PayeeSuggestionsLoaded (generation, result)
 
 /// Ersetzt die Buchung in der geladenen Liste und im offenen Detail.
 let private replaceEntry (updated: LedgerEntryView) (model: Model) : Model =
@@ -813,9 +868,10 @@ let payeeChoicesQuery : LedgerPayeeSuggestionQuery = {
     CategoryIds = []
     DateFrom = None
     DateTo = None
-    Memo = None
+    Search = None
     AmountMin = None
     AmountMax = None
+    AmountDirection = AllDirections
 }
 
 /// Nach einer Änderung des Betrags: Historie der offenen Buchung und Kontostände neu holen.
@@ -1163,6 +1219,7 @@ let private applyFlagBatch
 /// (ledger-q1hw2, ADR 0053 Punkt 5).
 let private keyboardBlocked (model: Model) : bool =
     model.OpenPopover.IsSome
+    || model.FilterSheetOpen
     || model.BatchCategoryPickerOpen
     || model.CategoryPickerFor.IsSome
     || model.SplitEditor.IsSome
@@ -1328,11 +1385,12 @@ let presetQuickFilter (preset: QuickFilterPreset) (model: Model) : Model =
         RememberedFilter = Some AllAccounts
         AccountSheetOpen = false
         Filters = { noFilters with OnlyAskLena = (preset = PresetAskLena) }
-        // Eine wartende Memo- oder Betragseingabe setzte sonst einen Filter in die neue Sicht (ledger-ct3cx).
-        // Die Felder leeren sich wie bei „Alle Filter löschen“; ein stehender Entwurf hielte sonst
+        // Eine wartende Such- oder Betragseingabe setzte sonst einen Filter in die neue Sicht (ledger-ct3cx).
+        // Die Felder leeren sich wie bei „Filter löschen“; ein stehender Entwurf hielte sonst
         // `isInputActive` wahr und „Neu laden“ zurück.
-        MemoDraft = ""
-        MemoVersion = model.MemoVersion + 1
+        SearchDraft = ""
+        SearchVersion = model.SearchVersion + 1
+        FilterSheetOpen = false
         AmountMinDraft = ""
         AmountMaxDraft = ""
         AmountVersion = model.AmountVersion + 1
@@ -1460,6 +1518,7 @@ let private applyEntriesRefresh (page: LedgerEntryPage) (model: Model) : Model *
             DeletedCount = page.DeletedCount
             NeedsReviewCount = page.NeedsReviewCount
             AskLenaCount = page.AskLenaCount
+            WithoutCategoryCount = page.WithoutCategoryCount
             FilteredOut = Set.empty
             OrderStale = false
             LocallyRemoved = 0
@@ -1655,6 +1714,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             DeletedCount = entryPage.DeletedCount
             NeedsReviewCount = entryPage.NeedsReviewCount
             AskLenaCount = entryPage.AskLenaCount
+            WithoutCategoryCount = entryPage.WithoutCategoryCount
             LoadingMore = false },
         // Ein Nachladen, das auf diese Seite gewartet hat, holt jetzt den ganzen Ausschnitt (ledger-ct3cx).
         (if model.Refresh = RefreshAfterPage then Cmd.ofMsg RefreshEntries else Cmd.none),
@@ -1931,10 +1991,6 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
                     DateDraft = model.Filters.DateRange |> Option.defaultValue emptyDateRange
                     DateDraftFromInvalid = false
                     DateDraftToInvalid = false }
-            | PayeeChip ->
-                { model with PayeeSearch = "" }
-            | MemoChip ->
-                { model with MemoDraft = model.Filters.Memo |> Option.defaultValue "" }
             | AmountChip ->
                 { model with
                     AmountMinDraft = model.Filters.AmountMin |> Option.map formatAmountDraft |> Option.defaultValue ""
@@ -1944,8 +2000,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             | AskLenaChip -> model
             // Ein Umschalter ohne Popover (ADR 0048): es gibt keinen Entwurf zu setzen.
             | WithoutCategoryChip -> model
-        let cmd = if chip = PayeeChip then Cmd.ofMsg LoadPayeeSuggestions else Cmd.none
-        { model' with OpenPopover = Some chip }, cmd, NoOp
+        { model' with OpenPopover = Some chip }, Cmd.none, NoOp
 
     | CloseFilterPopover ->
         // Esc, Klick daneben oder "Schließen": der Entwurf wird verworfen, `Filters`
@@ -1957,8 +2012,10 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
     // Beide lassen das Detail offen und mit derselben Buchung stehen: Filtern ändert die
     // Liste, nicht die Buchung.
     | FilterByRowPayee payee ->
-        let filters = { model.Filters with Payee = Some payee }
-        rebuildWith { model with Filters = filters }
+        // Die Suche gilt sofort und steht im Feld; die Version steigt, damit eine wartende
+        // Eingabe sie nicht überschreibt (ledger-d9z3n).
+        let filters = { model.Filters with Search = Some payee }
+        rebuildWith { model with Filters = filters; SearchDraft = payee; SearchVersion = model.SearchVersion + 1 }
 
     | FilterByRowCategory categoryId ->
         // "Ohne Kategorie" verbindet sich mit einer Kategorienauswahl per Oder (ADR 0048)
@@ -2045,87 +2102,53 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         let filters = { model.Filters with DateRange = None }
         rebuildWith { model with Filters = filters }
 
-    // -------- Payee (Einzelauswahl, filtert sofort) --------
+    // -------- Suche (Suchfeld mit Verzögerung, ledger-d9z3n) --------
 
-    | SetPayeeSearch text ->
-        { model with PayeeSearch = text }, Cmd.none, NoOp
-
-    | LoadPayeeSuggestions ->
-        match model.SelectedFilter with
-        | None -> { model with PayeeSuggestions = Success [] }, Cmd.none, NoOp
-        | Some filter ->
-            let accountId = accountIdOf filter
-            let query : LedgerPayeeSuggestionQuery = {
-                AccountId = accountId
-                IncludeDeleted = model.IncludeDeleted
-                OnlyNeedsReview = model.OnlyNeedsReview
-                OnlyAskLena = model.Filters.OnlyAskLena
-                WithoutCategory = model.Filters.WithoutCategory
-                CategoryIds = model.Filters.CategoryIds |> Set.toList
-                DateFrom = model.Filters.DateRange |> Option.bind (fun d -> d.From)
-                DateTo = model.Filters.DateRange |> Option.bind (fun d -> d.To)
-                Memo = model.Filters.Memo
-                AmountMin = model.Filters.AmountMin
-                AmountMax = model.Filters.AmountMax
-            }
-            let answer = payeeSuggestionsAnswer model
-            let cmd =
-                Cmd.OfAsync.either
-                    (Retry.reading Api.ledger.getLedgerPayeeSuggestions)
-                    query
-                    (Ok >> answer)
-                    (fun ex -> answer (Error ex.Message))
-            { model with PayeeSuggestions = Loading }, cmd, NoOp
-
-    // Die Vorschläge einer Liste, die es nicht mehr gibt. Wartet das Popover nur noch auf diese
-    // Antwort, käme nichts mehr: es fragt neu, ein geschlossenes lädt beim nächsten Öffnen selbst.
-    | PayeeSuggestionsLoaded (generation, _) when generation <> model.EntriesGeneration ->
-        match model.PayeeSuggestions, model.OpenPopover with
-        | Loading, Some PayeeChip -> model, Cmd.ofMsg LoadPayeeSuggestions, NoOp
-        | Loading, _ -> { model with PayeeSuggestions = NotAsked }, Cmd.none, NoOp
-        | _ -> model, Cmd.none, NoOp
-
-    | PayeeSuggestionsLoaded (_, Ok suggestions) ->
-        { model with PayeeSuggestions = Success suggestions }, Cmd.none, NoOp
-
-    | PayeeSuggestionsLoaded (_, Error message) ->
-        { model with PayeeSuggestions = RemoteData.lateFailure message model.PayeeSuggestions }, Cmd.none, NoOp
-
-    | SelectPayeeFilter payee ->
-        let filters = { model.Filters with Payee = Some payee }
-        rebuildWith { model with Filters = filters; OpenPopover = None }
-
-    | RemovePayeeFilter ->
-        let filters = { model.Filters with Payee = None }
-        rebuildWith { model with Filters = filters }
-
-    // -------- Memo (Suchfeld mit Verzögerung) --------
-
-    | SetMemoDraft text ->
-        let newVersion = model.MemoVersion + 1
-        { model with MemoDraft = text; MemoVersion = newVersion },
-        Debounce.delayedDefault (CommitMemoFilter (text, newVersion)),
+    | SetSearchDraft text ->
+        let newVersion = model.SearchVersion + 1
+        { model with SearchDraft = text; SearchVersion = newVersion },
+        Debounce.delayedDefault (CommitSearch (text, newVersion)),
         NoOp
 
-    | CommitMemoFilter (text, version) ->
-        if version <> model.MemoVersion then
+    | CommitSearch (text, version) ->
+        if version <> model.SearchVersion then
             // Eine spätere Eingabe hat diese Verzögerung schon überholt.
             model, Cmd.none, NoOp
         else
-            let trimmed = text.Trim()
-            let filters = { model.Filters with Memo = (if trimmed = "" then None else Some trimmed) }
-            rebuildWith { model with Filters = filters }
+            let search = searchOfText text
+            if search = model.Filters.Search then
+                model, Cmd.none, NoOp
+            else
+                rebuildWith { model with Filters = { model.Filters with Search = search } }
 
-    | RemoveMemoFilter ->
-        let filters = { model.Filters with Memo = None }
-        // Die Version steigt: ein wartendes `CommitMemoFilter` holt den entfernten Filter nicht zurück (ledger-ct3cx).
-        rebuildWith { model with Filters = filters; MemoDraft = ""; MemoVersion = model.MemoVersion + 1 }
+    | RemoveSearch ->
+        // Die Version steigt: ein wartendes `CommitSearch` holt die entfernte Suche nicht zurück (ledger-ct3cx).
+        rebuildWith
+            { model with
+                Filters = { model.Filters with Search = None }
+                SearchDraft = ""
+                SearchVersion = model.SearchVersion + 1 }
+
+    // -------- Filter-Sheet unter 1024 px (ledger-d9z3n) --------
+
+    | OpenFilterSheet ->
+        // Die Betragsfelder zeigen den geltenden Filter, wie beim Öffnen des Betrags-Popovers.
+        { model with
+            FilterSheetOpen = true
+            AmountMinDraft = model.Filters.AmountMin |> Option.map formatAmountDraft |> Option.defaultValue ""
+            AmountMaxDraft = model.Filters.AmountMax |> Option.map formatAmountDraft |> Option.defaultValue "" },
+        Cmd.none,
+        NoOp
+
+    | CloseFilterSheet -> { model with FilterSheetOpen = false }, Cmd.none, NoOp
 
     // -------- Betrag (Suchfeld mit Verzögerung, Von/Bis) --------
 
     // Ein unlesbarer Text lässt seine Grenze stehen (`amountFilterValue`, ledger-dn4vy): vorher nahm „abc“
     // einen aktiven Filter still weg.
-    | SetAmountMinDraft text ->
+    // Die Felder nehmen kein Vorzeichen an (ADR 0095): „-“ und „+“ fallen schon beim Tippen weg.
+    | SetAmountMinDraft typed ->
+        let text = withoutAmountSign typed
         let newVersion = model.AmountVersion + 1
         let filters = model.Filters
         { model with AmountMinDraft = text; AmountVersion = newVersion },
@@ -2134,7 +2157,8 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         ),
         NoOp
 
-    | SetAmountMaxDraft text ->
+    | SetAmountMaxDraft typed ->
+        let text = withoutAmountSign typed
         let newVersion = model.AmountVersion + 1
         let filters = model.Filters
         { model with AmountMaxDraft = text; AmountVersion = newVersion },
@@ -2152,24 +2176,24 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
 
     | RemoveAmountFilter ->
         let filters = { model.Filters with AmountMin = None; AmountMax = None }
-        // Wie `RemoveMemoFilter`: ein wartendes `CommitAmountFilter` ist überholt (ledger-ct3cx).
+        // Wie `RemoveSearch`: ein wartendes `CommitAmountFilter` ist überholt (ledger-ct3cx).
         rebuildWith { model with Filters = filters; AmountMinDraft = ""; AmountMaxDraft = ""; AmountVersion = model.AmountVersion + 1 }
 
+    | RemoveAmountAndDirection ->
+        let filters = { model.Filters with AmountMin = None; AmountMax = None; AmountDirection = AllDirections }
+        rebuildWith { model with Filters = filters; AmountMinDraft = ""; AmountMaxDraft = ""; AmountVersion = model.AmountVersion + 1 }
+
+    | SetAmountDirection direction ->
+        // Wirkt sofort wie ein Schalter, ohne Verzögerung (ADR 0095).
+        if direction = model.Filters.AmountDirection then
+            model, Cmd.none, NoOp
+        else
+            rebuildWith { model with Filters = { model.Filters with AmountDirection = direction } }
+
     | ClearAllFilters ->
-        // Der Chip "Ohne Kategorie" bleibt stehen (wie "Zu prüfen"): er gehört nicht zu
-        // den fünf Such-Filtern (ADR 0048).
-        // Die Versionen steigen, damit eine wartende Eingabe den Filter nicht zurückholt (ledger-ct3cx).
-        rebuildWith
-            { model with
-                Filters =
-                    { noFilters with
-                        WithoutCategory = model.Filters.WithoutCategory
-                        OnlyAskLena = model.Filters.OnlyAskLena }
-                MemoDraft = ""
-                MemoVersion = model.MemoVersion + 1
-                AmountMinDraft = ""
-                AmountMaxDraft = ""
-                AmountVersion = model.AmountVersion + 1 }
+        // Alle Filter, auch „Zu prüfen“, „Lena“, „Ohne Kategorie“, Sortierung, „Gelöschte zeigen“
+        // und die Suche; das Konto bleibt (ledger-d9z3n). `clearAllFilters` ist rein und testbar.
+        rebuildWith (clearAllFilters model)
 
     // ============================================
     // Prüfvermerk setzen und zurückschreiben (ledger-r777c, ADR 0050)
@@ -3810,7 +3834,8 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             TotalAmount = page.TotalAmount
             DeletedCount = page.DeletedCount
             NeedsReviewCount = page.NeedsReviewCount
-            AskLenaCount = page.AskLenaCount },
+            AskLenaCount = page.AskLenaCount
+            WithoutCategoryCount = page.WithoutCategoryCount },
         Cmd.none,
         NoOp
 
@@ -4524,6 +4549,8 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         // nicht; liegt er auf dem Chip, schließt diese Stufe es.
         if model.OpenPopover.IsSome then
             { model with OpenPopover = None }, Cmd.none, NoOp
+        elif model.FilterSheetOpen then
+            { model with FilterSheetOpen = false }, Cmd.none, NoOp
         elif model.BatchCategoryPickerOpen then
             { model with BatchCategoryPickerOpen = false }, Cmd.none, NoOp
         elif model.SplitEditor.IsSome then

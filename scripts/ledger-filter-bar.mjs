@@ -71,7 +71,7 @@ export function entriesPage(entries) {
     TotalAmount: { Amount: totalAmount, Currency: "EUR" },
     DeletedCount: entries.filter((e) => e.DeletedInYnab).length,
     NeedsReviewCount: entries.filter((e) => e.NeedsReview).length,
-    AskLenaCount: entries.filter((e) => e.Flag === "AskLena").length,
+    AskLenaCount: entries.filter((e) => e.Flag === "AskLena").length, WithoutCategoryCount: 0,
   };
 }
 

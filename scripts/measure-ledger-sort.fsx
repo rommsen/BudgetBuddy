@@ -100,14 +100,15 @@ let query field direction pageIndex : LedgerEntryPageQuery = {
     LocallyRemoved = 0
     IncludeDeleted = false
     OnlyNeedsReview = false
+    OnlyAskLena = false
     WithoutCategory = false
     CategoryIds = []
     DateFrom = None
     DateTo = None
-    Payee = None
-    Memo = None
+    Search = None
     AmountMin = None
     AmountMax = None
+    AmountDirection = AllDirections
     Sort = { Field = field; Direction = direction }
 }
 

@@ -780,6 +780,11 @@ nav a:focus-visible {
 .input-field::placeholder {
   color: var(--text-muted);
 }
+/* Suchfeld mit Lupe links (`Input.searchField`, ledger-d9z3n): ohne Layer wie `.input-field`, sonst schlüge dessen
+   `padding` jede Tailwind-Klasse. */
+.input-field.input-search {
+  padding-left: 40px;
+}
 /* Ohne Layer wie `.input-field`: Die Tailwind-Klassen `text-error` und `font-mono` kämen nicht durch. */
 .input-field.input-invalid {
   color: var(--color-error);
@@ -1194,7 +1199,7 @@ nav a:focus-visible {
    Kassenbuch: Sticky Filterleiste (ledger-j8xq4)
    ============================================================ */
 /* `ChipBar.bar` in der Kassenbuch-Filterleiste (`Components.Ledger.View`,
-   `filterChipBar`): haftet wie `.table-sticky-thead`/`.ledger-account-strip`
+   `filterChipBar`): haftet wie `.table-sticky-thead`
    unter der fixen Navbar. Anders als bei der Tabelle gilt das auf beiden
    Geräten (Styleguide 7.3, Aufgaben-`## What`: "auf beiden Geräten"), deshalb
    zwei Werte statt eines einzigen `@media`-Blocks: die Safe-Area oben am Handy
@@ -1298,31 +1303,6 @@ nav a:focus-visible {
   position: sticky;
   top: calc(var(--nav-height) + var(--ledger-filter-bar-height, 0px));
   z-index: 10;
-}
-
-/* ============================================================
-   Kassenbuch: Konten-Spalte haftet beim Scrollen (ledger-qns4j)
-   ============================================================ */
-/* `accountStrip` (Components.Ledger.View): dieselbe Begründung wie
-   `.table-sticky-thead` oben. Die feste Navbar (`--nav-height` bei md+) verdeckt die
-   obersten Pixel eines `top: 0`-Stickys, deshalb `top: var(--nav-height)`. Zusätzlich eine
-   `max-height` plus eigener `overflow-y: auto`, damit eine Kontoliste, die höher
-   als der sichtbare Bereich ist, in sich scrollt statt den Seiteninhalt
-   abzuschneiden oder die Haftung zu verlieren (AC2). Nur ab `md`: am Handy zeigt
-   dieselbe Zelle die waagerechte Kartenleiste ohne Sticky, dafür sorgt bereits
-   `Primitives.Responsive.desktopOnly`/`mobileOnlyFlex` in der Komponente selbst. */
-@media (min-width: 768px) {
-  .ledger-account-strip {
-    position: sticky;
-    top: var(--nav-height);
-    align-self: flex-start;
-    /* Unten frei, so hoch wie die feste Leiste, die gerade steht (Tastatur-Hinweis oder Auswahl-Leiste,
-       gemessen in `MeasuredBottomBar`, `Components.Ledger.View`): sonst verdeckte die Leiste das Ende der
-       Spalte, und am Seitenende schob `md:pb-8` von `main` die Spalte unter die Navbar (Layout-Sweep,
-       Zustände kassenbuch-viele-konten, kassenbuch-viele-konten-auswahl). */
-    max-height: calc(100dvh - var(--nav-height) - var(--ledger-bottom-bar-height, 0px));
-    overflow-y: auto;
-  }
 }
 
 .filter-btn {

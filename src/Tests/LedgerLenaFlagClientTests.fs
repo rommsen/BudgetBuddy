@@ -297,15 +297,16 @@ let lenaReducerTests =
             let off, _, _ = run ToggleOnlyAskLena on
             Expect.isFalse off.Filters.OnlyAskLena "wieder aus"
 
-        testCase "Alle Filter löschen lässt den Chip Rückfrage Lena stehen" <| fun () ->
-            let model = { modelWith [ entryOf 1 ] with Filters = { noFilters with OnlyAskLena = true; Memo = Some "x" } }
+        // ledger-d9z3n: „Filter löschen“ nimmt auch „Lena“ zurück.
+        testCase "Filter löschen nimmt auch den Chip Rückfrage Lena zurück" <| fun () ->
+            let model = { modelWith [ entryOf 1 ] with Filters = { noFilters with OnlyAskLena = true; Search = Some "x" } }
             let cleared, _, _ = run ClearAllFilters model
-            Expect.isTrue cleared.Filters.OnlyAskLena "Chip bleibt"
-            Expect.isNone cleared.Filters.Memo "Memo-Filter weg"
+            Expect.isFalse cleared.Filters.OnlyAskLena "Lena ist aus"
+            Expect.isNone cleared.Filters.Search "Suche weg"
 
         testCase "die geladene Seite setzt den Zähler AskLenaCount" <| fun () ->
             let page : LedgerEntryPage =
-                { Entries = [ lenaEntry 1 ]; TotalCount = 1; TotalAmount = eur -10m; DeletedCount = 0; NeedsReviewCount = 0; AskLenaCount = 4 }
+                { Entries = [ lenaEntry 1 ]; TotalCount = 1; TotalAmount = eur -10m; DeletedCount = 0; NeedsReviewCount = 0; AskLenaCount = 4; WithoutCategoryCount = 0 }
             let model, _, _ = run (EntriesPageLoaded (0, 0, Ok page)) (modelWith [])
             Expect.equal model.AskLenaCount 4 "Zähler vom Server"
 

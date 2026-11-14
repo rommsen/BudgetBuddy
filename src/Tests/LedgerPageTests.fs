@@ -578,6 +578,7 @@ let private page (entries: LedgerEntryView list) (totalCount: int) : LedgerEntry
     DeletedCount = entries |> List.filter (fun e -> e.DeletedInYnab) |> List.length
     NeedsReviewCount = entries |> List.filter (fun e -> e.NeedsReview) |> List.length
     AskLenaCount = 0
+    WithoutCategoryCount = 0
 }
 
 /// Fuehrt ein `Cmd` aus und sammelt die abgeschickten Nachrichten ein. Zulaessig nur
@@ -959,10 +960,10 @@ let reducerTests =
             let catA = accountGuid 91
             let withFilters =
                 { (freshModel ()) with
-                    Filters = { noFilters with CategoryIds = Set.ofList [ catA ]; Payee = Some "Café Lotte" } }
+                    Filters = { noFilters with CategoryIds = Set.ofList [ catA ]; Search = Some "Café Lotte" } }
             let updated, cmd, _ = Components.Ledger.State.update RemoveCategoryFilter withFilters
             Expect.isTrue (Set.isEmpty updated.Filters.CategoryIds) "Kategorie ist weg"
-            Expect.equal updated.Filters.Payee (Some "Café Lotte") "Der Payee-Filter bleibt unberührt stehen"
+            Expect.equal updated.Filters.Search (Some "Café Lotte") "Die Suche bleibt unberührt stehen"
             Expect.contains (dispatched cmd) (RunLoadEntriesPage 0) "Neu laden"
         }
 
@@ -1078,79 +1079,53 @@ let reducerTests =
                     Filters =
                         { noFilters with
                             DateRange = Some { Quick = Some ThisYear; From = Some DateTime.Today; To = Some DateTime.Today }
-                            Memo = Some "Kuchen" } }
+                            Search = Some "Kuchen" } }
             let updated, cmd, _ = Components.Ledger.State.update RemoveDateFilter withFilters
             Expect.equal updated.Filters.DateRange None "Zeitraum ist weg"
-            Expect.equal updated.Filters.Memo (Some "Kuchen") "Memo bleibt unberührt"
+            Expect.equal updated.Filters.Search (Some "Kuchen") "Suche bleibt unberührt"
             Expect.contains (dispatched cmd) (RunLoadEntriesPage 0) "Neu laden"
         }
 
         // ============================================
-        // Filterleiste: Payee (Einzelauswahl, filtert sofort) (ledger-j8xq4)
-        // ============================================
-
-        test "Ein Klick auf einen Payee-Vorschlag filtert sofort, ohne 'Übernehmen'" {
-            let updated, cmd, _ = Components.Ledger.State.update (SelectPayeeFilter "Café Lotte") (freshModel ())
-            Expect.equal updated.Filters.Payee (Some "Café Lotte") "Der Payee-Filter steht sofort"
-            Expect.equal updated.OpenPopover None "Das Popover schließt sich"
-            Expect.equal updated.NextPage 0 "Wieder ab Seite 0"
-            Expect.contains (dispatched cmd) (RunLoadEntriesPage 0) "Neu laden"
-        }
-
-        test "'×' am Payee-Chip entfernt den Payee-Filter" {
-            let withFilter = { (freshModel ()) with Filters = { noFilters with Payee = Some "Café Lotte" } }
-            let updated, _, _ = Components.Ledger.State.update RemovePayeeFilter withFilter
-            Expect.equal updated.Filters.Payee None "Payee ist weg"
-        }
-
-        test "Geladene Payee-Vorschläge stehen im Modell" {
-            let suggestions = [ { Payee = "Café Lotte"; Count = 9 }; { Payee = "REWE Mitte"; Count = 78 } ]
-            let updated, _, _ = Components.Ledger.State.update (PayeeSuggestionsLoaded (0, Ok suggestions)) (freshModel ())
-            match updated.PayeeSuggestions with
-            | Success loaded -> Expect.equal loaded suggestions "Die Vorschläge stehen unverändert im Modell"
-            | other -> failtestf "Erwartet Success, war %A" other
-        }
-
-        // ============================================
-        // Filterleiste: Memo- und Betrags-Suchfeld mit Verzögerung (ledger-j8xq4)
+        // Suche und Betrags-Suchfeld mit Verzögerung (ledger-j8xq4, Suche statt Memo seit ledger-d9z3n)
         // ============================================
 
         // infrastructure-t5m2b, Iteration 2: die Verzögerung selbst lief bisher in keinem Test ab.
-        test "Memo- und Betragsfeld committen erst nach der Verzögerung, mit der Version der Eingabe" {
-            let _, memoCmd, _ = Components.Ledger.State.update (SetMemoDraft "Kuchen") (freshModel ())
-            Tests.CmdTiming.expectAfter Client.Debounce.DefaultDelayMs (CommitMemoFilter ("Kuchen", 1)) memoCmd
+        test "Suchfeld und Betragsfeld committen erst nach der Verzögerung, mit der Version der Eingabe" {
+            let _, searchCmd, _ = Components.Ledger.State.update (SetSearchDraft "Kuchen") (freshModel ())
+            Tests.CmdTiming.expectAfter Client.Debounce.DefaultDelayMs (CommitSearch ("Kuchen", 1)) searchCmd
             let _, minCmd, _ = Components.Ledger.State.update (SetAmountMinDraft "5") (freshModel ())
             Tests.CmdTiming.expectAfter Client.Debounce.DefaultDelayMs (CommitAmountFilter (Some 5m, None, 1)) minCmd
             let _, maxCmd, _ = Components.Ledger.State.update (SetAmountMaxDraft "9") (freshModel ())
             Tests.CmdTiming.expectAfter Client.Debounce.DefaultDelayMs (CommitAmountFilter (None, Some 9m, 1)) maxCmd
         }
 
-        test "Eine Memo-Eingabe erhöht die Version; ein verspätetes Commit einer älteren Version wird verworfen" {
-            let typing, _, _ = Components.Ledger.State.update (SetMemoDraft "Kuchen") (freshModel ())
-            Expect.equal typing.MemoDraft "Kuchen" "Der getippte Text steht im Entwurf"
-            Expect.equal typing.MemoVersion 1 "Erste Eingabe: Version 1"
+        test "Eine Sucheingabe erhöht die Version; ein verspätetes Commit einer älteren Version wird verworfen" {
+            let typing, _, _ = Components.Ledger.State.update (SetSearchDraft "Kuchen") (freshModel ())
+            Expect.equal typing.SearchDraft "Kuchen" "Der getippte Text steht im Entwurf"
+            Expect.equal typing.SearchVersion 1 "Erste Eingabe: Version 1"
 
             // Ein Commit mit einer älteren Version (0) kommt zu spät und darf nichts tun.
-            let stale, _, _ = Components.Ledger.State.update (CommitMemoFilter ("Kuc", 0)) typing
-            Expect.equal stale.Filters.Memo None "Das verspätete Commit wird ignoriert"
+            let stale, _, _ = Components.Ledger.State.update (CommitSearch ("Kuc", 0)) typing
+            Expect.equal stale.Filters.Search None "Das verspätete Commit wird ignoriert"
 
-            let committed, cmd, _ = Components.Ledger.State.update (CommitMemoFilter ("Kuchen", 1)) typing
-            Expect.equal committed.Filters.Memo (Some "Kuchen") "Die aktuelle Version committet"
+            let committed, cmd, _ = Components.Ledger.State.update (CommitSearch ("Kuchen", 1)) typing
+            Expect.equal committed.Filters.Search (Some "Kuchen") "Die aktuelle Version committet"
             Expect.equal committed.NextPage 0 "Wieder ab Seite 0"
             Expect.contains (dispatched cmd) (RunLoadEntriesPage 0) "Neu laden"
         }
 
-        test "Ein leeres Memo-Commit löscht den Filter statt eines leeren Strings" {
-            let withFilter = { (freshModel ()) with Filters = { noFilters with Memo = Some "Kuchen" }; MemoVersion = 1 }
-            let updated, _, _ = Components.Ledger.State.update (CommitMemoFilter ("   ", 1)) withFilter
-            Expect.equal updated.Filters.Memo None "Leer (nach Trim) heißt: kein Filter"
+        test "Eine leere Suche löscht den Filter statt eines leeren Strings" {
+            let withFilter = { (freshModel ()) with Filters = { noFilters with Search = Some "Kuchen" }; SearchVersion = 1 }
+            let updated, _, _ = Components.Ledger.State.update (CommitSearch ("   ", 1)) withFilter
+            Expect.equal updated.Filters.Search None "Leer (nach Trim) heißt: kein Filter"
         }
 
-        test "'×' am Memo-Chip entfernt den Memo-Filter und leert das Eingabefeld" {
-            let withFilter = { (freshModel ()) with Filters = { noFilters with Memo = Some "Kuchen" }; MemoDraft = "Kuchen" }
-            let updated, _, _ = Components.Ledger.State.update RemoveMemoFilter withFilter
-            Expect.equal updated.Filters.Memo None "Filter ist weg"
-            Expect.equal updated.MemoDraft "" "Eingabefeld ist auch leer"
+        test "Das Entfernen der Suche entfernt den Filter und leert das Eingabefeld" {
+            let withFilter = { (freshModel ()) with Filters = { noFilters with Search = Some "Kuchen" }; SearchDraft = "Kuchen" }
+            let updated, _, _ = Components.Ledger.State.update RemoveSearch withFilter
+            Expect.equal updated.Filters.Search None "Filter ist weg"
+            Expect.equal updated.SearchDraft "" "Eingabefeld ist auch leer"
         }
 
         test "Betrags-Commit mit aktueller Version setzt Von und Bis" {
@@ -1186,11 +1161,11 @@ let reducerTests =
 
         // Regression ledger-ct3cx: Entfernen hob die Version nicht an. Das noch wartende Commit der letzten
         // Eingabe setzte den gerade entfernten Filter wieder und lud die Liste neu.
-        test "Ein entfernter Memo-Filter kommt durch die wartende Eingabe nicht zurück" {
-            let typing, _, _ = Components.Ledger.State.update (SetMemoDraft "abc") (freshModel ())
-            let removed, _, _ = Components.Ledger.State.update RemoveMemoFilter typing
-            let after, cmd, _ = Components.Ledger.State.update (CommitMemoFilter ("abc", typing.MemoVersion)) removed
-            Expect.equal after.Filters.Memo None "der Filter bleibt entfernt"
+        test "Eine entfernte Suche kommt durch die wartende Eingabe nicht zurück" {
+            let typing, _, _ = Components.Ledger.State.update (SetSearchDraft "abc") (freshModel ())
+            let removed, _, _ = Components.Ledger.State.update RemoveSearch typing
+            let after, cmd, _ = Components.Ledger.State.update (CommitSearch ("abc", typing.SearchVersion)) removed
+            Expect.equal after.Filters.Search None "der Filter bleibt entfernt"
             Expect.isEmpty (dispatched cmd) "keine neue Abfrage"
         }
 
@@ -1202,38 +1177,38 @@ let reducerTests =
             Expect.isEmpty (dispatched cmd) "keine neue Abfrage"
         }
 
-        test "'Alle Filter löschen' leert die Eingabefelder, wartende Memo- und Betragseingaben setzen nichts" {
-            let memo, _, _ = Components.Ledger.State.update (SetMemoDraft "abc") (freshModel ())
-            let typing, _, _ = Components.Ledger.State.update (SetAmountMaxDraft "9") memo
+        test "'Alle Filter löschen' leert die Eingabefelder, wartende Such- und Betragseingaben setzen nichts" {
+            let search, _, _ = Components.Ledger.State.update (SetSearchDraft "abc") (freshModel ())
+            let typing, _, _ = Components.Ledger.State.update (SetAmountMaxDraft "9") search
             let cleared, _, _ = Components.Ledger.State.update ClearAllFilters typing
-            Expect.equal (cleared.MemoDraft, cleared.AmountMinDraft, cleared.AmountMaxDraft) ("", "", "") "Eingabefelder leer"
-            let afterMemo, memoCmd, _ = Components.Ledger.State.update (CommitMemoFilter ("abc", typing.MemoVersion)) cleared
+            Expect.equal (cleared.SearchDraft, cleared.AmountMinDraft, cleared.AmountMaxDraft) ("", "", "") "Eingabefelder leer"
+            let afterSearch, searchCmd, _ = Components.Ledger.State.update (CommitSearch ("abc", typing.SearchVersion)) cleared
             let afterAmount, amountCmd, _ =
-                Components.Ledger.State.update (CommitAmountFilter (None, Some 9m, typing.AmountVersion)) afterMemo
+                Components.Ledger.State.update (CommitAmountFilter (None, Some 9m, typing.AmountVersion)) afterSearch
             Expect.equal afterAmount.Filters noFilters "kein Filter kommt zurück"
-            Expect.isEmpty (dispatched memoCmd @ dispatched amountCmd) "keine neue Abfrage"
+            Expect.isEmpty (dispatched searchCmd @ dispatched amountCmd) "keine neue Abfrage"
         }
 
         // Regression Review a3f7eb1d..982bdf79 (ledger-s1weh): der Eintrag aus „Zu tun“ ließ die Eingabefelder
         // stehen. Der Entwurf wich vom leeren Filter ab, `isInputActive` blieb wahr und hielt „Neu laden“ zurück.
         test "Ein Eintrag aus „Zu tun“ leert die Eingabefelder wie „Alle Filter löschen“" {
-            let memo, _, _ = Components.Ledger.State.update (SetMemoDraft "abc") (freshModel ())
-            let low, _, _ = Components.Ledger.State.update (SetAmountMinDraft "5") memo
+            let search, _, _ = Components.Ledger.State.update (SetSearchDraft "abc") (freshModel ())
+            let low, _, _ = Components.Ledger.State.update (SetAmountMinDraft "5") search
             let typing, _, _ = Components.Ledger.State.update (SetAmountMaxDraft "9") low
             let preset = Components.Ledger.State.presetQuickFilter PresetAskLena typing
-            Expect.equal (preset.MemoDraft, preset.AmountMinDraft, preset.AmountMaxDraft) ("", "", "") "Eingabefelder leer"
+            Expect.equal (preset.SearchDraft, preset.AmountMinDraft, preset.AmountMaxDraft) ("", "", "") "Eingabefelder leer"
         }
 
-        test "Ein Eintrag aus „Zu tun“ überholt wartende Memo- und Betragseingaben" {
-            let memo, _, _ = Components.Ledger.State.update (SetMemoDraft "abc") (freshModel ())
-            let typing, _, _ = Components.Ledger.State.update (SetAmountMinDraft "5") memo
+        test "Ein Eintrag aus „Zu tun“ überholt wartende Such- und Betragseingaben" {
+            let search, _, _ = Components.Ledger.State.update (SetSearchDraft "abc") (freshModel ())
+            let typing, _, _ = Components.Ledger.State.update (SetAmountMinDraft "5") search
             let preset = Components.Ledger.State.presetQuickFilter PresetNeedsReview typing
-            let afterMemo, memoCmd, _ = Components.Ledger.State.update (CommitMemoFilter ("abc", typing.MemoVersion)) preset
+            let afterSearch, searchCmd, _ = Components.Ledger.State.update (CommitSearch ("abc", typing.SearchVersion)) preset
             let afterAmount, amountCmd, _ =
-                Components.Ledger.State.update (CommitAmountFilter (Some 5m, None, typing.AmountVersion)) afterMemo
-            Expect.equal afterAmount.Filters.Memo None "kein Memo-Filter"
+                Components.Ledger.State.update (CommitAmountFilter (Some 5m, None, typing.AmountVersion)) afterSearch
+            Expect.equal afterAmount.Filters.Search None "keine Suche"
             Expect.equal afterAmount.Filters.AmountMin None "kein Betrags-Filter"
-            Expect.isEmpty (dispatched memoCmd @ dispatched amountCmd) "keine neue Abfrage"
+            Expect.isEmpty (dispatched searchCmd @ dispatched amountCmd) "keine neue Abfrage"
         }
 
         // Regression ledger-dn4vy: ein unlesbarer Betrag („abc“) wurde wie ein leeres Feld gelesen,
@@ -1294,24 +1269,25 @@ let reducerTests =
         // Filterleiste: "Alle Filter löschen" (ledger-j8xq4)
         // ============================================
 
-        test "'Alle Filter löschen' setzt alle fünf Filter zurück, lässt 'Zu prüfen' und 'Gelöschte zeigen' unberührt" {
+        // ledger-d9z3n: „Filter löschen“ nimmt alle Filter zurück, auch „Zu prüfen“ und „Gelöschte zeigen“.
+        test "'Filter löschen' setzt alle Filter zurück, auch 'Zu prüfen' und 'Gelöschte zeigen'" {
             let withEverything =
                 { (freshModel ()) with
                     Filters =
                         { CategoryIds = Set.ofList [ accountGuid 91 ]
                           DateRange = Some { Quick = Some ThisYear; From = Some DateTime.Today; To = Some DateTime.Today }
-                          Payee = Some "Café Lotte"
-                          Memo = Some "Kuchen"
+                          Search = Some "Kuchen"
                           AmountMin = Some 5m
                           AmountMax = Some 50m
-                          WithoutCategory = false
-                          OnlyAskLena = false }
+                          AmountDirection = OnlyOutflows
+                          WithoutCategory = true
+                          OnlyAskLena = true }
                     OnlyNeedsReview = true
                     IncludeDeleted = true }
             let updated, cmd, _ = Components.Ledger.State.update ClearAllFilters withEverything
-            Expect.equal updated.Filters noFilters "Alle fünf Such-Filter sind weg"
-            Expect.isTrue updated.OnlyNeedsReview "'Zu prüfen' ist kein Such-Filter, bleibt stehen"
-            Expect.isTrue updated.IncludeDeleted "'Gelöschte zeigen' ist kein Such-Filter, bleibt stehen"
+            Expect.equal updated.Filters noFilters "Alle Filter sind weg"
+            Expect.isFalse updated.OnlyNeedsReview "'Zu prüfen' ist aus"
+            Expect.isFalse updated.IncludeDeleted "'Gelöschte zeigen' ist aus"
             Expect.equal updated.NextPage 0 "Wieder ab Seite 0"
             Expect.contains (dispatched cmd) (RunLoadEntriesPage 0) "Neu laden"
         }
@@ -1972,10 +1948,10 @@ let private baseQuery (accountId: Guid option) : LedgerEntryPageQuery = {
     CategoryIds = []
     DateFrom = None
     DateTo = None
-    Payee = None
-    Memo = None
+    Search = None
     AmountMin = None
     AmountMax = None
+    AmountDirection = AllDirections
     Sort = LedgerSort.defaultSort
 }
 
@@ -1990,9 +1966,10 @@ let private baseSuggestionQuery (accountId: Guid option) : LedgerPayeeSuggestion
     CategoryIds = []
     DateFrom = None
     DateTo = None
-    Memo = None
+    Search = None
     AmountMin = None
     AmountMax = None
+    AmountDirection = AllDirections
 }
 
 [<Tests>]
@@ -2082,7 +2059,7 @@ let ledgerPagingTests =
             let onOther = seedOn other -7m
 
             let allAccountsPage =
-                Ledger.QueryHandlers.getLedgerEntriesPage { baseQuery None with Payee = Some payee }
+                Ledger.QueryHandlers.getLedgerEntriesPage { baseQuery None with Search = Some payee }
                 |> Async.RunSynchronously
 
             let (LedgerAccountId rawB) = pageTestAccountB
@@ -2399,7 +2376,8 @@ let ledgerPagingTests =
                   Some "Mitten im Zeitraum" ]
                 "Beide Randtage sind eingeschlossen, unabhaengig vom DateTimeKind der gespeicherten Buchung"
 
-        testCase "AC6: Payee-, Memo- und Betragsfilter wirken einzeln und als Und-Verknuepfung kombiniert" <| fun () ->
+        // ledger-d9z3n: die freie Suche ersetzt die Filter Payee und Memo; sie trifft Teiltext in beiden.
+        testCase "AC6: Suche und Betragsfilter wirken einzeln und als Und-Verknuepfung kombiniert" <| fun () ->
             seedEntryFull pageTestAccountM 76 -4.50m (DateTime(2026, 5, 1)) (Some "Cafe Lotte") (Some "Kaffee") None
             |> Async.RunSynchronously
             seedEntryFull pageTestAccountM 77 -6.00m (DateTime(2026, 5, 2)) (Some "Cafe Lotte") (Some "Kuchen") None
@@ -2413,34 +2391,124 @@ let ledgerPagingTests =
 
             let (LedgerAccountId rawM) = pageTestAccountM
             let byPayee =
-                Ledger.QueryHandlers.getLedgerEntriesPage { baseQuery (Some rawM) with Payee = Some "cafe lotte" }
+                Ledger.QueryHandlers.getLedgerEntriesPage { baseQuery (Some rawM) with Search = Some "cafe lotte" }
                 |> Async.RunSynchronously
             let byMemo =
-                Ledger.QueryHandlers.getLedgerEntriesPage { baseQuery (Some rawM) with Memo = Some "kaffee" }
+                Ledger.QueryHandlers.getLedgerEntriesPage { baseQuery (Some rawM) with Search = Some "kaffee" }
                 |> Async.RunSynchronously
             let byAmount =
                 Ledger.QueryHandlers.getLedgerEntriesPage
-                    { baseQuery (Some rawM) with AmountMin = Some -4.50m; AmountMax = Some -4.50m }
+                    { baseQuery (Some rawM) with AmountMin = Some 4.50m; AmountMax = Some 4.50m }
                 |> Async.RunSynchronously
             let combined =
                 Ledger.QueryHandlers.getLedgerEntriesPage
                     { baseQuery (Some rawM) with
-                        Payee = Some "cafe lotte"
-                        Memo = Some "kaffee"
-                        AmountMin = Some -4.50m
-                        AmountMax = Some -4.50m }
+                        Search = Some "cafe lotte"
+                        AmountMin = Some 4.50m
+                        AmountMax = Some 4.50m }
                 |> Async.RunSynchronously
 
-            Expect.equal byPayee.TotalCount 2 "Payee (ohne Beachtung der Gross-/Kleinschreibung) trifft beide Cafe-Lotte-Buchungen"
-            Expect.equal byMemo.TotalCount 3 "Memo-Teiltext 'kaffee' trifft drei Buchungen, auch 'Kaffee to go'"
-            Expect.equal byAmount.TotalCount 3 "Exakt -4,50 EUR trifft drei Buchungen"
-            Expect.equal combined.TotalCount 1 "Nur die Buchung, die alle drei Filter zugleich erfuellt"
+            Expect.equal byPayee.TotalCount 2 "Suche im Payee (ohne Beachtung der Gross-/Kleinschreibung) trifft beide Cafe-Lotte-Buchungen"
+            Expect.equal byMemo.TotalCount 3 "Suche im Memo: 'kaffee' trifft drei Buchungen, auch 'Kaffee to go'"
+            Expect.equal byAmount.TotalCount 3 "Höhe exakt 4,50 EUR (ADR 0095) trifft die drei Buchungen über -4,50 EUR"
+            Expect.equal combined.TotalCount 1 "Nur die Buchung, die Suche und Betrag zugleich erfuellt"
             Expect.equal
                 (combined.Entries |> List.map (fun e -> e.Memo))
                 [ Some "Kaffee" ]
-                "Die Und-Verknuepfung laesst nur Cafe Lotte + Kaffee + -4,50 EUR durch"
+                "Die Und-Verknuepfung laesst nur Cafe Lotte mit -4,50 EUR durch"
 
-        testCase "AC-Umlaut: Payee- und Memo-Filter falten Groß-/Kleinschreibung auch bei Umlauten (ledger-k3wqn, ADR 0037)" <| fun () ->
+        // ADR 0095 (ledger-d9z3n, Roman 2026-11-14): der Betragsfilter vergleicht die Höhe ohne Vorzeichen,
+        // die Richtung trennt Ausgaben und Einnahmen und wirkt auch ohne Betrag. Alle Zählwege ziehen mit.
+        testCase "Betragsfilter: „von 5 bis 50“ trifft Ausgabe und Einnahme über 12,00 €, die Richtung trennt sie" <| fun () ->
+            let account = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8000-000000000030")
+            saveAccount { Id = account; Name = "Konto Betrag"; Kind = BankAccount; Link = BbOwned; Closed = false }
+            |> Async.RunSynchronously
+            let day n = DateTime(2026, 6, n)
+            seedEntryFull account 910 -12m (day 1) (Some "Bäcker") None None |> Async.RunSynchronously
+            seedEntryFull account 911 12m (day 2) (Some "Erstattung") None None |> Async.RunSynchronously
+            seedEntryFull account 912 -60m (day 3) (Some "Bäcker") None None |> Async.RunSynchronously
+            seedEntryFull account 913 3m (day 4) (Some "Zinsen") None None |> Async.RunSynchronously
+            seedDeletedEntryFull account 914 -20m (day 5) (Some "Bäcker") None None |> Async.RunSynchronously
+            seedDeletedEntryFull account 915 20m (day 6) (Some "Erstattung") None None |> Async.RunSynchronously
+
+            let (LedgerAccountId raw) = account
+            let page query = Ledger.QueryHandlers.getLedgerEntriesPage query |> Async.RunSynchronously
+            let amounts (p: LedgerEntryPage) = p.Entries |> List.map (fun e -> e.Amount.Amount) |> List.sort
+            let suggestions query = Ledger.QueryHandlers.getLedgerPayeeSuggestions query |> Async.RunSynchronously |> List.map (fun s -> s.Payee) |> List.sort
+            let range = { baseQuery (Some raw) with AmountMin = Some 5m; AmountMax = Some 50m }
+
+            let both = page range
+            Expect.equal (amounts both) [ -12m; 12m ] "„von 5 bis 50“ trifft die Ausgabe und die Einnahme über 12,00 €, nicht -60 und nicht 3"
+            Expect.equal both.TotalCount 2 "Trefferzahl"
+            Expect.equal both.TotalAmount { Amount = 0m; Currency = "EUR" } "Summe -12 + 12"
+            Expect.equal both.DeletedCount 2 "beide gelöschten Buchungen (Höhe 20) liegen im Bereich"
+            Expect.equal (suggestions { baseSuggestionQuery (Some raw) with AmountMin = Some 5m; AmountMax = Some 50m }) [ "Bäcker"; "Erstattung" ] "Payee-Vorschläge"
+
+            let outflows = page { range with AmountDirection = OnlyOutflows }
+            Expect.equal (amounts outflows) [ -12m ] "mit Richtung „Ausgaben“ nur die Ausgabe"
+            Expect.equal outflows.TotalAmount { Amount = -12m; Currency = "EUR" } "Summe nur der Ausgabe"
+            Expect.equal outflows.DeletedCount 1 "nur die gelöschte Ausgabe"
+
+            let inflows = page { range with AmountDirection = OnlyInflows }
+            Expect.equal (amounts inflows) [ 12m ] "mit Richtung „Einnahmen“ nur die Einnahme"
+
+            let onlyOutflows = page { baseQuery (Some raw) with AmountDirection = OnlyOutflows }
+            Expect.equal (amounts onlyOutflows) [ -60m; -12m ] "Richtung allein ohne Betrag filtert ebenso"
+            Expect.equal onlyOutflows.TotalCount 2 "Trefferzahl ohne Betrag"
+            Expect.equal onlyOutflows.DeletedCount 1 "gelöschte Ausgabe ohne Betrag"
+            let onlyInflows = page { baseQuery (Some raw) with AmountDirection = OnlyInflows }
+            Expect.equal (amounts onlyInflows) [ 3m; 12m ] "nur Einnahmen ohne Betrag"
+            Expect.equal
+                (suggestions { baseSuggestionQuery (Some raw) with AmountDirection = OnlyInflows })
+                [ "Erstattung"; "Zinsen" ]
+                "Payee-Vorschläge folgen der Richtung"
+
+        // ledger-d9z3n: die freie Suche trifft Teiltext in Payee, Memo und Kategoriename (gespeicherter und
+        // heutiger Name, eigene Kategorie und Split-Zeile), ohne Groß- und Kleinschreibung, und lässt gelöschte
+        // Buchungen aus, solange „Gelöschte zeigen“ aus ist.
+        testCase "Suche: Treffer in Payee, Memo und Kategoriename, ohne Groß-/Kleinschreibung, ohne gelöschte Zeile" <| fun () ->
+            let account = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8000-00000000002f")
+            saveAccount { Id = account; Name = "Konto Suche"; Kind = BankAccount; Link = BbOwned; Closed = false }
+            |> Async.RunSynchronously
+            let renamed = Guid.Parse "0195d9a0-0000-7000-8000-000000000001"
+            let splitCategory = Guid.Parse "0195d9a0-0000-7000-8000-000000000002"
+            let otherCategory = Guid.Parse "0195d9a0-0000-7000-8000-000000000003"
+            Ledger.Persistence.upsertCategories [
+                { Id = YnabCategoryId renamed; Name = "Zitronella neu"; GroupName = "Test"; Available = None; Hidden = false }
+                { Id = YnabCategoryId splitCategory; Name = "zitronella Split"; GroupName = "Test"; Available = None; Hidden = false }
+                { Id = YnabCategoryId otherCategory; Name = "Anderes"; GroupName = "Test"; Available = None; Hidden = false } ]
+            |> Async.RunSynchronously
+            let day n = DateTime(2026, 6, n)
+            seedEntryFull account 901 -1m (day 1) (Some "Zitronella Markt") None None |> Async.RunSynchronously
+            seedEntryFull account 902 -2m (day 2) (Some "Bäcker") (Some "Kuchen ZITRONELLA") None |> Async.RunSynchronously
+            seedEntryFull account 903 -3m (day 3) (Some "Rewe") None (Some { CategoryId = YnabCategoryId otherCategory; CategoryName = "Zitronella-Kasse" })
+            |> Async.RunSynchronously
+            seedEntryFull account 904 -4m (day 4) (Some "Edeka") None (Some { CategoryId = YnabCategoryId renamed; CategoryName = "Alter Name" })
+            |> Async.RunSynchronously
+            seedSplitEntry account 905 (day 5) (Some "Aldi") None [
+                { Target = ToCategory (YnabCategoryId splitCategory, "Split alt"); Amount = { Amount = -2m; Currency = "EUR" }; Memo = None }
+                { Target = ToCategory (YnabCategoryId otherCategory, "Anderes"); Amount = { Amount = -3m; Currency = "EUR" }; Memo = None } ]
+            |> Async.RunSynchronously
+            seedDeletedEntryFull account 906 -6m (day 6) (Some "Zitronella gelöscht") None None |> Async.RunSynchronously
+            seedEntryFull account 907 -7m (day 7) (Some "Netto") (Some "anders") None |> Async.RunSynchronously
+
+            let (LedgerAccountId raw) = account
+            let idsOf (page: LedgerEntryPage) = page.Entries |> List.map (fun e -> e.Id) |> Set.ofList
+            let idOf n = let (EntryId g) = pageEntryId n in g
+            let search text includeDeleted =
+                Ledger.QueryHandlers.getLedgerEntriesPage { baseQuery (Some raw) with Search = Some text; IncludeDeleted = includeDeleted }
+                |> Async.RunSynchronously
+
+            let lower = search "zitronella" false
+            Expect.equal (idsOf lower) (Set.ofList [ idOf 901; idOf 902; idOf 903; idOf 904; idOf 905 ])
+                "Payee, Memo, gespeicherter und heutiger Kategoriename, Split-Zeile; ohne gelöschte Zeile und ohne Netto"
+            Expect.equal lower.TotalCount 5 "Trefferzahl wie die Zeilen"
+            Expect.equal lower.TotalAmount { Amount = -15m; Currency = "EUR" } "Summe über den Treffer"
+            Expect.equal (idsOf (search "ZITRONELLA" false)) (idsOf lower) "Großschreibung trifft dasselbe"
+            Expect.isTrue ((idsOf (search "zitronella" true)).Contains (idOf 906)) "mit „Gelöschte zeigen“ ist die gelöschte Zeile dabei"
+            Expect.equal (search "kuchen" false).TotalCount 1 "Teiltext im Memo"
+
+        testCase "AC-Umlaut: die Suche faltet Groß-/Kleinschreibung auch bei Umlauten, in Payee und Memo (ledger-k3wqn, ADR 0037)" <| fun () ->
             // Echte Produktionsschreibweisen, kein transliteriertes ASCII (anders als
             // AC6/AC7): Comdirect und YNAB liefern Payee/Memo häufig in
             // Großbuchstaben, genau der Fall, an dem die frühere SQLite-Kollation
@@ -2459,19 +2527,19 @@ let ledgerPagingTests =
             let (LedgerAccountId rawP) = pageTestAccountP
 
             let byPayeeLower =
-                Ledger.QueryHandlers.getLedgerEntriesPage { baseQuery (Some rawP) with Payee = Some "müller gmbh" }
+                Ledger.QueryHandlers.getLedgerEntriesPage { baseQuery (Some rawP) with Search = Some "müller gmbh" }
                 |> Async.RunSynchronously
             let byPayeeUpper =
-                Ledger.QueryHandlers.getLedgerEntriesPage { baseQuery (Some rawP) with Payee = Some "MÜLLER GMBH" }
+                Ledger.QueryHandlers.getLedgerEntriesPage { baseQuery (Some rawP) with Search = Some "MÜLLER GMBH" }
                 |> Async.RunSynchronously
             let byMemoLower =
-                Ledger.QueryHandlers.getLedgerEntriesPage { baseQuery (Some rawP) with Memo = Some "grüne" }
+                Ledger.QueryHandlers.getLedgerEntriesPage { baseQuery (Some rawP) with Search = Some "grüne" }
                 |> Async.RunSynchronously
             let byMemoUpper =
-                Ledger.QueryHandlers.getLedgerEntriesPage { baseQuery (Some rawP) with Memo = Some "GRÜNE ERDE" }
+                Ledger.QueryHandlers.getLedgerEntriesPage { baseQuery (Some rawP) with Search = Some "GRÜNE ERDE" }
                 |> Async.RunSynchronously
             let byPayeeStrasse =
-                Ledger.QueryHandlers.getLedgerEntriesPage { baseQuery (Some rawP) with Payee = Some "straße des 17. juni" }
+                Ledger.QueryHandlers.getLedgerEntriesPage { baseQuery (Some rawP) with Search = Some "straße des 17. juni" }
                 |> Async.RunSynchronously
 
             Expect.equal byPayeeLower.TotalCount 3 "'müller gmbh' faltet beide Großschreibungen von MÜLLER GMBH/Müller GmbH (heute: nur 1, weil die frühere Kollation nur ASCII faltet)"
@@ -2487,9 +2555,9 @@ let ledgerPagingTests =
             let byPayeeAndAmount =
                 Ledger.QueryHandlers.getLedgerEntriesPage
                     { baseQuery (Some rawP) with
-                        Payee = Some "müller gmbh"
-                        AmountMin = Some -4.50m
-                        AmountMax = Some -4.50m }
+                        Search = Some "müller gmbh"
+                        AmountMin = Some 4.50m
+                        AmountMax = Some 4.50m }
                 |> Async.RunSynchronously
             Expect.equal byPayeeAndAmount.TotalCount 1 "Nur n=100 (-4,50 EUR) erfüllt Payee und Betrag zugleich"
             Expect.equal byPayeeAndAmount.TotalAmount { Amount = -4.50m; Currency = "EUR" } "Summe des loadAllMatching-Zweigs stimmt"
@@ -2499,7 +2567,7 @@ let ledgerPagingTests =
             // Consequences: Microsoft.Data.Sqlite legt Funktionen bei jedem Open() neu
             // auf den Handle, der einzige echte Ausfallmodus dieser Lösung).
             let byPayeeLowerAgain =
-                Ledger.QueryHandlers.getLedgerEntriesPage { baseQuery (Some rawP) with Payee = Some "müller gmbh" }
+                Ledger.QueryHandlers.getLedgerEntriesPage { baseQuery (Some rawP) with Search = Some "müller gmbh" }
                 |> Async.RunSynchronously
             Expect.equal byPayeeLowerAgain.TotalCount byPayeeLower.TotalCount "Zweiter Aufruf über eine neue Connection liefert dasselbe Ergebnis"
 
@@ -2507,10 +2575,10 @@ let ledgerPagingTests =
             // nicht Teil dieser Lösung. 'strasse' (transliteriert) findet 'Straße'
             // nicht, 'gruene' (transliteriert) findet 'Grüne' nicht.
             let byPayeeTransliterated =
-                Ledger.QueryHandlers.getLedgerEntriesPage { baseQuery (Some rawP) with Payee = Some "strasse des 17. juni" }
+                Ledger.QueryHandlers.getLedgerEntriesPage { baseQuery (Some rawP) with Search = Some "strasse des 17. juni" }
                 |> Async.RunSynchronously
             let byMemoTransliterated =
-                Ledger.QueryHandlers.getLedgerEntriesPage { baseQuery (Some rawP) with Memo = Some "gruene" }
+                Ledger.QueryHandlers.getLedgerEntriesPage { baseQuery (Some rawP) with Search = Some "gruene" }
                 |> Async.RunSynchronously
             Expect.equal byPayeeTransliterated.TotalCount 0 "'strasse' (ss statt ß) fällt bewusst durch, Diakritika-Entfernung ist nicht Teil von ADR 0037"
             Expect.equal byMemoTransliterated.TotalCount 0 "'gruene' (ue statt ü) fällt bewusst durch, aus demselben Grund"
@@ -2595,10 +2663,10 @@ let ledgerPagingTests =
             let (LedgerAccountId rawQ) = pageTestAccountQ
             let page =
                 Ledger.QueryHandlers.getLedgerEntriesPage
-                    { baseQuery (Some rawQ) with PageSize = 1; AmountMin = Some -100m; AmountMax = Some 0m }
+                    { baseQuery (Some rawQ) with PageSize = 1; AmountMax = Some 100m; AmountDirection = OnlyOutflows }
                 |> Async.RunSynchronously
 
-            Expect.equal page.TotalCount 2 "Nur -5 und -50 EUR liegen im Intervall [-100; 0]"
+            Expect.equal page.TotalCount 2 "Nur die Ausgaben -5 und -50 EUR haben eine Höhe bis 100; +20 ist keine Ausgabe"
             Expect.equal page.TotalAmount { Amount = -55m; Currency = "EUR" }
                 "Die Summe deckt den gesamten Treffer ab (-5 + -50); ungefiltert wären es -535, nur die Seite wäre -5"
             Expect.equal (List.length page.Entries) 1 "Die Seite trägt nur ihre eigene Größe, unabhängig von der Summe"
@@ -2611,7 +2679,7 @@ let ledgerPagingTests =
             let (LedgerAccountId rawR) = pageTestAccountR
             let page =
                 Ledger.QueryHandlers.getLedgerEntriesPage
-                    { baseQuery (Some rawR) with AmountMin = Some -100m; AmountMax = Some -1m }
+                    { baseQuery (Some rawR) with AmountMin = Some 1m; AmountMax = Some 100m }
                 |> Async.RunSynchronously
 
             Expect.equal page.TotalCount 1 "Nur die lebende Buchung zählt zum sichtbaren Treffer"
@@ -2639,11 +2707,11 @@ let ledgerPagingTests =
                 |> Async.RunSynchronously
             let amountPath =
                 Ledger.QueryHandlers.getLedgerPayeeSuggestions
-                    { baseSuggestionQuery (Some rawS) with AmountMin = Some -1000m; AmountMax = Some 0m }
+                    { baseSuggestionQuery (Some rawS) with AmountMin = Some 0m; AmountMax = Some 1000m }
                 |> Async.RunSynchronously
             let narrowedAmountPath =
                 Ledger.QueryHandlers.getLedgerPayeeSuggestions
-                    { baseSuggestionQuery (Some rawS) with AmountMax = Some -250m }
+                    { baseSuggestionQuery (Some rawS) with AmountMin = Some 250m }
                 |> Async.RunSynchronously
 
             let byPayeeAscending (suggestions: LedgerPayeeSuggestion list) =
@@ -2667,7 +2735,7 @@ let ledgerPagingTests =
             // Der Betragsfilter wirkt auf die Vorschläge. Fängt einen F#-Pfad, der
             // `amountMatches` vor dem Gruppieren auslässt.
             Expect.equal (byPayeeAscending narrowedAmountPath) [ "Aldi", 1; "Rewe", 1 ]
-                "Nur Buchungen bis -250 EUR bleiben übrig: je eine von Aldi und Rewe"
+                "Nur Buchungen ab einer Höhe von 250 EUR bleiben übrig: je eine von Aldi und Rewe"
             Expect.isNone
                 (narrowedAmountPath |> List.tryFind (fun s -> s.Payee = "Baecker"))
                 "Baecker fällt komplett heraus: amountMatches muss vor dem Gruppieren wirken"
@@ -2681,7 +2749,7 @@ let ledgerPagingTests =
 
             let (LedgerAccountId rawT) = pageTestAccountT
             let query pageIndex =
-                { baseQuery (Some rawT) with PageSize = 2; Page = pageIndex; AmountMin = Some -10m }
+                { baseQuery (Some rawT) with PageSize = 2; Page = pageIndex; AmountMax = Some 10m }
             let page0 = Ledger.QueryHandlers.getLedgerEntriesPage (query 0) |> Async.RunSynchronously
             let page1 = Ledger.QueryHandlers.getLedgerEntriesPage (query 1) |> Async.RunSynchronously
             let page2 = Ledger.QueryHandlers.getLedgerEntriesPage (query 2) |> Async.RunSynchronously
@@ -2712,25 +2780,25 @@ let ledgerPagingTests =
 
             let (LedgerAccountId rawU) = pageTestAccountU
 
-            // Nur `AmountMin` gesetzt. Fängt eine Umsetzung, die beide Enden verlangt
-            // (ergäbe 0 Treffer) und eine, die `>=` und `<=` vertauscht (ergäbe nur -100,00).
+            // Nur `AmountMin` gesetzt, die Höhe ohne Vorzeichen (ADR 0095). Fängt eine Umsetzung, die
+            // beide Enden verlangt (ergäbe 0 Treffer) und eine, die `>=` und `<=` vertauscht.
             let onlyMin =
-                Ledger.QueryHandlers.getLedgerEntriesPage { baseQuery (Some rawU) with AmountMin = Some -50m }
+                Ledger.QueryHandlers.getLedgerEntriesPage { baseQuery (Some rawU) with AmountMin = Some 30m }
                 |> Async.RunSynchronously
-            Expect.equal onlyMin.TotalCount 3 "Mindestens -50: -100 fällt heraus, die anderen drei bleiben"
+            Expect.equal onlyMin.TotalCount 3 "Höhe mindestens 30: -5 fällt heraus, die Einnahme +30 zählt als Randwert mit"
             Expect.equal
                 (onlyMin.Entries |> List.map (fun e -> e.Amount.Amount) |> List.sort)
-                [ -50m; -5m; 30m ]
-                "Genau die drei Beträge ab -50 aufwärts, -100 ist nicht dabei"
+                [ -100m; -50m; 30m ]
+                "Genau die drei Beträge mit einer Höhe ab 30, -5 ist nicht dabei"
 
             // Nur `AmountMax` gesetzt, Randwert eingeschlossen (>=/<=, nicht >/<).
             let onlyMax =
-                Ledger.QueryHandlers.getLedgerEntriesPage { baseQuery (Some rawU) with AmountMax = Some -50m }
+                Ledger.QueryHandlers.getLedgerEntriesPage { baseQuery (Some rawU) with AmountMax = Some 50m }
                 |> Async.RunSynchronously
-            Expect.equal onlyMax.TotalCount 2 "Höchstens -50: der Randwert -50 zählt mit"
+            Expect.equal onlyMax.TotalCount 3 "Höhe höchstens 50: der Randwert -50 zählt mit"
             Expect.equal
                 (onlyMax.Entries |> List.map (fun e -> e.Amount.Amount) |> List.sort)
-                [ -100m; -50m ]
+                [ -50m; -5m; 30m ]
                 "Der Randwert -50 ist eingeschlossen, nicht per >/< ausgeschlossen"
 
             // Vertauschtes Intervall (AmountMin > AmountMax). Fängt eine Umsetzung,
@@ -2738,7 +2806,7 @@ let ledgerPagingTests =
             // ODER statt UND verknüpft.
             let swapped =
                 Ledger.QueryHandlers.getLedgerEntriesPage
-                    { baseQuery (Some rawU) with AmountMin = Some 0m; AmountMax = Some -100m }
+                    { baseQuery (Some rawU) with AmountMin = Some 100m; AmountMax = Some 0m }
                 |> Async.RunSynchronously
             Expect.equal swapped.TotalCount 0 "Ein vertauschtes Intervall bleibt leer, statt getauscht oder per ODER verknüpft zu werden"
             Expect.equal swapped.Entries [] "Keine Buchung erfüllt ein leeres Intervall"
@@ -2756,10 +2824,10 @@ let ledgerPagingTests =
             let (LedgerAccountId rawV) = pageTestAccountV
             let unfiltered = Ledger.QueryHandlers.getLedgerEntriesPage (baseQuery (Some rawV)) |> Async.RunSynchronously
             let amountFiltered =
-                Ledger.QueryHandlers.getLedgerEntriesPage { baseQuery (Some rawV) with AmountMin = Some -100m }
+                Ledger.QueryHandlers.getLedgerEntriesPage { baseQuery (Some rawV) with AmountMax = Some 100m }
                 |> Async.RunSynchronously
             let payeeFiltered =
-                Ledger.QueryHandlers.getLedgerEntriesPage { baseQuery (Some rawV) with Payee = Some "payee 123" }
+                Ledger.QueryHandlers.getLedgerEntriesPage { baseQuery (Some rawV) with Search = Some "payee 123" }
                 |> Async.RunSynchronously
 
             Expect.equal unfiltered.TotalCount 4 "Alle vier Buchungen ohne Filter"
@@ -2922,8 +2990,8 @@ let ledgerPagingTests =
             let query =
                 { baseQuery (Some rawAB) with
                     CategoryIds = [ catGuid 39 ]
-                    AmountMin = Some -50m
-                    AmountMax = Some -40m }
+                    AmountMin = Some 40m
+                    AmountMax = Some 50m }
             let page = Ledger.QueryHandlers.getLedgerEntriesPage query |> Async.RunSynchronously
 
             Expect.equal page.TotalCount 1 "der loadAllMatching-Zweig (Betragsfilter) ruft dieselbe buildFilterClause, findet die Split-Buchung also auch"
@@ -3104,7 +3172,7 @@ let ledgerPagingTests =
             // AC6: die Anzahl am Vorschlag muss mit der Treffermenge übereinstimmen,
             // wenn genau dieser Payee als Filter gewählt wird.
             let filtered =
-                Ledger.QueryHandlers.getLedgerEntriesPage { baseQuery (Some rawAG) with Payee = Some suggestion.Payee }
+                Ledger.QueryHandlers.getLedgerEntriesPage { baseQuery (Some rawAG) with Search = Some suggestion.Payee }
                 |> Async.RunSynchronously
             Expect.equal filtered.TotalCount suggestion.Count
                 "ein Filter auf die vorgeschlagene Schreibweise liefert genau so viele Buchungen, wie der Vorschlag verspricht"
@@ -3194,7 +3262,7 @@ let ledgerPagingTests =
             // einzuschränken.
             let amountPath =
                 Ledger.QueryHandlers.getLedgerPayeeSuggestions
-                    { baseSuggestionQuery (Some rawAJ) with AmountMin = Some -1000m; AmountMax = Some 0m }
+                    { baseSuggestionQuery (Some rawAJ) with AmountMin = Some 0m; AmountMax = Some 1000m }
                 |> Async.RunSynchronously
 
             let sorted (suggestions: LedgerPayeeSuggestion list) =
@@ -3471,18 +3539,6 @@ let private staleAnswerTests =
             let shown = update (Components.Ledger.State.entriesPageAnswer current 0 (Ok newPage)) current
             Expect.hasLength (idsOf shown) 2 "die Antwort der aktuellen Liste kommt durch"
 
-        testCase "Die Payee-Vorschläge binden auch ihr Scheitern an ihre Liste: ein Fehler beendet das Laden ohne neue Abfrage, das nächste Öffnen fragt neu" <| fun () ->
-            let waiting = { rebuilt (loaded ()) with PayeeSuggestions = Loading; OpenPopover = Some PayeeChip }
-            let answer = Components.Ledger.State.payeeSuggestionsAnswer waiting
-            let failed, cmd, _ = Components.Ledger.State.update (answer (Error "kaputt")) waiting
-            Expect.equal failed.PayeeSuggestions (Failure "kaputt") "das Laden endet mit dem Fehler"
-            Expect.isEmpty (dispatched cmd) "keine neue Abfrage"
-            let closed = update CloseFilterPopover failed
-            let _, reopen, _ = Components.Ledger.State.update (OpenFilterPopover PayeeChip) closed
-            Expect.equal (dispatched reopen) [ LoadPayeeSuggestions ] "das nächste Öffnen fragt neu"
-            let shown = update (Components.Ledger.State.payeeSuggestionsAnswer waiting (Ok [ { Payee = "Vorschlag Lotte"; Count = 3 } ])) waiting
-            Expect.equal shown.PayeeSuggestions (Success [ { Payee = "Vorschlag Lotte"; Count = 3 } ]) "die Antwort steht"
-
         testCase "Die Ok-Antwort einer alten Liste zu Seite 0 ersetzt nichts, die aktuelle Antwort kommt durch" <| fun () ->
             let before, (after, _, _) = staleAfterRebuild (fun g -> EntriesPageLoaded (g, 0, Ok oldPage))
             Expect.equal after.Entries Loading "die neue Liste lädt weiter"
@@ -3550,35 +3606,6 @@ let private staleAnswerTests =
             Expect.equal current.TotalCount 99 "die Summe der aktuellen Liste gilt"
             let late = Components.Ledger.State.totalsRefreshAnswer before (Ok oldPage)
             Expect.equal (update late (rebuilt before)).TotalCount 0 "die Abfrage bleibt an ihre Liste gebunden"
-
-        testCase "Vorschläge einer alten Liste werden verworfen, Erfolg und Scheitern" <| fun () ->
-            for answer in [ Ok [ { Payee = "Alt"; Count = 1 } ]; Error "Http error (0)" ] do
-                let before = { rebuilt (loaded ()) with PayeeSuggestions = Success [ { Payee = "Neu"; Count = 2 } ] }
-                let after = update (PayeeSuggestionsLoaded (before.EntriesGeneration - 1, answer)) before
-                Expect.equal after.PayeeSuggestions before.PayeeSuggestions "die neueren Vorschläge bleiben"
-
-        testCase "Wartet das offene Popover nur noch auf eine alte Antwort, lädt es neu statt für immer zu drehen" <| fun () ->
-            for answer in [ Ok []; Error "Http error (0)" ] do
-                let before = { rebuilt (loaded ()) with PayeeSuggestions = Loading; OpenPopover = Some PayeeChip }
-                let after, cmd, _ =
-                    Components.Ledger.State.update (PayeeSuggestionsLoaded (before.EntriesGeneration - 1, answer)) before
-                Expect.equal (dispatched cmd) [ LoadPayeeSuggestions ] "frische Abfrage für den aktuellen Filter"
-                Expect.equal after.PayeeSuggestions Loading "lädt"
-
-        testCase "Ist das Popover zu, endet ein Warten auf eine alte Antwort ohne neue Abfrage" <| fun () ->
-            for answer in [ Ok []; Error "Http error (0)" ] do
-                let before = { rebuilt (loaded ()) with PayeeSuggestions = Loading; OpenPopover = None }
-                let after, cmd, _ =
-                    Components.Ledger.State.update (PayeeSuggestionsLoaded (before.EntriesGeneration - 1, answer)) before
-                Expect.isEmpty (dispatched cmd) "keine Abfrage"
-                Expect.equal after.PayeeSuggestions NotAsked "kein Ladezustand bleibt zurück"
-
-        testCase "Ein spätes Scheitern ersetzt fertige Vorschläge derselben Liste nicht" <| fun () ->
-            let shown = { freshModel () with PayeeSuggestions = Success [ { Payee = "Neu"; Count = 2 } ] }
-            let after = update (PayeeSuggestionsLoaded (0, Error "Http error (0)")) shown
-            Expect.equal after.PayeeSuggestions shown.PayeeSuggestions "Vorschläge bleiben"
-            let failed = update (PayeeSuggestionsLoaded (0, Error "kaputt")) { shown with PayeeSuggestions = Loading }
-            Expect.equal failed.PayeeSuggestions (Failure "kaputt") "ohne Stand gilt der Fehler"
 
         testCase "Eine Neuholung nach einer Änderung der Zeile wird verworfen" <| fun () ->
             let basis = entryView 1 -1m false

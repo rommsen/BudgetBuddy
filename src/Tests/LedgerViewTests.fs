@@ -740,40 +740,39 @@ let private chipOrderingTests =
     testList "Chip-Reihenfolge (AC: aktive Chips wandern am Handy nach vorn)" [
 
         test "Am PC bleibt die feste Reihenfolge, egal welche Chips aktiv sind" {
-            let activity = { NeedsReview = true; AskLena = false; Category = true; WithoutCategory = false; Date = false; Payee = false; Memo = false; Amount = false }
+            let activity = { NeedsReview = true; AskLena = false; Category = true; WithoutCategory = false; Date = false; Amount = false }
             Expect.equal (orderChipsForDisplay false activity) fixedChipOrder "PC ändert die Reihenfolge nie"
         }
 
         test "Ohne aktiven Filter bleibt auch am Handy die feste Reihenfolge" {
-            let activity = { NeedsReview = false; AskLena = false; Category = false; WithoutCategory = false; Date = false; Payee = false; Memo = false; Amount = false }
+            let activity = { NeedsReview = false; AskLena = false; Category = false; WithoutCategory = false; Date = false; Amount = false }
             Expect.equal (orderChipsForDisplay true activity) fixedChipOrder "Nichts zu ordnen, wenn nichts aktiv ist"
         }
 
         test "Am Handy wandert ein aktiver Kategorie-Filter vor das inaktive 'Zu prüfen' (Handoff Screen 2.4)" {
-            let activity = { NeedsReview = false; AskLena = false; Category = true; WithoutCategory = false; Date = false; Payee = false; Memo = false; Amount = false }
+            let activity = { NeedsReview = false; AskLena = false; Category = true; WithoutCategory = false; Date = false; Amount = false }
             Expect.equal
                 (orderChipsForDisplay true activity)
-                [ CategoryChip; NeedsReviewChip; AskLenaChip; WithoutCategoryChip; DateChip; PayeeChip; MemoChip; AmountChip ]
+                [ CategoryChip; NeedsReviewChip; AskLenaChip; WithoutCategoryChip; DateChip; AmountChip ]
                 "Kategorie ist aktiv, das inaktive 'Zu prüfen' rutscht dahinter"
         }
 
         test "Zwei aktive Chips (inkl. 'Zu prüfen') behalten ihre bisherige Reihenfolge zueinander" {
-            let activity = { NeedsReview = true; AskLena = false; Category = true; WithoutCategory = false; Date = false; Payee = false; Memo = false; Amount = false }
+            let activity = { NeedsReview = true; AskLena = false; Category = true; WithoutCategory = false; Date = false; Amount = false }
             Expect.equal
                 (orderChipsForDisplay true activity)
-                [ NeedsReviewChip; CategoryChip; AskLenaChip; WithoutCategoryChip; DateChip; PayeeChip; MemoChip; AmountChip ]
+                [ NeedsReviewChip; CategoryChip; AskLenaChip; WithoutCategoryChip; DateChip; AmountChip ]
                 "Beide aktiv: die stabile Partition ändert ihre gegenseitige Reihenfolge nicht"
         }
 
         test "Mehrere aktive Chips behalten am Handy ihre bisherige Reihenfolge untereinander" {
-            // Handoff 2.8: "Café Lotte" x, "Kategorie: 2" x, dann "Alle Filter löschen":
-            // die aktiven Chips selbst bleiben in ihrer festen Reihenfolge zueinander,
+            // Die aktiven Chips selbst bleiben in ihrer festen Reihenfolge zueinander,
             // nur alle inaktiven rutschen gemeinsam dahinter.
-            let activity = { NeedsReview = false; AskLena = false; Category = true; WithoutCategory = false; Date = false; Payee = true; Memo = false; Amount = false }
+            let activity = { NeedsReview = false; AskLena = false; Category = true; WithoutCategory = false; Date = false; Amount = true }
             Expect.equal
                 (orderChipsForDisplay true activity)
-                [ CategoryChip; PayeeChip; NeedsReviewChip; AskLenaChip; WithoutCategoryChip; DateChip; MemoChip; AmountChip ]
-                "Kategorie vor Payee (ihre feste Reihenfolge), beide vor den inaktiven"
+                [ CategoryChip; AmountChip; NeedsReviewChip; AskLenaChip; WithoutCategoryChip; DateChip ]
+                "Kategorie vor Betrag (ihre feste Reihenfolge), beide vor den inaktiven"
         }
     ]
 
@@ -821,8 +820,10 @@ let private amountFilterTextTests =
             Expect.equal (parseAmountFilterText "12,50") (AmountTextValue 12.50m) "Komma (Roman tippt deutsch)"
         }
 
-        test "Ein negativer Betrag bleibt negativ" {
-            Expect.equal (parseAmountFilterText "-9,80") (AmountTextValue -9.80m) "Vorzeichen bleibt erhalten"
+        // ADR 0095: der Filter vergleicht die Höhe, ein Vorzeichen ist im Feld nicht lesbar.
+        test "Ein Vorzeichen ist unlesbar, die Richtung kommt aus dem Umschalter" {
+            Expect.equal (parseAmountFilterText "-9,80") AmountTextUnreadable "Minus wird nicht angenommen"
+            Expect.equal (parseAmountFilterText "+9,80") AmountTextUnreadable "Plus wird nicht angenommen"
         }
 
         // ledger-dn4vy: unlesbar und leer waren beide `None`, ein „abc“ nahm so einen aktiven Filter weg.
@@ -867,9 +868,8 @@ let private filtersTests =
             Expect.isTrue (hasAnyFilter filters) "Zeitraum ist gesetzt"
         }
 
-        test "Payee, Memo und Betrag zählen je einzeln als aktiv" {
-            Expect.isTrue (hasAnyFilter { noFilters with Payee = Some "Café Lotte" }) "Payee"
-            Expect.isTrue (hasAnyFilter { noFilters with Memo = Some "Kuchen" }) "Memo"
+        test "Suche und Betrag zählen je einzeln als aktiv" {
+            Expect.isTrue (hasAnyFilter { noFilters with Search = Some "Kuchen" }) "Suche"
             Expect.isTrue (hasAnyFilter { noFilters with AmountMin = Some 5m }) "Betrag von"
             Expect.isTrue (hasAnyFilter { noFilters with AmountMax = Some 5m }) "Betrag bis"
         }
@@ -888,18 +888,12 @@ let private filteredModel (entries: RemoteData<LedgerEntryView list>) : Model =
 let private filterBarRuhigTests =
     testList "Filterleiste und Summenzeile (ledger-m23nz)" [
 
-        test "popoverWidth: Kategorie und Payee haben eigene Breiten, sonst die Standardbreite" {
+        test "popoverWidth: Kategorie hat eine eigene Breite, sonst die Standardbreite" {
             // ledger-r8h19: ohne Tailwind-Größe als Klassenstring; die Breiten selbst stehen im
             // Design-System (FilterPopover), die Wahl je Chip ist die Aussage.
             Expect.equal (popoverWidth CategoryChip) Client.DesignSystem.FilterPopover.categoryWidthClass "Kategorie"
-            Expect.equal (popoverWidth PayeeChip) Client.DesignSystem.FilterPopover.payeeWidthClass "Payee"
-            for chip in [ DateChip; MemoChip; AmountChip ] do
+            for chip in [ DateChip; AmountChip ] do
                 Expect.equal (popoverWidth chip) Client.DesignSystem.FilterPopover.defaultWidthClass $"{chip}"
-        }
-
-        test "payeeSuggestionsHeading nutzt Tausenderpunkt" {
-            Expect.equal (payeeSuggestionsHeading 12116) "Vorschläge aus den 12.116 Treffern" "12.116"
-            Expect.equal (payeeSuggestionsHeading 7) "Vorschläge aus den 7 Treffern" "7"
         }
 
         test "summaryState: ohne Filter Hidden, auch während des Ladens" {

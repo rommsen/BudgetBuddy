@@ -64,7 +64,7 @@ async function openLedger(viewport, hasTouch) {
         TotalAmount: { Amount: -10 * TOTAL, Currency: "EUR" },
         DeletedCount: 0,
         NeedsReviewCount: 0,
-        AskLenaCount: 0,
+        AskLenaCount: 0, WithoutCategoryCount: 0,
       }),
     });
   });

@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-11-14 22:14 -- Task verified and completed: ledger-d9z3n - "Kassenbuch am Handy ordnen: eine Kontowahl als Feld mit Saldo, freie Suche statt Payee- und Memo-Filter, Filter-Knopf mit Sheet und gesetzte Filter als Chips; gilt unter 1024 px"
+
+**Type:** Work / Task completion
+**Task:** ledger-d9z3n - "Kassenbuch am Handy ordnen: eine Kontowahl als Feld mit Saldo, freie Suche statt Payee- und Memo-Filter, Filter-Knopf mit Sheet und gesetzte Filter als Chips; gilt unter 1024 px"
+**Summary:** Kassenbuch unter 1024 px in Handy-Form: Kontowahl als Auswahlfeld, Suche, Filter-Sheet, gesetzte Filter als Chips, Betragsfilter als Höhe mit Richtung
+**Duration:** 2 Iterationen (Iteration 2: Worker 27m, Verifier 6m)
+**Verification:** PASS (iteration 2)
+**Files changed:** 63
+**Tests added:** 22
+**ADRs written:** 0095-betragsfilter-als-hoehe-richtung-getrennt.md
+
+---
+
+## 2026-11-14 21:36 -- Verification failed: ledger-d9z3n - Kassenbuch am Handy ordnen
+
+**Type:** Work / Verification failure
+**Task:** ledger-d9z3n - Kassenbuch am Handy ordnen
+**Iteration:** 1 of 3
+**Reasons:** Betragsfilter vergleicht mit Vorzeichen trotz Feldern ohne Vorzeichen (Regel fehlt in der Task), nicht gewählte Zeilen im Konto-Sheet gedämpft statt wie im Prototyp
+**Iteration hint:** task-under-specified
+**Next:** Rückfrage an Roman, danach Verfeinerung und erneuter Dispatch in denselben Worktree
+
+---
+
 ## 2026-11-14 20:42 -- Batch started: [ledger-d9z3n]
 
 **Type:** Work / Batch start

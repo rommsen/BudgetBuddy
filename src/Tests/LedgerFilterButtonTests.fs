@@ -203,8 +203,7 @@ let filterButtonTests =
                         { noFilters with
                             CategoryIds = Set.ofList [ otherCategoryGuid; Guid.NewGuid() ]
                             DateRange = Some { Quick = Some ThisYear; From = Some (DateTime(2026, 1, 1)); To = None }
-                            Payee = Some "Alt"
-                            Memo = Some "Kuchen"
+                            Search = Some "Alt"
                             AmountMin = Some 5m
                             WithoutCategory = true }
                     OnlyNeedsReview = true
@@ -214,12 +213,14 @@ let filterButtonTests =
                     DetailFor = Some (view (Some "REWE") None)
                     History = Success [] }
 
-            test "FilterByRowPayee setzt nur den Payee, lässt das Detail offen und lädt neu" {
+            // ledger-d9z3n: der Knopf am Payee setzt die Suche auf den Payee, sie steht auch im Feld.
+            test "FilterByRowPayee setzt die Suche auf den Payee, lässt das Detail offen und lädt neu" {
                 let updated, cmd, _ = update (FilterByRowPayee "REWE") filtered
-                Expect.equal updated.Filters.Payee (Some "REWE") "Payee gesetzt"
+                Expect.equal updated.Filters.Search (Some "REWE") "Suche gesetzt"
+                Expect.equal updated.SearchDraft "REWE" "der Payee steht im Suchfeld"
+                Expect.isGreaterThan updated.SearchVersion filtered.SearchVersion "eine wartende Eingabe ist überholt"
                 Expect.equal updated.Filters.CategoryIds filtered.Filters.CategoryIds "Kategorien bleiben"
                 Expect.equal updated.Filters.DateRange filtered.Filters.DateRange "Zeitraum bleibt"
-                Expect.equal updated.Filters.Memo filtered.Filters.Memo "Memo bleibt"
                 Expect.equal updated.Filters.AmountMin filtered.Filters.AmountMin "Betrag bleibt"
                 Expect.isTrue updated.Filters.WithoutCategory "Ohne Kategorie bleibt"
                 Expect.isTrue updated.OnlyNeedsReview "Zu prüfen bleibt"
@@ -235,8 +236,7 @@ let filterButtonTests =
                 Expect.isFalse updated.Filters.WithoutCategory "Ohne Kategorie aus (ADR 0048)"
                 Expect.equal updated.Filters.DateRange filtered.Filters.DateRange "Zeitraum bleibt"
                 Expect.equal updated.Filters.AmountMin filtered.Filters.AmountMin "Betrag bleibt"
-                Expect.equal updated.Filters.Memo filtered.Filters.Memo "Memo bleibt"
-                Expect.equal updated.Filters.Payee (Some "Alt") "Payee bleibt"
+                Expect.equal updated.Filters.Search (Some "Alt") "Suche bleibt"
                 Expect.isTrue updated.OnlyNeedsReview "Zu prüfen bleibt"
                 Expect.equal updated.SelectedFilter filtered.SelectedFilter "Konto bleibt"
                 Expect.equal updated.DetailFor filtered.DetailFor "Detail bleibt offen, dieselbe Buchung"
@@ -251,10 +251,10 @@ let filterButtonTests =
                     Expect.equal updated.Selection NoSelection $"Auswahl leer nach {msg}"
             }
 
-            test "Nach FilterByRowPayee trägt die Seitenanfrage den Payee" {
+            test "Nach FilterByRowPayee trägt die Seitenanfrage den Payee als Suche" {
                 let updated, _, _ = update (FilterByRowPayee "REWE") filtered
                 let query = Components.Ledger.State.buildPageQuery updated None 0
-                Expect.equal query.Payee (Some "REWE") "Anfrage mit Payee"
+                Expect.equal query.Search (Some "REWE") "Anfrage mit Suche"
                 Expect.equal query.Page 0 "ab Seite 0"
             }
 

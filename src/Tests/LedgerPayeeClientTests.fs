@@ -125,13 +125,6 @@ let pickerTests =
                 "nur vorhandene Payees"
             Expect.isEmpty (PayeePicker.suggestedOptions suggestions "Zahnarzt") "kein Treffer, keine Zeile"
 
-        testCase "Payee-Filter: Enter ohne Zeile filtert nicht, Esc bleibt beim Popover, ↓ und Enter wie die Auswahl" <| fun () ->
-            let rows = PayeePicker.suggestedOptions suggestions "rew"
-            Expect.equal (Components.Ledger.View.payeeFilterKeyAction "ArrowDown" rows None "rew") (PayeePicker.MoveTo 0) "erste"
-            Expect.equal (Components.Ledger.View.payeeFilterKeyAction "Enter" rows (Some 0) "rew") (PayeePicker.Pick "Rewe City") "markiert"
-            Expect.equal (Components.Ledger.View.payeeFilterKeyAction "Enter" rows None "rew") (PayeePicker.Pick "Rewe City") "ohne Markierung die erste"
-            Expect.equal (Components.Ledger.View.payeeFilterKeyAction "Enter" [] None "Zahnarzt") PayeePicker.NoAction "ohne Zeile nichts"
-            Expect.equal (Components.Ledger.View.payeeFilterKeyAction "Escape" rows None "rew") PayeePicker.NoAction "Esc schließt das Popover selbst"
     ]
 
 // ============================================

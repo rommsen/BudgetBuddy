@@ -71,7 +71,7 @@ async function openLedger(abortEntries) {
       TotalAmount: { Amount: -10, Currency: "EUR" },
       DeletedCount: 0,
       NeedsReviewCount: 0,
-      AskLenaCount: 0,
+      AskLenaCount: 0, WithoutCategoryCount: 0,
     });
   });
 

@@ -719,8 +719,8 @@ let private toEntryFilter (query: LedgerEntryPageQuery) : Ledger.Persistence.Ent
 /// `NeedsReviewCount` wird unabhängig davon immer geliefert, für den Chip
 /// "Zu prüfen (n)": dasselbe Muster wie `DeletedCount`.
 ///
-/// Die fünf Such-Filter (Kategorie/Zeitraum/Payee/Betrag/Memo, ledger-vgfw3, ADR
-/// 0036) wirken zusätzlich auf Seite, Trefferzahl, Summe UND `DeletedCount` — sonst
+/// Die Such-Filter (Kategorie/Zeitraum/Betrag und die freie Suche, ledger-vgfw3, ADR
+/// 0036, ledger-d9z3n) wirken zusätzlich auf Seite, Trefferzahl, Summe UND `DeletedCount` — sonst
 /// zeigt die Summenzeile eine Summe, die nicht zur Trefferzahl gehört. Bewusst NICHT
 /// auf `NeedsReviewCount`: der Chip "Zu prüfen (n)" ist ein fester Zähler über das
 /// Konto, keine Trefferzahl der laufenden Suche.
@@ -743,6 +743,7 @@ let getLedgerEntriesPage (query: LedgerEntryPageQuery) : Async<LedgerEntryPage> 
         let! deletedCount = Ledger.Persistence.countDeletedEntries accountId filter
         let! needsReviewCount = Ledger.Persistence.countNeedsReviewEntries accountId
         let! askLenaCount = Ledger.Persistence.countAskLenaEntries accountId
+        let! withoutCategoryCount = Ledger.Persistence.countWithoutCategoryEntries accountId
         let! origins = Ledger.Persistence.loadEntryOrigins ()
         let! categoryGroups = Ledger.Persistence.loadCategoryGroups ()
         let! categoryNames = Ledger.Persistence.loadCategoryNames ()
@@ -767,12 +768,12 @@ let getLedgerEntriesPage (query: LedgerEntryPageQuery) : Async<LedgerEntryPage> 
             DeletedCount = deletedCount
             NeedsReviewCount = needsReviewCount
             AskLenaCount = askLenaCount
+            WithoutCategoryCount = withoutCategoryCount
         }
     }
 
 /// Die Payees eines Filters samt ihrer Anzahl **innerhalb dieses Filters**
-/// (ledger-vgfw3 AC, ADR 0036): Grundlage der Payee-Auswahl. `query` trägt nie
-/// `query.Payee` selbst — der ist ja gerade das, was hier zur Auswahl steht.
+/// (ledger-vgfw3 AC, ADR 0036): Grundlage der Payee-Auswahl im Detail.
 let getLedgerPayeeSuggestions (query: LedgerPayeeSuggestionQuery) : Async<LedgerPayeeSuggestion list> =
     async {
         let accountId = query.AccountId |> Option.map LedgerAccountId
@@ -784,10 +785,10 @@ let getLedgerPayeeSuggestions (query: LedgerPayeeSuggestionQuery) : Async<Ledger
             CategoryIds = query.CategoryIds
             DateFrom = query.DateFrom
             DateTo = query.DateTo
-            Payee = None
-            Memo = query.Memo
+            Search = query.Search
             AmountMin = query.AmountMin
             AmountMax = query.AmountMax
+            AmountDirection = query.AmountDirection
         }
         let! suggestions = Ledger.Persistence.loadPayeeSuggestions accountId filter
         return suggestions |> List.map (fun (payee, count) -> { Payee = payee; Count = count })

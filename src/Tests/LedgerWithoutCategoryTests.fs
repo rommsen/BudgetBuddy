@@ -81,10 +81,10 @@ let private baseQuery (acc: LedgerAccountId) : LedgerEntryPageQuery =
         CategoryIds = []
         DateFrom = None
         DateTo = None
-        Payee = None
-        Memo = None
+        Search = None
         AmountMin = None
         AmountMax = None
+        AmountDirection = AllDirections
         Sort = LedgerSort.defaultSort
     }
 
@@ -282,9 +282,10 @@ let persistenceTests =
                 CategoryIds = []
                 DateFrom = None
                 DateTo = None
-                Memo = None
+                Search = None
                 AmountMin = None
                 AmountMax = None
+                AmountDirection = AllDirections
             }
             let names wc =
                 getLedgerPayeeSuggestions (suggestionQuery wc) |> Async.RunSynchronously |> List.map (fun s -> s.Payee) |> Set.ofList
@@ -399,11 +400,12 @@ let clientTests =
             let activity = chipActivityOf false { noFilters with WithoutCategory = true }
             Expect.equal (List.head (orderChipsForDisplay true activity)) WithoutCategoryChip "aktiv zuerst"
 
-        testCase "WithoutCategory zählt nicht zu hasAnyFilter, ClearAllFilters lässt ihn stehen" <| fun () ->
+        // ledger-d9z3n: „Filter löschen“ nimmt auch „Ohne Kategorie“ zurück.
+        testCase "WithoutCategory zählt nicht zu hasAnyFilter, ClearAllFilters setzt ihn zurück" <| fun () ->
             let filters = { noFilters with WithoutCategory = true }
             Expect.isFalse (hasAnyFilter filters) "kein Teil von hasAnyFilter"
-            let m = { model () with Filters = { filters with Payee = Some "x" } }
+            let m = { model () with Filters = { filters with Search = Some "x" } }
             let cleared, _, _ = Components.Ledger.State.update ClearAllFilters m
-            Expect.isTrue cleared.Filters.WithoutCategory "bleibt"
-            Expect.isNone cleared.Filters.Payee "die fünf Such-Filter sind zurückgesetzt"
+            Expect.isFalse cleared.Filters.WithoutCategory "aus"
+            Expect.isNone cleared.Filters.Search "die Suche ist zurückgesetzt"
     ]

@@ -57,7 +57,7 @@ async function mockApp(page) {
   // Die Zahl an der Übersicht in Rail und Seitenleiste lädt beim Start auf jeder Seite (ledger-s1weh): keine offene
   // Buchung, also kein Zähler. Seiten mit eigener Liste überschreiben die Antwort.
   await page.route("**/api/LedgerApi/getLedgerEntriesPage", (r) =>
-    json(r, { Entries: [], TotalCount: 0, TotalAmount: eur(0), DeletedCount: 0, NeedsReviewCount: 0, AskLenaCount: 0 })
+    json(r, { Entries: [], TotalCount: 0, TotalAmount: eur(0), DeletedCount: 0, NeedsReviewCount: 0, AskLenaCount: 0, WithoutCategoryCount: 0 })
   );
   await page.route("**/api/LedgerApi/getLedgerAccountBalances", (r) =>
     json(r, NAV_ACCOUNTS.Accounts.map((a, i) => ({ AccountId: a.Id, Balance: eur(i === 1 ? -31240.4 : 123456.78) })))
@@ -414,15 +414,41 @@ const openLedgerDetail = async (page, payee) => {
   return sheet;
 };
 
+/// Unter 1024 px: der Knopf „Filter“ öffnet das Filter-Sheet (ledger-d9z3n).
+const openHandyFilterSheet = async (page) => {
+  await page.getByRole("button", { name: /^Filter( \(\d+\))?$/ }).locator("visible=true").first().click();
+  const sheet = page.locator('.bottom-sheet.active [data-testid="ledger-filter-sheet"]');
+  await sheet.waitFor();
+  return sheet;
+};
+
+/// Unter 1024 px eine Zeile des Filter-Sheets antippen (Kategorie, Zeitraum, Sortieren): die Auswahl öffnet darüber.
+const openHandyFilterRow = async (page, testId, waitForText) => {
+  await openHandyFilterSheet(page);
+  await page.locator(`.bottom-sheet.active [data-testid="${testId}"]`).click();
+  await page.locator(".bottom-sheet.active").getByText(waitForText, { exact: true }).first().waitFor();
+};
+
 /// Kategorie-Filter „Lebensmittel“, dann Bauhaus im Detail auf „Nebenkosten“: die Zeile passt nicht mehr zum
 /// Filter und bleibt ausgegraut stehen (ledger-dn4vy, Vorlage scripts/ledger-category-change.test.mjs).
 const openFilteredOut = async (page, { mobile }) => {
   await openLedger(page);
-  await page.getByRole("button", { name: /^Kategorie/ }).locator("visible=true").first().click();
-  const layer = page.locator('.bottom-sheet.active, [data-layer="popover"]').first();
-  await layer.getByText("Lebensmittel", { exact: true }).last().click();
-  await layer.getByRole("button", { name: "Übernehmen (1)" }).click();
-  await page.getByRole("button", { name: "Kategorie: 1" }).locator("visible=true").first().waitFor();
+  if (mobile) {
+    await openHandyFilterRow(page, "filter-category", "Lebensmittel");
+    const layer = page.locator(".bottom-sheet.active").first();
+    await layer.getByText("Lebensmittel", { exact: true }).last().click();
+    await layer.getByRole("button", { name: "Übernehmen (1)" }).click();
+    await page.locator('.bottom-sheet.active [data-testid="ledger-filter-sheet"]').waitFor();
+    await page.locator(".bottom-sheet.active").getByRole("button", { name: /zeigen$/ }).click();
+    await page.waitForFunction(() => document.querySelectorAll(".bottom-sheet.active").length === 0);
+    await page.getByRole("button", { name: "Kategorie: Lebensmittel entfernen" }).waitFor();
+  } else {
+    await page.getByRole("button", { name: /^Kategorie/ }).locator("visible=true").first().click();
+    const layer = page.locator('[data-layer="popover"]').first();
+    await layer.getByText("Lebensmittel", { exact: true }).last().click();
+    await layer.getByRole("button", { name: "Übernehmen (1)" }).click();
+    await page.getByRole("button", { name: "Kategorie: 1" }).locator("visible=true").first().waitFor();
+  }
   await openLedger(page);
   const payee = page.getByText("Bauhaus", { exact: true }).locator("visible=true").first();
   if (mobile) await payee.tap();
@@ -439,11 +465,17 @@ const openFilteredOut = async (page, { mobile }) => {
   await page.waitForFunction(() => document.querySelectorAll(".bottom-sheet.active").length === 0);
 };
 
-/// Die Gesamtsicht aus der Konten-Spalte: gewartet wird auf die Liste aller Konten.
+/// Die Gesamtsicht aus der Seitenleiste, unter 1024 px aus dem Auswahlfeld „Konto“ (ledger-d9z3n): gewartet wird
+/// auf die Liste aller Konten.
 const openAllAccounts = async (page) => {
   await openLedger(page);
   const loaded = page.waitForResponse("**/api/LedgerApi/getLedgerEntriesPage");
-  await page.locator(".ledger-account-strip, aside").getByText("Alle Konten", { exact: true }).filter({ visible: true }).first().click();
+  if (page.viewportSize().width < 1024) {
+    await page.getByTestId("ledger-account-field").click();
+    await page.locator('.bottom-sheet.active [data-testid="ledger-account-sheet"]').getByText("Alle Konten", { exact: true }).click();
+  } else {
+    await page.locator("aside").getByText("Alle Konten", { exact: true }).filter({ visible: true }).first().click();
+  }
   await loaded;
   await frames(page);
 };
@@ -556,7 +588,7 @@ async function mockOverview(page) {
     buildEntryFixture(accountId, n, n === 0 ? { Payee: LONG_PAYEE, CategoryName: null, Amount: eur(-123456.78) } : {})
   );
   await page.route("**/api/LedgerApi/getLedgerEntriesPage", (r) =>
-    json(r, { Entries: entries, TotalCount: 6, TotalAmount: eur(-1000), DeletedCount: 0, NeedsReviewCount: 0, AskLenaCount: 0 })
+    json(r, { Entries: entries, TotalCount: 6, TotalAmount: eur(-1000), DeletedCount: 0, NeedsReviewCount: 0, AskLenaCount: 0, WithoutCategoryCount: 0 })
   );
   // „Zu tun“ (ledger-s1weh): keine Buchung außerhalb von YNAB, kein bekannter Import. Die Einträge kommen aus dem Monat.
   await page.route("**/api/LedgerApi/getEntriesNotInYnab", (r) => json(r, []));
@@ -931,7 +963,8 @@ export const STATES = [
     },
   },
   // ledger-qh9qx, ledger-qns4j (AC5), Regression ledger-filter-bar: Spaltenköpfe, Statuszelle mit zwei
-  // Kennzeichen, die Filterleiste haftet ohne den Tabellenkopf zu verdecken.
+  // Kennzeichen, die Filterleiste haftet ohne den Tabellenkopf zu verdecken. Bei 768 und 900 px die Handy-Form
+  // ohne Konten-Spalte (ledger-d9z3n).
   {
     name: "kassenbuch",
     route: "/ledger",
@@ -961,7 +994,7 @@ export const STATES = [
       await page.addStyleTag({ content: "html { font-size: 20px; }" });
     },
   },
-  // design-system-btwhg: Datumsfeld und Kategorie-Suche der Filterleiste am Handy mit 16 px.
+  // design-system-btwhg: Datumsfeld und Kategorie-Suche am Handy mit 16 px; seit ledger-d9z3n aus dem Filter-Sheet.
   {
     name: "kassenbuch-filter-kategorie",
     route: "/ledger",
@@ -969,8 +1002,7 @@ export const STATES = [
     mock: mockLedger,
     open: async (page) => {
       await openLedger(page);
-      await page.getByRole("button", { name: /^Kategorie/ }).locator("visible=true").first().click();
-      await page.locator(".bottom-sheet.active").waitFor();
+      await openHandyFilterRow(page, "filter-category", "Lebensmittel");
     },
   },
   {
@@ -980,8 +1012,7 @@ export const STATES = [
     mock: mockLedger,
     open: async (page) => {
       await openLedger(page);
-      await page.getByRole("button", { name: /^Zeitraum/ }).locator("visible=true").first().click();
-      await page.locator(".bottom-sheet.active").waitFor();
+      await openHandyFilterRow(page, "filter-date", "Schnellwahl");
     },
   },
   // ledger-dn4vy: Betrag Von/Bis im Filter-Sheet. Vorher ohne Namen (der Zustand fand das Feld nicht), ohne
@@ -993,13 +1024,12 @@ export const STATES = [
     mock: mockLedger,
     open: async (page) => {
       await openLedger(page);
-      await page.getByRole("button", { name: "Betrag", exact: true }).locator("visible=true").first().click();
+      await openHandyFilterSheet(page);
       const sheet = page.locator(".bottom-sheet.active");
-      await sheet.waitFor();
       const from = sheet.getByRole("textbox", { name: "Betrag von" });
       const to = sheet.getByRole("textbox", { name: "Betrag bis" });
-      // Beide unlesbar: ein gültiger Wert setzte den Filter, Chip und „Alle Filter löschen“ hinter dem Sheet
-      // gehören nicht zu diesem Zustand.
+      // Beide unlesbar: ein gültiger Wert setzte den Filter, der Chip hinter dem Sheet gehört nicht zu diesem
+      // Zustand.
       await from.fill("abc");
       await to.fill("50x");
       for (const field of [from, to]) {
@@ -1009,21 +1039,52 @@ export const STATES = [
       await sheet.getByText("Betrag nicht lesbar, etwa 12,50").nth(1).waitFor();
     },
   },
-  // ledger-dn4vy: die Payee-Vorschläge im Filter-Sheet. Vorher `py-2.5` ohne Mindesthöhe (rund 40 px).
+  // ledger-d9z3n: das offene Filter-Sheet unter 1024 px (Schalter mit Anzahl, Zeilen, Beträge, Fuß), unter dem
+  // Betrag der Umschalter „Alle | Ausgaben | Einnahmen“ (ADR 0095), „Ausgaben“ gewählt.
   {
-    name: "kassenbuch-filter-payee",
+    name: "kassenbuch-filter-sheet",
     route: "/ledger",
-    widths: HANDY_WIDTHS,
-    mock: async (page) => {
-      await mockLedger(page);
-      await page.route("**/api/LedgerApi/getLedgerPayeeSuggestions", (r) =>
-        json(r, [{ Payee: "Bauhaus", Count: 9 }, { Payee: LONG_PAYEE, Count: 4 }, { Payee: "Baumarkt", Count: 2 }])
-      );
-    },
+    widths: [320, 390, 412, 768],
+    // Hinter dem Sheet steht der Chip „Ausgaben“; sein „×“ ist 24 px breit (ChipBar), Kann-Sammlung ledger
+    // (ledger-k4n2s, Punkt 1), wie bei `kassenbuch-filter-gesetzt`.
+    exceptions: [320, 390, 412].map((width) => ({
+      width,
+      inv: 2,
+      selector: '[data-testid="ledger-active-filters"] button "Ausgaben entfernen"',
+    })),
+    mock: mockLedger,
     open: async (page) => {
       await openLedger(page);
-      await page.getByRole("button", { name: "Payee", exact: true }).locator("visible=true").first().click();
-      await page.locator('.bottom-sheet.active [role="option"]').first().waitFor();
+      await openHandyFilterSheet(page);
+      const direction = page.locator(".bottom-sheet.active").getByRole("group", { name: "Richtung" });
+      await direction.getByRole("button", { name: "Ausgaben" }).click();
+      await direction.locator('button[aria-pressed="true"]', { hasText: "Ausgaben" }).waitFor();
+    },
+  },
+  // ledger-d9z3n: drei gesetzte Filter als Chips unter Suche und Filter-Knopf; sie brechen um und wischen nicht.
+  {
+    name: "kassenbuch-filter-gesetzt",
+    route: "/ledger",
+    widths: [320, 390, 412, 768],
+    // Das „×“ eines Chips ist 24 px breit (ChipBar), Kann-Sammlung ledger (ledger-k4n2s, Punkt 1).
+    exceptions: [320, 390, 412].flatMap((width) =>
+      ["Zu prüfen", "Lena", "Ohne Kategorie"].map((name) => ({
+        width,
+        inv: 2,
+        selector: `[data-testid="ledger-active-filters"] button "${name} entfernen"`,
+      }))
+    ),
+    mock: mockLedger,
+    open: async (page) => {
+      await openLedger(page);
+      await openHandyFilterSheet(page);
+      for (const id of ["filter-needs-review", "filter-ask-lena", "filter-without-category"]) {
+        await page.locator(`.bottom-sheet.active [data-testid="${id}"]`).click();
+        await page.locator(`.bottom-sheet.active [data-testid="${id}"][aria-checked="true"]`).waitFor();
+      }
+      await page.locator(".bottom-sheet.active").getByRole("button", { name: /zeigen$/ }).click();
+      await page.waitForFunction(() => document.querySelectorAll(".bottom-sheet.active").length === 0);
+      await page.getByTestId("ledger-active-filters").getByRole("button", { name: "Ohne Kategorie entfernen" }).waitFor();
     },
   },
   // ledger-dn4vy: die ausgegraute Zeile („passt nicht mehr zum Filter“) am PC ohne Panel und am Handy. Vorher
@@ -1039,12 +1100,9 @@ export const STATES = [
     name: "kassenbuch-ausgegraut-handy",
     route: "/ledger",
     widths: [412],
-    // Mit aktivem Filter: Chip-„×“ (24 px) und „Alle Filter löschen“ (44 px) sind zu klein. Kann-Sammlung ledger
+    // Mit aktivem Filter: das Chip-„×“ (24 px) ist zu klein. Kann-Sammlung ledger
     // (ledger-k4n2s, Punkt 1).
-    exceptions: [
-      { width: 412, inv: 2, selector: 'button "Kategorie: 1 entfernen"' },
-      { width: 412, inv: 2, selector: 'button "Alle Filter löschen"' },
-    ],
+    exceptions: [{ width: 412, inv: 2, selector: '[data-testid="ledger-active-filters"] button "Kategorie: Lebensmittel entfernen"' }],
     mock: mockLedger,
     open: (page) => openFilteredOut(page, { mobile: true }),
   },
@@ -1560,7 +1618,8 @@ export const STATES = [
     mock: mockLedger,
     open: async (page) => {
       await openLedger(page);
-      await page.locator(".ledger-filter-bar button").filter({ hasText: /^(Datum|Betrag|Payee|Kategorie|Konto) [↑↓]$/ }).click();
+      // Seit ledger-d9z3n aus der Zeile „Sortieren“ im Filter-Sheet.
+      await openHandyFilterRow(page, "filter-sort", "Neueste zuerst");
       await page.locator(".bottom-sheet.active button.category-item").first().waitFor();
     },
   },
@@ -1745,7 +1804,7 @@ export const STATES = [
     mock: async (page) => {
       await mockOverview(page);
       await page.route("**/api/LedgerApi/getLedgerEntriesPage", (r) =>
-        json(r, { Entries: [], TotalCount: 0, TotalAmount: eur(0), DeletedCount: 0, NeedsReviewCount: 12, AskLenaCount: 2 })
+        json(r, { Entries: [], TotalCount: 0, TotalAmount: eur(0), DeletedCount: 0, NeedsReviewCount: 12, AskLenaCount: 2, WithoutCategoryCount: 0 })
       );
       await page.route("**/api/LedgerApi/getEntriesNotInYnab", (r) =>
         json(r, [

@@ -81,30 +81,34 @@ type DateRangeFilter = {
 
 let emptyDateRange : DateRangeFilter = { Quick = None; From = None; To = None }
 
-/// Der committete Zustand aller fünf Such-Filter (ADR 0036). Mehrfachauswahl bei
+/// Der committete Zustand der Such-Filter (ADR 0036). Mehrfachauswahl bei
 /// der Kategorie (Oder-Verknüpfung), sonst je Kriterium höchstens ein Wert.
 type Filters = {
     CategoryIds: Guid Set
     DateRange: DateRangeFilter option
-    Payee: string option
-    Memo: string option
+    /// Die freie Suche (ledger-d9z3n): Teiltext in Payee, Memo oder Kategoriename, auf dem Server.
+    /// Sie ersetzt die früheren Filter Payee und Memo.
+    Search: string option
+    /// Höhe ohne Vorzeichen, von und bis (ADR 0095).
     AmountMin: decimal option
     AmountMax: decimal option
+    /// Umschalter „Alle | Ausgaben | Einnahmen“ unter dem Betrag (ADR 0095), wirkt auch ohne Betrag.
+    AmountDirection: AmountDirection
     /// Chip "Ohne Kategorie" (ADR 0048): reiner Toggle wie `OnlyNeedsReview`. Zählt
-    /// nicht zu `hasAnyFilter` und bleibt von `ClearAllFilters` unberührt.
+    /// nicht zu `hasAnyFilter`; `ClearAllFilters` setzt ihn zurück (ledger-d9z3n).
     WithoutCategory: bool
     /// Chip "Rückfrage Lena (n)" (ADR 0056, Punkt 6): reiner Toggle wie `WithoutCategory`.
-    /// Zählt nicht zu `hasAnyFilter` und bleibt von `ClearAllFilters` unberührt.
+    /// Zählt nicht zu `hasAnyFilter`; `ClearAllFilters` setzt ihn zurück (ledger-d9z3n).
     OnlyAskLena: bool
 }
 
 let noFilters : Filters = {
     CategoryIds = Set.empty
     DateRange = None
-    Payee = None
-    Memo = None
+    Search = None
     AmountMin = None
     AmountMax = None
+    AmountDirection = AllDirections
     WithoutCategory = false
     OnlyAskLena = false
 }
@@ -118,7 +122,8 @@ type AmountFilterText =
 
 /// Liest den Text eines Betrags-Suchfelds: leer (nach `Trim()`) ist `AmountTextEmpty`, sonst ein
 /// geparster Wert, deutsches Komma wie Punkt gleichermaßen akzeptiert (Roman tippt üblicherweise
-/// Komma). Ein nicht lesbarer Text (z. B. "abc") ist `AmountTextUnreadable`, statt eine Ausnahme zu
+/// Komma). Der Filter vergleicht die Höhe ohne Vorzeichen (ADR 0095), ein Vorzeichen ist deshalb
+/// unlesbar: die Richtung kommt aus dem Umschalter „Alle | Ausgaben | Einnahmen“. Ein nicht lesbarer Text (z. B. "abc") ist `AmountTextUnreadable`, statt eine Ausnahme zu
 /// werfen: die Eingabe bleibt am Feld sichtbar (`AmountMinDraft`/`AmountMaxDraft`) und gilt dort als
 /// ungültig, der Filter bleibt unverändert (`amountFilterValue`).
 let parseAmountFilterText (text: string) : AmountFilterText =
@@ -129,12 +134,17 @@ let parseAmountFilterText (text: string) : AmountFilterText =
         match
             Decimal.TryParse(
                 trimmed.Replace(",", "."),
-                System.Globalization.NumberStyles.AllowDecimalPoint ||| System.Globalization.NumberStyles.AllowLeadingSign,
+                System.Globalization.NumberStyles.AllowDecimalPoint,
                 System.Globalization.CultureInfo.InvariantCulture
             )
         with
         | true, value -> AmountTextValue value
         | false, _ -> AmountTextUnreadable
+
+/// Der Text eines Betragsfelds im Filter ohne Vorzeichen (ADR 0095): „-“, „+“ und das typografische
+/// Minus fallen weg, der Rest bleibt, wie er getippt wurde.
+let withoutAmountSign (text: string) : string =
+    if isNull text then "" else text.Replace("-", "").Replace("+", "").Replace("\u2212", "")
 
 /// Der Wert einer Filtergrenze nach einer Eingabe: leer nimmt die Grenze weg, ein lesbarer Betrag
 /// gilt, ein unlesbarer lässt die bisherige Grenze `current` stehen (ledger-dn4vy).
@@ -158,16 +168,16 @@ let formatAmountDraft (value: decimal) : string =
 
 let hasCategoryFilter (f: Filters) = not (Set.isEmpty f.CategoryIds)
 let hasDateFilter (f: Filters) = f.DateRange.IsSome
-let hasPayeeFilter (f: Filters) = f.Payee.IsSome
-let hasMemoFilter (f: Filters) = f.Memo.IsSome
+let hasSearch (f: Filters) = f.Search.IsSome
 let hasAmountFilter (f: Filters) = f.AmountMin.IsSome || f.AmountMax.IsSome
+let hasDirectionFilter (f: Filters) = f.AmountDirection <> AllDirections
 
-/// Ist mindestens einer der fünf Such-Filter aktiv? Steuert, ob die Summenzeile
+/// Ist mindestens einer der Such-Filter oder die Suche aktiv? Steuert, ob die Summenzeile
 /// über der Liste steht (AC „Summenzeile erscheint genau dann..."). Der Chip
 /// "Zu prüfen (n)" und der Schalter "Gelöschte zeigen" zählen bewusst nicht mit:
-/// beide sind eigene, ältere Bedienelemente außerhalb dieser fünf Filter.
+/// beide sind eigene, ältere Bedienelemente außerhalb dieser Filter.
 let hasAnyFilter (f: Filters) : bool =
-    hasCategoryFilter f || hasDateFilter f || hasPayeeFilter f || hasMemoFilter f || hasAmountFilter f
+    hasCategoryFilter f || hasDateFilter f || hasSearch f || hasAmountFilter f || hasDirectionFilter f
 
 /// Steht die Summenzeile über der Liste? Eigenes Prädikat neben `hasAnyFilter` (ledger-v9rq3):
 /// die Chips "Zu prüfen" und "Ohne Kategorie" zeigen Treffer und Summe wie die fünf
@@ -182,8 +192,19 @@ let private plainDate (d: DateTime) : string =
 let private plainAmount (value: decimal) : string =
     (formatAmountDraft value).Replace(".", ",")
 
+/// Die Richtung als Wort (Chip und Summenzeile): „Ausgaben“, „Einnahmen“, bei „Alle“ nichts.
+let directionText (direction: AmountDirection) : string option =
+    match direction with
+    | AllDirections -> None
+    | OnlyOutflows -> Some "Ausgaben"
+    | OnlyInflows -> Some "Einnahmen"
+
+/// Die Wahl im Umschalter „Alle | Ausgaben | Einnahmen“, in dieser Reihenfolge (ADR 0095).
+let directionOptions : (AmountDirection * string) list =
+    [ AllDirections, "Alle"; OnlyOutflows, "Ausgaben"; OnlyInflows, "Einnahmen" ]
+
 /// Der Filter in Worten für die PC-Summenzeile (Tafeln Ablauf 1 und 2): Konto, Chips,
-/// Kategorien, Zeitraum, Payee, Memo, Betrag, getrennt durch " · ". `scope` ist der
+/// Kategorien, Zeitraum, Suche, Betrag, getrennt durch " · ". `scope` ist der
 /// Kontoname oder "alle Konten"; `categoryNames` die Namen der gewählten Kategorien.
 let filterPlainText (scope: string) (onlyNeedsReview: bool) (categoryNames: string list) (f: Filters) : string =
     [ yield scope
@@ -202,18 +223,96 @@ let filterPlainText (scope: string) (onlyNeedsReview: bool) (categoryNames: stri
           | None, None, Some b -> yield $"bis {plainDate b}"
           | None, None, None -> ()
       | None -> ()
-      match f.Payee with
-      | Some p -> yield p
-      | None -> ()
-      match f.Memo with
-      | Some m -> yield $"Memo: {m}"
+      match f.Search with
+      | Some text -> yield $"Suche: {text}"
       | None -> ()
       match f.AmountMin, f.AmountMax with
       | Some a, Some b -> yield $"Betrag {plainAmount a} bis {plainAmount b}"
       | Some a, None -> yield $"Betrag ab {plainAmount a}"
       | None, Some b -> yield $"Betrag bis {plainAmount b}"
-      | None, None -> () ]
+      | None, None -> ()
+      match directionText f.AmountDirection with
+      | Some text -> yield text
+      | None -> () ]
     |> String.concat " · "
+
+/// Ein gesetzter Filter als Chip unter Suche und Filter-Knopf (ledger-d9z3n), in der Reihenfolge
+/// der Chips. Jeder trägt ein „×“, das genau diesen Filter zurücknimmt.
+[<RequireQualifiedAccess>]
+type ActiveFilter =
+    | NeedsReview
+    | AskLena
+    | WithoutCategory
+    | Category
+    | Date
+    | Amount
+    /// Die Richtung „Ausgaben“ oder „Einnahmen“ (ADR 0095), hinter dem Betrag.
+    | Direction
+    /// Eine andere Sortierung als „Datum, neueste zuerst“.
+    | Sort
+    /// „Gelöschte zeigen“ ist an.
+    | WithDeleted
+
+let private shortDate (d: DateTime) : string =
+    d.ToString("dd.MM.yy", System.Globalization.CultureInfo.InvariantCulture)
+
+/// Der Zeitraum kurz (Chip und Zeile „Zeitraum“ im Filter-Sheet): der Name der Schnellwahl,
+/// sonst der freie Bereich.
+let dateRangeShortText (range: DateRangeFilter) : string =
+    match range.Quick, range.From, range.To with
+    | Some quick, _, _ -> dateQuickLabel quick
+    | None, Some a, Some b -> $"{shortDate a} bis {shortDate b}"
+    | None, Some a, None -> $"ab {shortDate a}"
+    | None, None, Some b -> $"bis {shortDate b}"
+    | None, None, None -> "alle"
+
+/// Der Betragsfilter als Bereich für den Chip: „Betrag 5 bis 50 €“, „Betrag ab 5 €“, „Betrag bis 50 €“.
+let amountRangeText (f: Filters) : string option =
+    match f.AmountMin, f.AmountMax with
+    | Some a, Some b -> Some $"Betrag {plainAmount a} bis {plainAmount b} €"
+    | Some a, None -> Some $"Betrag ab {plainAmount a} €"
+    | None, Some b -> Some $"Betrag bis {plainAmount b} €"
+    | None, None -> None
+
+/// Der Text des Kategorie-Chips: ein Name, bei mehreren die Anzahl. `categoryNames` sind die Namen
+/// der gewählten Kategorien; ist ein Name unbekannt (Kategorien noch nicht geladen), steht die Anzahl.
+let categoryFilterChipText (selectedCount: int) (categoryNames: string list) : string =
+    match categoryNames with
+    | [ name ] when selectedCount = 1 -> $"Kategorie: {name}"
+    | _ -> $"Kategorie: {selectedCount}"
+
+/// Die gesetzten Filter als Chips (ledger-d9z3n), in fester Reihenfolge: „Zu prüfen“, „Lena“,
+/// „Ohne Kategorie“, Kategorie, Zeitraum, Betrag, Richtung, Sortierung, „mit Gelöschten“. `sortLabel` ist der
+/// Text einer anderen Sortierung als der Standard, sonst `None`. Die Suche steht im Feld, nicht hier.
+let activeFilterChips
+    (onlyNeedsReview: bool)
+    (includeDeleted: bool)
+    (sortLabel: string option)
+    (categoryNames: string list)
+    (f: Filters)
+    : (ActiveFilter * string) list =
+    [ if onlyNeedsReview then ActiveFilter.NeedsReview, "Zu prüfen"
+      if f.OnlyAskLena then ActiveFilter.AskLena, "Lena"
+      if f.WithoutCategory then ActiveFilter.WithoutCategory, "Ohne Kategorie"
+      if hasCategoryFilter f then ActiveFilter.Category, categoryFilterChipText (Set.count f.CategoryIds) categoryNames
+      match f.DateRange with
+      | Some range -> ActiveFilter.Date, dateRangeShortText range
+      | None -> ()
+      match amountRangeText f with
+      | Some text -> ActiveFilter.Amount, text
+      | None -> ()
+      match directionText f.AmountDirection with
+      | Some text -> ActiveFilter.Direction, text
+      | None -> ()
+      match sortLabel with
+      | Some label -> ActiveFilter.Sort, label
+      | None -> ()
+      if includeDeleted then ActiveFilter.WithDeleted, "mit Gelöschten" ]
+
+/// Die Zahl am Knopf „Filter (n)“: so viele Chips stehen darunter. Die Suche zählt nicht, sie steht
+/// sichtbar im Feld daneben (Prototyp).
+let filterButtonText (count: int) : string =
+    if count > 0 then $"Filter ({count})" else "Filter"
 
 /// Welcher Leerzustand gilt für eine leere Liste (ledger-v9rq3).
 [<RequireQualifiedAccess>]
@@ -315,12 +414,10 @@ type ChipId =
     | CategoryChip
     | WithoutCategoryChip
     | DateChip
-    | PayeeChip
-    | MemoChip
     | AmountChip
 
 let fixedChipOrder : ChipId list =
-    [ NeedsReviewChip; AskLenaChip; CategoryChip; WithoutCategoryChip; DateChip; PayeeChip; MemoChip; AmountChip ]
+    [ NeedsReviewChip; AskLenaChip; CategoryChip; WithoutCategoryChip; DateChip; AmountChip ]
 
 /// Ob jeder Chip gerade aktiv ist: reiner Datensatz statt eines Funktionswerts,
 /// damit `orderChipsForDisplay` unit-testbar bleibt, ohne ein Model zu bauen.
@@ -330,8 +427,6 @@ type ChipActivity = {
     Category: bool
     WithoutCategory: bool
     Date: bool
-    Payee: bool
-    Memo: bool
     Amount: bool
 }
 
@@ -342,8 +437,6 @@ let private isChipActive (activity: ChipActivity) (chip: ChipId) : bool =
     | CategoryChip -> activity.Category
     | WithoutCategoryChip -> activity.WithoutCategory
     | DateChip -> activity.Date
-    | PayeeChip -> activity.Payee
-    | MemoChip -> activity.Memo
     | AmountChip -> activity.Amount
 
 let chipActivityOf (onlyNeedsReview: bool) (filters: Filters) : ChipActivity = {
@@ -352,9 +445,8 @@ let chipActivityOf (onlyNeedsReview: bool) (filters: Filters) : ChipActivity = {
     Category = hasCategoryFilter filters
     WithoutCategory = filters.WithoutCategory
     Date = hasDateFilter filters
-    Payee = hasPayeeFilter filters
-    Memo = hasMemoFilter filters
-    Amount = hasAmountFilter filters
+    // Der PC-Chip „Betrag“ trägt auch die Richtung (ADR 0095), sein „×“ nimmt beides zurück.
+    Amount = hasAmountFilter filters || hasDirectionFilter filters
 }
 
 /// Die Chip-Reihenfolge (AC „Am Handy wandern aktive Chips nach vorn"): am Handy
@@ -1413,23 +1505,20 @@ type Model = {
     DateDraftFromInvalid: bool
     DateDraftToInvalid: bool
 
-    /// Die Payee-Vorschläge des aktuellen Treffers (ohne den Payee-Filter selbst),
-    /// für die Payee-Auswahl. Payee ist Einzelauswahl: ein Klick filtert sofort,
-    /// kein Entwurf/Übernehmen nötig.
-    PayeeSuggestions: RemoteData<LedgerPayeeSuggestion list>
-    /// Der getippte Text, filtert `PayeeSuggestions` nur clientseitig (dieselbe
-    /// Vorschlagsliste, keine neue Abfrage je Tastendruck).
-    PayeeSearch: string
-
-    /// Der Entwurf des Memo-Suchfelds; ein neuer Tastendruck erhöht `MemoVersion`
+    /// Der Text im Suchfeld (ledger-d9z3n); ein neuer Tastendruck erhöht `SearchVersion`
     /// und verwirft eine noch laufende, ältere Verzögerung (Debounce-Muster wie
     /// `SyncFlow.State`s `PendingPayeeVersions`, hier ohne Map: es gibt nur ein
-    /// Memo-Feld je Seite, keins je Buchung).
-    MemoDraft: string
-    MemoVersion: int
+    /// Suchfeld je Seite). Erst nach der Verzögerung gilt er als `Filters.Search`.
+    SearchDraft: string
+    SearchVersion: int
+
+    /// Ist das Filter-Sheet unter 1024 px offen (ledger-d9z3n)? Es bleibt offen, während die
+    /// Kategorie-, Zeitraum- oder Sortier-Auswahl aus ihm heraus darüber steht, und zeigt sich
+    /// wieder, wenn sie schließt.
+    FilterSheetOpen: bool
 
     /// Der Entwurf des Betrags-Suchfelds (Von/Bis), mit derselben
-    /// Debounce-Versionierung wie `MemoDraft`.
+    /// Debounce-Versionierung wie `SearchDraft`.
     AmountMinDraft: string
     AmountMaxDraft: string
     AmountVersion: int
@@ -1532,6 +1621,9 @@ type Model = {
     /// Die Zahl der Buchungen mit Flag "Lena" im aktiven Konto-Filter, wie die zuletzt geladene
     /// Seite sie gemeldet hat (unabhängig vom Chip "Rückfrage Lena").
     AskLenaCount: int
+    /// Die Zahl der Buchungen ohne Kategorie im Konto (`LedgerEntryPage.WithoutCategoryCount`),
+    /// hinter dem Schalter „Ohne Kategorie“ im Filter-Sheet (ledger-d9z3n).
+    WithoutCategoryCount: int
 
     /// Die Karte "Budget nach dem Wechsel", solange sie steht.
     CategoryCard: CategoryChangeCardState option
@@ -2226,8 +2318,8 @@ type Msg =
     /// unverändert.
     | CloseFilterPopover
 
-    /// Filter-Knopf am Payee im Detail (ADR 0053): setzt `Filters.Payee` wie
-    /// `SelectPayeeFilter`; das Detail bleibt offen.
+    /// Filter-Knopf am Payee im Detail (ADR 0053): setzt die Suche auf den Payee
+    /// (ledger-d9z3n, sofort, ohne Verzögerung); das Detail bleibt offen.
     | FilterByRowPayee of string
     /// Filter-Knopf an der Kategorie im Detail: die Kategorienauswahl besteht danach aus
     /// genau dieser Kategorie, "Ohne Kategorie" ist aus; das Detail bleibt offen.
@@ -2247,25 +2339,29 @@ type Msg =
     | ApplyDateFilter
     | RemoveDateFilter
 
-    | SetPayeeSearch of string
-    | LoadPayeeSuggestions
-    | PayeeSuggestionsLoaded of generation: int * Result<LedgerPayeeSuggestion list, string>
-    /// Einzelauswahl: filtert sofort (kein „Übernehmen").
-    | SelectPayeeFilter of string
-    | RemovePayeeFilter
+    /// Tippen im Suchfeld (ledger-d9z3n): der Text steht sofort im Feld, die Suche gilt nach der
+    /// Verzögerung (`CommitSearch` mit der Version des Tastendrucks).
+    | SetSearchDraft of string
+    | CommitSearch of string * int
+    | RemoveSearch
 
-    | SetMemoDraft of string
-    | CommitMemoFilter of string * int
-    | RemoveMemoFilter
+    /// Der Knopf „Filter“ unter 1024 px öffnet das Filter-Sheet (ledger-d9z3n).
+    | OpenFilterSheet
+    /// „n zeigen“, Esc, „×“ oder Tipp daneben: das Sheet schließt, die Filter bleiben stehen.
+    | CloseFilterSheet
 
     | SetAmountMinDraft of string
     | SetAmountMaxDraft of string
     | CommitAmountFilter of decimal option * decimal option * int
     | RemoveAmountFilter
+    /// Umschalter „Alle | Ausgaben | Einnahmen“ (ADR 0095); `AllDirections` nimmt die Richtung zurück.
+    | SetAmountDirection of AmountDirection
+    /// „×“ am PC-Chip „Betrag“: nimmt Betrag und Richtung zurück, beide stehen in seinem Popover.
+    | RemoveAmountAndDirection
 
-    /// „Alle Filter löschen": setzt alle fünf Such-Filter zurück, lädt ab Seite 0
-    /// neu. Der Chip "Zu prüfen (n)" und der Schalter "Gelöschte zeigen" bleiben
-    /// unberührt, sie gehören nicht zu den fünf Filtern.
+    /// „Filter löschen“ und „Zurücksetzen“ (ledger-d9z3n): setzt alle Filter zurück, auch
+    /// „Zu prüfen“, „Lena“, „Ohne Kategorie“, Sortierung, „Gelöschte zeigen“ und die Suche, und
+    /// lädt ab Seite 0 neu. Das Konto bleibt.
     | ClearAllFilters
 
     // ============================================

@@ -1,8 +1,8 @@
 // scripts/ledger-review-mark.test.mjs
 //
 // Gerenderter Beleg für `ledger-r777c` (Prüfvermerk setzen und nach YNAB zurückschreiben):
-// die Schaltfläche "Geprüft"/"Ungeprüft" an der Zeile und der Hinweis "Prüfvermerk nicht
-// in YNAB" mit "Erneut senden", am PC (1440x900) und am Handy (390x844). Ein echter,
+// die Schaltfläche "Geprüft"/"Ungeprüft" an der Zeile am PC (1440x900) und der Wisch nach rechts am
+// Handy (412x915, ohne Knopf an der Zeile seit ledger-d9z3n). Ein echter,
 // per Vite gestarteter Fable-Client gegen gemockte Ledger-Antworten (erfundene Werte, nie
 // die Entwicklungsdatenbank). Die beiden schreibenden Endpunkte werden abgefangen,
 // bevor sie das Netzwerk erreichen: es gibt keinen Backend-Prozess und damit keinen
@@ -56,14 +56,18 @@ function buildEntries(accountId) {
     TotalCount: entries.length,
     TotalAmount: { Amount: entries.reduce((s, e) => s + e.Amount.Amount, 0), Currency: "EUR" },
     DeletedCount: entries.filter((e) => e.DeletedInYnab).length,
-    NeedsReviewCount: entries.filter((e) => e.NeedsReview).length, AskLenaCount: 0,
+    NeedsReviewCount: entries.filter((e) => e.NeedsReview).length, AskLenaCount: 0, WithoutCategoryCount: 0,
   };
 }
 
 /// Öffnet die Seite im gegebenen Viewport mit gemockter API. `calls` sammelt die Anfragen
 /// an die schreibenden Endpunkte (Pfad und Body).
 async function openLedger(viewport) {
-  const context = await browser.newContext({ viewport });
+  return openLedgerWith(viewport, {});
+}
+
+async function openLedgerWith(viewport, options) {
+  const context = await browser.newContext({ viewport, ...options });
   const page = await context.newPage();
   page.setDefaultTimeout(30000);
   const accounts = buildAccountsFixture(2);
@@ -138,68 +142,60 @@ after(async () => {
   await stopServer(frontend, frontendPort);
 });
 
-test("[flow:buchung-pruefen] Geprüft an der Zeile: Trefferfläche, Aufruf, Wechsel auf Ungeprüft ohne Historie, gelöschte Zeile ohne Schaltfläche (PC und Handy)", async () => {
-  for (const [label, viewport, isDesktop] of [
-    ["PC 1440x900", { width: 1440, height: 900 }, true],
-    ["Handy 390x844", { width: 390, height: 844 }, false],
-  ]) {
-    const { page, context, calls, entries } = await openLedger(viewport);
+/// Wischt per Touch über `locator` (CDP, wie `scripts/durchgehen.test.mjs`): `dx` Pixel nach rechts.
+async function swipe(page, locator, dx) {
+  const box = await locator.boundingBox();
+  const cdp = await page.context().newCDPSession(page);
+  const y = box.y + box.height / 2;
+  const x0 = box.x + 24;
+  const point = (x) => [{ x, y, id: 1 }];
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: point(x0) });
+  for (let i = 1; i <= 8; i++) {
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: point(x0 + (dx * i) / 8) });
+  }
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  await cdp.detach();
+}
+
+// ledger-d9z3n: unter 1024 px hat die Zeile keinen Prüfknopf mehr, geprüft wird per Wisch nach rechts (ledger-th36h).
+test("[flow:buchung-pruefen] PC: Geprüft an der Zeile schickt den Aufruf ohne Historie; Handy: Wisch nach rechts prüft, die Zeile hat keinen Knopf", async () => {
+  {
+    const { page, context, calls, entries } = await openLedger({ width: 1440, height: 900 });
     try {
-      const button = rowOf(page, isDesktop, PAYEES.toReview).getByRole("button", { name: "Geprüft", exact: true });
+      const button = rowOf(page, true, PAYEES.toReview).getByRole("button", { name: "Geprüft", exact: true });
       await button.waitFor();
-      const box = await button.boundingBox();
-      const minSide = isDesktop ? 24 : 40;
-      assert.ok(box.width >= minSide && box.height >= minSide, `${label}: Trefferfläche ${box.width}x${box.height}`);
-
-      // Verhindert die Rückkehr des Fehlers, bei dem am Handy auch gelöschte Buchungen die
-      // Schaltfläche bekamen und ein Klick in der Ablehnung des Servers endete.
-      const deleted = rowOf(page, isDesktop, PAYEES.deleted);
-      assert.equal(await deleted.count(), 1, `${label}: die gelöschte Zeile ist sichtbar`);
-      assert.equal(await deleted.getByRole("button", { name: /^(Geprüft|Ungeprüft)$/ }).count(), 0, `${label}: gelöscht ohne Schaltfläche`);
-
+      // Verhindert die Rückkehr des Fehlers, bei dem auch gelöschte Buchungen die Schaltfläche bekamen und ein
+      // Klick in der Ablehnung des Servers endete.
+      const deleted = rowOf(page, true, PAYEES.deleted);
+      assert.equal(await deleted.getByRole("button", { name: /^(Geprüft|Ungeprüft)$/ }).count(), 0, "PC: gelöscht ohne Schaltfläche");
       await button.click();
-      await rowOf(page, isDesktop, PAYEES.toReview).getByRole("button", { name: "Ungeprüft", exact: true }).waitFor();
+      await rowOf(page, true, PAYEES.toReview).getByRole("button", { name: "Ungeprüft", exact: true }).waitFor();
       const call = calls.find((c) => c.endpoint === "setReviewMark");
-      assert.deepEqual(JSON.parse(call.body), [entries.Entries[0].Id, "Reviewed"], `${label}: Id und Ziel`);
-      assert.equal(await page.locator("dialog, [role=dialog]").filter({ visible: true }).count(), 0, `${label}: keine Historie`);
-      await screenshotIfRequested(page, `${isDesktop ? "pc-1440x900" : "handy-390x844"}-review-mark`);
+      assert.deepEqual(JSON.parse(call.body), [entries.Entries[0].Id, "Reviewed"], "PC: Id und Ziel");
+      assert.equal(await page.locator("dialog, [role=dialog]").filter({ visible: true }).count(), 0, "PC: keine Historie");
+      await screenshotIfRequested(page, "pc-1440x900-review-mark");
     } finally {
       await context.close();
     }
   }
-});
-
-// ledger-dn4vy: der Knopf war während des Aufrufs `disabled`, der Fokus fiel auf `body`. Jetzt sperrt er über
-// `aria-disabled` und `aria-busy`; dass ein zweiter Klick nichts schickt, prüft die Zeilen-Sperre in `update`
-// (ledger-smv1s).
-test("[fokus] PC: der Fokus bleibt am Prüfknopf, solange der Aufruf läuft", async () => {
-  const { page, context } = await openLedger({ width: 1440, height: 900 });
-  try {
-    let release;
-    const gate = new Promise((resolve) => (release = resolve));
-    await page.route("**/api/LedgerApi/setReviewMark", async (route) => {
-      await gate;
-      await route.fulfill({
-        contentType: "application/json",
-        body: JSON.stringify({
-          Ok: { Previous: { IsApproved: false, ClearedState: "ReviewUncleared" }, Change: "ReviewMarkChanged", WriteBack: "ReviewMarkSent" },
-        }),
-      });
-    });
-    const row = rowOf(page, true, PAYEES.toReview);
-    const button = row.getByRole("button", { name: "Geprüft", exact: true });
-    await button.waitFor();
-    await button.click();
-    // Gesperrt ist der Knopf so oder so: vor dem Fix über `disabled`, jetzt über `aria-busy`.
-    await row.locator('button[aria-busy="true"], button:disabled').waitFor();
-    const focused = await page.evaluate(() => {
-      const el = document.activeElement;
-      return { tag: el.tagName, busy: el.getAttribute("aria-busy"), disabled: el.getAttribute("aria-disabled"), label: el.textContent };
-    });
-    assert.deepEqual(focused, { tag: "BUTTON", busy: "true", disabled: "true", label: "Geprüft" }, "der Fokus steht am gesperrten Prüfknopf");
-    release();
-    await row.getByRole("button", { name: "Ungeprüft", exact: true }).waitFor();
-  } finally {
-    await context.close();
+  {
+    const { page, context: phone, calls, entries } = await openLedgerWith({ width: 412, height: 915 }, { hasTouch: true, isMobile: true });
+    try {
+      const row = page.locator("button", { hasText: PAYEES.toReview }).filter({ visible: true }).first();
+      await row.waitFor();
+      assert.equal(
+        await page.getByRole("button", { name: /^(Geprüft|Ungeprüft)$/ }).filter({ visible: true }).count(),
+        0,
+        "Handy: keine Prüfknöpfe an den Zeilen"
+      );
+      await swipe(page, row, 260);
+      await page.waitForFunction(() => document.body.innerText.includes("geprüft"));
+      const call = calls.find((c) => c.endpoint === "setReviewMark");
+      assert.ok(call, "Handy: der Wisch schickt den Prüfvermerk");
+      assert.deepEqual(JSON.parse(call.body), [entries.Entries[0].Id, "Reviewed"], "Handy: Id und Ziel");
+      await screenshotIfRequested(page, "handy-412x915-review-swipe");
+    } finally {
+      await phone.close();
+    }
   }
 });

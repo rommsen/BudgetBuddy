@@ -2,8 +2,8 @@
 //
 // Die Filterleiste des Kassenbuchs im echten Fable-Client gegen gemockte Antworten
 // (`scripts/ledger-filter-bar.mjs`). Hier steht nur, was der Browser allein messen kann:
-// der Happy Path am PC (Popover), die Datumsrechnung im Fable-Kompilat, der native Kalender und die Tasten im
-// Payee-Filter.
+// der Happy Path am Handy (Filter-Sheet und Chips, ledger-d9z3n), die Datumsrechnung im Fable-Kompilat und der
+// native Kalender am PC.
 // Sheet am Handy, Feldschrift und die sticky Leiste prüft der Layout-Sweep (`scripts/layout-states.mjs`,
 // Zustände kassenbuch, kassenbuch-filter-*, kassenbuch-spiegel-*, kassenbuch-gefiltert). Entwurf,
 // Übernehmen, Sperren, Summenzeile, Leerzustand und Chip-Reihenfolge prüft `dotnet test`
@@ -25,10 +25,10 @@ let browser;
 let page;
 
 /// Öffnet das Kassenbuch in einem frischen Kontext gegen die Filterleisten-Mocks.
-async function openLedger(viewport) {
+async function openLedger(viewport, options = {}) {
   const accountsFixture = buildAccountsFixture(2);
   const balancesFixture = buildBalancesFixture(accountsFixture.Accounts);
-  const context = await browser.newContext({ viewport });
+  const context = await browser.newContext({ viewport, ...options });
   const target = await context.newPage();
   target.setDefaultTimeout(15000);
   await target.route("**/api/**", (route) =>
@@ -66,8 +66,6 @@ async function waitForValue(locator, expected) {
 const categoryChip = () => page.getByRole("button", { name: /^Kategorie/ }).first();
 // `.shadow-2xl`: die einzige Klasse aus `FilterPopover.view`, die auf der Seite sonst nirgends vorkommt.
 const popover = () => page.locator(".shadow-2xl");
-// Die Handy-Liste bleibt per `md:hidden` im DOM, Payee-Texte kämen sonst doppelt vor.
-const table = () => page.locator("table");
 
 // Jeder Testfall startet ohne Filter und ohne offene Chrome.
 beforeEach(async () => {
@@ -77,29 +75,39 @@ beforeEach(async () => {
   await popover().waitFor({ state: "detached" });
 });
 
-test("[flow:kassenbuch-filtern] PC: Kategorien im Popover wählen, Übernehmen filtert Liste und Summe, × nimmt den Filter zurück", async () => {
-  await categoryChip().click();
-  await popover().getByText("Lebensmittel", { exact: true }).last().waitFor();
-  assert.ok((await popover().innerText()).includes("120,50"), "Available steht neben der Kategorie");
-  assert.equal(await popover().getByText("Umzug 2023", { exact: true }).count(), 0, "die versteckte Kategorie ist eingeklappt");
-  await popover().getByText("Versteckt (1)", { exact: true }).click();
-  assert.ok(await popover().getByText("Umzug 2023", { exact: true }).isVisible(), "nach dem Antippen ist sie erreichbar");
+// ledger-d9z3n: unter 1024 px öffnet der Knopf „Filter“ ein Sheet; gesetzte Filter stehen als Chips mit „×“.
+test("[flow:kassenbuch-filtern] Handy: Filter-Sheet, Kategorien wählen, „n zeigen“, Chip mit „×“ nimmt den Filter zurück", async () => {
+  const { context, page: phone } = await openLedger({ width: 412, height: 915 }, { hasTouch: true, isMobile: true });
+  try {
+    const active = () => phone.locator(".bottom-sheet.active");
+    await phone.getByText("Stadtwerke Musterstadt", { exact: true }).first().waitFor();
+    assert.equal(await phone.getByTestId("ledger-active-filters").count(), 0, "ohne Filter keine Chip-Zeile");
 
-  await popover().getByText("Lebensmittel", { exact: true }).last().click();
-  await popover().getByText("Bahn", { exact: true }).last().click();
-  assert.equal(await categoryChip().innerText(), "Kategorie", "vor Übernehmen ändert sich der Chip nicht");
-  await popover().getByRole("button", { name: "Übernehmen (2)" }).click();
-  await popover().waitFor({ state: "detached" });
-  assert.equal(await categoryChip().innerText(), "Kategorie: 2");
+    await phone.getByRole("button", { name: "Filter", exact: true }).click();
+    await active().getByTestId("ledger-filter-sheet").waitFor();
+    await active().getByTestId("filter-category").click();
+    await active().getByText("Lebensmittel", { exact: true }).last().waitFor();
+    await active().getByText("Lebensmittel", { exact: true }).last().click();
+    await active().getByText("Bahn", { exact: true }).last().click();
+    await active().getByRole("button", { name: "Übernehmen (2)" }).click();
 
-  await table().getByText("REWE Mitte", { exact: true }).waitFor();
-  assert.equal(await table().getByText("Stadtwerke Musterstadt", { exact: true }).count(), 0, "Nebenkosten fällt heraus");
-  assert.ok((await page.getByTestId("ledger-summary-text").innerText()).startsWith("3 Buchungen"), "Trefferzahl");
-  assert.match(await page.getByTestId("ledger-summary-text").locator("xpath=..").innerText(), /36,00/, "Summe über den Treffer");
+    // Zurück im Filter-Sheet: die Liste ist schon gefiltert, „3 zeigen“ schließt.
+    await active().getByTestId("ledger-filter-sheet").waitFor();
+    await active().getByRole("button", { name: "3 zeigen" }).click();
+    await phone.waitForFunction(() => document.querySelectorAll(".bottom-sheet.active").length === 0);
 
-  await page.getByRole("button", { name: "Kategorie: 2 entfernen" }).click();
-  await table().getByText("Stadtwerke Musterstadt", { exact: true }).waitFor();
-  assert.equal(await categoryChip().innerText(), "Kategorie");
+    const chips = phone.getByTestId("ledger-active-filters");
+    assert.match(await chips.innerText(), /Kategorie: 2/);
+    assert.equal(await phone.getByRole("button", { name: "Filter (1)", exact: true }).count(), 1, "Filter-Knopf mit Zahl");
+    await phone.getByText("REWE Mitte", { exact: true }).first().waitFor();
+    assert.equal(await phone.getByText("Stadtwerke Musterstadt", { exact: true }).count(), 0, "Nebenkosten fällt heraus");
+
+    await phone.getByRole("button", { name: "Kategorie: 2 entfernen" }).click();
+    await phone.getByText("Stadtwerke Musterstadt", { exact: true }).first().waitFor();
+    assert.equal(await phone.getByTestId("ledger-active-filters").count(), 0, "die Chip-Zeile ist weg");
+  } finally {
+    await context.close();
+  }
 });
 
 // Datum und ISO-Text laufen hier durch das Fable-Kompilat, unter .NET rechnet eine andere Laufzeit.
@@ -162,49 +170,4 @@ test("[fokus] Der Kalender-Knopf wirft keinen Konsolenfehler und lässt das Text
   const relevant = errors.filter((e) => !/not mocked in this test|Failed to load resource/.test(e));
   assert.deepEqual(relevant, [], "Kein Konsolenfehler");
   await page.keyboard.press("Escape");
-});
-
-// ledger-dn4vy: die Vorschläge des Payee-Filters waren Knöpfe ohne Tasten, die Suche bekam beim Öffnen keinen Fokus.
-// Die Tastenlogik selbst prüft LedgerPayeeClientTests (`payeeFilterKeyAction`); hier die Verdrahtung im Popover.
-test("[tastatur] PC: im Payee-Filter wählt ↓ und Enter den ersten Vorschlag", async () => {
-  const suggestions = (route) =>
-    route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify([
-        { Payee: "REWE Mitte", Count: 9 },
-        { Payee: "Deutsche Bahn", Count: 3 },
-      ]),
-    });
-  const queries = [];
-  const spy = (route) => {
-    queries.push(route.request().postDataJSON()[0]);
-    route.fallback();
-  };
-  await page.route("**/api/LedgerApi/getLedgerPayeeSuggestions", suggestions);
-  await page.route("**/api/LedgerApi/getLedgerEntriesPage", spy);
-  try {
-    const chip = () => page.getByRole("button", { name: "Payee", exact: true }).first();
-    await chip().click();
-    const search = popover().getByRole("combobox", { name: "Payee suchen" });
-    await popover().getByRole("option", { name: /REWE Mitte/ }).waitFor();
-    await page.waitForFunction(() => document.activeElement?.getAttribute("aria-label") === "Payee suchen");
-
-    // Esc schließt nur das Popover, ohne zu filtern.
-    await page.keyboard.press("Escape");
-    await popover().waitFor({ state: "detached" });
-    assert.equal(queries.filter((q) => q.Payee).length, 0, "Esc filtert nicht");
-
-    await chip().click();
-    await popover().getByRole("option", { name: /REWE Mitte/ }).waitFor();
-    await page.waitForFunction(() => document.activeElement?.getAttribute("aria-label") === "Payee suchen");
-    await page.keyboard.press("ArrowDown");
-    assert.equal(await search.getAttribute("aria-activedescendant"), "payee-filter-option-0", "↓ markiert die erste Zeile");
-    await page.keyboard.press("Enter");
-    await popover().waitFor({ state: "detached" });
-    await pollUntil(() => queries.some((q) => q.Payee));
-    assert.equal(queries.find((q) => q.Payee).Payee, "REWE Mitte", "Enter filtert nach dem markierten Payee");
-  } finally {
-    await page.unroute("**/api/LedgerApi/getLedgerEntriesPage", spy);
-    await page.unroute("**/api/LedgerApi/getLedgerPayeeSuggestions", suggestions);
-  }
 });

@@ -43,6 +43,7 @@ let private pageOf (rows: LedgerEntryView list) (total: int) (totalAmount: decim
     DeletedCount = 0
     NeedsReviewCount = 7
     AskLenaCount = 3
+    WithoutCategoryCount = 0
 }
 
 /// Ein Kassenbuch auf dem Giro mit `rows` geladen, Treffer `total`, `nextPage` Seiten geladen.

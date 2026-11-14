@@ -103,10 +103,10 @@ let private pageIdsOf (account: LedgerAccountId) (includeDeleted: bool) : Guid l
           CategoryIds = []
           DateFrom = None
           DateTo = None
-          Payee = None
-          Memo = None
+          Search = None
           AmountMin = None
           AmountMax = None
+          AmountDirection = AllDirections
           Sort = LedgerSort.defaultSort }
     (Ledger.QueryHandlers.getLedgerEntriesPage query |> run).Entries |> List.map (fun e -> e.Id)
 

@@ -234,10 +234,10 @@ let splitLocksViewTests =
                   CategoryIds = []
                   DateFrom = None
                   DateTo = None
-                  Payee = None
-                  Memo = None
+                  Search = None
                   AmountMin = None
                   AmountMax = None
+                  AmountDirection = AllDirections
                   Sort = LedgerSort.defaultSort }
             let page = Ledger.QueryHandlers.getLedgerEntriesPage query |> Async.RunSynchronously
             let view = page.Entries |> List.find (fun v -> v.Id = id)

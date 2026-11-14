@@ -36,9 +36,9 @@ let tests =
             Expect.equal (emptyListKind false noFilters) EmptyListKind.NoEntries "kein Filter"
 
         testCase "Leerzustand: Chip mit weiterem Filter oder beide Chips ist Kein Treffer" <| fun () ->
-            Expect.equal (emptyListKind true { noFilters with Payee = Some "x" }) EmptyListKind.NoMatch "Chip plus Payee"
+            Expect.equal (emptyListKind true { noFilters with Search = Some "x" }) EmptyListKind.NoMatch "Chip plus Suche"
             Expect.equal (emptyListKind true { noFilters with WithoutCategory = true }) EmptyListKind.NoMatch "beide Chips"
-            Expect.equal (emptyListKind false { noFilters with Memo = Some "x" }) EmptyListKind.NoMatch "nur Memo"
+            Expect.equal (emptyListKind false { noFilters with Search = Some "x" }) EmptyListKind.NoMatch "nur Suche"
 
         testCase "Klartext: Konto allein und Gesamtsicht" <| fun () ->
             Expect.equal (filterPlainText "ING Extra" false [] noFilters) "ING Extra" "Konto"
@@ -61,12 +61,12 @@ let tests =
                 "alle Konten · Lebensmittel, Restaurants · letzte 12 Monate"
                 "Tafel 2"
 
-        testCase "Klartext: Kombination Chip, Payee, Memo, Betrag" <| fun () ->
-            let f = { noFilters with Payee = Some "Café Lotte"; Memo = Some "Kuchen"; AmountMin = Some 5m; AmountMax = Some 10.5m }
+        testCase "Klartext: Kombination Chip, Suche, Betrag" <| fun () ->
+            let f = { noFilters with Search = Some "Kuchen"; AmountMin = Some 5m; AmountMax = Some 10.5m }
             Expect.equal
                 (filterPlainText "ING Extra" true [] f)
-                "ING Extra · zu prüfen · Café Lotte · Memo: Kuchen · Betrag 5 bis 10,5"
-                "Reihenfolge Konto, Chip, Payee, Memo, Betrag"
+                "ING Extra · zu prüfen · Suche: Kuchen · Betrag 5 bis 10,5"
+                "Reihenfolge Konto, Chip, Suche, Betrag"
 
         // Aus scripts/ledger-review-state.test.mjs gezogen (infrastructure-t5m2b).
         testCase "Summenzeile: am PC Trefferzahl mit Klartext, am Handy nur die Trefferzahl" <| fun () ->

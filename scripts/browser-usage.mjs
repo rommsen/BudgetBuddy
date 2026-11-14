@@ -116,7 +116,7 @@ export const FLOWS = {
   "payee-aendern": "Im Buchungs-Detail am Handy den Payee ändern und rückgängig machen.",
   "aufteilen": "Eine Buchung aufteilen, mit Übertrag, und rückgängig machen.",
   "barabhebung-aufteilen": "Einen Teil einer Buchung als Barabhebung aufs Bar-Konto übertragen.",
-  "buchung-pruefen": "Eine Buchung an der Zeile als geprüft markieren.",
+  "buchung-pruefen": "Eine Buchung als geprüft markieren, am PC an der Zeile, am Handy per Wisch.",
   "pruefliste-abarbeiten": "Die letzte Buchung unter Zu prüfen prüfen, danach steht Alles geprüft.",
   "lena-fragen": "Für eine Buchung Lena fragen.",
   "lena-fragen-mehrere": "Für mehrere ausgewählte Buchungen Lena fragen.",

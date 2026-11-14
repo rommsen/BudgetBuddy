@@ -77,7 +77,7 @@ async function open(context) {
         TotalAmount: { Amount: list.reduce((s, e) => s + e.Amount.Amount, 0), Currency: "EUR" },
         DeletedCount: 0,
         NeedsReviewCount: 0,
-        AskLenaCount: list.filter((e) => e.Flag === "AskLena").length,
+        AskLenaCount: list.filter((e) => e.Flag === "AskLena").length, WithoutCategoryCount: 0,
       }),
     });
   });

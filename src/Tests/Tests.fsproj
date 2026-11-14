@@ -143,6 +143,7 @@
     <Compile Include="LedgerSortTests.fs" />
     <Compile Include="LedgerSortClientTests.fs" />
     <Compile Include="LedgerSortSheetTests.fs" />
+    <Compile Include="LedgerHandyFilterTests.fs" />
     <Compile Include="LedgerAccountChoiceTests.fs" />
     <Compile Include="LedgerPayeeCategorySuggestionsTests.fs" />
     <Compile Include="LedgerRecentCategoriesTests.fs" />

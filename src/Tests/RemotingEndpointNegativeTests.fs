@@ -104,10 +104,10 @@ let private emptyPageQuery (accountId: Guid) : LedgerEntryPageQuery =
       CategoryIds = []
       DateFrom = None
       DateTo = None
-      Payee = None
-      Memo = None
+      Search = None
       AmountMin = None
       AmountMax = None
+      AmountDirection = AllDirections
       Sort = LedgerSort.defaultSort }
 
 let private emptyMove : Shared.Budgeting.MoveRequest =
@@ -290,8 +290,8 @@ let private rows : Row list = [
         let suggestions =
             ledgerApi.getLedgerPayeeSuggestions
                 { AccountId = q.AccountId; IncludeDeleted = false; OnlyNeedsReview = false; OnlyAskLena = false
-                  WithoutCategory = false; CategoryIds = []; DateFrom = None; DateTo = None; Memo = None
-                  AmountMin = None; AmountMax = None }
+                  WithoutCategory = false; CategoryIds = []; DateFrom = None; DateTo = None; Search = None
+                  AmountMin = None; AmountMax = None; AmountDirection = AllDirections }
             |> run
         Expect.isEmpty suggestions "keine Vorschläge" }
     { Endpoint = "LedgerApi.getLedgerAccountBalances"; Case = "schwach: Abfrage ohne Absturz"

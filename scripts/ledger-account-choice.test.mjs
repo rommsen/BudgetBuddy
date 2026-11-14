@@ -1,9 +1,9 @@
 // scripts/ledger-account-choice.test.mjs
 //
 // Wächter für `ledger-ybmqc`: das Kassenbuch öffnet im zuletzt gewählten Konto (auch nach
-// komplettem Neuladen, gemerkt je Gerät in localStorage), und am Handy (390x844) steht der
-// Kontoname als Titel mit Chevron, der ein BottomSheet "Konto wechseln" mit "Alle Konten" und
-// allen Konten öffnet. Gemessen am echten, per Vite gestarteten Fable-Client gegen gemockte
+// komplettem Neuladen, gemerkt je Gerät in localStorage), und am Handy (412x915) steht das
+// Auswahlfeld „Konto“ mit Saldo, das ein BottomSheet „Konto“ mit „Alle Konten“ und allen Konten
+// öffnet (ledger-d9z3n). Gemessen am echten, per Vite gestarteten Fable-Client gegen gemockte
 // Ledger-Antworten (Muster wie `ledger-sort-headers.test.mjs`).
 //
 // Ausführen: node --test scripts/ledger-account-choice.test.mjs
@@ -60,13 +60,16 @@ after(async () => {
   await stopServer(frontend, frontendPort);
 });
 
-test("[flow:konto-wechseln] Handy: Titel zeigt den Kontonamen, Sheet listet alle Konten, Tipp wechselt und schließt", async () => {
-  const { context, page } = await openPage(390, 844);
-  const title = page.getByTestId("ledger-account-switcher");
-  await title.waitFor();
-  assert.match(await title.innerText(), new RegExp(accountsFixture.Accounts[0].Name));
-  assert.ok(await title.locator("svg").count() > 0, "Chevron fehlt");
-  await title.click();
+// ledger-d9z3n: unter 1024 px ist die Kontowahl ein Auswahlfeld „Konto“ mit Saldo, das ein Sheet „Konto“ öffnet.
+test("[flow:konto-wechseln] Handy: Feld zeigt Konto und Saldo, Sheet listet alle Konten mit Saldo, Tipp wechselt und schließt", async () => {
+  const { context, page } = await openPage(412, 915);
+  const field = page.getByTestId("ledger-account-field");
+  await field.waitFor();
+  assert.match(await field.innerText(), /Konto/);
+  assert.match(await field.innerText(), new RegExp(accountsFixture.Accounts[0].Name));
+  await page.getByTestId("ledger-account-field-balance").waitFor();
+  assert.equal(await page.getByTestId("ledger-account-switcher").count(), 0, "kein Titel-Knopf mehr");
+  await field.click();
   const sheet = page.locator(".bottom-sheet.active").getByTestId("ledger-account-sheet");
   await sheet.waitFor();
   const text = await sheet.innerText();
@@ -76,18 +79,22 @@ test("[flow:konto-wechseln] Handy: Titel zeigt den Kontonamen, Sheet listet alle
     text.indexOf("Alle Konten") < text.indexOf(accountsFixture.Accounts[0].Name),
     "Alle Konten steht nicht zuoberst"
   );
+  assert.ok(/€/.test(text), "Salden stehen im Sheet");
+  const chosen = sheet.locator('[aria-pressed="true"]');
+  assert.equal(await chosen.count(), 1, "genau ein Konto ist gewählt");
+  assert.match(await chosen.innerText(), new RegExp(accountsFixture.Accounts[0].Name));
   const before = requestedAccounts.length;
   await sheet.getByText(second().Name).click();
   // Das Sheet bleibt im DOM und gleitet aus; offen heißt `.bottom-sheet.active`.
   await page.waitForFunction(() => document.querySelectorAll(".bottom-sheet.active").length === 0);
-  assert.match(await title.innerText(), new RegExp(second().Name));
+  assert.match(await field.innerText(), new RegExp(second().Name));
   assert.equal(await stored(page), `account:${second().Id}`);
   await pollUntil(() => requestedAccounts.length > before);
   assert.ok(requestedAccounts.length > before, "Liste wurde nicht neu geladen");
   // Neuladen: das Handy öffnet im gemerkten Konto.
   await page.reload({ waitUntil: "load" });
   await waitForPageLoaded(page, "/ledger");
-  await page.getByTestId("ledger-account-switcher").waitFor();
-  assert.match(await page.getByTestId("ledger-account-switcher").innerText(), new RegExp(second().Name));
+  await page.getByTestId("ledger-account-field").waitFor();
+  assert.match(await page.getByTestId("ledger-account-field").innerText(), new RegExp(second().Name));
   await context.close();
 });

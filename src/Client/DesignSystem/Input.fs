@@ -599,6 +599,127 @@ let pickerField
         ]
     ]
 
+/// Ein Auswahlfeld mit Pfeil nach unten (ledger-d9z3n, Prototyp `.field`, Kontowahl im Kassenbuch am Handy):
+/// die Bezeichnung klein oben, darunter der Wert mittelstark und gleich daneben ein Zusatz (etwa der Saldo,
+/// Mono, klein, gedämpft), rechts der Pfeil nach unten. Anders als `pickerField` steht der Zusatz neben dem
+/// Wert, nicht am rechten Rand, und der Pfeil zeigt nach unten: das Feld öffnet eine Liste darunter (Sheet).
+let selectField
+    (testId: string)
+    (label: string)
+    (value: string)
+    (extra: ReactElement option)
+    (isOpen: bool)
+    (onClick: unit -> unit)
+    : ReactElement =
+    Html.button [
+        prop.type' "button"
+        prop.custom ("data-testid", testId)
+        prop.custom ("aria-haspopup", "dialog")
+        prop.custom ("aria-expanded", (if isOpen then "true" else "false"))
+        prop.className "input-field w-full flex items-center gap-3 px-3 py-1.5 min-h-[48px] text-left touch-manipulation"
+        prop.onClick (fun _ -> onClick ())
+        prop.children [
+            Html.span [
+                prop.className "flex min-w-0 flex-1 flex-col"
+                prop.children [
+                    Html.span [ prop.className $"{FontSizes.xs} {Colors.textMuted}"; prop.text label ]
+                    Html.span [
+                        prop.className "flex min-w-0 items-baseline gap-1.5"
+                        prop.children [
+                            Truncate.text $"text-base md:text-sm {FontWeights.medium} {Colors.textPrimary}" value
+                            match extra with
+                            | Some e -> Html.span [ prop.className "shrink-0"; prop.children [ e ] ]
+                            | None -> ()
+                        ]
+                    ]
+                ]
+            ]
+            Icons.chevronDown Icons.SM Icons.Muted
+        ]
+    ]
+
+/// Ein Suchfeld mit Lupe (ledger-d9z3n, Prototyp `.search`): `type=search`, 48 px am Handy, die Lupe links
+/// im Feld. `ariaLabel` benennt das Feld, der Platzhalter allein reicht nicht.
+let searchField (testId: string) (ariaLabel: string) (placeholder: string) (value: string) (onChange: string -> unit) : ReactElement =
+    Html.label [
+        prop.custom ("data-testid", testId)
+        prop.className "relative flex min-w-0 flex-1 items-center"
+        prop.children [
+            Html.span [
+                prop.className "pointer-events-none absolute left-3 flex items-center"
+                prop.children [ Icons.search Icons.SM Icons.Muted ]
+            ]
+            Html.input [
+                prop.type' "search"
+                // `input-search` (styles.css) rückt den Text hinter die Lupe; `.input-field` setzt das Padding ohne Layer.
+                prop.className $"{baseInputClass} input-search {sizeToClass Medium} w-full"
+                prop.value value
+                prop.onChange (onChange: string -> unit)
+                prop.placeholder placeholder
+                prop.ariaLabel ariaLabel
+                prop.custom ("enterKeyHint", "search")
+            ]
+        ]
+    ]
+
+/// Ein Schalter als ganze Zeile mit kurzer Bezeichnung und gedämpfter Anzahl dahinter (ledger-d9z3n,
+/// Prototyp `.kv` mit `.toggle`, Filter-Sheet im Kassenbuch: „Zu prüfen 4“). Wie `switchRow`, nur ohne
+/// Erklärsatz; `count = None` lässt die Zahl weg.
+let countSwitchRow (testId: string) (title: string) (count: int option) (isOn: bool) (onToggle: bool -> unit) =
+    let track = if isOn then "bg-accent" else "bg-border-strong"
+    let knob = if isOn then "translate-x-[18px] bg-on-accent" else "translate-x-0 bg-text-primary"
+    Html.button [
+        prop.type'.button
+        prop.custom ("data-testid", testId)
+        prop.role "switch"
+        prop.ariaLabel (match count with Some n -> $"{title} ({n})" | None -> title)
+        prop.custom ("aria-checked", (if isOn then "true" else "false"))
+        prop.className
+            "flex w-full min-h-[52px] items-center justify-between gap-3 py-2 text-left border-b border-border-subtle cursor-pointer touch-manipulation"
+        prop.onClick (fun _ -> onToggle (not isOn))
+        prop.children [
+            Html.span [
+                prop.className "flex min-w-0 items-baseline gap-1.5"
+                prop.children [
+                    Html.span [ prop.className $"text-base md:text-sm {Colors.textPrimary}"; prop.text title ]
+                    match count with
+                    | Some n -> Html.span [ prop.className $"{FontSizes.xs} {Fonts.mono} {Colors.textMuted}"; prop.text (string n) ]
+                    | None -> ()
+                ]
+            ]
+            Html.span [
+                prop.ariaHidden true
+                prop.className $"relative inline-flex h-7 w-[46px] shrink-0 items-center rounded-full px-[3px] transition-colors {track}"
+                prop.children [
+                    Html.span [ prop.className $"inline-block h-[22px] w-[22px] rounded-full transition-transform motion-reduce:transition-none {knob}" ]
+                ]
+            ]
+        ]
+    ]
+
+/// Eine Zeile mit Bezeichnung links und Wert rechts, die eine Auswahl öffnet (ledger-d9z3n, Prototyp `.kv`
+/// mit Pfeil, Filter-Sheet im Kassenbuch: „Kategorie  alle ›“). Ein gesetzter Wert steht im Akzent, sonst
+/// gedämpft.
+let valueRow (testId: string) (label: string) (value: string) (isSet: bool) (onClick: unit -> unit) =
+    Html.button [
+        prop.type' "button"
+        prop.custom ("data-testid", testId)
+        prop.custom ("aria-haspopup", "dialog")
+        prop.className
+            "flex w-full min-h-[52px] items-center justify-between gap-3 py-2 text-left border-b border-border-subtle touch-manipulation"
+        prop.onClick (fun _ -> onClick ())
+        prop.children [
+            Html.span [ prop.className $"shrink-0 text-base md:text-sm {Colors.textPrimary}"; prop.text label ]
+            Html.span [
+                prop.className "flex min-w-0 items-center gap-1"
+                prop.children [
+                    Truncate.text $"text-sm {(if isSet then Colors.accent else Colors.textMuted)}" value
+                    Icons.chevronRight Icons.SM Icons.Muted
+                ]
+            ]
+        ]
+    ]
+
 // ============================================
 // Form Sections
 // ============================================

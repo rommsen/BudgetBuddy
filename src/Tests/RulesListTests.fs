@@ -599,7 +599,7 @@ let rootTests =
                     Entries = Success []
                     SelectedFilter = Some (Components.Ledger.Types.OneAccount account)
                     Selection = Components.Ledger.Types.Picked (Set.singleton account)
-                    Filters = { start.Ledger.Filters with Memo = Some "rewe" } }
+                    Filters = { start.Ledger.Filters with Search = Some "rewe" } }
             let onBookings = { start with Ledger = ledger }
             let onRules, toRules = State.update (State.UrlChanged [ "ledger"; "rules" ]) onBookings
             let back, toBookings = State.update (State.UrlChanged [ "ledger" ]) onRules

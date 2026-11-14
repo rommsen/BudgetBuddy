@@ -43,7 +43,7 @@ test("[flow:uebersicht] Mit einer ungeprüften Buchung führt „Jetzt durchgehe
     await stateNamed("uebersicht").mock(page);
     // Die neuesten Buchungen: eine Buchung ist zu prüfen.
     await page.route("**/api/LedgerApi/getLedgerEntriesPage", (r) => {
-      return json(r, { Entries: [], TotalCount: 0, TotalAmount: { Amount: 0, Currency: "EUR" }, DeletedCount: 0, NeedsReviewCount: 1, AskLenaCount: 1 });
+      return json(r, { Entries: [], TotalCount: 0, TotalAmount: { Amount: 0, Currency: "EUR" }, DeletedCount: 0, NeedsReviewCount: 1, AskLenaCount: 1, WithoutCategoryCount: 0 });
     });
 
     await page.goto(`http://127.0.0.1:${port}/#/`, { waitUntil: "load" });

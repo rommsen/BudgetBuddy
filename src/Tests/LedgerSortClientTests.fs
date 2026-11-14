@@ -56,7 +56,7 @@ let private baseModel () : Model =
         NextPage = 3
         LocallyRemoved = 2
         Selection = Picked (Set.singleton (Guid.Parse "0195f900-0000-7000-8000-000000000001"))
-        Filters = { noFilters with Payee = Some "rewe" } }
+        Filters = { noFilters with Search = Some "rewe" } }
 
 /// Die Nachrichten, die ein Cmd abschickt.
 let private dispatched (cmd: Elmish.Cmd<Msg>) : Msg list =
@@ -145,7 +145,8 @@ let sortClientTests =
             Expect.equal after.Sort { Field = SortByDate; Direction = SortAsc } "gedreht gegenüber dem gezeigten Datum absteigend"
         }
 
-        test "Kontowechsel und Filterwechsel lassen Sort stehen" {
+        // ledger-d9z3n: „Filter löschen“ setzt die Sortierung zurück, sie steht als Chip unter den gesetzten Filtern.
+        test "Kontowechsel und Filterwechsel lassen Sort stehen, Filter löschen setzt sie zurück" {
             let sort = { Field = SortByPayee; Direction = SortDesc }
             let before = { baseModel () with Sort = sort }
             let afterAccount, _ = step (SelectFilter (OneAccount accountId)) before
@@ -153,7 +154,7 @@ let sortClientTests =
             let afterToggle, _ = step ToggleOnlyNeedsReview before
             Expect.equal afterToggle.Sort sort "Chip"
             let afterClear, _ = step ClearAllFilters before
-            Expect.equal afterClear.Sort sort "Alle Filter löschen"
+            Expect.equal afterClear.Sort LedgerSort.defaultSort "Filter löschen"
         }
 
         test "usesDayGroups ist nur für Datum wahr, in beiden Richtungen" {

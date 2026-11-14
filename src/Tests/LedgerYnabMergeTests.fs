@@ -631,7 +631,7 @@ let private visibleEntriesOnAccount (i: Incident) : int =
     let query : LedgerEntryPageQuery = {
         AccountId = Some id; Page = 0; PageSize = 100; LocallyRemoved = 0; IncludeDeleted = false
         OnlyNeedsReview = false; OnlyAskLena = false; WithoutCategory = false; CategoryIds = []
-        DateFrom = None; DateTo = None; Payee = None; Memo = None; AmountMin = None; AmountMax = None
+        DateFrom = None; DateTo = None; Search = None; AmountMin = None; AmountMax = None; AmountDirection = AllDirections
         Sort = LedgerSort.defaultSort }
     (Ledger.QueryHandlers.getLedgerEntriesPage query |> Async.RunSynchronously).TotalCount
 

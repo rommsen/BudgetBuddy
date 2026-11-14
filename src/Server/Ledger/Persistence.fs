@@ -1294,10 +1294,13 @@ type EntryFilter = {
     CategoryIds: Guid list
     DateFrom: DateTime option
     DateTo: DateTime option
-    Payee: string option
-    Memo: string option
+    /// Die freie Suche (ledger-d9z3n): Teiltext in Payee, Memo oder Kategoriename.
+    Search: string option
+    /// Höhe ohne Vorzeichen (ADR 0095).
     AmountMin: decimal option
     AmountMax: decimal option
+    /// Ausgaben, Einnahmen oder beide (ADR 0095).
+    AmountDirection: AmountDirection
 }
 
 /// Kein Filter gesetzt — die Rückwärtskompatibilitäts-Basislinie (AC1): ein Aufruf
@@ -1311,10 +1314,10 @@ let noFilter = {
     CategoryIds = []
     DateFrom = None
     DateTo = None
-    Payee = None
-    Memo = None
+    Search = None
     AmountMin = None
     AmountMax = None
+    AmountDirection = AllDirections
 }
 
 /// Der Filter einer Seitenanfrage (ohne Seite und Versatz): die gemeinsame Grundlage für
@@ -1328,21 +1331,31 @@ let entryFilterOfPageQuery (query: LedgerEntryPageQuery) : EntryFilter = {
     CategoryIds = query.CategoryIds
     DateFrom = query.DateFrom
     DateTo = query.DateTo
-    Payee = query.Payee
-    Memo = query.Memo
+    Search = query.Search
     AmountMin = query.AmountMin
     AmountMax = query.AmountMax
+    AmountDirection = query.AmountDirection
 }
 
-let private hasAmountFilter (filter: EntryFilter) = filter.AmountMin.IsSome || filter.AmountMax.IsSome
+let private hasAmountFilter (filter: EntryFilter) =
+    filter.AmountMin.IsSome || filter.AmountMax.IsSome || filter.AmountDirection <> AllDirections
 
-/// Prüft `AmountMin`/`AmountMax` gegen einen geladenen Betrag, in `decimal`, nie
-/// über eine SQL-Bedingung (siehe `EntryFilter`). Beide Enden sind unabhängig
-/// voneinander offen: nur `AmountMin` gesetzt heißt "mindestens", nur `AmountMax`
-/// heißt "höchstens".
+/// Prüft `AmountMin`/`AmountMax` und `AmountDirection` gegen einen geladenen Betrag, in `decimal`, nie
+/// über eine SQL-Bedingung (siehe `EntryFilter`). Die Grenzen gelten für die Höhe ohne Vorzeichen
+/// (ADR 0095): „5 bis 50“ trifft eine Ausgabe über 12,00 € wie eine Einnahme über 12,00 €. Beide
+/// Enden sind unabhängig voneinander offen: nur `AmountMin` heißt "mindestens", nur `AmountMax`
+/// "höchstens". `AmountDirection` trennt Ausgaben (unter 0) und Einnahmen (über 0), ein Betrag von 0 ist
+/// keines von beiden.
 let private amountMatches (filter: EntryFilter) (amount: decimal) : bool =
-    (filter.AmountMin |> Option.forall (fun min -> amount >= min))
-    && (filter.AmountMax |> Option.forall (fun max -> amount <= max))
+    let height = abs amount
+    let directionMatches =
+        match filter.AmountDirection with
+        | AllDirections -> true
+        | OnlyOutflows -> amount < 0m
+        | OnlyInflows -> amount > 0m
+    directionMatches
+    && (filter.AmountMin |> Option.forall (fun min -> height >= min))
+    && (filter.AmountMax |> Option.forall (fun max -> height <= max))
 
 /// Baut die WHERE-Klausel (ohne die führende `WHERE`) und die dazugehörigen
 /// Dapper-Parameter aus Konto und `EntryFilter` — ohne `AmountMin`/`AmountMax`
@@ -1428,23 +1441,21 @@ let private buildFilterClause (accountId: LedgerAccountId option) (filter: Entry
         ps.Add("dateTo", d.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture))
     | None -> ()
 
-    // Payee kommt aus der Vorschlagsliste (Klick, "Payee ist immer nur einer"), also
-    // exakter Vergleich; Memo ist ein Suchfeld, also Teiltext. Beide ohne
-    // Berücksichtigung der Groß-/Kleinschreibung, auch für Umlaute: `bb_lower`
-    // (ADR 0037) statt der früheren SQLite-Kollation, die nur ASCII A-Z faltet und
-    // `LIKE` ohnehin nicht erreicht. Beide Seiten des Vergleichs laufen durch dieselbe
-    // Funktion, sonst faltet nur die Spalte und jeder Suchtext mit einem
-    // Großbuchstaben findet still nichts (derselbe Fehler in neuer Verkleidung).
-    match filter.Payee with
-    | Some payee ->
-        clause.Append(" AND bb_lower(payee) = @payee") |> ignore
-        ps.Add("payee", Core.searchFold payee)
-    | None -> ()
-
-    match filter.Memo with
-    | Some memo ->
-        clause.Append(" AND bb_lower(memo) LIKE @memo") |> ignore
-        ps.Add("memo", $"%%{Core.searchFold memo}%%")
+    // Die freie Suche (ledger-d9z3n): Teiltext in Payee, Memo oder Kategoriename. Der Kategoriename
+    // kommt aus dem gespeicherten Namen der Buchung und aus dem heutigen Namen in `ledger_categories`
+    // (eigene Kategorie oder Split-Zeile). Ohne Berücksichtigung der Groß-/Kleinschreibung, auch für
+    // Umlaute: `bb_lower` (ADR 0037) statt der SQLite-Kollation, die nur ASCII A-Z faltet. Beide Seiten
+    // des Vergleichs laufen durch dieselbe Funktion, sonst findet ein Suchtext mit Großbuchstaben nichts.
+    match filter.Search with
+    | Some search ->
+        clause
+            .Append(" AND (bb_lower(payee) LIKE @search OR bb_lower(memo) LIKE @search")
+            .Append(" OR bb_lower(category_name) LIKE @search")
+            .Append(" OR category_id IN (SELECT ynab_category_id FROM ledger_categories WHERE bb_lower(name) LIKE @search)")
+            .Append(" OR id IN (SELECT entry_id FROM ledger_entry_split_categories WHERE category_id IN")
+            .Append(" (SELECT ynab_category_id FROM ledger_categories WHERE bb_lower(name) LIKE @search)))")
+        |> ignore
+        ps.Add("search", $"%%{Core.searchFold search}%%")
     | None -> ()
 
     clause.ToString(), ps
@@ -1801,6 +1812,12 @@ let countDeletedEntries (accountId: LedgerAccountId option) (filter: EntryFilter
             return int count
     }
 
+/// Die Zahl der Buchungen ohne Kategorie (weder Kategorie noch Übertrag) eines Kontos oder aller
+/// Konten, ohne in YNAB gelöschte, unabhängig von den übrigen Filtern (ledger-d9z3n): die Anzahl
+/// hinter dem Schalter „Ohne Kategorie“ im Filter-Sheet, dasselbe Muster wie `countNeedsReviewEntries`.
+let countWithoutCategoryEntries (accountId: LedgerAccountId option) : Async<int> =
+    countEntries accountId { noFilter with WithoutCategory = true }
+
 /// Die Zahl der zu prüfenden Buchungen eines Kontos oder aller Konten (ADR 0032),
 /// unabhängig von `onlyNeedsReview` (wie `countDeletedEntries`/`IncludeDeleted`):
 /// die Seite soll den Chip "Zu prüfen (n)" auch zeigen können, während der Filter
@@ -1964,14 +1981,11 @@ let private groupFoldedPayeeCounts (literalCounts: (string * int) list) : (strin
 
 /// Die Payees eines Treffers samt ihrer Anzahl **innerhalb dieses Treffers**
 /// (ledger-vgfw3 AC, ADR 0036) — nicht über alle Buchungen, nicht über die geladene
-/// Seite. `filter.Payee` ist bei diesem Aufruf erwartungsgemäß `None` (der Aufrufer,
-/// `getLedgerPayeeSuggestions`, übergibt nie einen bereits gewählten Payee-Filter);
-/// wäre er trotzdem gesetzt, würde er wie jeder andere Filter mitwirken, statt
-/// stillschweigend ignoriert zu werden.
+/// Seite.
 ///
 /// Beide Schreibweisen desselben Payees (z. B. "Rewe" und "REWE") gehören zu
 /// einem Vorschlag, nicht zu zwei getrennten (ledger-h4qtx, ADR 0037): dieselbe
-/// Faltung wie der Payee-Filter selbst, über die gemeinsame
+/// Faltung wie die freie Suche, über die gemeinsame
 /// `groupFoldedPayeeCounts`.
 let loadPayeeSuggestions (accountId: LedgerAccountId option) (filter: EntryFilter) : Async<(string * int) list> =
     async {

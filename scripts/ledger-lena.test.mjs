@@ -84,7 +84,7 @@ async function open(context, { onlyLenaFilter = false } = {}) {
         TotalAmount: { Amount: list.reduce((s, e) => s + e.Amount.Amount, 0), Currency: "EUR" },
         DeletedCount: 0,
         NeedsReviewCount: 0,
-        AskLenaCount: entries(accountsFixture.DefaultAccountId).filter((e) => e.Flag === "AskLena").length,
+        AskLenaCount: entries(accountsFixture.DefaultAccountId).filter((e) => e.Flag === "AskLena").length, WithoutCategoryCount: 0,
       }),
     });
   });
