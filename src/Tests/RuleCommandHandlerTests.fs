@@ -215,9 +215,8 @@ let createTests =
             let prefix = uniquePrefix ()
             for priority in [ 3; 2; 1 ] do
                 insert (savedRule $"{prefix} {priority}" priority None) |> ignore
-            let lowest =
-                Persistence.Rules.getAllRules () |> run
-                |> List.fold (fun bottom rule -> min bottom rule.Priority) Int32.MaxValue
+            let before = Persistence.Rules.getAllRules () |> run
+            let lowest = before |> List.fold (fun bottom rule -> min bottom rule.Priority) Int32.MaxValue
             let target = YnabCategoryId (Guid.NewGuid())
             let port, _ = portAnswering (Ok [ category target "Drogerie" ])
 
@@ -228,7 +227,14 @@ let createTests =
             Expect.isLessThan created.Priority lowest "kleiner als jede vorhandene"
             Expect.equal (stored created).Priority created.Priority "so gespeichert"
             Expect.equal created.CategoryName "Drogerie" "Name aus YNAB"
-            Expect.equal (Persistence.Rules.getAllRules () |> run |> List.last).Id created.Id "steht am Ende"
+            // Hinter jeder Regel, die es vorher gab. `List.last` wäre nicht stabil: parallele Tests in der
+            // geteilten DB legen Regeln an oder vergeben die Prioritäten neu (`restoreRule`).
+            let order = Persistence.Rules.getAllRules () |> run |> List.map (fun rule -> rule.Id)
+            let mine = order |> List.findIndex ((=) created.Id)
+            for rule in before do
+                // Eine Regel, die ein paralleler Test inzwischen gelöscht hat, fehlt und zählt nicht.
+                order |> List.tryFindIndex ((=) rule.Id)
+                |> Option.iter (fun other -> Expect.isGreaterThan mine other "steht hinter jeder älteren Regel")
 
         // categorization-m47g8: die Engine prüft von oben nach unten, eine neue Regel kommt nach allen älteren dran.
         testCase "passt eine ältere Regel auf denselben Payee, gewinnt sie gegen die neue" <| fun () ->

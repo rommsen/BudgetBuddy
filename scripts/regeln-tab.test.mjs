@@ -70,7 +70,7 @@ async function openLedger(width, height, touch) {
     const [request] = JSON.parse(r.request().postData());
     created.push(request);
     const saved = { ...rule(3, request.Name, 0), Pattern: request.Pattern, CategoryId: request.CategoryId, CategoryName: "Neu", Enabled: request.Enabled };
-    rules = [saved, ...rules];
+    rules = [...rules, saved];
     json(r, { Ok: saved });
   });
   await page.goto(`http://127.0.0.1:${port}/#/ledger`, { waitUntil: "load" });
