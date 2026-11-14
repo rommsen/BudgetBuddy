@@ -112,8 +112,9 @@ let private groupByDateTests =
         // Regression ledger-pnjz3 (Romans Blick 2026-11-14, Kassenbuch am Handy): über „Gestern“
         // standen Tagesköpfe ohne Zeile, aber mit Summe, und ein Tag zweimal. Die Spalte `date`
         // mischt Kinds (Spiegel `Utc`, Comdirect/Quick-Add ohne Kind, Kommentar in
-        // `Server/Ledger/Persistence.fs`). Im Browser vergleicht Fable `DateTime` per `getTime()`:
-        // UTC-Mitternacht und lokale Mitternacht desselben Tags sind dort verschiedene Zeitpunkte.
+        // `Server/Ledger/Persistence.fs`). Im Browser macht `DateTime.Parse` aus dem Wert mit `Z`
+        // Kind Local (01:00 in Berlin), der Wert ohne Suffix bleibt auf 00:00, und Fable vergleicht
+        // die Wanduhrzeit: derselbe Tag ergibt zwei ungleiche Werte.
         // Die alte Faltung trennte den Tag in zwei benachbarte Gruppen mit demselben React-Key
         // `group-<datum>`; React ließ bei doppelten Keys alte Köpfe als verwaiste DOM-Knoten stehen.
         // Unter .NET bilden zwei Uhrzeiten am selben Tag diese zwei Zeitpunkte nach.
@@ -158,24 +159,40 @@ let private groupByDateTests =
             Expect.equal (asc |> List.map fst) [ d5; d9; d10 ] "Aufsteigend, jeder Tag einmal"
         }
 
-        test "Intakt: eine nach Datum geordnete Liste mit gelöschter und ausgegrauter Zeile gruppiert wie vorher" {
+        test "Intakt: eine nach Datum geordnete Liste mit gelöschter Zeile gruppiert wie vorher" {
             // ledger-pnjz3, intakt-Szenario: die Ansicht reicht alle Zeilen der Liste weiter, auch
-            // eine in YNAB gelöschte (bei „Gelöschte zeigen“) und eine, die gerade den Filter
-            // verlassen hat (`FilteredOut`). Beide behalten ihren Tageskopf; die Tagessumme zählt
-            // die sichtbaren Zeilen (ADR 0049 Punkt 8).
+            // eine in YNAB gelöschte (bei „Gelöschte zeigen“). Sie behält ihren Tageskopf; die
+            // Tagessumme zählt die sichtbaren Zeilen (ADR 0049 Punkt 8).
             let d10, d9 = DateTime(2026, 11, 10), DateTime(2026, 11, 9)
             let rewe = { entryView (accountId 1) d10 "Rewe" with Amount = eur -20m }
             let deleted = { entryView (accountId 1) d10 "Gelöscht" with Amount = eur -500m; DeletedInYnab = true }
-            let leftFilter = { entryView (accountId 1) d9 "Hat den Filter verlassen" with Amount = eur -7m }
-            let groups = groupByDate SortDesc [ rewe; deleted; leftFilter ]
+            let ninth = { entryView (accountId 1) d9 "Edeka" with Amount = eur -7m }
+            let groups = groupByDate SortDesc [ rewe; deleted; ninth ]
             Expect.equal (groups |> List.map fst) [ d10; d9 ] "Zwei Tage wie vorher"
-            Expect.equal (groups |> List.map snd) [ [ rewe; deleted ]; [ leftFilter ] ] "Zeilen wie vorher, die ausgegraute mit eigenem Kopf"
+            Expect.equal (groups |> List.map snd) [ [ rewe; deleted ]; [ ninth ] ] "Zeilen wie vorher, die gelöschte unter ihrem Tag"
             Expect.equal (groups |> List.map (fun (_, g) -> (daySum true g).Amount)) [ -520m; -7m ] "Gelöschte zeigen: Summe mit gelöschter"
             Expect.equal (groups |> List.map (fun (_, g) -> (daySum false g).Amount)) [ -20m; -7m ] "Ohne: nur sichtbare Zeilen"
         }
 
         test "Leere Liste ergibt keine Gruppen" {
             Expect.equal (groupByDate SortDesc []) [] "Nichts zu gruppieren"
+        }
+
+        // Review nach ledger-pnjz3: Handy-Liste und PC-Tabelle bekommen ihre Tagesgruppen nur über
+        // `dayGroups`. Reichte eine Ansicht die Richtung nicht durch, stünden bei „Datum aufsteigend“
+        // die Tage verkehrt herum.
+        test "Nach Datum aufsteigend zeigen beide Ansichten die Tage aufsteigend, nach einem anderen Feld ohne Tagesköpfe" {
+            let d10, d5 = DateTime(2026, 11, 10), DateTime(2026, 11, 5)
+            let entries = [ entryView (accountId 1) d5 "A"; entryView (accountId 1) d10 "B" ]
+            Expect.equal
+                (dayGroups { Field = SortByDate; Direction = SortAsc } entries |> Option.map (List.map fst))
+                (Some [ d5; d10 ])
+                "aufsteigend"
+            Expect.equal
+                (dayGroups { Field = SortByDate; Direction = SortDesc } entries |> Option.map (List.map fst))
+                (Some [ d10; d5 ])
+                "absteigend"
+            Expect.isNone (dayGroups { Field = SortByAmount; Direction = SortAsc } entries) "flache Liste"
         }
     ]
 

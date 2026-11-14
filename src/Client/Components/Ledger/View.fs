@@ -93,9 +93,10 @@ let accountAbbreviation (name: string) : string =
 
 /// Der Kalendertag einer Buchung als Schlüssel der Tagesgruppe: Jahr, Monat, Tag ohne
 /// Uhrzeit und ohne Kind. Die Spalte `date` mischt Kinds (Spiegel `Utc`, Comdirect und
-/// Quick-Add ohne Kind). Fable vergleicht `DateTime` per `getTime()`, im Browser sind
-/// UTC-Mitternacht und lokale Mitternacht desselben Tags also ungleich; `Year`/`Month`/`Day`
-/// lesen bei jedem Kind den angezeigten Tag (ledger-pnjz3).
+/// Quick-Add ohne Kind). Im Browser macht `DateTime.Parse` aus einem Wert mit `Z` Kind Local
+/// (in Berlin 01:00), ein Wert ohne Suffix bleibt auf 00:00; Fable vergleicht die Wanduhrzeit,
+/// derselbe Tag ergibt so zwei ungleiche Werte. `Year`/`Month`/`Day` lesen bei jedem Kind den
+/// angezeigten Tag (ledger-pnjz3).
 let entryDay (d: DateTime) : DateTime = DateTime(d.Year, d.Month, d.Day)
 
 /// Die Tagesgruppen der Liste bei Sortierung nach Datum, für Handy-Liste und PC-Tabelle
@@ -109,6 +110,12 @@ let groupByDate (direction: LedgerSortDirection) (entries: LedgerEntryView list)
     match direction with
     | SortDesc -> groups |> List.sortByDescending fst
     | SortAsc -> groups |> List.sortBy fst
+
+/// Was Handy-Liste und PC-Tabelle zeigen: bei Sortierung nach Datum die Tagesgruppen in der
+/// Richtung der Sortierung, sonst `None` für die flache Liste ohne Tagesköpfe. Beide Ansichten
+/// rufen nur diese Funktion auf, damit die Richtung an einer Stelle steht.
+let dayGroups (sort: LedgerSort) (entries: LedgerEntryView list) : (DateTime * LedgerEntryView list) list option =
+    if usesDayGroups sort then Some (groupByDate sort.Direction entries) else None
 
 /// Die Tagessumme einer Datumsgruppe (ADR 0049, Punkt 8; `ledger-n4vte`): die Summe
 /// der *sichtbaren* Zeilen dieser Gruppe. Eine in YNAB gelöschte Buchung zählt nur
@@ -2783,13 +2790,13 @@ let private entryListMobile
 
         Html.div [
             prop.children (
-                if usesDayGroups sort then
-                    groupByDate sort.Direction entries
+                match dayGroups sort entries with
+                | Some groups ->
+                    groups
                     |> List.collect (fun (date, group) ->
                         dateGroupHeader date (daySum includeDeleted group)
                         :: (group |> List.map (row false)))
-                else
-                    entries |> List.map (row true)
+                | None -> entries |> List.map (row true)
             )
         ]
     ]
@@ -3009,13 +3016,13 @@ let private entryListDesktop
                         | _, None -> ()
                 ]
                 Table.tbody (
-                    if usesDayGroups sort then
-                        groupByDate sort.Direction entries
+                    match dayGroups sort entries with
+                    | Some groups ->
+                        groups
                         |> List.collect (fun (date, group) ->
                             dateGroupRow columnsBeforeAmount date (daySum includeDeleted group)
                             :: (group |> List.map bodyRows))
-                    else
-                        entries |> List.map bodyRows
+                    | None -> entries |> List.map bodyRows
                 )
             ]
     ]
