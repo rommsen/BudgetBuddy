@@ -3,7 +3,7 @@
 Stand 2026-11-07. Grundlage: ADR 0086, `vision.md` Abschnitt „What success looks like“.
 
 ## Stand
-Zuletzt aktualisiert: 2026-11-14, nach work-Lauf und Review categorization-m47g8, ledger-pnjz3 und ledger-wj0b8.
+Zuletzt aktualisiert: 2026-11-14 abends, nach work-Lauf und Review ledger-sre0f.
 
 - **Etappe 1 · Bedeutungen:** erledigt, 5 von 5 (Skizze und Prototyp, Layout-Sweep, Muster im
   Styleguide, Designwert-Tests aufgeräumt, Palette 2 im Token-Layer). Romans Blick auf dak16 neben
@@ -157,10 +157,23 @@ Zuletzt aktualisiert: 2026-11-14, nach work-Lauf und Review categorization-m47g8
   VERIFY: PASS (dotnet 5016, node 340). Deployt 2026-11-14 (5a0d5394), Health-Check grün. Für Romans Blick: am Handy mit
   „Zu prüfen“ und ungefiltert keine leeren Tagesköpfe, jeder Tag einmal; eine neue Regel steht am Ende des Tabs Regeln.
   Vorschlag: `/architecture-review ledger` (17 erledigte Tasks seit dem letzten Bestandsreview).
-- **Nächster Schritt:** Romans Blick auf ledger-pnjz3 und categorization-m47g8 (Punkte oben). Romans Blick
-  auf ledger-ea70s und ledger-hg5m5 geht weiter: übrig sind Bob, Regel aus der Buchung im Detail, Tab Regeln neben dem
-  Prototyp und die Sichtpunkte 1 bis 5. ledger-sre0f verfeinern. Dann Schnitt 8 ledger-f8d7x (Kassenbuch ordnen) verfeinern. Offen zum Verfeinern: ledger-h7de3
-  (Fehlertexte in Ereignissen), design-system-vf94m (Toast verdeckt „+ Buchung“), ledger-t4rk8 (Betrag eines Übertrags in BB).
+- **Work-Lauf 2026-11-14 abends:** ledger-sre0f (Zuletzt-Chips in „Neue Buchung“ aus dem gewählten Konto: je offenem
+  Kassenbuch-Konto ohne Import-Konto die letzten fünf Vorlagen aus dem Kassenbuch, gleich wer gebucht hat, eine Abfrage
+  mit `ROW_NUMBER`, der Client filtert beim Kontowechsel ohne neue Anfrage, ein Tipp setzt das Memo genau, Überträge
+  bleiben Vorlagen; 50b7f07b). Verifier PASS in Iteration 1. Review-Lauf 814e1002~1..d021f49a mit backend-code-quality,
+  frontend-architecture und qa-milestone-reviewer, 5 Funde behoben in 511db775..9465fd5c: zwei Chips mit gleichem Text
+  teilten sich einen React-Key, jetzt aus Konto, Payee, Ziel, Betrag und Richtung; Abfrage-Test für Gelöschte und die
+  Grenze; Endpoint-Zeile ohne Abhängigkeit von der geteilten DB. Kann-Sammlung ledger 123 bis 125. Gate: VERIFY: PASS
+  (dotnet 5031, node 340). Nicht gepusht, nicht deployt. Offene Rückfrage: ein „+“ vor dem Betrag bei Einnahmen im Chip?
+  Für Romans Blick nach dem Deploy: „+ Buchung“, Konto Bar wählen, die üblichen Bar-Buchungen stehen als Chips, ein Tipp
+  füllt Payee, Kategorie, Betrag und Memo.
+- **Nächster Schritt:** Deploy von ledger-sre0f auf Romans Anweisung. Danach Schnitt 8 ledger-f8d7x (Kassenbuch ordnen)
+  in eine Task Handy und eine Task PC teilen, verfeinern, bauen, Review-Lauf; ledger-ayjzq (Sicht „Für mich“) bleibt eigene
+  Task nach einem Gespräch mit Roman. Romans Blick offen: ledger-pnjz3 und categorization-m47g8 (Punkte oben), ledger-ea70s
+  und ledger-hg5m5 (Bob, Regel aus der Buchung im Detail, Tab Regeln neben dem Prototyp, Sichtpunkte 1 bis 5). Offen zum
+  Verfeinern: ledger-h7de3 (Fehlertexte in Ereignissen), design-system-vf94m (Toast verdeckt „+ Buchung“), ledger-t4rk8
+  (Betrag eines Übertrags in BB). Vorschlag: `/architecture-review ledger` (18 erledigte Tasks seit dem letzten
+  Bestandsreview).
 - Verfeinert wird nur die nächste Etappe. Spätere Etappen haben Zeilen, keine Tickets.
 - Neue Ideen für spätere Etappen kommen hier als Zeile dazu.
 - Bestehende Tasks tragen einen Tag: `etappe-1`, `etappe-2`, `etappe-3`, `laufend`, `danach`.
