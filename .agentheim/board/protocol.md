@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-14 19:08 -- Batch started: [ledger-sre0f]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-sre0f - "Zuletzt-Chips in „Neue Buchung“ aus den Buchungen des gewählten Kontos, fünf mit Memo"
+**Parallel:** scoped — builder named ledger-sre0f; other ready tasks not dispatched
+
+---
+
 ## 2026-11-14 18:49 -- Modeling / Promoted: ledger-sre0f - "Zuletzt-Chips in „Neue Buchung“ aus den Buchungen des gewählten Kontos, fünf mit Memo"
 
 **Type:** Modeling / Promote

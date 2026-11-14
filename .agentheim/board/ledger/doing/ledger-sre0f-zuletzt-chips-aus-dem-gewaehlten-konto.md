@@ -1,7 +1,7 @@
 ---
 id: ledger-sre0f
 title: "Zuletzt-Chips in „Neue Buchung“ aus den Buchungen des gewählten Kontos, fünf mit Memo"
-status: todo
+status: doing
 type: bug
 context: ledger
 created: 2026-11-14
