@@ -237,9 +237,17 @@ let recentPerAccountTests =
             let keys = [ a; otherTarget; inflow ] |> List.map Components.Ledger.Capture.templateKey
             Expect.equal (List.distinct keys).Length 3 "drei Keys"
             Expect.equal
-                ([ a; otherTarget; inflow ] |> List.map Components.Ledger.Capture.templateLabel |> List.distinct).Length
-                1
+                (Components.Ledger.Capture.templateLabel otherTarget)
+                (Components.Ledger.Capture.templateLabel a)
                 "derselbe Text"
+
+        // Review nach ledger-sre0f (Roman, 2026-11-14): Einnahme und Ausgabe mit gleichem Payee und Betrag sahen im
+        // Chip gleich aus.
+        testCase "eine Einnahme steht im Chip mit Plus, eine Ausgabe ohne Vorzeichen" <| fun () ->
+            let outflow = barTemplate "Anastasia" None
+            let inflow = { outflow with IsOutflow = false }
+            Expect.equal (Components.Ledger.Capture.templateLabel outflow) "Anastasia · 5,00" "Ausgabe"
+            Expect.equal (Components.Ledger.Capture.templateLabel inflow) "Anastasia · +5,00" "Einnahme"
     ]
 
 [<Tests>]

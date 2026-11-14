@@ -215,9 +215,11 @@ let templateKey (template: LedgerBookingTemplate) : string =
         | None -> "-"
     $"{template.AccountId}|{template.Payee.Trim().ToLowerInvariant()}|{target}|{amountText template.Amount}|{template.IsOutflow}"
 
-/// Der Text eines Zuletzt-Chips: "Bäckerei Lange · 8,60". Rein.
+/// Der Text eines Zuletzt-Chips: "Bäckerei Lange · 8,60", eine Einnahme mit Plus ("Gehalt · +2.000,00"), damit
+/// Einnahme und Ausgabe mit gleichem Payee und Betrag nicht gleich aussehen (Roman, 2026-11-14). Rein.
 let templateLabel (template: LedgerBookingTemplate) : string =
-    $"{template.Payee} · {amountText template.Amount}"
+    let sign = if template.IsOutflow then "" else "+"
+    $"{template.Payee} · {sign}{amountText template.Amount}"
 
 /// Der Satz der Rückmeldung nach dem Anlegen: Konto und Betrag (Styleguide §7.13, ledger-s1weh), eine Ausgabe
 /// mit Minus. Ohne bekannten Betrag nur das Konto. Rein.
