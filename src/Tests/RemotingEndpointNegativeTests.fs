@@ -352,12 +352,12 @@ let private rows : Row list = [
       Run = fun () ->
         ledgerApi.restoreDiscardedDuplicate (Guid.NewGuid()) |> run |> expectError "Rückgängig unbekannt"
         ledgerApi.restoreDiscardedDuplicate (plainLedgerEntry ()) |> run |> expectError "Rückgängig nicht verworfen" }
-    { Endpoint = "LedgerApi.getLedgerBookingDefaults"; Case = "ohne Einrichtung: heute ohne Uhrzeit, höchstens fünf Chips je Konto"
+    // Die Grenze je Konto prüfen die reinen Tests und die Abfrage-Tests in LedgerBookingCaptureTests.fs;
+    // hier hinge sie davon ab, was gerade in der geteilten Datenbank liegt.
+    { Endpoint = "LedgerApi.getLedgerBookingDefaults"; Case = "ohne Einrichtung: heute ohne Uhrzeit"
       Run = fun () ->
         let defaults = ledgerApi.getLedgerBookingDefaults () |> run
-        Expect.equal defaults.Today defaults.Today.Date "nur das Datum"
-        for _, perAccount in defaults.Recent |> List.groupBy (fun t -> t.AccountId) do
-            Expect.isLessThanOrEqual perAccount.Length 5 "höchstens fünf je Konto" }
+        Expect.equal defaults.Today defaults.Today.Date "nur das Datum" }
     { Endpoint = "LedgerApi.getBookingCategoryForPayee"; Case = "leerer Payee: keine Kategorie"
       Run = fun () -> Expect.isNone (ledgerApi.getBookingCategoryForPayee "  " |> run) "keine Kategorie" }
     { Endpoint = "LedgerApi.getPayeeCategorySuggestions"; Case = "unbekannter Empfänger: keine Vorschläge"

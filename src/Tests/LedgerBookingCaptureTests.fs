@@ -980,6 +980,23 @@ let recentPerAccountTests =
             |> Async.RunSynchronously
             Expect.equal (payeesOf accounts.Bar (recentDefaults None)) [ "Bleibt" ] "nur die normale Buchung"
 
+        // Review nach ledger-sre0f: Die Abfrage selbst lässt gelöschte Buchungen weg, bevor sie je Konto
+        // zählt. Sonst belegte eine gelöschte einen Platz im Rückblick und ein Konto mit vielen
+        // gelöschten Buchungen bekäme zu wenige Chips. Der Filter in `bookingTemplateOf` sieht das nicht.
+        testCase "die Abfrage zählt je Konto nur nicht gelöschte Buchungen und hält die Grenze" <| fun () ->
+            setup ()
+            let accounts = freshAccounts ()
+            for day in [ 4; 3; 2 ] do
+                seedMirrored accounts.Bar (today.AddDays (float -day)) $"Bar {day}" -(decimal day) [] |> ignore
+            let deleted = seedMirrored accounts.Bar (today.AddDays -1.0) "Gelöscht" -1m []
+            appendAndApply [ { EntryId = deleted; OccurredAt = now; Actor = YnabMirror; Body = EntryDeletionObservedInYnab } ]
+            |> Async.RunSynchronously
+            let entries = Ledger.Persistence.loadRecentEntriesPerAccount None 2 |> Async.RunSynchronously
+            Expect.equal
+                (entries |> List.filter (fun e -> e.AccountId = accounts.Bar) |> List.choose (fun e -> e.Payee))
+                [ "Bar 2"; "Bar 3" ]
+                "die zwei neuesten nicht gelöschten"
+
         testCase "das Import-Konto und ein geschlossenes Konto liefern keine Vorlagen" <| fun () ->
             setup ()
             let accounts = freshAccounts ()
