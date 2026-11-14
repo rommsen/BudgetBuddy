@@ -4050,9 +4050,8 @@ let private captureFields (dispatch: Msg -> unit) (model: Model) (capture: Captu
                         prop.className "flex flex-wrap gap-2"
                         prop.children [
                             for template in recent ->
-                                // Gleicher Payee und Betrag auf zwei Konten ergibt denselben Text: das Konto gehört in den Key.
                                 React.keyedFragment (
-                                    $"{template.AccountId}|{Capture.templateLabel template}",
+                                    Capture.templateKey template,
                                     [ BottomSheet.chipButtonTouch
                                           (Capture.templateLabel template)
                                           (fun () -> dispatch (ApplyCaptureTemplate template)) ]

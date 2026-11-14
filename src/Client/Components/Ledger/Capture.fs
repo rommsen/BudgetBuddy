@@ -204,6 +204,17 @@ let captureRequest (form: CaptureForm) : Result<LedgerBookingRequest, CaptureFie
 let awaitsPayeeCategory (capture: CaptureState) : bool =
     capture.PayeeLookup |> Option.exists (fun p -> p = capture.Form.Payee.Trim())
 
+/// Der React-Key eines Zuletzt-Chips: alles, wonach `recentBookingTemplates` Doppelte trennt (Konto, Payee,
+/// Ziel, Betrag, Richtung). Zwei Vorlagen mit gleichem Text, aber anderem Ziel oder anderer Richtung bekommen
+/// so verschiedene Keys; ein doppelter Key ließe React Chips vertauschen oder stehen lassen. Rein.
+let templateKey (template: LedgerBookingTemplate) : string =
+    let target =
+        match template.Target with
+        | Some (BookOnCategory (YnabCategoryId id)) -> $"k{id}"
+        | Some (BookAsTransfer (YnabAccountId id)) -> $"u{id}"
+        | None -> "-"
+    $"{template.AccountId}|{template.Payee.Trim().ToLowerInvariant()}|{target}|{amountText template.Amount}|{template.IsOutflow}"
+
 /// Der Text eines Zuletzt-Chips: "Bäckerei Lange · 8,60". Rein.
 let templateLabel (template: LedgerBookingTemplate) : string =
     $"{template.Payee} · {amountText template.Amount}"

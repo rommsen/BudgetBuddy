@@ -227,6 +227,19 @@ let recentPerAccountTests =
 
         testCase "der Text des Chips bleibt Payee und Betrag, ohne Memo" <| fun () ->
             Expect.equal (Components.Ledger.Capture.templateLabel (barTemplate "Anastasia" (Some "Putzen"))) "Anastasia · 5,00" "ohne Memo"
+
+        // Review nach ledger-sre0f: Der Key bestand aus Konto und Chip-Text. Zwei Vorlagen mit gleichem Payee und
+        // Betrag, aber anderem Ziel oder anderer Richtung bekamen denselben React-Key.
+        testCase "Vorlagen mit gleichem Text, aber anderem Ziel oder anderer Richtung haben verschiedene Keys" <| fun () ->
+            let a = barTemplate "Anastasia" None
+            let otherTarget = { a with Target = Some (BookAsTransfer (YnabAccountId (Guid.NewGuid()))) }
+            let inflow = { a with IsOutflow = false }
+            let keys = [ a; otherTarget; inflow ] |> List.map Components.Ledger.Capture.templateKey
+            Expect.equal (List.distinct keys).Length 3 "drei Keys"
+            Expect.equal
+                ([ a; otherTarget; inflow ] |> List.map Components.Ledger.Capture.templateLabel |> List.distinct).Length
+                1
+                "derselbe Text"
     ]
 
 [<Tests>]
