@@ -1,7 +1,7 @@
 ---
 id: ledger-zfj78
 title: "Detail einer Buchung ordnen (Sheet und Panel): Payee als Kopf, Betrag mit Prüfstand, Knopf Geprüft, Payee mit alle zeigen, Aufteilen und Lena als Knopfzeile, Historie aufklappbar in der Form von §7.11"
-status: todo
+status: doing
 type: feature
 context: ledger
 created: 2026-11-14
@@ -84,3 +84,7 @@ Vorlage für Worker und Verifier:
 Fundstellen heute (Inventar 2026-11-14): `detailContent` `View.fs` 1969 bis 2074, Kopf 1576 bis 1586, Hinweisleiste 1277
 bis 1421, Kategorie und Filterknöpfe 1724 bis 1768, Historie 1228 bis 1264 und 1538 bis 1547 mit
 `DesignSystem/Detail.fs` 675 bis 708, `FilterByRowPayee` und `FilterByRowCategory` `State.fs` 1959 bis 1968.
+Die Zeilennummern stammen von vor ledger-d9z3n (a2b25490) und ledger-cnaz3 (35f75369) und haben sich verschoben; über die
+Namen suchen. `FilterByRowPayee` setzt seit ledger-d9z3n schon die Suche auf den Payee. Seit ledger-cnaz3 (ADR 0096) steht
+das Panel ab 1024 px immer und zeigt bei genau einer gewählten Buchung ihr Detail; Lena fragen und Prüfen müssen dort
+weiter genau diese eine Buchung treffen.

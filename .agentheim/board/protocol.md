@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-15 00:17 -- Batch started: [ledger-zfj78]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-zfj78 - "Detail einer Buchung ordnen (Sheet und Panel): Payee als Kopf, Betrag mit Prüfstand, Knopf Geprüft, Payee mit alle zeigen, Aufteilen und Lena als Knopfzeile, Historie aufklappbar in der Form von §7.11"
+**Parallel:** 1 (Kette nacheinander: ledger-zfj78 hängt an ledger-cnaz3, beide ändern Ledger/View.fs)
+
+---
+
 ## 2026-11-15 00:16 -- Task verified and completed: ledger-cnaz3 - "Kassenbuch am PC ordnen: Kopf mit Konto und Saldo, Abrufen, n durchgehen und + Buchung; Filterleiste mit Suche; Tabelle ohne Status-Spalte und Prüf-Knopf; Panel immer da, ab zwei gewählten Buchungen als Zusammenfassung"
 
 **Type:** Work / Task completion
