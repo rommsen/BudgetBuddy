@@ -154,10 +154,10 @@ Zuletzt aktualisiert: 2026-11-14, nach work-Lauf und Review categorization-m47g8
   Prioritätsprüfung lehnte die 0 und negativen Werte ab, die der Server jetzt selbst vergibt; eine neue Regel konnte nach
   einem Neuladen doppelt in der Liste stehen; beide Ansichten holen ihre Tagesgruppen über `dayGroups` (Richtung getestet);
   ein Handler-Test war gegen parallele Tests nicht stabil. Kann-Sammlungen ledger und categorization ergänzt. Gate:
-  VERIFY: PASS (dotnet 5016, node 340). Nicht gepusht, nicht deployt. Für Romans Blick nach dem Deploy: am Handy mit
+  VERIFY: PASS (dotnet 5016, node 340). Deployt 2026-11-14 (5a0d5394), Health-Check grün. Für Romans Blick: am Handy mit
   „Zu prüfen“ und ungefiltert keine leeren Tagesköpfe, jeder Tag einmal; eine neue Regel steht am Ende des Tabs Regeln.
   Vorschlag: `/architecture-review ledger` (17 erledigte Tasks seit dem letzten Bestandsreview).
-- **Nächster Schritt:** Deploy von categorization-m47g8, ledger-pnjz3 und ledger-wj0b8 auf Romans Anweisung. Romans Blick
+- **Nächster Schritt:** Romans Blick auf ledger-pnjz3 und categorization-m47g8 (Punkte oben). Romans Blick
   auf ledger-ea70s und ledger-hg5m5 geht weiter: übrig sind Bob, Regel aus der Buchung im Detail, Tab Regeln neben dem
   Prototyp und die Sichtpunkte 1 bis 5. ledger-sre0f verfeinern. Dann Schnitt 8 ledger-f8d7x (Kassenbuch ordnen) verfeinern. Offen zum Verfeinern: ledger-h7de3
   (Fehlertexte in Ereignissen), design-system-vf94m (Toast verdeckt „+ Buchung“), ledger-t4rk8 (Betrag eines Übertrags in BB).
