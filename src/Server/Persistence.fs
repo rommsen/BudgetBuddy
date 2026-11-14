@@ -479,11 +479,20 @@ module Rules =
             return rules
         }
 
-    /// Die Priorität einer neuen Regel: höchste vorhandene plus 1, sie steht damit ganz vorn.
+    /// Die Priorität unter der niedrigsten vorhandenen, ohne Regel 0. Ganze Zahlen, auch 0 oder negativ:
+    /// `reorderRules` und `restoreRule` vergeben ohnehin alle Prioritäten neu (`writePriorities`).
+    let priorityBelow (lowest: int option) : int =
+        match lowest with
+        | Some priority -> priority - 1
+        | None -> 0
+
+    /// Die Priorität einer neuen Regel: kleiner als jede vorhandene, sie steht damit am Ende und wird nach allen
+    /// älteren geprüft (categorization-m47g8).
     let nextPriority () : Async<int> =
         async {
             let conn = getConnection()
-            return! conn.ExecuteScalarAsync<int>("SELECT COALESCE(MAX(priority), 0) + 1 FROM rules") |> Async.AwaitTask
+            let! lowest = conn.ExecuteScalarAsync<Nullable<int>>("SELECT MIN(priority) FROM rules") |> Async.AwaitTask
+            return priorityBelow (Option.ofNullable lowest)
         }
 
     let updateRule (rule: Rule) : Async<unit> =

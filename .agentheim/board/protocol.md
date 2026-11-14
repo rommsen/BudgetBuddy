@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-14 14:02 -- Task verified and completed: categorization-m47g8 - "Neue Regeln kommen ans Ende der Liste (niedrigste Priorität), aus der Buchung wie im Tab Regeln"
+
+**Type:** Work / Task completion
+**Task:** categorization-m47g8 - "Neue Regeln kommen ans Ende der Liste (niedrigste Priorität), aus der Buchung wie im Tab Regeln"
+**Summary:** Neue Regeln kommen ans Ende der Liste (niedrigste Priorität), aus der Buchung wie im Tab Regeln
+**Duration:** (unknown)
+**Verification:** PASS (iteration 1)
+**Files changed:** 0
+**Tests added:** 0
+**ADRs written:** none
+
+---
+
 ## 2026-11-14 13:58 -- Task verified and completed: ledger-pnjz3 - "Kassenbuch zeigt keine leeren Tagesblöcke, jeder Tag einmal und in der richtigen Reihenfolge"
 
 **Type:** Work / Task completion

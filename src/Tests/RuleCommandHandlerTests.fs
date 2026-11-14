@@ -208,14 +208,16 @@ let createTests =
 
             Expect.equal result (Error (RulesError.CategoryLookupFailed "Netzwerkfehler: weg")) "Grund"
 
-        // Bug: der Zuweisungs-Dialog schickte Priorität 1, die bei `ORDER BY priority DESC`
-        // die niedrigste ist. Die Regel landete ganz unten.
-        testCase "eine neue Regel bekommt die höchste Priorität plus 1 und steht vorn" <| fun () ->
+        // Bug categorization-m47g8: seit categorization-msep5 vergab der Server `MAX(priority) + 1`, jede neue Regel
+        // stand vorn und stach alle älteren aus. Entschieden (Roman, 2026-11-14): eine neue Regel steht am Ende.
+        testCase "eine neue Regel bekommt eine kleinere Priorität als jede vorhandene und steht am Ende" <| fun () ->
             Persistence.initializeDatabase ()
-            let highest =
+            let prefix = uniquePrefix ()
+            for priority in [ 3; 2; 1 ] do
+                insert (savedRule $"{prefix} {priority}" priority None) |> ignore
+            let lowest =
                 Persistence.Rules.getAllRules () |> run
-                |> List.fold (fun top rule -> max top rule.Priority) 0
-            insert (savedRule (uniquePrefix ()) (highest + 7) None) |> ignore
+                |> List.fold (fun bottom rule -> min bottom rule.Priority) Int32.MaxValue
             let target = YnabCategoryId (Guid.NewGuid())
             let port, _ = portAnswering (Ok [ category target "Drogerie" ])
 
@@ -223,9 +225,37 @@ let createTests =
                 createRule port now (newRule (uniquePrefix ()) target) |> run
                 |> Result.defaultWith (fun error -> failtest $"Anlegen scheiterte: {error}")
 
-            Expect.equal created.Priority (highest + 8) "höchste plus 1"
+            Expect.isLessThan created.Priority lowest "kleiner als jede vorhandene"
+            Expect.equal (stored created).Priority created.Priority "so gespeichert"
             Expect.equal created.CategoryName "Drogerie" "Name aus YNAB"
-            Expect.equal (Persistence.Rules.getAllRules () |> run |> List.head).Id created.Id "steht vorn"
+            Expect.equal (Persistence.Rules.getAllRules () |> run |> List.last).Id created.Id "steht am Ende"
+
+        // categorization-m47g8: die Engine prüft von oben nach unten, eine neue Regel kommt nach allen älteren dran.
+        testCase "passt eine ältere Regel auf denselben Payee, gewinnt sie gegen die neue" <| fun () ->
+            Persistence.initializeDatabase ()
+            let payee = $"Laden {Guid.NewGuid():N}"
+            let older = insert { savedRule (uniquePrefix ()) 1 None with Pattern = payee }
+            let target = YnabCategoryId (Guid.NewGuid())
+            let port, _ = portAnswering (Ok [ category target "Drogerie" ])
+
+            let created =
+                createRule port now { newRule (uniquePrefix ()) target with Pattern = payee } |> run
+                |> Result.defaultWith (fun error -> failtest $"Anlegen scheiterte: {error}")
+
+            let rules = Persistence.Rules.getAllRules () |> run
+            Expect.equal (ruleCategoryFor rules payee "") (Some older.CategoryId) "ruleCategoryFor: die ältere"
+            let compiled = rules |> compileRules |> Result.defaultWith (fun _ -> failtest "Regeln übersetzen")
+            let transaction =
+                { Id = TransactionId "neu"; BookingDate = now; Amount = { Amount = -1m; Currency = "EUR" }
+                  Payee = Some payee; Memo = ""; Reference = "neu"; RawData = "" }
+            Expect.equal (classify compiled transaction |> Option.map (fun (rule, _) -> rule.Id)) (Some older.Id) "Import: die ältere"
+            Expect.notEqual created.CategoryId older.CategoryId "verschiedene Kategorien"
+
+        // Die erste Regel überhaupt bekommt eine ganze Zahl, ohne vorhandene Regel kein Fehler.
+        testCase "ohne vorhandene Regel ist die Priorität 0, sonst eins unter der niedrigsten" <| fun () ->
+            Expect.equal (Persistence.Rules.priorityBelow None) 0 "leere Tabelle"
+            Expect.equal (Persistence.Rules.priorityBelow (Some 1)) 0 "unter 1"
+            Expect.equal (Persistence.Rules.priorityBelow (Some -4)) -5 "auch negativ"
 
         // categorization-n3sxw: der Schalter „Regel aktiv“ gibt es auch beim Anlegen.
         testCase "eine neu angelegte Regel mit ausgeschaltetem Schalter ist inaktiv" <| fun () ->

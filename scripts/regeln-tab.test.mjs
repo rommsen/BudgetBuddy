@@ -82,7 +82,7 @@ async function openLedger(width, height, touch) {
 const tab = (page, name) => page.getByRole("tab", { name, exact: true });
 const sheet = (page) => page.locator(".bottom-sheet.active");
 
-test("[flow:regel-anlegen] Am Handy auf dem Tab Regeln eine neue Regel mit Kategorie anlegen, sie steht vorn in der Liste", async () => {
+test("[flow:regel-anlegen] Am Handy auf dem Tab Regeln eine neue Regel mit Kategorie anlegen, sie steht am Ende der Liste", async () => {
   const { context, page, created } = await openLedger(412, 915, true);
   try {
     await tab(page, "Regeln").tap();
@@ -118,8 +118,8 @@ test("[flow:regel-anlegen] Am Handy auf dem Tab Regeln eine neue Regel mit Kateg
     await page.locator(".bottom-sheet.active").waitFor({ state: "detached" });
     assert.equal(created.length, 1, "angelegt");
     assert.ok(chosen.length > 0, "Kategorie gewählt");
-    const first = page.locator('[data-testid="rule-row"]:visible').first();
-    assert.match(await first.innerText(), /baeckerei/, "vorn in der Liste");
+    const last = page.locator('[data-testid="rule-row"]:visible').last();
+    assert.match(await last.innerText(), /baeckerei/, "am Ende der Liste");
   } finally {
     await context.close();
   }

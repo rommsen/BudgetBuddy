@@ -1,7 +1,7 @@
 ---
 id: categorization-m47g8
 title: "Neue Regeln kommen ans Ende der Liste (niedrigste Priorität), aus der Buchung wie im Tab Regeln"
-status: doing
+status: done
 type: bug
 context: categorization
 created: 2026-11-14
@@ -46,3 +46,33 @@ Anlegen unten (`src/Client/Components/Rules/State.fs:35` und die Stelle, die sie
 Erfasst und verfeinert 2026-11-14 aus Romans Blick (Entscheidung: beide Wege unten). Die Priorität vergibt weiter der
 Server; ob das über `MIN(priority) - 1` oder ein Neunummerieren geht, entscheidet der Worker nach dem, was Umordnen
 und `restoreRule` erwarten (ganze Zahlen, auch 0 oder negativ, sofern nichts dagegen spricht).
+
+## Outcome
+
+Neue Regeln stehen am Ende der Liste (niedrigste Priorität), für beide Wege über `createRule`.
+
+- Server: `Persistence.Rules.nextPriority` liest `MIN(priority)` und gibt über die reine Funktion `priorityBelow` die
+  Zahl darunter zurück, ohne Regel 0 (`src/Server/Persistence.fs`). Ganze Zahlen, auch 0 oder negativ, sind
+  unbedenklich: `reorderRules` und `restoreRule` (ADR 0094) vergeben über `writePriorities` ohnehin alle Prioritäten
+  neu (1..N). Bei gleicher Priorität landet die neue Zeile über `rowid ASC` ebenfalls hinten. Kommentar an
+  `createRule` (`src/Server/Rules/CommandHandlers.fs`) angepasst.
+- Client: `RuleCreated` hängt die Regel unten an (`rules @ [ rule ]`), Toast „Regel angelegt“ unverändert; Kommentar
+  an `buildNewRule` (`src/Client/Components/Rules/State.fs`) sagt „am Ende“.
+- Tests (`src/Tests/RuleCommandHandlerTests.fs`): der alte Test „höchste Priorität plus 1, steht vorn“ ist zum
+  Regressionstest umgeschrieben (Regeln 3, 2, 1, neue Regel kleiner als jede vorhandene und letzte in
+  `getAllRules`); neu: eine ältere Regel auf denselben Payee gewinnt gegen die neue in `ruleCategoryFor` und
+  `classify`; neu: `priorityBelow` für leere Tabelle, 1 und negativ. Alle drei waren gegen das alte `MAX + 1` rot
+  (geprüft, außer `priorityBelow`, das neu ist). `RulesListTests` (beide „Nach dem Anlegen …“-Tests, Tab und aus der
+  Buchung) erwarten die Regel am Ende, vor dem Fix rot. Umordnen, Bearbeiten und `restoreRule` sind durch die
+  vorhandenen Tests belegt und grün.
+- Browser-Flow `[flow:regel-anlegen]` (`scripts/regeln-tab.test.mjs`) prüft die letzte Zeile, Satz in `FLOWS`
+  (`scripts/browser-usage.mjs`) auf „steht am Ende der Liste“ nachgezogen.
+- `./verify.sh`: `VERIFY: PASS` (dotnet 5011, node 340). Ein erster Lauf hatte einen Timeout in
+  `[flow:bank-trennen]` (`scripts/settings-secrets.test.mjs`, ohne Bezug zu Regeln, parallele Sibling-Läufe); einzeln
+  und im zweiten Gesamtlauf grün.
+- README categorization: Delta für **Priority** mit dem Gate geprüft (Exit 0, „Ganz nachlesen: keine Einträge“).
+- README ledger (für den Conductor, nicht per Delta): im Bullet **Regel aus der Buchung** (ledger-hg5m5) den Satz
+  „Nach dem Anlegen Toast „Regel angelegt“, die Regel steht vorn, das Formular schließt …“ ändern zu „… die Regel
+  steht am Ende (categorization-m47g8), das Formular schließt …“.
+
+Verifier: PASS (Iteration 1). Integration: Ledger-README, Bullet **Regel aus der Buchung**, von „die Regel steht vorn“ auf „die Regel steht am Ende (categorization-m47g8)“ nachgezogen. ADR 0094 beschreibt in Context und Consequences `createRule` noch mit „ganz vorn“; das ist der Stand zur Zeit der Entscheidung, die Decision selbst bleibt gültig.

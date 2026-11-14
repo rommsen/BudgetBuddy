@@ -46,7 +46,7 @@ let private compileError (rule: Rule) (reason: string) =
     RulesError.InvalidPattern (rule.Pattern, reason)
 
 /// Legt eine Regel an. Name und Muster werden vor dem YNAB-Aufruf geprüft, die Priorität
-/// vergibt der Server, damit die neue Regel vorn steht.
+/// vergibt der Server, die neue Regel steht am Ende (categorization-m47g8).
 let createRule (port: YnabPort) (now: DateTime) (request: NewRule) : Async<RulesResult<Rule>> =
     async {
         match validateNewRule request with

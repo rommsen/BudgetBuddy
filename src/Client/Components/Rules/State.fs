@@ -32,7 +32,8 @@ let requiredFieldPairs (draft: RuleDraft) : (string * string) list =
 let savedName (draft: RuleDraft) : string =
     if blank draft.Name then draft.Pattern.Trim() else draft.Name.Trim()
 
-/// Die neue Regel aus dem Formular. Die Priorität vergibt der Server, die Regel steht danach vorn.
+/// Die neue Regel aus dem Formular. Die Priorität vergibt der Server, die Regel steht danach am Ende
+/// (categorization-m47g8).
 let buildNewRule (draft: RuleDraft) (categoryId: YnabCategoryId) : NewRule = {
     Name = savedName draft
     Pattern = draft.Pattern
@@ -404,7 +405,7 @@ let updateWith (ports: RulesPorts) (msg: Msg) (model: Model) : Model * Cmd<Msg> 
         | _ -> model, Cmd.none, NoOp
 
     | RuleCreated (shell, request, result) ->
-        saveAnswered model shell request result (fun rule rules -> rule :: rules) "Regel angelegt" "Regel konnte nicht angelegt werden"
+        saveAnswered model shell request result (fun rule rules -> rules @ [ rule ]) "Regel angelegt" "Regel konnte nicht angelegt werden"
 
     | ChangeRequested shell ->
         match model.Panel with

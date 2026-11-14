@@ -161,11 +161,13 @@ let panelTests =
             Expect.equal (panelOf (step (CreateRequested InPanel) editing)).Save NotSaving "Anlegen auf bestehender Regel"
             Expect.isTrue (SaveState.isSaving (panelOf (step (ChangeRequested InPanel) editing)).Save) "Ändern läuft"
         }
-        test "Nach dem Anlegen steht die Regel vorn, das Panel zeigt sie, das Sheet schließt" {
+        // Bug categorization-m47g8: „Neue Regel“ setzte die angelegte Regel vorn in die Liste, der Server vergab ihr
+        // die höchste Priorität. Sie steht am Ende.
+        test "Nach dem Anlegen steht die Regel am Ende, das Panel zeigt sie, das Sheet schließt" {
             let created = { rule 9 true with Name = "Neu" }
             let saving = steps [ NewRuleRequested; PatternEntered "x"; CategoryChosen (Some r1.CategoryId); CreateRequested InPanel ] shown
             let inPanel, _, ext = update (RuleCreated (InPanel, requestOf saving, Ok created)) saving
-            Expect.equal (ids inPanel) [ created.Id; r1.Id; r2.Id; r3.Id ] "vorn"
+            Expect.equal (ids inPanel) [ r1.Id; r2.Id; r3.Id; created.Id ] "am Ende"
             Expect.equal (panelOf inPanel).Editor (Editing created) "Panel zeigt sie"
             Expect.equal ext (ShowToast ("Regel angelegt", ToastSuccess)) "Toast"
             Expect.isNone (step (RuleCreated (InSheet, requestOf saving, Ok created)) saving).Panel "Sheet zu"
@@ -659,13 +661,14 @@ let entryFormTests =
             Expect.equal (panelOf typed).Draft.Name "Rewe Markt" "Eingabe bleibt"
         }
         // GIVEN das vorbelegte Formular WHEN Roman „Regel anlegen“ drückt und der Server die Regel anlegt THEN meldet
-        // der Toast „Regel angelegt“, die Regel steht vorn, und das Formular schließt (zurück zur Buchung, auch am PC).
-        test "Nach dem Anlegen steht die Regel vorn, das Formular schließt in jeder Hülle" {
+        // der Toast „Regel angelegt“, die Regel steht am Ende, und das Formular schließt (zurück zur Buchung, auch am
+        // PC). Bug categorization-m47g8: sie stand vorn.
+        test "Nach dem Anlegen steht die Regel am Ende, das Formular schließt in jeder Hülle" {
             let created = { rule 9 true with Name = "Rewe" }
             for shell in [ InPanel; InSheet ] do
                 let saving = step (CreateRequested shell) fromEntry
                 let after, _, ext = update (RuleCreated (shell, requestOf saving, Ok created)) saving
-                Expect.equal (ids after) [ created.Id; r1.Id; r2.Id; r3.Id ] $"vorn ({shell})"
+                Expect.equal (ids after) [ r1.Id; r2.Id; r3.Id; created.Id ] $"am Ende ({shell})"
                 Expect.isNone after.Panel $"zurück zur Buchung ({shell})"
                 Expect.equal ext (ShowToast ("Regel angelegt", ToastSuccess)) "Toast"
         }
