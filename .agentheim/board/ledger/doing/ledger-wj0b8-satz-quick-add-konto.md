@@ -1,7 +1,7 @@
 ---
 id: ledger-wj0b8
 title: "Einstellungen: Satz unter „Quick-Add-Konto“ lautet „Vorbelegt bei „+ Buchung“ ohne Kontofilter“"
-status: todo
+status: doing
 type: chore
 context: ledger
 created: 2026-11-14

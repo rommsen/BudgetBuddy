@@ -1,7 +1,7 @@
 ---
 id: ledger-pnjz3
 title: "Kassenbuch zeigt keine leeren Tagesblöcke, jeder Tag einmal und in der richtigen Reihenfolge"
-status: todo
+status: doing
 type: bug
 context: ledger
 created: 2026-11-14

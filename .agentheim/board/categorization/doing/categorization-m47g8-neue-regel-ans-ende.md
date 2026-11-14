@@ -1,7 +1,7 @@
 ---
 id: categorization-m47g8
 title: "Neue Regeln kommen ans Ende der Liste (niedrigste Priorität), aus der Buchung wie im Tab Regeln"
-status: todo
+status: doing
 type: bug
 context: categorization
 created: 2026-11-14

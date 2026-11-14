@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-14 13:33 -- Batch started: [categorization-m47g8, ledger-pnjz3, ledger-wj0b8]
+
+**Type:** Work / Batch start
+**Tasks:** categorization-m47g8 - "Neue Regeln kommen ans Ende der Liste (niedrigste Priorität), aus der Buchung wie im Tab Regeln", ledger-pnjz3 - "Kassenbuch zeigt keine leeren Tagesblöcke, jeder Tag einmal und in der richtigen Reihenfolge", ledger-wj0b8 - "Einstellungen: Satz unter „Quick-Add-Konto“ lautet „Vorbelegt bei „+ Buchung“ ohne Kontofilter“"
+**Parallel:** scoped — builder named 3 ids, alle drei parallel (3 workers); keine Datei-Überschneidung erwartet (Rules, Ledger-Liste, Settings)
+
+---
+
 ## 2026-11-14 13:33 -- Modeling / Captured: ledger-wj0b8 - "Einstellungen: Satz unter „Quick-Add-Konto“ lautet „Vorbelegt bei „+ Buchung“ ohne Kontofilter“"
 
 **Type:** Modeling / Capture
