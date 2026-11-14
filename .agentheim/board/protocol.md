@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-11-14 18:49 -- Modeling / Refined: ledger-sre0f - Zuletzt-Chips in „Neue Buchung“ aus den Buchungen des gewählten Kontos, fünf mit Memo
+
+**Type:** Modeling / Refine
+**BC:** ledger
+**Status after:** todo
+**Summary:** Kriterien nach Romans Entscheidungen: je Konto bis zu fünf Vorlagen aus dem Kassenbuch (gleich wer gebucht hat), eine Abfrage für alle Konten, Client filtert nach dem gewählten Konto ohne neue Anfrage, ein Tipp füllt auch das Memo. Überträge bleiben Vorlagen (BB kann es heute), Memo nicht im Chip-Text. Abgleich mit Quick Add vor ledger-ea70s in den Notes.
+
+---
+
 ## 2026-11-14 14:18 -- Review-Lauf: d40409da~1..ddd1ba7e
 
 **Type:** Review / Review-Lauf
