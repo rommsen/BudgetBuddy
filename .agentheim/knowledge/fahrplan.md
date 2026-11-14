@@ -3,7 +3,7 @@
 Stand 2026-11-07. Grundlage: ADR 0086, `vision.md` Abschnitt „What success looks like“.
 
 ## Stand
-Zuletzt aktualisiert: 2026-11-14, nach work-Lauf und Review ledger-ea70s und ledger-hg5m5.
+Zuletzt aktualisiert: 2026-11-14, nach work-Lauf und Review categorization-m47g8, ledger-pnjz3 und ledger-wj0b8.
 
 - **Etappe 1 · Bedeutungen:** erledigt, 5 von 5 (Skizze und Prototyp, Layout-Sweep, Muster im
   Styleguide, Designwert-Tests aufgeräumt, Palette 2 im Token-Layer). Romans Blick auf dak16 neben
@@ -142,8 +142,24 @@ Zuletzt aktualisiert: 2026-11-14, nach work-Lauf und Review ledger-ea70s und led
 - **Romans Blick 2026-11-14 auf ledger-ea70s (teilweise):** Bar ohne Kontofilter passt, mit Filter auf dem
   Girokonto kommt Bar (Import-Konto gesperrt), auch richtig. Nicht so schnell wie Quick Add: die Zuletzt-Chips zeigen die
   üblichen Bar-Buchungen nicht, neu ledger-sre0f (Chips aus dem gewählten Konto, fünf mit Memo, Entscheidungen in der Task).
-  Learn: Abgleichsregel in CLAUDE.md geschärft (9f19b85f).
-- **Nächster Schritt:** Romans Blick auf ledger-ea70s und ledger-hg5m5 (Punkte oben), jetzt in der Produktion. Übrig: Bob, Regel aus der Buchung, Tab Regeln und die sechs Sichtpunkte. ledger-sre0f verfeinern. Dann Schnitt 8 ledger-f8d7x (Kassenbuch ordnen) verfeinern. Offen zum Verfeinern: ledger-h7de3
+  Learn: Abgleichsregel in CLAUDE.md geschärft (9f19b85f). Eine neue Regel stand oben, sie soll ans Ende
+  (categorization-m47g8, für „Regel anlegen“ und „Neue Regel“). Sichtpunkt 6 entschieden: der Satz lautet wörtlich
+  „Vorbelegt bei „+ Buchung“ ohne Kontofilter“, der Name „Quick-Add-Konto“ bleibt (ledger-wj0b8). Am Handy standen mit
+  „Zu prüfen“ leere Tagesköpfe und ein Tag zweimal (ledger-pnjz3, Roman: nie leere Blöcke, jeder Tag einmal).
+- **Work-Lauf 2026-11-14 mittags:** categorization-m47g8 (neue Regeln bekommen die niedrigste Priorität und stehen am Ende,
+  2efcf3c0), ledger-pnjz3 (Tagesgruppen je Kalendertag; Ursache: die Spalte `date` mischt Kinds, im Browser trennte das einen
+  Tag in zwei Gruppen mit demselben React-Key, React ließ alte Köpfe im DOM stehen; d9a1a5b5) und ledger-wj0b8 (Satz in den
+  Einstellungen, a4dd439d). Alle drei Verifier PASS in Iteration 1, Gate auf dem zusammengeführten Stand VERIFY: PASS
+  (dotnet 5013, node 340). Review-Lauf d40409da~1..ddd1ba7e mit 4 Agents, 6 Funde behoben in 7ffac40c..99782788: die
+  Prioritätsprüfung lehnte die 0 und negativen Werte ab, die der Server jetzt selbst vergibt; eine neue Regel konnte nach
+  einem Neuladen doppelt in der Liste stehen; beide Ansichten holen ihre Tagesgruppen über `dayGroups` (Richtung getestet);
+  ein Handler-Test war gegen parallele Tests nicht stabil. Kann-Sammlungen ledger und categorization ergänzt. Gate:
+  VERIFY: PASS (dotnet 5016, node 340). Nicht gepusht, nicht deployt. Für Romans Blick nach dem Deploy: am Handy mit
+  „Zu prüfen“ und ungefiltert keine leeren Tagesköpfe, jeder Tag einmal; eine neue Regel steht am Ende des Tabs Regeln.
+  Vorschlag: `/architecture-review ledger` (17 erledigte Tasks seit dem letzten Bestandsreview).
+- **Nächster Schritt:** Deploy von categorization-m47g8, ledger-pnjz3 und ledger-wj0b8 auf Romans Anweisung. Romans Blick
+  auf ledger-ea70s und ledger-hg5m5 geht weiter: übrig sind Bob, Regel aus der Buchung im Detail, Tab Regeln neben dem
+  Prototyp und die Sichtpunkte 1 bis 5. ledger-sre0f verfeinern. Dann Schnitt 8 ledger-f8d7x (Kassenbuch ordnen) verfeinern. Offen zum Verfeinern: ledger-h7de3
   (Fehlertexte in Ereignissen), design-system-vf94m (Toast verdeckt „+ Buchung“), ledger-t4rk8 (Betrag eines Übertrags in BB).
 - Verfeinert wird nur die nächste Etappe. Spätere Etappen haben Zeilen, keine Tickets.
 - Neue Ideen für spätere Etappen kommen hier als Zeile dazu.
