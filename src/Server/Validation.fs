@@ -99,8 +99,11 @@ let validatePayeeOverride (payee: string option) : string option =
     | Some p -> validateLength "Payee-Override" 1 200 p
     | None -> None
 
+/// Nur eine Obergrenze: der Server vergibt neuen Regeln die niedrigste Priorität minus 1, also
+/// auch 0 oder negativ (`Persistence.Rules.priorityBelow`, categorization-m47g8). Eine Änderung,
+/// die diese Priorität mitschickt, muss gültig bleiben.
 let private validatePriority (priority: int) : string option =
-    validateRange "Priorität" 0 10000 priority
+    if priority > 10000 then Some "Priorität darf höchstens 10000 sein" else None
 
 let validateNewRule (rule: NewRule) : Result<NewRule, string list> =
     let errors =

@@ -489,7 +489,7 @@ let rulesValidationTests =
                     (validateRuleChange (change (PayeeOverrideChange.Set " ")))
                     (Error [
                         "Regelname ist erforderlich"
-                        "Priorität muss zwischen 0 und 10000 liegen"
+                        "Priorität darf höchstens 10000 sein"
                         "Payee-Override darf nicht leer sein" ])
                     "alle drei Fehler"
             }
@@ -516,6 +516,25 @@ let rulesValidationTests =
                 }
                 let result = validateRuleChange request
                 Expect.isOk result "Should return Ok for valid update request"
+            }
+
+            // Bug (Review nach categorization-m47g8): Der Server vergibt neuen Regeln die niedrigste Priorität
+            // minus 1, also auch 0 oder negativ. Die Prüfung ließ nur 0 bis 10000 zu und hätte eine Änderung,
+            // die die vorhandene Priorität mitschickt, abgelehnt.
+            test "eine Priorität 0 oder negativ, wie sie der Server neuen Regeln gibt, ist gültig" {
+                for priority in [ 0; -3 ] do
+                    let request = {
+                        Id = RuleId (Guid.NewGuid())
+                        Name = None
+                        Pattern = None
+                        PatternType = None
+                        TargetField = None
+                        CategoryId = None
+                        PayeeOverride = PayeeOverrideChange.Keep
+                        Priority = Some priority
+                        Enabled = None
+                    }
+                    Expect.isOk (validateRuleChange request) $"Priorität {priority} muss gültig sein"
             }
 
             test "returns Ok when all optional fields are None" {
