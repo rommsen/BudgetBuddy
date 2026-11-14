@@ -139,7 +139,11 @@ Zuletzt aktualisiert: 2026-11-14, nach work-Lauf und Review ledger-ea70s und led
   (4) Höhensprung, wenn die Auswahl den Inhalt des Sheets ersetzt („+ Buchung“, Konto antippen); (5) gebogene Akzentkante
   der aktiven Zeile in „Konto wählen“ (älter, jetzt prominent); (6) Satz unter „Quick-Add-Konto“ in den Einstellungen
   („Konto für manuell erfasste Transaktionen“) besser „Vorbelegt bei „+ Buchung“ ohne Kontofilter, auch für Bob“?
-- **Nächster Schritt:** Romans Blick auf ledger-ea70s und ledger-hg5m5 (Punkte oben), jetzt in der Produktion. Dann Schnitt 8 ledger-f8d7x (Kassenbuch ordnen) verfeinern. Offen zum Verfeinern: ledger-h7de3
+- **Romans Blick 2026-11-14 auf ledger-ea70s (teilweise):** Bar ohne Kontofilter passt, mit Filter auf dem
+  Girokonto kommt Bar (Import-Konto gesperrt), auch richtig. Nicht so schnell wie Quick Add: die Zuletzt-Chips zeigen die
+  üblichen Bar-Buchungen nicht, neu ledger-sre0f (Chips aus dem gewählten Konto, fünf mit Memo, Entscheidungen in der Task).
+  Learn: Abgleichsregel in CLAUDE.md geschärft (9f19b85f).
+- **Nächster Schritt:** Romans Blick auf ledger-ea70s und ledger-hg5m5 (Punkte oben), jetzt in der Produktion. Übrig: Bob, Regel aus der Buchung, Tab Regeln und die sechs Sichtpunkte. ledger-sre0f verfeinern. Dann Schnitt 8 ledger-f8d7x (Kassenbuch ordnen) verfeinern. Offen zum Verfeinern: ledger-h7de3
   (Fehlertexte in Ereignissen), design-system-vf94m (Toast verdeckt „+ Buchung“), ledger-t4rk8 (Betrag eines Übertrags in BB).
 - Verfeinert wird nur die nächste Etappe. Spätere Etappen haben Zeilen, keine Tickets.
 - Neue Ideen für spätere Etappen kommen hier als Zeile dazu.
