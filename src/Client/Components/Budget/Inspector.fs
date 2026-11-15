@@ -84,8 +84,8 @@ let private listFocus (focus: KeyFocus) : ListKeys.Focus =
 
 /// Die gemeinsame Tastenregel (`ListKeys.actionFor`, design-system-gcpws) im Zustand der Seite: Targets anwenden,
 /// Targets nach YNAB, das Menü ⋮ und der offene Picker der Gegenseite liegen als Ebene darüber und behalten die
-/// Tasten für sich; die gewählte Kategorie
-/// ist die gewählte Zeile und das, was im Panel offen ist.
+/// Tasten für sich; die gewählte Kategorie ist die gewählte Zeile und das, was im Panel offen ist. Ein druckbares
+/// Zeichen ohne Feldfokus geht in die Suche (`TypeIntoSearch`, §7.8 Punkt 5), die Leertaste nicht.
 let pageListAction (model: Model) (key: string) (focus: KeyFocus) (shift: bool) (command: bool) (handled: bool) : ListKeys.Action =
     ListKeys.actionFor
         budgetListTraits
@@ -118,16 +118,6 @@ let pageKeyOf (action: ListKeys.Action) : PageKeyAction =
     | ListKeys.FocusSearch
     | ListKeys.TypeIntoSearch
     | ListKeys.Leave -> LeaveKey
-
-/// Eine Taste ohne Zusatztaste im Zustand der Seite.
-let pageKeyActionFor (model: Model) (key: string) (focus: KeyFocus) : PageKeyAction =
-    pageKeyOf (pageListAction model key focus false false false)
-
-/// Tippen ohne Klick in die Suche: ein druckbares Zeichen, während kein Eingabefeld den Fokus hat, geht in die Suche
-/// (§7.8 Punkt 5). Die Leertaste nicht, sie gehört dem Knopf mit Fokus und dem Scrollen. Bei offenem Dialog oder
-/// Picker gehören die Tasten dort hin.
-let typesIntoSearch (model: Model) (key: string) (focus: KeyFocus) : bool =
-    pageListAction model key focus false false false = ListKeys.TypeIntoSearch
 
 /// Der Nachbar-Tab, an den Rändern bleibt er stehen.
 let private neighbourTab (direction: Direction) (tab: InspectorTab) : InspectorTab =

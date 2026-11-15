@@ -34,37 +34,24 @@ let private keyFocus (target: obj) : KeyFocus =
     else
         OtherFocus
 
-/// Die Tasten der Seite ab 1024 px. Der Handler hängt am Dokument: nach einem Klick auf eine
-/// Tabellenzeile steht der Fokus auf `body` und erreicht kein Element der Seite. `defaultPrevented`
-/// heißt, `Tabs` hat die Taste schon genommen, so wechselt ein Druck genau einen Tab. Mit
-/// Zusatztaste gehört der Pfeil dem Browser (Alt und Links: zurück) oder dem Feld (Umschalt: markieren).
-/// Ein Zeichen ohne Feldfokus setzt den Fokus in die Suche; der Browser schreibt es dann dorthin,
-/// Umschalt ist dabei erlaubt (Großbuchstaben).
-[<ReactComponent>]
-let private PageKeys (model: Model, dispatch: Msg -> unit) =
-    let latest = React.useRef (model, dispatch)
-    latest.current <- (model, dispatch)
-    React.useEffect (
-        (fun () ->
-            let onKey (event: Browser.Types.Event) =
-                let e = event :?> Browser.Types.KeyboardEvent
-                let current, send = latest.current
-                let command = e.altKey || e.ctrlKey || e.metaKey
-                match pageListAction current e.key (keyFocus e.target) e.shiftKey command e.defaultPrevented with
-                | ListKeys.TypeIntoSearch ->
-                    let search: obj = Browser.Dom.document.querySelector "[data-testid='budget-category-search'] input"
-                    if not (isNull search) then search?focus ()
-                | action ->
-                    match pageKeyOf action with
-                    | LeaveKey -> ()
-                    | key ->
-                        e.preventDefault ()
-                        send (PageKeyPressed key)
-            Browser.Dom.document.addEventListener ("keydown", onKey)
-            React.createDisposable (fun () -> Browser.Dom.document.removeEventListener ("keydown", onKey))),
-        [||]
-    )
-    Html.none
+/// Die Tasten der Seite ab 1024 px über `PageKeys.OnDocument` (Handler am Dokument: nach einem Klick auf eine
+/// Tabellenzeile steht der Fokus auf `body` und erreicht kein Element der Seite). `defaultPrevented` heißt, `Tabs`
+/// hat die Taste schon genommen, so wechselt ein Druck genau einen Tab. Mit Zusatztaste gehört der Pfeil dem Browser
+/// (Alt und Links: zurück) oder dem Feld (Umschalt: markieren). Ein Zeichen ohne Feldfokus setzt den Fokus in die
+/// Suche; der Browser schreibt es dann dorthin, Umschalt ist dabei erlaubt (Großbuchstaben).
+let private pageKeys (model: Model) (dispatch: Msg -> unit) =
+    PageKeys.OnDocument (fun e ->
+        let command = e.altKey || e.ctrlKey || e.metaKey
+        match pageListAction model e.key (keyFocus e.target) e.shiftKey command e.defaultPrevented with
+        | ListKeys.TypeIntoSearch ->
+            let search: obj = Browser.Dom.document.querySelector "[data-testid='budget-category-search'] input"
+            if not (isNull search) then search?focus ()
+        | action ->
+            match pageKeyOf action with
+            | LeaveKey -> ()
+            | key ->
+                e.preventDefault ()
+                dispatch (PageKeyPressed key))
 
 // ============================================
 // Seite
@@ -307,7 +294,7 @@ let view (pin: InspectorPin option) (model: Model) (dispatch: Msg -> unit) =
                     Html.div [
                         prop.className "relative"
                         prop.children [
-                            PageKeys (model, dispatch)
+                            pageKeys model dispatch
                             inspectorPanel pin model dispatch
                             Html.div [
                                 prop.className $"{Tokens.PanelWidths.columnInsetWide} min-h-[calc(100vh-7rem)]"

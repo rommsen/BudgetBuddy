@@ -58,6 +58,11 @@ let private commands (msg: Msg) (model: Model) : int =
     List.length cmd
 
 let private selected (c: BudgetCategory) (m: Model) = run [ SelectCategory c.Id ] m
+
+/// Die Taste wie in der View (`pageListAction`, dann `pageKeyOf`), ohne Umschalt, Zusatztaste und genommene Taste.
+let private keyActionOf (model: Model) (key: string) (focus: KeyFocus) : PageKeyAction =
+    pageKeyOf (pageListAction model key focus false false false)
+
 let private onFood = selected food loaded
 let private tabOf (model: Model) = model.TabMoney.Value
 let private queued (model: Model) =
@@ -1181,7 +1186,7 @@ let private pickerTests =
         test "Ein offener Picker sperrt die Pfeiltasten der Seite" {
             let model = run [ OpenPicker ] onFood
             for key in [ "ArrowUp"; "ArrowDown"; "ArrowLeft"; "ArrowRight" ] do
-                Expect.equal (pageKeyActionFor model key OtherFocus) LeaveKey key
+                Expect.equal (keyActionOf model key OtherFocus) LeaveKey key
         }
         test "Beim Wählen schließt der Picker" {
             let model = run [ OpenPicker; PickCounterpart ToBeBudgetedSide ] onFood
@@ -1193,11 +1198,11 @@ let private keyTests =
     testList "Tastatur" [
         test "Mit Fokus im Feld bleiben alle vier Pfeiltasten im Feld" {
             for key in [ "ArrowUp"; "ArrowDown"; "ArrowLeft"; "ArrowRight" ] do
-                Expect.equal (pageKeyActionFor onFood key TextField) LeaveKey key
+                Expect.equal (keyActionOf onFood key TextField) LeaveKey key
         }
         test "Ohne Fokus in einem Feld wechseln Links und Rechts die Tabs" {
-            Expect.equal (pageKeyActionFor onFood "ArrowRight" OtherFocus) (StepTab Next) "rechts"
-            Expect.equal (pageKeyActionFor onFood "ArrowLeft" OtherFocus) (StepTab Previous) "links"
+            Expect.equal (keyActionOf onFood "ArrowRight" OtherFocus) (StepTab Next) "rechts"
+            Expect.equal (keyActionOf onFood "ArrowLeft" OtherFocus) (StepTab Previous) "links"
         }
     ]
 

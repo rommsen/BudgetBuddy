@@ -544,9 +544,13 @@ let private stepTests =
     ]
 
 let private pageKeyTests =
+    // Wie die View: `pageListAction` mit den Werten des Ereignisses, hier ohne Umschalt, Zusatztaste und genommene Taste.
+    let keyAction (model: Model) key focus = pageKeyOf (pageListAction model key focus false false false)
+    let typesIntoSearch (model: Model) key focus =
+        pageListAction model key focus false false false = Client.DesignSystem.ListKeys.TypeIntoSearch
     let press key focus (model: Model) =
         let pressed, _, _ =
-            Components.Budget.State.update (PageKeyPressed (pageKeyActionFor model key focus)) model
+            Components.Budget.State.update (PageKeyPressed (keyAction model key focus)) model
         pressed
     let filtered filter =
         { init () with Month = Success { detailMonth with Groups = filterGroupsFixture }; Filter = filter }
@@ -555,35 +559,35 @@ let private pageKeyTests =
     testList "Pfeiltasten am PC" [
         test "Hoch und Runter wechseln die Zeile, auch im Suchfeld" {
             for focus in [ SearchField; OtherFocus ] do
-                Expect.equal (pageKeyActionFor opened "ArrowDown" focus) (StepRow Next) "Runter"
-                Expect.equal (pageKeyActionFor opened "ArrowUp" focus) (StepRow Previous) "Hoch"
+                Expect.equal (keyAction opened "ArrowDown" focus) (StepRow Next) "Runter"
+                Expect.equal (keyAction opened "ArrowUp" focus) (StepRow Previous) "Hoch"
         }
         // Bug (Roman, 2026-11-03): Wer aus der Suche mit Hoch und Runter eine Kategorie wählte, behielt
         // den Fokus im Suchfeld, und Links und Rechts bewegten nur den Cursor statt den Tab zu wechseln.
         test "Links und Rechts wechseln den Tab, auch im Suchfeld" {
             for focus in [ SearchField; OtherFocus ] do
-                Expect.equal (pageKeyActionFor opened "ArrowRight" focus) (StepTab Next) "Rechts"
-                Expect.equal (pageKeyActionFor opened "ArrowLeft" focus) (StepTab Previous) "Links"
+                Expect.equal (keyAction opened "ArrowRight" focus) (StepTab Next) "Rechts"
+                Expect.equal (keyAction opened "ArrowLeft" focus) (StepTab Previous) "Links"
         }
         test "Ohne Auswahl wählt Runter die erste und Hoch die letzte Zeile, Links und Rechts tun nichts" {
             for focus in [ SearchField; OtherFocus ] do
-                Expect.equal (pageKeyActionFor (init ()) "ArrowDown" focus) FirstRow "Runter"
-                Expect.equal (pageKeyActionFor (init ()) "ArrowUp" focus) LastRow "Hoch"
-                Expect.equal (pageKeyActionFor (init ()) "ArrowRight" focus) LeaveKey "Rechts"
-                Expect.equal (pageKeyActionFor (init ()) "ArrowLeft" focus) LeaveKey "Links"
+                Expect.equal (keyAction (init ()) "ArrowDown" focus) FirstRow "Runter"
+                Expect.equal (keyAction (init ()) "ArrowUp" focus) LastRow "Hoch"
+                Expect.equal (keyAction (init ()) "ArrowRight" focus) LeaveKey "Rechts"
+                Expect.equal (keyAction (init ()) "ArrowLeft" focus) LeaveKey "Links"
         }
         test "Ein Textfeld sperrt alle vier Richtungen" {
             for model in [ opened; init () ] do
                 for key in [ "ArrowUp"; "ArrowDown"; "ArrowLeft"; "ArrowRight" ] do
-                    Expect.equal (pageKeyActionFor model key TextField) LeaveKey key
+                    Expect.equal (keyAction model key TextField) LeaveKey key
         }
         test "Andere Tasten lässt die Seite in Ruhe" {
-            Expect.equal (pageKeyActionFor opened "Enter" OtherFocus) LeaveKey "Enter"
+            Expect.equal (keyAction opened "Enter" OtherFocus) LeaveKey "Enter"
         }
         test "Bei offenem Dialog bekommt die Seite die Tasten nicht" {
             let withTargets = { opened with Targets = PreviewLoading }
             for key in [ "ArrowUp"; "ArrowDown"; "ArrowLeft"; "ArrowRight" ] do
-                Expect.equal (pageKeyActionFor withTargets key OtherFocus) LeaveKey key
+                Expect.equal (keyAction withTargets key OtherFocus) LeaveKey key
         }
         test "Ein Zeichen ohne Feldfokus geht in die Suche, Leertaste, Steuertasten und Felder nicht" {
             for key in [ "a"; "Ö"; "7"; "-" ] do
@@ -600,11 +604,11 @@ let private pageKeyTests =
         // design-system-gcpws: Esc schloss den Inspektor am PC nicht.
         test "Esc schließt den Inspektor, auch aus dem Suchfeld, bei offenem Dialog nicht" {
             for focus in [ SearchField; OtherFocus; TextField ] do
-                Expect.equal (pageKeyActionFor opened "Escape" focus) ClosePanelKey $"{focus}"
+                Expect.equal (keyAction opened "Escape" focus) ClosePanelKey $"{focus}"
             Expect.isNone (press "Escape" OtherFocus opened).Selected "zu"
-            Expect.equal (pageKeyActionFor (init ()) "Escape" OtherFocus) LeaveKey "ohne Auswahl nichts"
-            Expect.equal (pageKeyActionFor { opened with Targets = PreviewLoading } "Escape" OtherFocus) LeaveKey "Dialog zuerst"
-            Expect.equal (pageKeyActionFor { opened with MenuOpen = true } "Escape" OtherFocus) LeaveKey "Menü zuerst"
+            Expect.equal (keyAction (init ()) "Escape" OtherFocus) LeaveKey "ohne Auswahl nichts"
+            Expect.equal (keyAction { opened with Targets = PreviewLoading } "Escape" OtherFocus) LeaveKey "Dialog zuerst"
+            Expect.equal (keyAction { opened with MenuOpen = true } "Escape" OtherFocus) LeaveKey "Menü zuerst"
         }
         // design-system-gcpws (F10): die Seite nutzt die gemeinsame Regel, ohne eigene Tasten davor.
         test "Jede Taste folgt der gemeinsamen Regel mit Tabs, Suche und Tippen in die Suche" {
@@ -614,7 +618,17 @@ let private pageKeyTests =
                 | TextField -> Client.DesignSystem.ListKeys.InTextField
                 | SearchField -> Client.DesignSystem.ListKeys.InSearch
                 | OtherFocus -> Client.DesignSystem.ListKeys.Elsewhere
-            for model, layer in [ opened, false; init (), false; { opened with Targets = PreviewLoading }, true ] do
+            // Jede Ebene über der Liste einzeln (Review nach design-system-gcpws): Targets anwenden, Targets nach YNAB,
+            // das Menü ⋮ und der offene Picker der Gegenseite.
+            let picking, _, _ = Components.Budget.State.update OpenPicker (syncMoneyTab opened)
+            Expect.isTrue (pickerOpen picking) "Picker offen"
+            for name, model, layer in
+                [ "Auswahl", opened, false
+                  "ohne Auswahl", init (), false
+                  "Targets anwenden", { opened with Targets = PreviewLoading }, true
+                  "Targets nach YNAB", { opened with TargetsToYnab = TargetsToYnabAsking }, true
+                  "Menü", { opened with MenuOpen = true }, true
+                  "Picker", picking, true ] do
                 for focus in [ TextField; SearchField; OtherFocus ] do
                     for shift in [ false; true ] do
                         for key in ListKeysTests.keys do
@@ -624,13 +638,11 @@ let private pageKeyTests =
                                     { Key = key; Focus = listFocus focus; Command = false; Shift = shift; Handled = false
                                       LayerOpen = layer; RowSelected = model.Selected.IsSome; PanelOpen = model.Selected.IsSome
                                       SelectionActive = false }
-                            Expect.equal (pageListAction model key focus shift false false) expected $"{key} {focus} {shift}"
-                            if not shift then
-                                Expect.equal (typesIntoSearch model key focus) (expected = Client.DesignSystem.ListKeys.TypeIntoSearch) key
+                            Expect.equal (pageListAction model key focus shift false false) expected $"{name}: {key} {focus} {shift}"
         }
         test "Ohne Dialog gilt die Regel mit der Auswahl aus dem Modell" {
-            Expect.equal (pageKeyActionFor opened "ArrowDown" OtherFocus) (StepRow Next) "mit Auswahl"
-            Expect.equal (pageKeyActionFor (init ()) "ArrowDown" OtherFocus) FirstRow "ohne Auswahl"
+            Expect.equal (keyAction opened "ArrowDown" OtherFocus) (StepRow Next) "mit Auswahl"
+            Expect.equal (keyAction (init ()) "ArrowDown" OtherFocus) FirstRow "ohne Auswahl"
         }
         test "Mit aktivem Filter und ohne Auswahl wählt Runter die erste sichtbare Zeile" {
             // Wohnen steht vorn: ohne Filter wäre Strom die erste Zeile.

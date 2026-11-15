@@ -250,10 +250,10 @@ let keyBindingTests =
                 |> Array.sort
             // categorization-n3sxw: der Tab „Regeln“ hört nur, solange er offen ist; die Tasten der Buchungen hängen
             // dann nicht im DOM (`Components.Ledger.View.view`, Zweig `BookingsTab`).
-            // design-system-gcpws: Kategorien und Targets prüfen hängen über `PageKeys.OnDocument` am Dokument.
+            // design-system-gcpws: die Budget-Seite, Kategorien und Targets prüfen hängen über `PageKeys.OnDocument` am Dokument.
             Expect.equal
                 listeners
-                [| "Components/Budget/View.fs"; "Components/Ledger/View.fs"; "Components/Rules/View.fs"; "DesignSystem/PageKeys.fs" |]
+                [| "Components/Ledger/View.fs"; "Components/Rules/View.fs"; "DesignSystem/PageKeys.fs" |]
                 "die einzigen Dokument-Handler"
 
         // ledger-hg5m5, Bug: Am PC steht das Regel-Formular im Detail-Panel. Hatte ein Segment im Formular den Fokus

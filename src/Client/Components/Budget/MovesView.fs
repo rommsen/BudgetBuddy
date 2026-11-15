@@ -22,7 +22,7 @@ let private selectAll (e: Browser.Types.FocusEvent) : unit =
     e.target?select ()
 
 /// Führt die Tastenhandlung aus (`assignKeyAction`, `amountKeyAction`). Ein Enter oder Esc nimmt dem
-/// Feld den Fokus, die Pfeiltasten gehen danach wieder (`pageKeyAction`).
+/// Feld den Fokus, die Pfeiltasten gehen danach wieder (`pageListAction`).
 let private fieldKeys (action: string -> FieldKeyAction) (dispatch: Msg -> unit) (e: Browser.Types.KeyboardEvent) : unit =
     let leaveField () = e.currentTarget?blur ()
     match action e.key with
