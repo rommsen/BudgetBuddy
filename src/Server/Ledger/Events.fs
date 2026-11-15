@@ -1559,11 +1559,12 @@ module Codec =
             NewPayee = Some (get.Required.Field "newPayee" Decode.string)
         })
 
-    /// Version 2 (ledger-pkrwd): `newPayee` ist `null`, wenn der Payee entfernt wurde.
+    /// Version 2 (ledger-pkrwd): `newPayee` ist `null`, wenn der Payee entfernt wurde. Das Feld selbst ist
+    /// Pflicht: der Encoder schreibt `null` immer aus, ein fehlendes Feld wäre sonst still „Payee entfernt“.
     let decodePayeeChangedInBb : Decoder<EntryPayeeChangedInBbPayload> =
         Decode.object (fun get -> {
             OldPayee = get.Optional.Field "oldPayee" Decode.string
-            NewPayee = get.Optional.Field "newPayee" Decode.string
+            NewPayee = get.Required.Field "newPayee" (Decode.option Decode.string)
         })
 
     let encodePayeeWriteBackFailed (p: EntryPayeeWriteBackFailedPayload) =

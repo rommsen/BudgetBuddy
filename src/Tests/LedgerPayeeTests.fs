@@ -212,6 +212,9 @@ let eventTests =
         testCase "eine unbekannte Version und ein fehlender neuer Payee bleiben Fehler" <| fun () ->
             Expect.isError (decodePayload "EntryPayeeChangedInBb" 3 "{}") "Version 3 gibt es nicht"
             Expect.isError (decodePayload "EntryPayeeChangedInBb" 1 "{\"oldPayee\":\"a\"}") "newPayee ist Pflicht"
+            // Review ledger-pkrwd: Version 2 las ein fehlendes Feld still als „Payee entfernt“, ein Replay hätte
+            // den Payee gelöscht. Der Encoder schreibt `null` immer ausdrücklich, das Feld bleibt Pflicht.
+            Expect.isError (decodePayload "EntryPayeeChangedInBb" 2 "{\"oldPayee\":\"a\"}") "newPayee ist auch in Version 2 Pflicht"
 
         // ledger-pkrwd: Version 2 erlaubt `newPayee: null`. Gespeicherte Ereignisse der Version 1
         // (immer mit Text) lesen sich unverändert.
