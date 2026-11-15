@@ -2355,8 +2355,8 @@ type Msg =
     | RunSetPayee of Guid * string option
     | PayeeSet of Guid * Result<PayeeOutcome, string>
     /// "Rückgängig" im Toast: derselbe Befehl mit dem alten Payee.
-    | StartUndoPayee of Guid * string
-    | RunUndoPayee of Guid * string
+    | StartUndoPayee of Guid * string option
+    | RunUndoPayee of Guid * string option
     | PayeeRestored of Guid * Result<PayeeOutcome, string>
     /// "Erneut senden" an der Hinweisleiste "Payee nicht in YNAB".
     | StartRetryPayee of Guid

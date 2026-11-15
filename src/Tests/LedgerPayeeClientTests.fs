@@ -201,8 +201,8 @@ let buildingBlockTests =
             Expect.isNone (Components.Ledger.View.detailNoticeWithPayee None None None None None None NotAsked (entryOf 1)) "ohne Fehlschlag keine Leiste"
 
         testCase "Toast Rückgängig wird zur Nachricht StartUndoPayee" <| fun () ->
-            match State.toastActionMsg (UndoPayee (idOf 1, "REWE SAGT DANKE 4711")) with
-            | State.LedgerMsg (StartUndoPayee (id, previous)) -> Expect.equal (id, previous) (idOf 1, "REWE SAGT DANKE 4711") "Übersetzung"
+            match State.toastActionMsg (UndoPayee (idOf 1, Some "REWE SAGT DANKE 4711")) with
+            | State.LedgerMsg (StartUndoPayee (id, previous)) -> Expect.equal (id, previous) (idOf 1, Some "REWE SAGT DANKE 4711") "Übersetzung"
             | other -> failtest $"erwartet StartUndoPayee, war {other}"
 
         testCase "die Payee-Zeile öffnet die Auswahl nur, wenn der Payee änderbar ist" <| fun () ->
@@ -279,7 +279,7 @@ let reducerTests =
             Expect.equal msgs [ RestorePayeeRowFocus; LoadHistory (idOf 1) ] "Fokus und Historie"
             match external with
             | ShowToastWithAction ("Payee geändert · Rewe", ToastSuccess, { Kind = UndoPayee (id, previous) }) ->
-                Expect.equal (id, previous) (idOf 1, "REWE SAGT DANKE 4711") "Rückgängig kennt den alten Payee"
+                Expect.equal (id, previous) (idOf 1, Some "REWE SAGT DANKE 4711") "Rückgängig kennt den alten Payee"
             | other -> failtest $"erwartet Toast mit Rückgängig, war {other}"
 
         // ledger-pkrwd: Payee entfernen über dieselbe Nachricht, Toast „Payee entfernt“ mit Rückgängig.
@@ -292,10 +292,10 @@ let reducerTests =
             Expect.isNone model.PayeeEdit "zu"
             match external with
             | ShowToastWithAction ("Payee entfernt", ToastSuccess, { Label = "Rückgängig"; Kind = UndoPayee (id, previous) }) ->
-                Expect.equal (id, previous) (idOf 1, "REWE SAGT DANKE 4711") "Rückgängig setzt den alten Payee"
+                Expect.equal (id, previous) (idOf 1, Some "REWE SAGT DANKE 4711") "Rückgängig setzt den alten Payee"
             | other -> failtest $"erwartet Toast mit Rückgängig, war {other}"
-            let undo, undoMsgs, _ = run (StartUndoPayee (idOf 1, "REWE SAGT DANKE 4711")) model
-            Expect.equal undoMsgs [ RunUndoPayee (idOf 1, "REWE SAGT DANKE 4711") ] "derselbe Befehl mit dem alten Payee"
+            let undo, undoMsgs, _ = run (StartUndoPayee (idOf 1, Some "REWE SAGT DANKE 4711")) model
+            Expect.equal undoMsgs [ RunUndoPayee (idOf 1, Some "REWE SAGT DANKE 4711") ] "derselbe Befehl mit dem alten Payee"
             let restored, _, _ = run (PayeeRestored (idOf 1, Ok (outcome None "REWE SAGT DANKE 4711" PayeeSent))) undo
             Expect.equal (rowOf 1 restored).Payee (Some "REWE SAGT DANKE 4711") "wieder da"
 
@@ -321,9 +321,17 @@ let reducerTests =
             | ShowToastWithAction (text, ToastWarning, { Kind = UndoPayee _ }) -> Expect.stringContains text "Payee nicht in YNAB: YNAB weg" "Grund im Toast"
             | other -> failtest $"erwartet Warn-Toast, war {other}"
 
-        testCase "ohne alten Payee gibt es kein Rückgängig" <| fun () ->
+        // Review ledger-pkrwd: Bekam eine Buchung ohne Payee einen Payee, fehlte im Toast „Rückgängig“, obwohl
+        // `setEntryPayee` seit ledger-pkrwd auch `None` nimmt (§7.13).
+        testCase "ohne alten Payee nimmt Rückgängig den Payee wieder weg" <| fun () ->
             let _, _, external = run (PayeeSet (idOf 1, Ok (outcome None "Rewe" PayeeSent))) (opened ())
-            Expect.equal external (ShowToast ("Payee geändert · Rewe", ToastSuccess)) "ohne Aktion"
+            Expect.equal
+                external
+                (ShowToastWithAction ("Payee geändert · Rewe", ToastSuccess, { Label = "Rückgängig"; Kind = UndoPayee (idOf 1, None) }))
+                "Rückgängig ohne alten Payee"
+            let changed = { entryOf 1 with Payee = Some "Rewe" }
+            let _, msgs, _ = run (StartUndoPayee (idOf 1, None)) (modelWith [ changed ])
+            Expect.equal msgs [ RunUndoPayee (idOf 1, None) ] "derselbe Befehl ohne Payee"
 
         testCase "PayeeSet Error: der Grund steht als Feldfehler unter dem Suchfeld, die Auswahl bleibt offen" <| fun () ->
             let sending, _, _ = run (StartSavePayee (idOf 1, Some "Rewe")) (opened ())
@@ -334,10 +342,10 @@ let reducerTests =
 
         testCase "Rückgängig im Toast schickt den alten Payee über denselben Befehl" <| fun () ->
             let changed = { entryOf 1 with Payee = Some "Rewe" }
-            let model, msgs, _ = run (StartUndoPayee (idOf 1, "REWE SAGT DANKE 4711")) (modelWith [ changed ])
+            let model, msgs, _ = run (StartUndoPayee (idOf 1, Some "REWE SAGT DANKE 4711")) (modelWith [ changed ])
             Expect.equal (model.PayeeRows |> Map.tryFind (idOf 1)) (Some PayeeSending) "läuft"
-            Expect.equal msgs [ RunUndoPayee (idOf 1, "REWE SAGT DANKE 4711") ] "Aufruf mit dem alten Payee"
-            let _, twice, _ = run (StartUndoPayee (idOf 1, "REWE SAGT DANKE 4711")) model
+            Expect.equal msgs [ RunUndoPayee (idOf 1, Some "REWE SAGT DANKE 4711") ] "Aufruf mit dem alten Payee"
+            let _, twice, _ = run (StartUndoPayee (idOf 1, Some "REWE SAGT DANKE 4711")) model
             Expect.isEmpty twice "ein zweiter Tipp schickt nichts"
             let restored, _, external = run (PayeeRestored (idOf 1, Ok (outcome (Some "Rewe") "REWE SAGT DANKE 4711" PayeeSent))) model
             Expect.equal (rowOf 1 restored).Payee (Some "REWE SAGT DANKE 4711") "alter Payee"
@@ -403,7 +411,7 @@ let reducerTests =
 /// Test soll nicht der Sperre glauben, die er prüft.
 type private PayeeCall =
     | SaveCall of payee: string option
-    | UndoCall of payee: string
+    | UndoCall of payee: string option
     | RetryCall
 
 /// Der Aufruf, den ein Schritt angestoßen hat, aus den ausgehenden Nachrichten.
@@ -425,14 +433,16 @@ let private payeeEvents (model: Model) (pending: PayeeCall option) : (string * M
       "Detail zu", CloseDetail
       "Detail auf", OpenDetail current
       "Übernehmen", StartSavePayee (id, Some other)
-      "Rückgängig", StartUndoPayee (id, "REWE SAGT DANKE 4711")
+      // Review ledger-pkrwd: „Payee entfernen“ läuft über dieselbe Nachricht und dieselbe Sperre.
+      "Entfernen", StartSavePayee (id, None)
+      "Rückgängig", StartUndoPayee (id, Some "REWE SAGT DANKE 4711")
       "Erneut senden", StartRetryPayee id
       match pending with
       | Some (SaveCall payee) ->
           "Antwort", PayeeSet (id, Ok (outcomeTo current.Payee payee PayeeSent))
           "Fehler", PayeeSet (id, Error "weg")
       | Some (UndoCall payee) ->
-          "Antwort", PayeeRestored (id, Ok (outcome current.Payee payee PayeeSent))
+          "Antwort", PayeeRestored (id, Ok (outcomeTo current.Payee payee PayeeSent))
           "Fehler", PayeeRestored (id, Error "weg")
       | Some RetryCall ->
           "Antwort", PayeeRetried (id, Ok PayeeSent)
@@ -444,7 +454,7 @@ let payeeLockTests =
     // Review-Fund zu ledger-fxt09: StartRetryPayee prüfte die Sperre nicht. Ein "Erneut senden"
     // während Speichern oder Rückgängig schickte einen zweiten Aufruf.
     testList "Payee ändern: ein Aufruf zugleich" [
-        testCase "über alle Reihenfolgen von Übernehmen, Rückgängig, Erneut senden und Antworten läuft höchstens ein Aufruf, ruhend startet jeder" <| fun () ->
+        testCase "über alle Reihenfolgen von Übernehmen, Entfernen, Rückgängig, Erneut senden und Antworten läuft höchstens ein Aufruf, ruhend startet jeder" <| fun () ->
             let start = { opened () with PayeeEdit = None }
             let failing = { rowOf 1 start with PayeeWriteBackFailure = Some "weg" }
             let start = { start with Entries = Success [ failing ]; DetailFor = Some failing }
@@ -458,11 +468,14 @@ let payeeLockTests =
                     let call = callOf msgs
                     match pending, call with
                     | Some _, Some _ -> failtest $"zweiter Aufruf: {shown}"
-                    | Some _, None -> if name = "Übernehmen" || name = "Rückgängig" || name = "Erneut senden" then blocked <- blocked + 1
+                    | Some _, None -> if name = "Übernehmen" || name = "Entfernen" || name = "Rückgängig" || name = "Erneut senden" then blocked <- blocked + 1
                     | None, Some _ -> started <- started + 1
                     | None, None ->
                         let saveOpen = model.PayeeEdit |> Option.exists (fun e -> e.PayeeEntryId = idOf 1)
-                        if name = "Rückgängig" || name = "Erneut senden" || (name = "Übernehmen" && saveOpen) then
+                        // Entfernen startet nur, wenn die Buchung einen Payee hat (sonst Ziel gleich Ist).
+                        let hasPayee = (rowOf 1 model).Payee.IsSome
+                        if name = "Rückgängig" || name = "Erneut senden" || (name = "Übernehmen" && saveOpen)
+                           || (name = "Entfernen" && saveOpen && hasPayee) then
                             failtest $"ruhend startet {name} nicht: {shown}"
                     if name = "Fehler" then
                         let fieldError = after.PayeeEdit |> Option.exists (fun e -> e.PayeeFieldError.IsSome)

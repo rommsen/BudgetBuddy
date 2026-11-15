@@ -3151,12 +3151,12 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             { model with PayeeEdit = Some { edit with PayeeFieldError = None } }, Cmd.none, NoOp
         | _ -> model, Cmd.none, NoOp
 
-    | StartSavePayee (entryId, text) ->
+    | StartSavePayee (entryId, target) ->
         match model.PayeeEdit, findEntry model entryId with
         | Some edit, Some entry when edit.PayeeEntryId = entryId
                                      && (model.PayeeRows |> Map.tryFind entryId) <> Some PayeeSending
                                      && (payeeLockFor entry).IsNone ->
-            match payeeSaveStep text entry with
+            match payeeSaveStep target entry with
             | PayeeSaveRejected reason ->
                 // Die Meldung steht unter dem Suchfeld, kein Toast (Styleguide §5).
                 { model with PayeeEdit = Some { edit with PayeeFieldError = Some reason } }, Cmd.none, NoOp
@@ -3187,11 +3187,9 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
                     match outcome.CurrentPayee with
                     | Some current -> payeeToastText current
                     | None -> payeeRemovedToastText
+                // Auch ohne alten Payee gibt es „Rückgängig“: es nimmt den Payee wieder weg (ledger-pkrwd, §7.13).
                 let toast toastText toastType =
-                    match outcome.PreviousPayee with
-                    | Some previous ->
-                        ShowToastWithAction (toastText, toastType, { Label = undoToastLabel; Kind = UndoPayee (entryId, previous) })
-                    | None -> ShowToast (toastText, toastType)
+                    ShowToastWithAction (toastText, toastType, { Label = undoToastLabel; Kind = UndoPayee (entryId, outcome.PreviousPayee) })
                 match outcome.PayeeWriteBack with
                 | PayeeSendFailed reason -> toast $"{text}. {payeeHintTitle}: {reason}" ToastWarning
                 | _ -> toast text ToastSuccess
@@ -3225,7 +3223,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         let cmd =
             Cmd.OfAsync.either
                 (Api.ledger.setEntryPayee entryId)
-                (Some previous)
+                previous
                 (fun result -> PayeeRestored (entryId, result))
                 (fun ex -> PayeeRestored (entryId, Error ex.Message))
         model, cmd, NoOp
