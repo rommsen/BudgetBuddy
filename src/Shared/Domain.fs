@@ -1669,6 +1669,13 @@ type AmountDirection =
     | OnlyOutflows
     | OnlyInflows
 
+module AmountDirection =
+    /// Ein alter Client (aus dem PWA-Cache) schickt die Abfrage noch ohne `AmountDirection`.
+    /// Fable.Remoting setzt das fehlende Feld dann auf null. Das gilt als beide Richtungen,
+    /// wie `LedgerSort.orDefault` für die Sortierung.
+    let orDefault (direction: AmountDirection) : AmountDirection =
+        if isNull (box direction) then AllDirections else direction
+
 /// Parameter einer Seiten-Abfrage der Buchungsliste: ein Konto (optional — `None`
 /// heisst alle Konten, die Gesamtsicht), ein 0-basierter Seitenzeiger und die
 /// Seitengröße. `IncludeDeleted` (ledger-p3n8k): in YNAB gelöschte Buchungen

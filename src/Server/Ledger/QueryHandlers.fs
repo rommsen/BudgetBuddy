@@ -801,7 +801,8 @@ let getLedgerPayeeSuggestions (query: LedgerPayeeSuggestionQuery) : Async<Ledger
             Search = query.Search
             AmountMin = query.AmountMin
             AmountMax = query.AmountMax
-            AmountDirection = query.AmountDirection
+            // Null von einem alten Client ohne das Feld gilt als beide Richtungen.
+            AmountDirection = AmountDirection.orDefault query.AmountDirection
         }
         let! suggestions = Ledger.Persistence.loadPayeeSuggestions accountId filter
         return suggestions |> List.map (fun (payee, count) -> { Payee = payee; Count = count })

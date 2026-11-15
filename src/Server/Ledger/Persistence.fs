@@ -1334,7 +1334,8 @@ let entryFilterOfPageQuery (query: LedgerEntryPageQuery) : EntryFilter = {
     Search = query.Search
     AmountMin = query.AmountMin
     AmountMax = query.AmountMax
-    AmountDirection = query.AmountDirection
+    // Null von einem alten Client ohne das Feld gilt als beide Richtungen (`AmountDirection.orDefault`).
+    AmountDirection = AmountDirection.orDefault query.AmountDirection
 }
 
 let private hasAmountFilter (filter: EntryFilter) =

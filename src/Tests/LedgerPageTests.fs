@@ -2463,6 +2463,37 @@ let ledgerPagingTests =
                 [ "Erstattung"; "Zinsen" ]
                 "Payee-Vorschläge folgen der Richtung"
 
+        // Verhindert den Review-Fund zu ledger-d9z3n: ein noch gecachter alter Client (PWA) schickt
+        // LedgerEntryPageQuery und LedgerPayeeSuggestionQuery ohne das Feld AmountDirection.
+        // Fable.Remoting setzt das fehlende Feld auf null, der Abgleich der Richtung warf eine
+        // NullReferenceException und die Liste zeigte "Internal server error (500)". Dasselbe Muster
+        // wie Sort ohne Wert (LedgerSortTests).
+        testCase "Anfrage ohne AmountDirection (alter Client aus dem PWA-Cache) gilt als beide Richtungen statt 500" <| fun () ->
+            let account = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8000-000000000032")
+            saveAccount { Id = account; Name = "Konto alte Anfrage"; Kind = BankAccount; Link = BbOwned; Closed = false }
+            |> Async.RunSynchronously
+            let day n = DateTime(2026, 6, n)
+            seedEntryFull account 930 -12m (day 1) (Some "Bäcker") None None |> Async.RunSynchronously
+            seedEntryFull account 931 12m (day 2) (Some "Erstattung") None None |> Async.RunSynchronously
+            seedEntryFull account 932 -60m (day 3) (Some "Möbel") None None |> Async.RunSynchronously
+
+            let (LedgerAccountId raw) = account
+            let missing = Unchecked.defaultof<AmountDirection>
+            let page query = Ledger.QueryHandlers.getLedgerEntriesPage query |> Async.RunSynchronously
+            let amounts (p: LedgerEntryPage) = p.Entries |> List.map (fun e -> e.Amount.Amount) |> List.sort
+
+            let legacy = page { baseQuery (Some raw) with AmountDirection = missing }
+            Expect.equal (amounts legacy) [ -60m; -12m; 12m ] "ohne Richtung und ohne Betrag alle drei"
+            let legacyRange = page { baseQuery (Some raw) with AmountDirection = missing; AmountMin = Some 5m; AmountMax = Some 50m }
+            Expect.equal (amounts legacyRange) [ -12m; 12m ] "mit Betrag beide Richtungen"
+            Expect.equal legacyRange.TotalCount 2 "Trefferzahl"
+            let suggestions =
+                Ledger.QueryHandlers.getLedgerPayeeSuggestions { baseSuggestionQuery (Some raw) with AmountDirection = missing }
+                |> Async.RunSynchronously
+                |> List.map (fun s -> s.Payee)
+                |> List.sort
+            Expect.equal suggestions [ "Bäcker"; "Erstattung"; "Möbel" ] "Payee-Vorschläge ohne Richtung"
+
         // ledger-d9z3n: die freie Suche trifft Teiltext in Payee, Memo und Kategoriename (gespeicherter und
         // heutiger Name, eigene Kategorie und Split-Zeile), ohne Groß- und Kleinschreibung, und lässt gelöschte
         // Buchungen aus, solange „Gelöschte zeigen“ aus ist.
