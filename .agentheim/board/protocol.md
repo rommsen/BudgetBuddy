@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-15 12:34 -- Modeling / Promoted: design-system-gcpws - "Liste mit Panel überall: Panel rund 30 % ab 1024 px, auch für Regeln, Erfassen, Targets prüfen und Kategorien, ein generischer Tastentest"
+
+**Type:** Modeling / Promote
+**BC:** design-system
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-15 02:00 -- Review-Lauf: 61bf6bd2..6acc9f6e
 
 **Type:** Review / Review-Lauf
