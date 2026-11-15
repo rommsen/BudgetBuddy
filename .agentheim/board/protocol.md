@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-15 12:34 -- Batch started: [design-system-gcpws]
+
+**Type:** Work / Batch start
+**Tasks:** design-system-gcpws - "Liste mit Panel überall: Panel rund 30 % ab 1024 px, auch für Regeln, Erfassen, Targets prüfen und Kategorien, ein generischer Tastentest"
+**Parallel:** scoped — builder named design-system-gcpws; 0 other ready tasks
+
+---
+
 ## 2026-11-15 12:34 -- Modeling / Promoted: design-system-gcpws - "Liste mit Panel überall: Panel rund 30 % ab 1024 px, auch für Regeln, Erfassen, Targets prüfen und Kategorien, ein generischer Tastentest"
 
 **Type:** Modeling / Promote

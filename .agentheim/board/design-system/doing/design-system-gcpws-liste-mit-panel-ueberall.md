@@ -1,7 +1,7 @@
 ---
 id: design-system-gcpws
 title: "Liste mit Panel überall: Panel rund 30 % ab 1024 px, auch für Regeln, Erfassen, Targets prüfen und Kategorien, ein generischer Tastentest"
-status: todo
+status: doing
 type: feature
 context: design-system
 created: 2026-11-11
