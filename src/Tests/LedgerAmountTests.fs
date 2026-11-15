@@ -726,6 +726,33 @@ let historyTests =
             Expect.equal (ReadModel.historyAmountOf failedBody) None "Fehlschlag"
             Expect.equal (ReadModel.historyAmountOf EntryAmountWrittenBackToYnab) None "Ankunft"
 
+        // ledger-zfj78: die beiden anderen Wege, auf denen eine Buchung entsteht, geben ihren Betrag;
+        // eine aufgenommene andere Buchung und eine Split-Zeile tragen einen Betrag im Payload, der
+        // aber nicht der Betrag dieser Buchung ist, und geben deshalb keinen.
+        testCase "Betrag je Ereignis: Comdirect-Import und Barausgabe mit Betrag, Zusammenlegung und Split-Gegenbuchung ohne" <| fun () ->
+            let account = LedgerAccountId (Guid.NewGuid())
+            let imported : EntryImportedFromComdirectPayload =
+                { AccountId = account; ImportId = "import-1"; ComdirectReference = "ref-1"; Date = bookingDay
+                  Amount = eur -21.30m; Payee = Some "Händler"; Memo = None; Cleared = Uncleared; Approved = false
+                  FlagColor = None; FlagName = None }
+            let cash : CashExpenseAddedPayload =
+                { AccountId = account; Date = bookingDay; Amount = eur -4.20m; Payee = Some "Bäcker"; Memo = None
+                  Category = None; Cleared = Uncleared; Approved = false; ImportId = None }
+            let merged : EntryMergedFromOtherObservedInYnabPayload =
+                { AbsorbedEntryId = EntryId (Guid.NewGuid()); AbsorbedYnabTransactionId = "absorbed-1"
+                  AbsorbedComdirectReference = None; AbsorbedPayee = Some "Händler"; AbsorbedDate = bookingDay
+                  AbsorbedAmount = eur -21.30m }
+            let splitCounterpart : EntrySplitTransferCounterpartObservedInYnabPayload =
+                { YnabSubtransactionId = "sub-1"; CounterpartEntryId = EntryId (Guid.NewGuid())
+                  CounterpartYnabTransactionId = "counterpart-1"; SplitAmount = eur -5.00m }
+            Expect.equal (ReadModel.historyAmountOf (EntryImportedFromComdirect imported)) (Some (eur -21.30m)) "Comdirect-Import"
+            Expect.equal (ReadModel.historyAmountOf (CashExpenseAdded cash)) (Some (eur -4.20m)) "Barausgabe"
+            Expect.equal (ReadModel.historyAmountOf (EntryMergedFromOtherObservedInYnab merged)) None "aufgenommene andere Buchung"
+            Expect.equal
+                (ReadModel.historyAmountOf (EntrySplitTransferCounterpartObservedInYnab splitCounterpart))
+                None
+                "Gegenbuchung einer Split-Zeile"
+
         testCase "Fehlschlag und Ankunft" <| fun () ->
             Expect.equal (ReadModel.describe failedBody) "Betrag nicht in YNAB: Verbindung weg" "Fehlschlag"
             Expect.equal (ReadModel.describe EntryAmountWrittenBackToYnab) "Betrag in YNAB angekommen" "angekommen"
