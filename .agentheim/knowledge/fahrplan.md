@@ -3,7 +3,7 @@
 Stand 2026-11-07. Grundlage: ADR 0086, `vision.md` Abschnitt „What success looks like“.
 
 ## Stand
-Zuletzt aktualisiert: 2026-11-15 nachts, nach work-Lauf und Review Schnitt 8 (Kassenbuch ordnen), Roman offline.
+Zuletzt aktualisiert: 2026-11-15 nachmittags, nach work-Lauf Schnitt 9 (Liste mit Panel überall), vor dem Review.
 
 - **Etappe 1 · Bedeutungen:** erledigt, 5 von 5 (Skizze und Prototyp, Layout-Sweep, Muster im
   Styleguide, Designwert-Tests aufgeräumt, Palette 2 im Token-Layer). Romans Blick auf dak16 neben
@@ -207,12 +207,22 @@ Zuletzt aktualisiert: 2026-11-15 nachts, nach work-Lauf und Review Schnitt 8 (Ka
   Punkte in der Seite „BB Prüfliste“ (https://claude.ai/artifact/L6YCruuxKW9SjWJf7hsJjW). Roman setzt je Punkt „Passt“,
   „Passt nicht“ oder „Später“ mit Notiz; Claude liest die Urteile per `ArtifactData` aus der Sammlung `checks` (Punkte in
   `items`, Schlüssel = Punkt-Id) und trägt neue Punkte nach jedem Lauf dort ein, statt sie nur hier aufzuzählen.
-- **Nächster Schritt:** Romans Blick auf Schnitt 8 und ledger-sre0f (deployt 2026-11-15, 1f40983e); eine offene PWA einmal
-  neu laden, sonst wirken ihre alten Payee- und Memo-Filter nicht. Dazu die Rückfragen oben.
-  ledger-ayjzq (Sicht „Für mich“) bleibt eigene Task nach einem Gespräch mit Roman. Romans Blick offen außerdem:
-  ledger-pnjz3 und categorization-m47g8, ledger-ea70s und ledger-hg5m5 (Sichtpunkte 1 bis 5 oben). Offen zum Verfeinern:
-  ledger-h7de3 (Fehlertexte in Ereignissen), design-system-vf94m (Toast verdeckt „+ Buchung“), ledger-t4rk8 (Betrag eines
-  Übertrags in BB). Danach Schnitt 9 design-system-gcpws. Vorschlag: `/architecture-review ledger` (21 erledigte Tasks
+- **Work-Lauf 2026-11-15 nachmittags, Roman online:** Schnitt 9 design-system-gcpws (Liste mit Panel überall), 86ceeb32.
+  Panel ab 1024 px überall dieselbe Hülle mit `clamp(380px, 30vw, 520px)` aus `panelWidthFor`, eine Tastenregel
+  `ListKeys.actionFor` für Kassenbuch, Regeln, Budget, Kategorien und Targets prüfen (.NET-Aufzählung gegen Orakel,
+  Browser-Tasten-Sweep, `[fokus]`-Test), Gruppe in „Kategorie bearbeiten“ als kurze Auswahl, Wächter gegen feste
+  Panelbreiten. Verifier: Iteration 1 FAIL (task-under-specified, drei Abweichungen vom Prototyp), Roman entschied G11 bis
+  G13 in der Prüfliste, Iteration 2 PASS. Gate im Worktree: VERIFY: PASS (dotnet 5123, node 348). Nicht gepusht, nicht
+  deployt. Abweichungen: Budget-Tabelle ab rund 1340 px (G11), Panel unter dem Seitenkopf (G12).
+  Vorher am Tag: Review-Rückfragen q-roman (Historie „BB“), q-farbe („nicht in YNAB“ Gelb), q-wort („Filter löschen“)
+  umgesetzt (ea612c26). Logo design-system-x1abn zurückgestellt (Roman), später eigener Durchgang.
+  Neu im Backlog: design-system-m4e7q (Modal: Esc ohne Fokus, Fokus zurück), ledger-fp4wn (Auswahl außerhalb des
+  geladenen Fensters mitzählen, Roman q-fenster), ledger-zqst5 (Suche und Filter am Handy haften, Roman q-sticky).
+- **Nächster Schritt:** `/review-agents` für gcpws (frontend-architecture, design-quality, qa-milestone-reviewer). Dann
+  Schnitt 10 budgeting-wnkgj verfeinern (Bestandsaufnahme, Prototyp-Abgleich, Fragen in die Prüfliste; G11 dort nachsehen).
+  Offen in der Prüfliste: q-sheet (neu formuliert), die Sichtpunkte „Ansehen“. Verfeinern bei Gelegenheit: ledger-fp4wn
+  (berührt Sammelaktionen), ledger-zqst5, ledger-h7de3, design-system-vf94m, ledger-t4rk8 (Geld, Roman entscheidet).
+  ledger-ayjzq (Sicht „Für mich“) nach Gespräch mit Roman. Vorschlag: `/architecture-review ledger` (21 erledigte Tasks
   seit dem letzten Bestandsreview).
 - Verfeinert wird nur die nächste Etappe. Spätere Etappen haben Zeilen, keine Tickets.
 - Neue Ideen für spätere Etappen kommen hier als Zeile dazu.
@@ -275,7 +285,7 @@ Baut ein Schnitt eine Seite um, gilt die Zeile „Browser-Tests beim Umbau“ al
 7. ✓ `ledger-ea70s` Ein Erfassen, Quick Add entfällt (2026-11-14) (nimmt `design-system-taytp` und `ledger-yhemh` auf)
 8. ✓ Kassenbuch ordnen (2026-11-15): `ledger-d9z3n` (Handy, unter 1024 px), `ledger-cnaz3` (PC) und
    `ledger-zfj78` (Detail); `ledger-ayjzq` (Sicht „Für mich“) bleibt eigene Task
-9. `design-system-gcpws` Liste mit Panel überall, generischer Tastentest
+9. ✓ `design-system-gcpws` Liste mit Panel überall, generischer Tastentest (86ceeb32, 2026-11-15)
 10. `budgeting-wnkgj` Budget angleichen
 11. `design-system-x1abn` Logo und Icon
 
