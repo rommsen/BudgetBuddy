@@ -95,6 +95,10 @@
    CSS Custom Properties (Design Tokens)
    ============================================ */
 :root {
+  /* Breite des Panels neben einer Liste (§7.6): Startwert, bis `Viewport.start` den Wert aus
+     `Tokens.PanelWidths.panelWidthFor` setzt. */
+  --panel-w: clamp(380px, 30vw, 520px);
+
   /* Typography */
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-display: 'Space Grotesk', 'Inter', sans-serif;
@@ -1276,7 +1280,7 @@ nav a:focus-visible {
 .list-panel {
   position: sticky;
   top: var(--list-panel-top, 4rem);
-  height: calc(100vh - var(--list-panel-top, 4rem) - 3rem);
+  height: calc(100dvh - var(--list-panel-top, 4rem) - 3rem);
 }
 .budget-page {
   --list-panel-top: calc(var(--budget-bar-bottom) + 8px);

@@ -19,7 +19,8 @@ open Client.DesignSystem.Tokens
 /// Prototyp, G12), Rand links, ohne Karte, Breite `Tokens.PanelWidths.panel` (30 % des Fensters, 380 bis 520 px). Es haftet unter der Navbar (`.list-panel` in styles.css, die Seite kann den Abstand oben über
 /// `--list-panel-top` setzen), scrollt in sich und liegt rechts in der Spalte, die der Aufrufer `relative` hält und
 /// mit einem rechten Innenabstand freihält (`PanelWidths.columnInset`, `columnInsetWide`). Nur ab `md`; am Handy
-/// öffnet das Detail als BottomSheet. `testId` benennt den Inhalt für Tests, `data-list-panel` die Hülle für den
+/// öffnet das Detail als BottomSheet. `hidden md:block` ist nur die Grundsichtbarkeit, den Breakpoint 1024 px (§7.6)
+/// setzt der Aufrufer. `testId` benennt den Inhalt für Tests, `data-list-panel` die Hülle für den
 /// Tasten-Sweep.
 let panelWith (testId: string) (ariaLabel: string) (children: ReactElement list) : ReactElement =
     Html.div [

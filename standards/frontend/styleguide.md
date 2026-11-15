@@ -58,7 +58,7 @@ in `Tokens.fs` (Module `Colors`, `Backgrounds`, `Borders`, `Glows`).
 | Farbe | Bedeutung | Token |
 |-------|-----------|-------|
 | **Akzent** `#28d6df` | Hauptaktion (gefüllter Knopf, Text darauf `bg-app`), Auswahl/Navigation (Kante, Strich, Fläche), Textlinks, Fokusring und die Marke (Schriftzug „Buddy“, Rand des Logos) | `--color-accent`, `Colors.accent`, `Backgrounds.accent`, `Borders.accent`, `Colors.onAccent` (`--color-on-accent` = `bg-app`), `ListRoles.selectedRow` (gewählte Zeile mit offenem Detail: `selectedFill` und `selectedEdge`) |
-| **Gelb** `#cdb27a` | braucht dich, kein Fehler: zu prüfen, fehlt, ohne Kategorie, unsicheres Duplikat, offene Aufgabe, über dem Target. Immer mit Wort daneben; einzige Ausnahme ist die Statuskante „zu prüfen“ an der Zeile einer ruhigen Liste, dort steht das Wort nur für Screenreader (Tabelle „Ruhige Listen“) | `--color-attention`, `Colors.attention`, `ListRoles.missing`, `ListRoles.statusEdge`, `ListRoles.statusEdgeWithAnchor` (Statuskante und Anker in einem Schatten) |
+| **Gelb** `#cdb27a` | braucht dich, kein Fehler: zu prüfen, fehlt, nicht in YNAB, ohne Kategorie, unsicheres Duplikat, offene Aufgabe, über dem Target. Immer mit Wort daneben; einzige Ausnahme ist die Statuskante „zu prüfen“ an der Zeile einer ruhigen Liste, dort steht das Wort nur für Screenreader (Tabelle „Ruhige Listen“) | `--color-attention`, `Colors.attention`, `ListRoles.missing`, `ListRoles.statusEdge`, `ListRoles.statusEdgeWithAnchor` (Statuskante und Anker in einem Schatten) |
 | **Rot** `#fd4f75` | Fehler und Minus | `--color-error`, `Colors.error`, `Borders.error` |
 | **Grün** `#5be479` | gelungen: Rückmeldung, alles erledigt | `--color-success`, `Colors.success`, `Glows.success` |
 | **Blau** `#7ab8ff` | Hinweis | `--color-info`, `Colors.info` |
@@ -491,7 +491,7 @@ anwenden oder Überzogene decken offen ist und sie für den Monat nicht ausgeble
 laufenden und in kommenden Monaten jederzeit. Der Weg zu Targets prüfen ist Feld 1 der Leiste, der zu Targets anwenden
 Feld 2, im Kopf gibt es für beide keinen Knopf. Der Spaltenkopf haftet unter dem Kopf. Der Titel entfällt, die
 Navigation nennt die Seite, die `h1` bleibt für den Screenreader (`PageHeader.screenReaderTitle`). Die Seite läuft über
-die volle Breite mit dem üblichen Seitenrand, der Zuwachs geht an die Spalte Kategorie, das Panel bleibt 340 px. Am PC
+die volle Breite mit dem üblichen Seitenrand, der Zuwachs geht an die Spalte Kategorie, das Panel ist so breit wie in §7.6. Am PC
 scrollen Leiste, Suche und Chips mit. Am Handy haften der Kopf und die Chips, die Suche scrollt mit.
 
 Die Seite Targets prüfen `#/budget/target-check` hat am PC als Kopf eine Karte mit Zurück, Titel, Erklärung und den Zählern "Hinweise" und
@@ -500,7 +500,7 @@ auf und zu (`Button.disclosureListRow` in einer `h2`), beim Betreten offen, "Pas
 Breite der Liste (Container-Abfrage) in vier Spalten wie die Skizze (Name und Target, Mini-Balken 132 px, Ø und
 Monate, Knöpfe; Verhältnis 1,3 zu 1), schmaler wie am Handy untereinander. "<Betrag> übernehmen" und "Anpassen …"
 sind neutrale Knöpfe (`Button.Secondary`, ADR 0075 Punkt 3). "Anpassen …" öffnet das Target-Formular ab 1024 px als
-Panel rechts, 360 px breit wie die Skizze (`.target-check-panel`), darunter als `BottomSheet.inspector`. In der Budget-Historie `#/budget/history` stehen die Filter nach Art
+Panel rechts (Breite nach §7.6), darunter als `BottomSheet.inspector`. In der Budget-Historie `#/budget/history` stehen die Filter nach Art
 heute als `ChipBar.barWithTestId` in einer eigenen, haftenden Zeile unter Zurück und Titel (Ziel: §7.11). Die Höhe des Kopfs ist
 gemessen (`ResizeObserver`, `--budget-month-bar-height`), weil er umbricht. Ein Halter mit
 `overflow-hidden` nimmt dem Spaltenkopf das Haften: dort `overflow-clip`.
