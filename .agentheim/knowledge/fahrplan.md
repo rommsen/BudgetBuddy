@@ -203,6 +203,10 @@ Zuletzt aktualisiert: 2026-11-15 nachts, nach work-Lauf und Review Schnitt 8 (Ka
     ledger-zfj78: (c) Tag im Kopf „Di., 03.11.“, mit Jahr nur bei älteren Jahren; (d) runder Schließen-Knopf im Sheet.
   - Hinweise der Verifier: im Konto-Sheet hat die gewählte Zeile nur Rahmen und Haken (Prototyp hinterlegt sie leicht);
     im Filter-Sheet fehlen die Trennlinien des Prototyps; „Abrufen“ und „Jetzt spiegeln“ sehen bei 412 px fast gleich aus.
+- **Prüfliste (seit 2026-11-15):** Romans offene Sichtprüfungen, nachts getroffene Entscheidungen und Rückfragen stehen als
+  Punkte in der Seite „BB Prüfliste“ (https://claude.ai/artifact/L6YCruuxKW9SjWJf7hsJjW). Roman setzt je Punkt „Passt“,
+  „Passt nicht“ oder „Später“ mit Notiz; Claude liest die Urteile per `ArtifactData` aus der Sammlung `checks` (Punkte in
+  `items`, Schlüssel = Punkt-Id) und trägt neue Punkte nach jedem Lauf dort ein, statt sie nur hier aufzuzählen.
 - **Nächster Schritt:** Romans Blick auf Schnitt 8 und ledger-sre0f (deployt 2026-11-15, 1f40983e); eine offene PWA einmal
   neu laden, sonst wirken ihre alten Payee- und Memo-Filter nicht. Dazu die Rückfragen oben.
   ledger-ayjzq (Sicht „Für mich“) bleibt eigene Task nach einem Gespräch mit Roman. Romans Blick offen außerdem:
