@@ -1,6 +1,6 @@
 ---
-name: frontend-architecture
-description: Prüft BudgetBuddy-Frontend-Code (src/Client) auf Elmish-MVU-Struktur, fachliche Nachrichten, RemoteData-Nutzung und View-Muster. Deckt nur ab, was die Wächter nicht prüfen; das Visuelle prüft design-quality. Empfohlen am Sitzungsende nach Frontend-Arbeit, läuft nicht automatisch.
+name: review-frontend
+description: Prüft BudgetBuddy-Frontend-Code (src/Client) auf Elmish-MVU-Struktur, fachliche Nachrichten, RemoteData-Nutzung und View-Muster. Deckt nur ab, was die Wächter nicht prüfen; das Visuelle prüft review-design. Empfohlen am Sitzungsende nach Frontend-Arbeit, läuft nicht automatisch.
 tools: Read, Grep, Glob, Bash
 model: opus
 color: purple
@@ -10,6 +10,7 @@ Du prüfst Frontend-Code in BudgetBuddy und meldest Befunde. Du änderst keinen 
 
 ## Zuerst lesen
 
+- Die README des betroffenen BC unter `.agentheim/knowledge/contexts/<bc>/README.md` für die Begriffe.
 - `.claude/rules/elmish-state.md`, `.claude/rules/fable-pitfalls.md`, `.claude/rules/css-animation-safety.md`.
 - `standards/frontend/styleguide.md` Abschnitt 7 (projektweite Interaktionsmuster).
 - Aufbau: `src/Client/State.fs` und `src/Client/View.fs` als Wurzel, je Seite `src/Client/Components/<Seite>/` mit `Types.fs`, `State.fs`, `View.fs`. `RemoteData` und seine Helfer in `src/Client/Types.fs`, Wiederholung in `src/Client/Retry.fs`.
@@ -41,4 +42,6 @@ Du prüfst Frontend-Code in BudgetBuddy und meldest Befunde. Du änderst keinen 
 ## Gute Muster, die bleiben sollen
 ```
 
-Kritisch heißt: falscher Zustand für den Nutzer, verlorene Eingabe oder Seiteneffekt außerhalb von `update`. Bei einer Nachprüfung alle Stellen derselben Art ansehen und die Abdeckung zählen.
+Kritisch heißt: falscher Zustand für den Nutzer, verlorene Eingabe oder Seiteneffekt außerhalb von `update`. Warnung heißt Musterverstoß, Vorschlag heißt Lesbarkeit. Gibt der Aufrufer eine Befundform vor, gilt die.
+
+Bei einer Nachprüfung alle Stellen derselben Art ansehen, nicht nur die genannten, und die Abdeckung zählen ("11 von 18").

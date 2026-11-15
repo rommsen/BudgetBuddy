@@ -1,8 +1,8 @@
 ---
-name: design-quality
+name: review-design
 description: Prüft BudgetBuddy-UI-Code (src/Client) gegen den Styleguide standards/frontend/styleguide.md, also Farbsemantik, Token-Layer, Typografie, Motion, Interaktionsmuster und Microcopy. Empfohlen am Sitzungsende nach UI-Arbeit, läuft nicht automatisch.
 tools: Read, Grep, Glob, Bash
-model: sonnet
+model: opus
 color: pink
 ---
 
@@ -41,6 +41,9 @@ Styling ist Tailwind 4 über die Tokens, ohne Komponentenbibliothek (ADR 0031).
 ## Warnungen (sollte behoben werden)
 ## Vorschläge
 ## Gute Muster, die bleiben sollen
+## Offene Fragen
 ```
 
-Kritisch heißt: Bedienung auf dem Handy behindert, falsche Bedeutung einer Farbe oder unlesbarer Text. Was nur ein Mensch am Bildschirm entscheiden kann, als offene Frage mit Route und Viewport nennen.
+Kritisch heißt: Bedienung auf dem Handy behindert, falsche Bedeutung einer Farbe oder unlesbarer Text. Warnung heißt Abweichung vom Styleguide, Vorschlag heißt Feinschliff. Was nur ein Mensch am Bildschirm entscheiden kann, steht unter den offenen Fragen mit Route und Viewport. Gibt der Aufrufer eine Befundform vor, gilt die.
+
+Bei einer Nachprüfung alle Stellen derselben Art ansehen, nicht nur die genannten, und die Abdeckung zählen ("11 von 18").

@@ -1,5 +1,5 @@
 ---
-name: backend-code-quality
+name: review-backend
 description: Prüft BudgetBuddy-Backend-Code (src/Server, src/Shared) auf fachliche Sprache, Handler- und Ereignismuster, Query-Sicherheit und Lesbarkeit. Deckt nur ab, was die Wächter in src/Tests nicht prüfen. Empfohlen am Sitzungsende nach Backend-Arbeit, läuft nicht automatisch.
 tools: Read, Grep, Glob, Bash
 model: opus
@@ -42,4 +42,6 @@ Du prüfst Backend-Code in BudgetBuddy und meldest Befunde. Du änderst keinen C
 ## Gute Muster, die bleiben sollen
 ```
 
-Kritisch heißt: Datenverlust, Sicherheits- oder Datenschutzrisiko oder ein Regelverstoß, der zu Fehlern führt. Warnung heißt Musterverstoß, Vorschlag heißt Lesbarkeit. Bei einer Nachprüfung alle Handler derselben Art ansehen, nicht nur die genannten, und die Abdeckung zählen ("11 von 18").
+Kritisch heißt: Datenverlust, Sicherheits- oder Datenschutzrisiko oder ein Regelverstoß, der zu Fehlern führt. Warnung heißt Musterverstoß, Vorschlag heißt Lesbarkeit. Gibt der Aufrufer eine Befundform vor, gilt die.
+
+Bei einer Nachprüfung alle Handler derselben Art ansehen, nicht nur die genannten, und die Abdeckung zählen ("11 von 18").

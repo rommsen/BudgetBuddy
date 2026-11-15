@@ -130,12 +130,12 @@ Ist die Liste leer (heute `banking-import`), abbrechen und den Owner nach den Da
 
 | Dimension | Agent | Schwerpunkt und Kontext |
 |---|---|---|
-| `security` | `backend-code-quality` | Bob unter `/bot/` (`.agentheim/knowledge/decisions/0066-bot-schnittstelle-rest-unter-bot-mit-vorschau-und-commit.md`, Grenzen nach `0068-bob-tagesgrenze-datumsfenster-und-drosselung.md`), Secrets nie an den Client (`infrastructure-s1r95`), Live-Dienste nur hinter `RUN_INTEGRATION_TESTS`, `.claude/rules/query-safety.md`, `.claude/rules/persistence-safety.md` |
-| `semantik` | `backend-code-quality`, `frontend-architecture` | Ubiquitous Language der BC-README, `.claude/rules/domain-purity.md`, `.claude/rules/semantic-messaging.md`, `.claude/rules/elmish-state.md`, `.claude/rules/fable-pitfalls.md`, `standards/backend/overview.md`, `standards/frontend/overview.md` |
-| `tests` | `qa-milestone-reviewer` | `.claude/rules/test-doctrine.md`: Heimat-Ebene, Tautologien, Doppelungen über Ebenen, Szenarien aus `## Szenarien und Tests` der BC-README |
-| `design` | `design-quality` | `standards/frontend/styleguide.md`, `.claude/rules/design-tokens.md`, `.claude/rules/css-animation-safety.md`; nur Code unter `src/Client/` |
+| `security` | `review-backend` | Bob unter `/bot/` (`.agentheim/knowledge/decisions/0066-bot-schnittstelle-rest-unter-bot-mit-vorschau-und-commit.md`, Grenzen nach `0068-bob-tagesgrenze-datumsfenster-und-drosselung.md`), Secrets nie an den Client (`infrastructure-s1r95`), Live-Dienste nur hinter `RUN_INTEGRATION_TESTS`, `.claude/rules/query-safety.md`, `.claude/rules/persistence-safety.md` |
+| `semantik` | `review-backend`, `review-frontend` | Ubiquitous Language der BC-README, `.claude/rules/domain-purity.md`, `.claude/rules/semantic-messaging.md`, `.claude/rules/elmish-state.md`, `.claude/rules/fable-pitfalls.md`, `standards/backend/overview.md`, `standards/frontend/overview.md` |
+| `tests` | `review-tests` | `.claude/rules/test-doctrine.md`: Heimat-Ebene, Tautologien, Doppelungen über Ebenen, Szenarien aus `## Szenarien und Tests` der BC-README |
+| `design` | `review-design` | `standards/frontend/styleguide.md`, `.claude/rules/design-tokens.md`, `.claude/rules/css-animation-safety.md`; nur Code unter `src/Client/` |
 
-`semantik` hat zwei Agents, einen je Code-Ebene (`src/Server/` und `src/Shared/` an `backend-code-quality`, `src/Client/`
-an `frontend-architecture`). Bei `/architecture-review <bc>` laufen damit vier Agents: `backend-code-quality` mit
-`security` und dem Server-Teil von `semantik`, `frontend-architecture`, `qa-milestone-reviewer`, `design-quality`. Hat
-der BC keinen Client-Code in seiner Dateiliste, entfallen `frontend-architecture` und `design-quality`.
+`semantik` hat zwei Agents, einen je Code-Ebene (`src/Server/` und `src/Shared/` an `review-backend`, `src/Client/`
+an `review-frontend`). Bei `/architecture-review <bc>` laufen damit vier Agents: `review-backend` mit
+`security` und dem Server-Teil von `semantik`, `review-frontend`, `review-tests`, `review-design`. Hat
+der BC keinen Client-Code in seiner Dateiliste, entfallen `review-frontend` und `review-design`.

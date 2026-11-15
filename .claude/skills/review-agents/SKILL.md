@@ -1,6 +1,6 @@
 ---
 name: review-agents
-description: Wählt für die aktuelle Arbeit die passenden Review-Agents (backend-code-quality, frontend-architecture, design-quality, qa-milestone-reviewer), lässt sie laufen, prüft jeden Fund am Code und behebt ihn selbst. Tickets nur in Ausnahmefällen. Aufruf mit /review-agents, optional mit Task-Id, Commit-Bereich oder BC. Typisch nach einem /agentheim:work-Lauf.
+description: Wählt für die aktuelle Arbeit die passenden Review-Agents (review-backend, review-frontend, review-design, review-tests), lässt sie laufen, prüft jeden Fund am Code und behebt ihn selbst. Tickets nur in Ausnahmefällen. Aufruf mit /review-agents, optional mit Task-Id, Commit-Bereich oder BC. Typisch nach einem /agentheim:work-Lauf.
 ---
 
 # /review-agents: Review der aktuellen Arbeit, Funde selbst beheben
@@ -41,10 +41,10 @@ Bleiben keine Dateien übrig: eine Zeile "nichts zu prüfen" und Ende, ohne Prot
 
 | Geänderte Pfade | Agent |
 |---|---|
-| `src/Server/**`, `src/Shared/**` | `backend-code-quality` |
-| `src/Client/**` | `frontend-architecture` |
-| sichtbares UI: Views, `src/Client/DesignSystem/**`, CSS, Microcopy | `design-quality` |
-| `src/Tests/**`, `scripts/*.test.mjs`, oder ein Bugfix-Commit (`bug(...)`) ohne Teständerung | `qa-milestone-reviewer` |
+| `src/Server/**`, `src/Shared/**` | `review-backend` |
+| `src/Client/**` | `review-frontend` |
+| sichtbares UI: Views, `src/Client/DesignSystem/**`, CSS, Microcopy | `review-design` |
+| `src/Tests/**`, `scripts/*.test.mjs`, oder ein Bugfix-Commit (`bug(...)`) ohne Teständerung | `review-tests` |
 
 Reine Doku-, Skript- oder Konfigurationsänderungen brauchen keinen Agent. Danach eine Zeile ausgeben (Bereich,
 Anzahl Dateien, gewählte Agents mit Grund) und ohne Rückfrage weitermachen.
@@ -95,7 +95,7 @@ genannten Stelle nachlesen und einer Gruppe zuordnen:
 - Regeln beim Fixen:
   - Ein Fund, der einen Bug beschreibt, bekommt einen Regressionstest, der vor dem Fix rot ist
     (`.claude/rules/test-doctrine.md`).
-  - Fehlende Tests aus dem QA-Bericht schreiben, wertlose löschen oder verschieben, wie vorgeschlagen, sofern die
+  - Fehlende Tests aus dem Test-Bericht schreiben, wertlose löschen oder verschieben, wie vorgeschlagen, sofern die
     Triage zustimmt.
   - Kein Verhalten ändern, das nicht Gegenstand des Funds ist.
   - Laufzeitfallen und Security-Fallen aus `CLAUDE.md` gelten wie immer.

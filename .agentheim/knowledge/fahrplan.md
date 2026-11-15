@@ -226,8 +226,8 @@ Zuletzt aktualisiert: 2026-11-15 abends, nach Review von Schnitt 9 und work-Lauf
   `payee_id` und `payee_name` null (Probelauf gegen Budget „Test“ grün). Verifier: Iteration 1 FAIL (Flow-Test fand den
   abgehenden Toast nach dem Merge von main, Timing, kein App-Fehler), Iteration 2 PASS. Platzhalter bleibt „ohne Payee“ klein
   wie in der Übersicht. Sichtpunkte pk1 bis pk3 in der Prüfliste. Nicht gepusht, nicht deployt.
-- **Nächster Schritt:** `/review-agents` für pkrwd vorschlagen (backend-code-quality, frontend-architecture,
-  qa-milestone-reviewer). Dann Schnitt 10 budgeting-wnkgj verfeinern (Bestandsaufnahme, Prototyp-Abgleich Version 17, Fragen
+- **Nächster Schritt:** `/review-agents` für pkrwd vorschlagen (review-backend, review-frontend,
+  review-tests). Dann Schnitt 10 budgeting-wnkgj verfeinern (Bestandsaufnahme, Prototyp-Abgleich Version 17, Fragen
   in die Prüfliste; Vorab-Entscheidungen in den Notes: Gelb für „noch nicht in YNAB“, Budget-Tabelle ab rund 1340 px).
   Offen in der Prüfliste: q-sheet, die Sichtpunkte „Ansehen“ (g20 bis g22, pk1 bis pk3). Verfeinern bei Gelegenheit:
   ledger-fp4wn (berührt Sammelaktionen), ledger-zqst5, design-system-m4e7q, ledger-h7de3, design-system-vf94m, ledger-t4rk8

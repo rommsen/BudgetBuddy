@@ -108,7 +108,7 @@ beheben, nicht umgehen.
   Ausgabe/Einnahme oder der Buchung). Der Wechsel zwischen zwei Feldern darf die Tastatur nicht schließen.
 - Worker und Verifier können claude.ai-Artifacts nicht öffnen. Der Conductor liest die Skizze (`Artifact`
   read), legt ihre Dateien und einen Screenshot je Ansicht in den Scratchpad und gibt Worker, Verifier und
-  `design-quality` die Pfade mit. Die Task trägt ein Kriterium „Seite neben der Skizze verglichen, Abweichungen
+  `review-design` die Pfade mit. Die Task trägt ein Kriterium „Seite neben der Skizze verglichen, Abweichungen
   nur die genannten“ mit Screenshot-Vergleich im Outcome.
 - Worktrees unter `.worktrees/`: nach `git worktree add` `scripts/worktree-prep.sh`, Abbau nur
   über `scripts/worktree-teardown.sh` (sonst leert `git worktree remove --force` das echte
@@ -127,9 +127,9 @@ beheben, nicht umgehen.
 ### Override (C): Reviews nach einem work-Lauf vorschlagen
 
 Am Ende jedes `/agentheim:work`-Laufs `/review-agents` vorschlagen, mit den Agents, die er wählen
-würde, und beides im Session-End-Eintrag nennen, nicht automatisch starten: `qa-milestone-reviewer`
-bei geänderten Tests, `backend-code-quality` bei `src/Server/**`, `frontend-architecture` bei
-`src/Client/**`, `design-quality` bei sichtbaren UI-Änderungen. Der Skill
+würde, und beides im Session-End-Eintrag nennen, nicht automatisch starten: `review-tests`
+bei geänderten Tests, `review-backend` bei `src/Server/**`, `review-frontend` bei
+`src/Client/**`, `review-design` bei sichtbaren UI-Änderungen. Der Skill
 (`.claude/skills/review-agents/SKILL.md`) lässt sie laufen und behebt die Funde selbst. Liegen seit dem letzten `Bestandsreview: <bc>` im
 Protokoll zehn oder mehr erledigte Tasks des BC, zusätzlich `/architecture-review <bc>` vorschlagen.
 
