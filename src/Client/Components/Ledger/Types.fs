@@ -659,7 +659,7 @@ let flagHintFor (rowState: FlagRowState option) (entry: LedgerEntryView) : FlagH
     | _, Some reason -> Some { Title = flagHintTitle; Reason = reason; RetryLabel = Some "Erneut senden" }
     | _, None -> None
 
-/// Die Aktion der Flag-Zeile im Detail (ADR 0056, Punkt 2): "Lena fragen" bei einer Buchung
+/// Die Aktion „Lena fragen“ in der Knopfzeile des Details (ADR 0056, Punkt 2, ledger-zfj78): "Lena fragen" bei einer Buchung
 /// ohne Flag oder mit einem anderen, "Rückfrage zurücknehmen" bei *Rückfrage Lena*.
 /// `DisabledReason`: der Grund, aus dem sie nicht wirkt (in YNAB gelöscht, Farbe fehlt).
 type LenaAction = {
@@ -714,10 +714,6 @@ let flagOfState (state: FlagState) : LedgerFlag =
     if isLena then AskLena
     elif state.Color.IsSome || state.Name.IsSome then Marked
     else NoFlag
-
-/// Der Wert der Flag-Zeile: das gedeutete Flag als Text.
-let flagValueText (flag: LedgerFlag) : string =
-    flagLabel flag |> Option.defaultValue "Kein Flag"
 
 /// Der Toast nach "Lena fragen" bzw. "Rückfrage zurücknehmen".
 let lenaFlagToastText (target: LenaFlagTarget) : string =
@@ -1461,6 +1457,9 @@ type Model = {
     /// Die Lade-Nummer der Historie: jedes gestartete Laden zählt sie weiter, nur die Antwort des
     /// zuletzt gestarteten gilt (ledger-nc708, Vorbild `HistoryGeneration` im Budget).
     HistoryGeneration: int
+    /// Die Buchung, deren Historie im Detail aufgeklappt ist (ledger-zfj78). Zu beim Öffnen des Details: ein Wechsel
+    /// auf eine andere Buchung zeigt sie zu, `closeDetail` und `showDetail` setzen `None`.
+    HistoryOpenFor: Guid option
 
     /// Zeitpunkt und Ergebnis des zuletzt gelaufenen Spiegels.
     LastMirrorRun: RemoteData<MirrorRunStatus option>
@@ -2332,6 +2331,8 @@ type Msg =
     /// Die Historie der Buchung `Guid` mit der Lade-Nummer beim Start (`historyAnswer`). Kommt sie nach
     /// einem Wechsel der Buchung oder nach einem neueren Laden an, gilt sie nicht mehr.
     | HistoryLoaded of Guid * int * Result<LedgerHistoryLine list, string>
+    /// „Historie (n)“ im Detail auf- oder zuklappen (ledger-zfj78).
+    | ToggleHistory
 
     // Spiegel
     | LoadMirrorStatus

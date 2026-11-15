@@ -64,6 +64,7 @@ let private historyLineAt (sequence: int) : LedgerHistoryLine = {
     OccurredAt = DateTime(2026, 3, 1).AddDays(float sequence)
     Origin = MirroredFromYnab
     Description = $"Ereignis {sequence}"
+    Amount = None
 }
 
 let private accountView (n: int) (name: string) : LedgerAccountView = {

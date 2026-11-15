@@ -6,7 +6,7 @@ status: accepted
 date: 2026-11-14
 supersedes: []
 superseded_by: []
-related_tasks: [ledger-cnaz3]
+related_tasks: [ledger-cnaz3, ledger-zfj78]
 related_adrs: [0053, 0087]
 related_research: []
 ---
@@ -33,7 +33,7 @@ und das Panel steht am PC immer. Roman hat am 2026-11-14 entschieden, dass die Z
    Ab zwei stehen die Sammelaktionen im Panel, die Leiste unten zeigt nur Anzahl, Summe und „Auswahl aufheben“.
 3. Unter 1024 px (Sheet) bleibt ADR 0053 Punkt 2: eine beginnende Auswahl schließt das Detail.
 4. Keine Zeile hat eine Prüf-Schaltfläche mehr (ADR 0053 Punkt 4 ohne die Schaltfläche). Geprüft wird mit G,
-   per Wisch am Handy, mit dem Schalter im Detail und über die Auswahl.
+   per Wisch am Handy, mit dem Knopf „Geprüft“ im Detail (seit ledger-zfj78 statt des Schalters) und über die Auswahl.
 5. Strg- oder Cmd-Klick auf eine Zeile nimmt sie in die Auswahl oder heraus, Umschalt-Klick wählt den Bereich ab
    dem Anker, Umschalt+↑↓ erweitert um die nächste Zeile (§7.7). Ohne Auswahl zählt eine im Panel offene Buchung
    als erste gewählte (Prototyp `selectWithMods`), aber nur, wenn sie geladen und nicht ausgegraut in der Liste

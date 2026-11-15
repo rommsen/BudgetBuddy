@@ -109,18 +109,20 @@ after(async () => {
 });
 
 const detailTitle = (scope) => scope.locator('[data-testid="detail-title"]');
+// ledger-zfj78: im Sheet steht der Payee als Titel im Kopf des Sheets, der Inhalt beginnt mit dem Betrag.
+const detailContent = (scope) => scope.locator('[data-testid="detail-payee"]');
 
 test("[flow:payee-aendern] Handy: Payee im Detail ändern und im Toast rückgängig machen, die Tastatur bleibt bis zum Schließen offen", async () => {
   const context = await browser.newContext({ viewport: { width: 412, height: 915 }, hasTouch: true, isMobile: true });
   const page = await open(context);
   await page.getByText(BANK_PAYEE, { exact: true }).first().tap();
   const sheet = page.locator(".bottom-sheet.active").first();
-  await detailTitle(sheet).waitFor();
+  await detailContent(sheet).waitFor();
 
   await sheet.locator('[data-testid="detail-payee-arrow"]').tap();
   const picker = sheet.locator('[data-testid="payee-picker"]');
   await picker.locator('[data-testid="payee-picker-option"]').first().waitFor();
-  assert.equal(await detailTitle(sheet).count(), 0, "die Auswahl ersetzt den Inhalt des Detail-Sheets");
+  assert.equal(await detailContent(sheet).count(), 0, "die Auswahl ersetzt den Inhalt des Detail-Sheets");
   const field = picker.locator('[data-testid="payee-picker-search"] input');
   assert.equal(await field.inputValue(), BANK_PAYEE, "die Suche ist mit dem heutigen Payee vorbelegt");
   assert.ok(!(await field.evaluate((el) => document.activeElement === el)), "am Handy kein Autofokus");
@@ -137,7 +139,7 @@ test("[flow:payee-aendern] Handy: Payee im Detail ändern und im Toast rückgän
   assert.equal(await page.evaluate(() => window.__payeeBlurs), 0, "Tippen und Übernehmen nehmen dem Suchfeld den Fokus nicht");
 
   await page.waitForFunction(
-    (p) => document.querySelector('.bottom-sheet.active [data-testid="detail-title"]')?.textContent === p,
+    (p) => document.querySelector('.bottom-sheet.active .sheet-header h3')?.textContent === p,
     "Rewe Markt"
   );
   assert.deepEqual(state.setCalls[0], { entryId: idOf(1), text: "Rewe Markt" }, "der neue Payee geht an den Befehl");
@@ -145,7 +147,7 @@ test("[flow:payee-aendern] Handy: Payee im Detail ändern und im Toast rückgän
 
   await page.locator('[data-toast-action="true"]', { hasText: "Rückgängig" }).tap();
   await page.waitForFunction(
-    (p) => document.querySelector('.bottom-sheet.active [data-testid="detail-title"]')?.textContent === p,
+    (p) => document.querySelector('.bottom-sheet.active .sheet-header h3')?.textContent === p,
     BANK_PAYEE
   );
   assert.deepEqual(state.setCalls[1], { entryId: idOf(1), text: BANK_PAYEE }, "Rückgängig schickt den alten Payee über denselben Befehl");

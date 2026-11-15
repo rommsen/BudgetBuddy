@@ -1896,6 +1896,19 @@ nav a:focus-visible {
   -webkit-overflow-scrolling: touch;
 }
 
+/* Buchungs-Detail im Sheet (ledger-zfj78, Prototyp Version 17 `.sh-body`): die Zeilen schließen am Rand des
+   Sheet-Inhalts ab. `.sheet-body` bringt den Rand schon mit, das `px-4` der Detail-Bausteine gilt nur im Panel.
+   Die Trennlinien nehmen im Sheet `border-default`: auf der Fläche des Sheets (`bg-elevated`) ist `border-subtle`
+   kaum zu sehen, im Prototyp liegt dieselbe Linie auf `bg-card` und ist deutlich. */
+.sheet-body .detail-inset {
+  padding-left: 0;
+  padding-right: 0;
+}
+.sheet-body .detail-line,
+.sheet-body .detail-history [data-testid="detail-history-toggle"] {
+  border-color: var(--color-border-default);
+}
+
 .sheet-section {
   margin-bottom: 16px;
 }

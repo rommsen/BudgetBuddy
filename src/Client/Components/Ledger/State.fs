@@ -107,6 +107,7 @@ let init () : Model * Cmd<Msg> =
         ListInteraction = TableRows
         History = NotAsked
         HistoryGeneration = 0
+        HistoryOpenFor = None
         LastMirrorRun = NotAsked
         MirrorRunning = false
         BookingsScroll = None
@@ -1316,7 +1317,13 @@ let entryRestoredText = "Buchung wiederhergestellt"
 /// Schließt das Detail samt allem, was daran hängt: Historie, Sheet "Notiz" und Sheet "Betrag".
 /// Jede Stelle, die das Detail schließt, geht hier durch, damit kein offenes Sheet stehen bleibt.
 let closeDetail (model: Model) : Model =
-    { model with DetailFor = None; History = NotAsked; MemoEdit = None; AmountEdit = None; PayeeEdit = None }
+    { model with
+        DetailFor = None
+        History = NotAsked
+        HistoryOpenFor = None
+        MemoEdit = None
+        AmountEdit = None
+        PayeeEdit = None }
 
 /// Öffnet „Neue Buchung“; `filterAccount` belegt das Konto vor (der Kassenbuch-Filter, `None` ohne Filter). Ein
 /// schon offenes Erfassen bleibt, wie es ist.
@@ -1354,11 +1361,17 @@ let payeeEditOpenable (model: Model) (entry: LedgerEntryView) : bool =
     && model.SplitEditor.IsNone
     && not (model.DeletingEntries.Contains entry.Id)
 
+/// Schließt „alle zeigen“ am Payee das Detail (ledger-zfj78)? Nur unter 1024 px, wo es ein Sheet über der Liste
+/// ist, und nicht im Durchgehen (dort gehört das Detail zur Karte).
+let payeeShowAllClosesDetail (model: Model) : bool =
+    model.DetailFor.IsSome && model.DetailForm = DetailSheet && model.Review.IsNone
+
 let private showDetail (entry: LedgerEntryView) (model: Model) : Model * Cmd<Msg> =
     { model with
         DetailFor = Some entry
         FocusedRow = Some entry.Id
         History = Loading
+        HistoryOpenFor = None
         MemoEdit = None
         AmountEdit = None
         PayeeEdit = None },
@@ -1888,6 +1901,13 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
     // geschlossenes Detail), oder die eines überholten Ladens: verwerfen.
     | HistoryLoaded _ -> model, Cmd.none, NoOp
 
+    | ToggleHistory ->
+        let detailId = model.DetailFor |> Option.map (fun d -> d.Id)
+        match detailId with
+        | Some _ when model.HistoryOpenFor = detailId -> { model with HistoryOpenFor = None }, Cmd.none, NoOp
+        | Some _ -> { model with HistoryOpenFor = detailId }, Cmd.none, NoOp
+        | None -> model, Cmd.none, NoOp
+
     // ============================================
     // Spiegel
     // ============================================
@@ -2021,8 +2041,10 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
     // Liste, nicht die Buchung.
     | FilterByRowPayee payee ->
         // Die Suche gilt sofort und steht im Feld; die Version steigt, damit eine wartende
-        // Eingabe sie nicht überschreibt (ledger-d9z3n).
+        // Eingabe sie nicht überschreibt (ledger-d9z3n). „alle zeigen“ am Payee schließt am Handy (Sheet)
+        // das Detail, damit die gefundenen Buchungen zu sehen sind; am PC bleibt das Panel (ledger-zfj78).
         let filters = { model.Filters with Search = Some payee }
+        let model = if payeeShowAllClosesDetail model then closeDetail model else model
         rebuildWith { model with Filters = filters; SearchDraft = payee; SearchVersion = model.SearchVersion + 1 }
 
     | FilterByRowCategory categoryId ->

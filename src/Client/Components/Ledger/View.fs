@@ -971,39 +971,47 @@ let private lastRunSubtitle (status: RemoteData<MirrorRunStatus option>) : strin
 /// aus dem Ereignis-Log und zählt dadurch in der Liste von oben nach unten abwärts.
 let historyLinesForDisplay (lines: LedgerHistoryLine list) : LedgerHistoryLine list = List.rev lines
 
-/// Ist die Zeile ein Fehlschlag oder die Löschung? Dann ist der Punkt rot, gleich welcher
-/// Urheber sie schrieb. Der Satz kommt aus `QueryHandlers.describe`; die Anfänge dort sind
-/// die einzige Quelle.
-let isFailureOrDeletionLine (line: LedgerHistoryLine) : bool =
-    let text = line.Description
-    text.StartsWith("In YNAB gelöscht", StringComparison.Ordinal)
-    || text.StartsWith("Prüfvermerk nicht in YNAB", StringComparison.Ordinal)
-    || text.StartsWith("Push nach YNAB gescheitert", StringComparison.Ordinal)
+/// Das Kürzel der Herkunft in einer Zeile der Historie (§7.11, ledger-zfj78): wer den Eintrag schrieb, neutral und
+/// kurz. In BB entschieden und über Quick Add erfasst ist Roman; der Order-ID-Abgleich steht als ABGLEICH.
+let historyWhoTag (origin: LedgerOrigin) : string =
+    match origin with
+    | DecidedInBb
+    | AddedViaQuickAdd -> "ROMAN"
+    | AddedByBob -> "BOB"
+    | MirroredFromYnab -> "YNAB"
+    | DecidedByRule -> "REGEL"
+    | ImportedFromComdirect -> "IMPORT"
+    | MatchedByOrderId -> "ABGLEICH"
 
-/// Die Punktfarbe einer Zeile der Zeitleiste nach Farbrolle (ADR 0087): Blau Import und Regel,
-/// Grau YNAB-Spiegel, Quick Add und Bob, Grün eigene Prüfung in BB, Rot Fehlschläge und Löschung.
-let historyDotFor (line: LedgerHistoryLine) : Detail.DotColor =
-    if isFailureOrDeletionLine line then
-        Detail.DotRed
-    else
-        match line.Origin with
-        | ImportedFromComdirect
-        | DecidedByRule
-        | MatchedByOrderId -> Detail.DotInfo
-        | MirroredFromYnab
-        | AddedViaQuickAdd
-        | AddedByBob -> Detail.DotGrey
-        | DecidedInBb -> Detail.DotGreen
+/// Der Zeitpunkt einer Zeile der Historie als `TT.MM. HH:MM` in Ortszeit (§7.11).
+let historyWhenText (occurredAt: DateTime) : string =
+    occurredAt.ToLocalTime().ToString("dd.MM. HH:mm", germanCulture ())
 
-/// Die Zeitleiste aus den Zeilen der Historie, neueste oben.
-let historyTimelineItems (lines: LedgerHistoryLine list) : Detail.TimelineItem list =
+/// Der Betrag rechts in einer Zeile der Historie (§7.11): der Betrag des Eintrags mit Vorzeichen und Währung wie die
+/// Split-Zeilen, ohne Betrag leer (`LedgerHistoryLine.Amount`, ledger-zfj78).
+let historyAmountText (line: LedgerHistoryLine) : string option =
+    line.Amount |> Option.map (fun m -> Money.formatAmountText false true m.Amount m.Currency)
+
+/// Die Einträge der Historie nach §7.11, neueste oben, mit dem Betrag des Eintrags rechts, falls er einen trägt.
+let historyItems (lines: LedgerHistoryLine list) : HistoryList.Item list =
     lines
     |> historyLinesForDisplay
     |> List.map (fun line ->
         { Key = string line.Sequence
-          Dot = historyDotFor line
+          When = historyWhenText line.OccurredAt
+          Who = historyWhoTag line.Origin
           Text = line.Description
-          Stamp = $"{formatDateTime line.OccurredAt} · {originLabel line.Origin}" })
+          Amount = historyAmountText line })
+
+/// Die Beschriftung der aufklappbaren Zeile: „Historie (n)“, solange die Zahl noch nicht feststeht nur „Historie“.
+let historyToggleLabel (history: RemoteData<LedgerHistoryLine list>) : string =
+    match history with
+    | Success lines -> $"Historie ({List.length lines})"
+    | _ -> "Historie"
+
+/// Ist die Historie dieser Buchung im Detail aufgeklappt? Beim Öffnen des Details ist sie zu (ledger-zfj78).
+let historyOpen (model: Model) (entry: LedgerEntryView) : bool =
+    model.HistoryOpenFor = Some entry.Id
 
 /// Die Beschriftung des Filter-Knopfs am Payee (ADR 0053): der volle Name, keine Kürzung.
 /// `None` unter denselben Bedingungen wie `payeeMenuLabel`: kein Payee zum Filtern.
@@ -1173,10 +1181,27 @@ let detailNoticeActionMsg (entryId: Guid) (notice: DetailNotice) : Msg option =
     | NotInYnabNotice _ -> Some (StartRetryPush entryId)
     | _ -> None
 
-/// Die Nachricht des Geprüft-Schalters: an setzt `Reviewed`, aus `Unreviewed`, über denselben
+/// Die Nachricht des Prüf-Knopfs im Detail: an setzt `Reviewed`, aus `Unreviewed`, über denselben
 /// Weg wie die Schaltfläche an der Zeile (`StartSetReviewMark`).
 let reviewedSwitchMsg (entryId: Guid) (on: bool) : Msg =
     StartSetReviewMark (entryId, (if on then Reviewed else Unreviewed))
+
+/// Der Prüf-Knopf im Detail (ledger-zfj78, Prototyp Version 17): ersetzt den Schalter „Geprüft“.
+type DetailReviewButton = {
+    Label: string
+    /// Hauptaktion (gefüllt im Akzent) bei einer ungeprüften Buchung, sonst neutral.
+    Primary: bool
+    /// Was ein Tipp setzt: dieselbe Nachricht wie zuvor der Schalter (`reviewedSwitchMsg`).
+    Msg: Msg
+}
+
+/// Text, Art und Wirkung des Prüf-Knopfs je Stand: ungeprüft „Geprüft“ als Hauptaktion, geprüft „Als ungeprüft
+/// markieren“ neutral.
+let detailReviewButtonFor (entry: LedgerEntryView) : DetailReviewButton =
+    if entry.NeedsReview then
+        { Label = "Geprüft"; Primary = true; Msg = reviewedSwitchMsg entry.Id true }
+    else
+        { Label = "Als ungeprüft markieren"; Primary = false; Msg = reviewedSwitchMsg entry.Id false }
 
 let private noticeView
     (dispatch: Msg -> unit)
@@ -1275,10 +1300,37 @@ let private accountNameOf (model: Model) (entry: LedgerEntryView) : string =
         |> Option.defaultValue "Konto"
     | _ -> "Konto"
 
-/// Die Zeile unter "Konto · Datum" im Kopf: voller Datumsstil statt der relativen Form der Liste.
-let detailSubtitle (accountName: string) (entry: LedgerEntryView) : string =
-    $"{accountName} · {formatDateFull entry.Date}"
+/// Der Wochentag kurz wie im Prototyp (`toLocaleDateString('de-DE', {weekday:'short'})`): „Mo.“ bis „So.“.
+let private weekdayShort (date: DateTime) : string =
+    match date.DayOfWeek with
+    | DayOfWeek.Monday -> "Mo."
+    | DayOfWeek.Tuesday -> "Di."
+    | DayOfWeek.Wednesday -> "Mi."
+    | DayOfWeek.Thursday -> "Do."
+    | DayOfWeek.Friday -> "Fr."
+    | DayOfWeek.Saturday -> "Sa."
+    | _ -> "So."
 
+/// Der Tag im Kopf des Details nach `dLabel` (Prototyp Version 17, Abweichung (c), ledger-zfj78): „Heute“, „Gestern“,
+/// sonst Wochentag kurz und `TT.MM.`, etwa „Fr., 06.11.“; aus einem anderen Jahr als `today` mit Jahr, „Fr., 06.11.2025“.
+/// `today` ist der Kalendertag in Europe/Berlin (`Client.BerlinDate.today`).
+let detailDayText (today: DateTime) (date: DateTime) : string =
+    match (date.Date - today.Date).Days with
+    | 0 -> "Heute"
+    | -1 -> "Gestern"
+    | _ ->
+        let dayMonth = date.ToString("dd.MM.", germanCulture ())
+        let year = if date.Year = today.Year then "" else string date.Year
+        weekdayShort date + ", " + dayMonth + year
+
+/// Die Zeile unter dem Payee im Kopf: „<Tag> · <Konto>“ (ledger-zfj78).
+let detailSubtitleFor (today: DateTime) (accountName: string) (entry: LedgerEntryView) : string =
+    $"{detailDayText today entry.Date} · {accountName}"
+
+let detailSubtitle (accountName: string) (entry: LedgerEntryView) : string =
+    detailSubtitleFor (Client.BerlinDate.today ()) accountName entry
+
+/// Der Inhalt unter „Historie (n)“: Laden, Fehler mit „Erneut versuchen“, Leerzustand oder die Zeilen nach §7.11.
 let private historyView (dispatch: Msg -> unit) (entry: LedgerEntryView) (history: RemoteData<LedgerHistoryLine list>) =
     match history with
     | NotAsked -> Html.none
@@ -1287,14 +1339,14 @@ let private historyView (dispatch: Msg -> unit) (entry: LedgerEntryView) (histor
         ErrorDisplay.cardCompact
             $"Historie konnte nicht geladen werden: {message}"
             (Some (fun () -> dispatch (LoadHistory entry.Id)))
-    | Success [] -> Detail.timelineEmpty "Noch keine Einträge"
-    | Success lines -> Detail.timeline (historyTimelineItems lines)
+    | Success [] -> HistoryList.empty "Noch keine Einträge"
+    | Success lines -> HistoryList.list "detail-history-list" (historyItems lines)
 
 /// Eine in YNAB gelöschte Buchung ist im Detail ein Lesezustand (ledger-q1hw2): gedämpfter
-/// Betrag und Text, kein Geprüft-Schalter; die Filter-Knöpfe bleiben.
+/// Betrag und Text, kein Prüf-Knopf; „alle zeigen“ bleibt.
 let detailReadOnly (entry: LedgerEntryView) : bool = entry.DeletedInYnab
 
-/// Zeigt das Detail den Geprüft-Schalter? Nicht bei einer in YNAB gelöschten Buchung (sie nimmt keinen
+/// Zeigt das Detail den Prüf-Knopf? Nicht bei einer in YNAB gelöschten Buchung (sie nimmt keinen
 /// Prüfvermerk an) und nicht bei einer wartenden (ADR 0093 Punkt 6).
 let detailReviewSwitchVisible (entry: LedgerEntryView) : bool =
     not (detailReadOnly entry) && (heldLockReason entry).IsNone
@@ -1315,9 +1367,14 @@ let amountEditMsg (model: Model) (entry: LedgerEntryView) : Msg option =
     if Components.Ledger.State.amountEditOpenable model entry then Some (OpenAmountEdit entry.Id)
     else None
 
-/// Der Kopf des Details: Betrag, "Konto · Datum", Schließen. Der Betrag ist ein Knopf, der das
-/// Sheet "Betrag" öffnet; gesperrt steht er ohne Pfeil, mit dem Grund darunter (ADR 0092).
-let private detailHead (dispatch: Msg -> unit) (model: Model) (entry: LedgerEntryView) (onClose: (unit -> unit) option) =
+/// Der Kopf des Details im Panel: Payee als Titel (oder „ohne Payee“ gedämpft), darunter „<Tag> · <Konto>“,
+/// rechts Schließen (ledger-zfj78). Im Sheet stellt `BottomSheet.view` Titel und Unterzeile.
+let private detailTitleHead (model: Model) (entry: LedgerEntryView) (onClose: (unit -> unit) option) =
+    Detail.titleHead (payeeLabel entry) entry.Payee.IsNone (detailSubtitle (accountNameOf model entry) entry) onClose
+
+/// Die Betragszeile: der Betrag als Knopf, der das Sheet "Betrag" öffnet; gesperrt steht er ohne Pfeil, mit dem
+/// Grund darunter (ADR 0092). Rechts der Prüfstand.
+let private detailAmountRow (dispatch: Msg -> unit) (model: Model) (entry: LedgerEntryView) =
     let amountElement =
         match amountLockFor entry with
         | Some reason -> Detail.amountLocked entry.Amount.Amount entry.Amount.Currency (detailReadOnly entry) reason
@@ -1327,7 +1384,7 @@ let private detailHead (dispatch: Msg -> unit) (model: Model) (entry: LedgerEntr
                 entry.Amount.Currency
                 amountEditLabel
                 (amountEditMsg model entry |> Option.map (fun msg -> fun () -> dispatch msg))
-    Detail.head amountElement (detailSubtitle (accountNameOf model entry) entry) onClose
+    Detail.amountRow amountElement (Detail.reviewStatus entry.NeedsReview)
 
 /// Der Kopf über dem Split-Editor: der Gesamtbetrag des Editors ohne Knopf. Kommt der Editor aus
 /// dem Sheet "Betrag", steht dort schon der neue Betrag (ledger-m7mye).
@@ -1392,6 +1449,9 @@ let categoryArrowMsg (model: Model) (entry: LedgerEntryView) : Msg option =
 /// bleiben voll qualifiziert (`splitTargetLabel`, ADR 0045): dort wäre die Kurzform mehrdeutig,
 /// weil zwei Zeilen denselben Blattnamen in verschiedenen Gruppen tragen können.
 let detailCategoryLabel (form: DetailForm) (entry: LedgerEntryView) : string =
+    // Eine aufgeteilte Buchung heißt im Detail „Aufgeteilt“, ihre Zeilen stehen in der Karte darunter
+    // (Prototyp Version 17, ledger-zfj78).
+    if entry.CategoryName.IsNone && not (List.isEmpty entry.Splits) then "Aufgeteilt" else
     match form with
     | DetailPanel -> categoryLabelQualified entry
     | DetailSheet -> categoryLabel entry
@@ -1485,9 +1545,10 @@ let private categoryField (dispatch: Msg -> unit) (model: Model) (entry: LedgerE
                         (transferCategoryLabel model entry |> Option.defaultValue (detailCategoryLabel model.DetailForm entry)))
                     (Some (
                         React.fragment [
+                            // „alle zeigen“ setzt wie zuvor der Trichter den Kategorie-Filter (ADR 0053, ledger-zfj78).
                             match categoryFilterLabel entry, entry.CategoryId with
                             | Some label, Some categoryId ->
-                                Detail.filterButton label (fun () -> dispatch (FilterByRowCategory categoryId))
+                                Detail.showAllLink label (fun () -> dispatch (FilterByRowCategory categoryId))
                             | _ -> ()
                             Detail.pickerArrow categoryArrowLabel pickerOpen (categoryLockHint lock) onArrow
                         ]
@@ -1503,7 +1564,7 @@ let private categoryField (dispatch: Msg -> unit) (model: Model) (entry: LedgerE
         | lines ->
             Html.div [
                 prop.custom ("data-testid", "category-change-card")
-                prop.className $"px-4 py-3 border-b {Tokens.Borders.subtle}"
+                prop.className $"px-4 detail-inset detail-line py-3 border-b {Tokens.Borders.subtle}"
                 prop.children [ CategoryPicker.CategoryChangeCard.view lines ]
             ]
     ]
@@ -1520,73 +1581,48 @@ let splitLockTextFor (entry: LedgerEntryView) : string option =
 let splitActionMsg (entry: LedgerEntryView) : Msg option =
     if (splitLockTextFor entry).IsSome then None else Some (OpenSplitEditor entry.Id)
 
-/// Das Feld Split: "Kein Split" mit festem Knopf "Aufteilen", bei einer aufgeteilten Buchung die
-/// Zeilen mit Vorzeichen und der Knopf "Ändern" (ledger-pafkp, Tafel 4.4, 4.7, 4.9).
-let private splitField (dispatch: Msg -> unit) (entry: LedgerEntryView) : ReactElement =
-    let lockText = splitLockTextFor entry
-    let value =
-        Html.div [
-            prop.className "flex min-w-0 flex-col"
-            prop.children [
-                match splitLineTexts entry with
-                | [] -> Detail.valueText Tokens.Colors.textMuted "Kein Split"
-                | lines -> Detail.splitLines lines
-                match lockText with
-                | Some text -> Detail.splitLockHint text
-                | None -> ()
-            ]
-        ]
-    Detail.fieldRow
-        "detail-split"
-        "Split"
-        value
-        (Some (
-            Detail.splitActionButton
-                (SplitLogic.splitActionLabel entry)
-                lockText
-                (fun () -> splitActionMsg entry |> Option.iter dispatch)
-        ))
-
-/// Die Nachricht der Aktion in der Flag-Zeile ("Lena fragen" bzw. "Rückfrage zurücknehmen"):
+/// Die Nachricht des Knopfs "Lena fragen" bzw. "Rückfrage zurücknehmen" in der Knopfzeile:
 /// `None`, wenn sie gesperrt ist oder gerade ein Aufruf läuft (ledger-xfjcp, ADR 0056).
 let lenaActionMsg (model: Model) (entry: LedgerEntryView) : Msg option =
     let action = lenaActionFor model.LenaFlagColor entry
     if action.DisabledReason.IsSome || (model.FlagRows |> Map.tryFind entry.Id) = Some FlagSending then None
     else Some (StartSetLenaFlag (entry.Id, action.Target))
 
-/// Die Flag-Zeile: das gedeutete Flag und der feste Knopf "Lena fragen" bzw. "Rückfrage
-/// zurücknehmen". Ist die Aktion gesperrt, nennt ein Text unter dem Wert den Grund.
-let private flagField
+/// Die Knopfzeile unter den Feldern (Prototyp Version 17 `.btnrow`, ledger-zfj78): „Aufteilen“ (bei einer
+/// aufgeteilten Buchung „Ändern“) öffnet den Split-Editor und ersetzt das Feld Split; „Lena fragen“ mit Flagge bzw.
+/// „Rückfrage zurücknehmen“ ersetzt die Flag-Zeile. Gesperrte Knöpfe nennen ihren Grund darunter.
+let private detailActionRow
     (dispatch: Msg -> unit)
     (model: Model)
     (flagRow: FlagRowState option)
     (entry: LedgerEntryView)
     : ReactElement =
-    let action = lenaActionFor model.LenaFlagColor entry
-    let value =
-        Html.div [
-            prop.className "flex min-w-0 flex-col"
-            prop.children [
-                Detail.valueText
-                    (if entry.DeletedInYnab || entry.Flag = NoFlag then Tokens.Colors.textMuted else Tokens.Colors.textPrimary)
-                    (flagValueText entry.Flag)
-                match action.DisabledReason with
-                | Some reason -> Detail.fieldLockHint "detail-flag-lock-hint" reason
-                | None -> ()
-            ]
-        ]
-    Detail.fieldRow
-        "detail-flag"
-        "Flag"
-        value
-        (Some (
-            Detail.fieldActionButton
-                "detail-flag-action"
-                action.Label
-                action.DisabledReason
-                (flagRow = Some FlagSending)
-                (fun () -> lenaActionMsg model entry |> Option.iter dispatch)
-        ))
+    let splitLock = splitLockTextFor entry
+    let lena = lenaActionFor model.LenaFlagColor entry
+    // Die Flagge in der Farbe aus den Einstellungen (`Badge.lenaFlagScope` an der Hülle, ADR 0087 Punkt 8).
+    let flagIcon = Some (Icons.flag Icons.SM Icons.LenaFlag)
+    Detail.actionRow
+        (Badge.lenaFlagScope (lenaColorOf model.LenaFlagColor))
+        [ Detail.rowAction
+              "detail-split-action"
+              (SplitLogic.splitActionLabel entry)
+              None
+              splitLock
+              false
+              (fun () -> splitActionMsg entry |> Option.iter dispatch)
+          Detail.rowAction
+              "detail-flag-action"
+              lena.Label
+              flagIcon
+              lena.DisabledReason
+              (flagRow = Some FlagSending)
+              (fun () -> lenaActionMsg model entry |> Option.iter dispatch) ]
+        [ match splitLock with
+          | Some text -> "detail-split-lock-hint", text
+          | None -> ()
+          match lena.DisabledReason with
+          | Some reason -> "detail-flag-lock-hint", reason
+          | None -> () ]
 
 /// Die Nachricht der Memo-Aktion ("Memo hinzufügen" bzw. "Bearbeiten"): `None`, wenn sie
 /// gesperrt ist oder gerade ein Aufruf läuft (ledger-fa1fp, ADR 0062).
@@ -1595,11 +1631,14 @@ let memoActionMsg (model: Model) (entry: LedgerEntryView) : Msg option =
     if action.DisabledReason.IsSome || (model.MemoRows |> Map.tryFind entry.Id) = Some MemoSending then None
     else Some (StartMemoEdit entry.Id)
 
+/// Der Wert der Memo-Zeile ohne Memo (Prototyp Version 17): gedämpft „hinzufügen“.
+let memoEmptyText = "hinzufügen"
+
 /// Das Eingabefeld des Memos, wenn es für diese Buchung offen ist.
 let memoEditFor (model: Model) (entry: LedgerEntryView) : MemoEdit option =
     model.MemoEdit |> Option.filter (fun edit -> edit.MemoEntryId = entry.Id)
 
-/// Die Memo-Zeile (Tafeln 5.2 und 7.8): der Text oder "Kein Memo" und der Knopf "Memo
+/// Die Memo-Zeile (Tafeln 5.2 und 7.8, Prototyp Version 17): der Text oder gedämpft "hinzufügen" und der Pfeil "Memo
 /// hinzufügen" bzw. "Bearbeiten". Ist das Feld offen, steht an dieser Stelle das Eingabefeld
 /// mit Speichern und Abbrechen. Ist die Aktion gesperrt (in YNAB gelöscht), nennt ein Text
 /// unter dem Wert den Grund.
@@ -1635,23 +1674,26 @@ let private memoField
                 prop.children [
                     match memoTextOf entry with
                     | Some memo -> Detail.valueText textColor memo
-                    | None -> Detail.valueText Tokens.Colors.textMuted "Kein Memo"
+                    | None -> Detail.valueText Tokens.Colors.textMuted memoEmptyText
                     match action.DisabledReason with
                     | Some reason -> Detail.fieldLockHint "detail-memo-lock-hint" reason
                     | None -> ()
                 ]
             ]
-        Detail.fieldRow
+        let openMsg = memoActionMsg model entry
+        // Die ganze Zeile und der Pfeil öffnen das Eingabefeld (Prototyp `.kv`, ledger-zfj78). Der Pfeil trägt den
+        // Namen der Aktion („Memo hinzufügen“ bzw. „Bearbeiten“); gesperrt oder während eines Aufrufs wirkt er nicht.
+        Detail.fieldRowWith
+            (openMsg |> Option.map (fun msg -> fun () -> dispatch msg))
             "detail-memo"
             "Memo"
             value
             (Some (
-                Detail.fieldActionButton
+                Detail.forwardArrow
                     "detail-memo-action"
                     action.Label
-                    action.DisabledReason
-                    (memoRow = Some MemoSending)
-                    (fun () -> memoActionMsg model entry |> Option.iter dispatch)
+                    (if openMsg.IsSome then None else Some (action.DisabledReason |> Option.defaultValue action.Label))
+                    (fun () -> openMsg |> Option.iter dispatch)
             ))
 
 /// Die externen Links des Buchungs-Details als (Beschriftung, Adresse) (ledger-rjhwp). Leer
@@ -1661,12 +1703,19 @@ let detailExternalLinks (entry: LedgerEntryView) : (string * string) list =
     if isNull (box entry.ExternalLinks) then []
     else entry.ExternalLinks |> List.map (fun link -> link.Label, link.Url)
 
-/// Die Link-Zeile unter dem Memo: nur wenn es Links gibt, sonst `None`. Sheet und Seitenpanel
-/// teilen sich `detailContent`, damit auch diese Zeile in beiden dieselbe ist.
-let externalLinksField (entry: LedgerEntryView) : ReactElement option =
-    match detailExternalLinks entry with
-    | [] -> None
-    | links -> Some (Detail.externalLinksRow links)
+/// Die Link-Zeilen von Karte und Detail als (Titel, Nummer, Adresse): eine Amazon-Bestellung heißt „Bestellung bei
+/// Amazon“ mit der Nummer darunter, die übrigen Links tragen ihre Beschriftung (Abweichung (d)).
+let reviewLinks (entry: LedgerEntryView) : (string * string option * string) list =
+    let prefix = "Bestellung "
+    detailExternalLinks entry
+    |> List.map (fun (label, url) ->
+        if label.StartsWith prefix then "Bestellung bei Amazon", Some (label.Substring prefix.Length), url
+        else label, None, url)
+
+/// Die Link-Zeilen unter dem Payee (ledger-zfj78): „Bestellung bei …“ mit der Nummer darunter und „öffnen“. Sheet
+/// und Seitenpanel teilen sich `detailContent`, damit auch diese Zeilen in beiden dieselben sind.
+let externalLinksField (entry: LedgerEntryView) : ReactElement list =
+    reviewLinks entry |> List.map (fun (title, detail, url) -> Detail.externalLinkRow title detail url)
 
 // ============================================
 // Regel aus der Buchung (ledger-hg5m5)
@@ -1709,7 +1758,10 @@ let private ruleFormHead (form: EntryRuleForm) : ReactElement =
         ]
     ]
 
-/// Alles unter dem Kopf: Hinweisleiste, Felder, Geprüft-Schalter, Herkunft, Historie.
+/// Alles unter dem Kopf, in der Ordnung des Prototyps Version 17 (ledger-zfj78): Betrag mit Prüfstand,
+/// Hinweisleiste, Prüf-Knopf, die Zeilen Kategorie (mit Split-Karte und Regel-Angebot), Memo, Payee, Bestell-Link
+/// und „Regel anlegen“, die Knopfzeile Aufteilen und Lena, die aufklappbare Historie, die Herkunft und „Buchung
+/// löschen“. Panel und Sheet teilen ihn; den Kopf mit dem Payee stellt die Hülle.
 let private detailContent (dispatch: Msg -> unit) (model: Model) (entry: LedgerEntryView) : ReactElement list =
     let rowState = model.ReviewMarkRows |> Map.tryFind entry.Id
     let categoryRow = model.CategoryRows |> Map.tryFind entry.Id
@@ -1721,100 +1773,91 @@ let private detailContent (dispatch: Msg -> unit) (model: Model) (entry: LedgerE
     let textColor = if muted then Tokens.Colors.textMuted else Tokens.Colors.textPrimary
     let payeeOpenMsg = payeeEditMsg model entry
 
-    [ match detailNoticeWithPayee rowState categoryRow flagRow memoRow amountRow payeeRow model.History entry with
+    [ detailAmountRow dispatch model entry
+
+      match detailNoticeWithPayee rowState categoryRow flagRow memoRow amountRow payeeRow model.History entry with
       | Some notice -> noticeView dispatch rowState categoryRow (model.PushRetryRows |> Map.tryFind entry.Id) entry notice
       | None -> ()
 
-      // Payee: eigene Feldzeile, damit sein Filter-Knopf rechts bündig mit dem der
-      // Kategorie steht. Ein Tipp auf den Wert oder den Pfeil öffnet die Payee-Auswahl (ledger-fxt09).
-      Detail.fieldRowWith
-          (payeeOpenMsg |> Option.map (fun msg -> fun () -> dispatch msg))
-          "detail-payee"
-          "Payee"
-          (Html.span [
-              prop.custom ("data-testid", "detail-title")
-              prop.className "min-w-0"
-              prop.children [
-                  Detail.valueText
-                      (if muted || entry.Payee.IsNone then Tokens.Colors.textMuted else Tokens.Colors.textPrimary)
-                      (payeeLabel entry)
-              ]
-          ])
-          (Some (
-              React.fragment [
-                  match payeeFilterLabel entry, entry.Payee with
-                  | Some label, Some payee -> Detail.filterButton label (fun () -> dispatch (FilterByRowPayee payee))
-                  | _ -> ()
-                  Detail.forwardArrow
-                      "detail-payee-arrow"
-                      payeeEditLabel
-                      (if payeeOpenMsg.IsSome then None else Some (payeeLockFor entry |> Option.defaultValue payeeEditLabel))
-                      (fun () -> payeeOpenMsg |> Option.iter dispatch)
-              ]
-          ))
-
-      // Kategorie: voll qualifiziert (ADR 0039), rechts der Filter-Knopf und der Pfeil, der den
-      // Picker öffnet (ledger-sfab0). Filtern und Ändern sind getrennte Ziele (ADR 0053).
-      categoryField
-          dispatch
-          model
-          entry
-          (if muted then Tokens.Colors.textMuted
-           elif isWithoutCategory entry then Tokens.Colors.attention
-           else Tokens.Colors.textPrimary)
-
-      match ruleOfferFor model entry with
-      | Some payee -> ruleOfferRow dispatch entry payee
-      | None -> ()
-
-      splitField dispatch entry
-
-      memoField dispatch model memoRow entry textColor
-
-      match externalLinksField entry with
-      | Some row -> row
-      | None -> ()
-
-      flagField dispatch model flagRow entry
-
-      // Eine in YNAB gelöschte oder wartende Buchung nimmt keinen Prüfvermerk an: kein Schalter.
+      // Eine in YNAB gelöschte oder wartende Buchung nimmt keinen Prüfvermerk an: kein Knopf. Der Knopf schickt
+      // dieselbe Nachricht wie zuvor der Schalter; Rückmeldung und Rückgängig bleiben (ledger-zfj78).
       if detailReviewSwitchVisible entry then
-          Detail.reviewedSwitch
-              "Geprüft"
-              (not entry.NeedsReview)
-              (rowState = Some ReviewMarkSending)
-              (fun on -> dispatch (reviewedSwitchMsg entry.Id on))
+          let button = detailReviewButtonFor entry
+          Detail.reviewButton button.Label button.Primary (rowState = Some ReviewMarkSending) (fun () -> dispatch button.Msg)
 
-      Detail.originRow (
-          Badge.view {
-              Badge.defaultProps with
-                  Text = originLabel entry.Origin
-                  Variant = Badge.Info
-                  Size = Badge.Small
-          }
-      )
+      Html.div [
+          prop.className $"mt-1 border-t {Tokens.Borders.subtle}"
+          prop.children [
+              // Kategorie: voll qualifiziert am PC (ADR 0039), „alle zeigen“ setzt den Kategorie-Filter, der Pfeil
+              // öffnet den Picker (ledger-sfab0). Filtern und Ändern sind getrennte Ziele (ADR 0053).
+              categoryField
+                  dispatch
+                  model
+                  entry
+                  (if muted then Tokens.Colors.textMuted
+                   elif isWithoutCategory entry then Tokens.Colors.attention
+                   else Tokens.Colors.textPrimary)
 
-      if (ruleSeedFor entry).IsSome then ruleFromEntryRow dispatch entry
+              match splitLineTexts entry with
+              | [] -> ()
+              | lines -> Detail.splitCard lines
 
-      Detail.sectionLabel "HISTORIE"
-      historyView dispatch entry model.History
+              match ruleOfferFor model entry with
+              | Some payee -> ruleOfferRow dispatch entry payee
+              | None -> ()
 
-      // Ganz unten wie im Prototyp (Version 17): "Buchung löschen" in Rot, klein, volle Breite.
-      // Der Rand links und rechts wie bei den Feldzeilen des Details (`px-4`).
+              memoField dispatch model memoRow entry textColor
+
+              // Payee: Name, „alle zeigen“ (setzt die Suche, ledger-d9z3n) und der Pfeil zur Payee-Auswahl
+              // (ledger-fxt09). Ein Tipp auf die Zeile öffnet ebenfalls die Auswahl.
+              Detail.fieldRowWith
+                  (payeeOpenMsg |> Option.map (fun msg -> fun () -> dispatch msg))
+                  "detail-payee"
+                  "Payee"
+                  (Detail.valueText
+                      (if muted || entry.Payee.IsNone then Tokens.Colors.textMuted else Tokens.Colors.textPrimary)
+                      (payeeLabel entry))
+                  (Some (
+                      React.fragment [
+                          match payeeFilterLabel entry, entry.Payee with
+                          | Some label, Some payee -> Detail.showAllLink label (fun () -> dispatch (FilterByRowPayee payee))
+                          | _ -> ()
+                          Detail.forwardArrow
+                              "detail-payee-arrow"
+                              payeeEditLabel
+                              (if payeeOpenMsg.IsSome then None else Some (payeeLockFor entry |> Option.defaultValue payeeEditLabel))
+                              (fun () -> payeeOpenMsg |> Option.iter dispatch)
+                      ]
+                  ))
+
+              yield! externalLinksField entry
+
+              if (ruleSeedFor entry).IsSome then ruleFromEntryRow dispatch entry
+          ]
+      ]
+
+      detailActionRow dispatch model flagRow entry
+
+      Detail.historySection
+          (historyToggleLabel model.History)
+          (historyOpen model entry)
+          (fun () -> dispatch ToggleHistory)
+          (historyView dispatch entry model.History)
+
+      Detail.originLine $"Herkunft: {originLabel entry.Origin}"
+
+      // Ganz unten wie im Prototyp (Version 17): "Buchung löschen" in Rot ohne Fläche, klein, volle Breite.
       if detailDeleteVisible entry then
-          Html.div [
-              prop.className "px-4 pt-2 pb-4"
-              prop.children [
-                  Button.view {
-                      Button.defaultProps with
-                          Text = "Buchung löschen"
-                          Variant = Button.Danger
-                          Size = Button.Small
-                          IsBusy = model.DeletingEntries.Contains entry.Id
-                          ClassName = Some "w-full"
-                          OnClick = fun () -> dispatch (StartDeleteEntry entry.Id)
-                  }
-              ]
+          Detail.block "detail-delete" [] [
+              Button.view {
+                  Button.defaultProps with
+                      Text = "Buchung löschen"
+                      Variant = Button.DangerOutline
+                      Size = Button.Small
+                      IsBusy = model.DeletingEntries.Contains entry.Id
+                      ClassName = Some "w-full"
+                      OnClick = fun () -> dispatch (StartDeleteEntry entry.Id)
+              }
           ] ]
 
 /// Das Detail als Seitenpanel (PC). Gerendert in der Spalte der Liste (`FilterBarColumn`).
@@ -2096,15 +2139,15 @@ let private detailPanelView (dispatch: Msg -> unit) (model: Model) (entry: Ledge
         React.fragment [
             Detail.panel
                 $"Detail {payeeLabel entry}"
-                [ detailHead dispatch model entry (Some (fun () -> dispatch CloseDetail))
+                [ detailTitleHead model entry (Some (fun () -> dispatch CloseDetail))
                   Detail.scrollBody (detailContent dispatch model entry) ]
             amountDialog dispatch model entry
             payeeDialog dispatch model entry
         ]
 
 /// Das Detail als BottomSheet (Handy, Kompaktliste, zu schmales Fenster für das Panel).
-/// Das Sheet bringt Titel und Schließen-Knopf mit; der Kopf mit Betrag und Payee steht
-/// im Inhalt. Mit offenem Editor heißt es "Aufteilen" mit Payee und Datum als Unterzeile, der
+/// Das Sheet bringt den Kopf mit: der Payee als Titel, „<Tag> · <Konto>“ darunter und Schließen
+/// (ledger-zfj78); der Betrag steht als erste Zeile im Inhalt. Mit offenem Editor heißt es "Aufteilen" mit Payee und Datum als Unterzeile, der
 /// Schließen-Knopf kehrt zum Detail zurück, und "Speichern" klebt unten (kein "Abbrechen").
 let private detailSheetView (dispatch: Msg -> unit) (model: Model) (open': bool) : ReactElement =
     let entry = detailEntryOf model
@@ -2148,7 +2191,8 @@ let private detailSheetView (dispatch: Msg -> unit) (model: Model) (open': bool)
                  if payeeEdit.IsSome then "Payee"
                  elif amountEdit.IsSome then "Betrag"
                  elif editor.IsSome then "Aufteilen"
-                 else "Buchung")
+                 // Das Detail trägt den Payee als Titel (Prototyp Version 17, ledger-zfj78).
+                 else entry |> Option.map payeeLabel |> Option.defaultValue "Buchung")
           Subtitle =
             (match entry, editor with
              | Some e, _ when categoryPicker.IsSome ->
@@ -2156,6 +2200,7 @@ let private detailSheetView (dispatch: Msg -> unit) (model: Model) (open': bool)
              | Some e, _ when payeeEdit.IsSome -> Some (payeeLabel e)
              | Some e, _ when amountEdit.IsSome -> Some (payeeLabel e)
              | Some e, Some _ -> Some $"{payeeLabel e} · {formatDateFull e.Date}"
+             | Some e, None -> Some (detailSubtitle (accountNameOf model e) e)
              | _ -> None)
           Footer =
             (match entry, amountEdit, editor with
@@ -2179,9 +2224,7 @@ let private detailSheetView (dispatch: Msg -> unit) (model: Model) (open': bool)
                   prop.children (amountFormBody dispatch entry edit)
               ]
           | Some entry, None, Some ed, _ when open' -> yield! splitEditorBody dispatch model entry ed
-          | Some entry, None, None, _ when open' ->
-              detailHead dispatch model entry None
-              yield! detailContent dispatch model entry
+          | Some entry, None, None, _ when open' -> yield! detailContent dispatch model entry
           | _ -> () ]
 
 /// Die Hülle des Regel-Formulars am Handy: ein Sheet, Schließen führt zur Buchung zurück (§7.15). Immer gerendert
@@ -4934,15 +4977,6 @@ let reviewCategoryValue (model: Model) (entry: LedgerEntryView) : ReviewCategory
 /// „<Tag> · <Konto> · <Herkunft>“ oben auf der Karte; der Tag wie in der Kassenbuch-Liste.
 let reviewMetaText (today: DateTime) (accountName: string) (entry: LedgerEntryView) : string =
     $"{formatEntryDate today entry.Date} · {accountName} · {originLabel entry.Origin}"
-
-/// Die Link-Zeilen der Karte als (Titel, Nummer, Adresse): eine Amazon-Bestellung heißt „Bestellung bei
-/// Amazon“ mit der Nummer darunter, die übrigen Links tragen ihre Beschriftung (Abweichung (d)).
-let reviewLinks (entry: LedgerEntryView) : (string * string option * string) list =
-    let prefix = "Bestellung "
-    detailExternalLinks entry
-    |> List.map (fun (label, url) ->
-        if label.StartsWith prefix then "Bestellung bei Amazon", Some (label.Substring prefix.Length), url
-        else label, None, url)
 
 /// Die Vorschläge unter dem Feld: höchstens drei, ohne die aktuelle Kategorie, nur bekannte Kategorien.
 let reviewSuggestionChips (model: Model) (entry: LedgerEntryView) : YnabCategory list =

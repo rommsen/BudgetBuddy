@@ -86,6 +86,7 @@ test("[flow:bestell-link-oeffnen] PC: das Seitenpanel zeigt den Bestell-Link, er
   assert.equal(await link.getAttribute("href"), ORDER_URL);
   assert.equal(await link.getAttribute("target"), "_blank");
   assert.equal(await link.getAttribute("rel"), "noopener noreferrer");
-  assert.match(await link.textContent(), /Bestellung 304-1234567-7654321/);
+  // ledger-zfj78: „Bestellung bei Amazon“, die Nummer darunter, „öffnen“.
+  assert.match(await link.textContent(), /Bestellung bei Amazon.*304-1234567-7654321.*öffnen/);
   assert.equal(await link.locator("svg").count(), 1, "Symbol externalLink");
 });

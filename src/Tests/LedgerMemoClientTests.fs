@@ -320,11 +320,11 @@ let detailFeinschliffTests =
             Expect.equal (Components.Ledger.View.detailCategoryLabel DetailSheet entry) "Haushalt" "Handy: der Blattname"
             Expect.equal (Components.Ledger.View.detailCategoryLabel DetailPanel entry) "Alltag: Haushalt" "PC: Gruppe und Name"
 
-        testCase "ohne bekannte Gruppe sind beide Formen gleich, Split und Übertrag behalten ihren Text" <| fun () ->
+        testCase "ohne bekannte Gruppe sind beide Formen gleich, eine aufgeteilte Buchung heißt Aufgeteilt" <| fun () ->
             let noGroup = { entryOf 1 with CategoryGroupName = None }
             Expect.equal (Components.Ledger.View.detailCategoryLabel DetailPanel noGroup) "Haushalt" "PC ohne Gruppe"
             let split = { entryOf 1 with CategoryName = None; CategoryId = None; Splits = [ { Target = Uncategorized; Amount = eur -5m; Memo = None }; { Target = Uncategorized; Amount = eur -5m; Memo = None } ] }
-            Expect.equal (Components.Ledger.View.detailCategoryLabel DetailSheet split) "2 Split-Zeilen" "Split"
+            Expect.equal (Components.Ledger.View.detailCategoryLabel DetailSheet split) "Aufgeteilt" "Split heißt im Detail Aufgeteilt (ledger-zfj78)"
 
         testCase "die Split-Zeilen im Detail bleiben voll qualifiziert, auch am Handy (ADR 0045)" <| fun () ->
             let id = Guid.Parse "0195d700-0000-7000-8000-000000000002"

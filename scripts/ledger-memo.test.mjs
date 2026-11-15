@@ -144,8 +144,9 @@ test("[flow:memo-setzen] PC: Memo hinzufügen setzt das Memo, Detail und Liste z
   const context = await browser.newContext({ viewport: { width: 1600, height: 900 } });
   const page = await open(context);
   await openDetail(page, "Rewe Memo");
-  assert.ok((await memoRow(panel(page)).textContent()).includes("Kein Memo"), "Wert: Kein Memo");
-  assert.equal((await memoAction(panel(page)).textContent()).trim(), "Memo hinzufügen");
+  // ledger-zfj78: ohne Memo steht gedämpft „hinzufügen“, die Aktion ist der Pfeil mit ihrem Namen.
+  assert.ok((await memoRow(panel(page)).textContent()).includes("hinzufügen"), "Wert: hinzufügen");
+  assert.equal(await memoAction(panel(page)).getAttribute("aria-label"), "Memo hinzufügen");
 
   await memoAction(panel(page)).click();
   await editor(panel(page)).waitFor();
@@ -158,7 +159,7 @@ test("[flow:memo-setzen] PC: Memo hinzufügen setzt das Memo, Detail und Liste z
   await page.waitForFunction(() => document.querySelector('[data-testid="detail-memo-editor"]') === null);
   assert.deepEqual(state.setCalls, [{ entryId: idOf(1), text: "  Werkzeug + Lampe " }], "der Client schickt den Entwurf, der Server trimmt");
   assert.ok((await memoRow(panel(page)).textContent()).includes("Werkzeug + Lampe"), "Detail zeigt das neue Memo");
-  assert.equal((await memoAction(panel(page)).textContent()).trim(), "Bearbeiten");
+  assert.equal(await memoAction(panel(page)).getAttribute("aria-label"), "Bearbeiten");
   await page.getByText("Memo gesetzt", { exact: true }).waitFor();
 
   // Esc schließt das Detail, das Panel bleibt leer stehen (ledger-cnaz3); die Liste zeigt das neue Memo.

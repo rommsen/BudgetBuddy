@@ -2,7 +2,7 @@ module LedgerDetailTests
 
 // ledger-q1hw2 (ADR 0053): das Buchungs-Detail. Reducer-Pfade (Öffnen, Markieren, Panel folgt
 // den Pfeiltasten, Sperren, Sortierwechsel), die reinen Entscheidungen der Ansicht (Form,
-// Spalten neben dem Panel, Hinweisleiste, Zeitleiste, Split-Zeilen) und Quelltext-Zusicherungen
+// Spalten neben dem Panel, Hinweisleiste, Historie, Split-Zeilen) und Quelltext-Zusicherungen
 // für das, was `dotnet test` nicht rendern kann (Feliz-Elemente laufen nur im Browser).
 // Die gerenderte Fassung prüft `scripts/ledger-detail.test.mjs`.
 
@@ -53,7 +53,8 @@ let private historyLine (sequence: int) (origin: LedgerOrigin) (description: str
     { Sequence = sequence
       OccurredAt = DateTime(2026, 9, 10, 17, 50 + sequence, 0, DateTimeKind.Local)
       Origin = origin
-      Description = description }
+      Description = description
+      Amount = None }
 
 // ============================================
 // Öffnen, Markieren, Schließen
@@ -446,42 +447,16 @@ let contentTests =
             // Das Wort kommt aus `originLabel` (Domäne): in BB entschieden heißt dort "Roman in BB".
             Expect.equal (originLabel DecidedInBb) "Roman in BB" "In BB entschieden"
 
+        // ledger-zfj78: die Zeitleiste mit Punkten ist entfallen, die Historie folgt §7.11 (`historyItems`).
         testCase "die Historie erscheint neueste zuerst" <| fun () ->
             let lines =
                 [ historyLine 1 ImportedFromComdirect "Comdirect-Import: Buchung erfasst"
                   historyLine 2 DecidedByRule "Regel: Kategorie Lebensmittel gesetzt"
                   historyLine 3 MirroredFromYnab "Kategorie in YNAB geändert" ]
-            let items = historyTimelineItems lines
+            let items = historyItems lines
             Expect.equal (items |> List.map (fun i -> i.Text))
                 [ "Kategorie in YNAB geändert"; "Regel: Kategorie Lebensmittel gesetzt"; "Comdirect-Import: Buchung erfasst" ]
                 "neueste oben"
-
-        testCase "die Punktfarbe folgt dem Urheber" <| fun () ->
-            let dot origin description = historyDotFor (historyLine 1 origin description)
-            Expect.equal (dot ImportedFromComdirect "Comdirect-Import: Buchung erfasst") Detail.DotInfo "Import blau"
-            Expect.equal (dot DecidedByRule "Regel: Kategorie gesetzt") Detail.DotInfo "Regel blau"
-            Expect.equal (dot MirroredFromYnab "Kategorie in YNAB geändert") Detail.DotGrey "Spiegel grau"
-            Expect.equal (dot DecidedInBb "In BB als geprüft markiert") Detail.DotGreen "eigene Prüfung grün"
-
-        testCase "Fehlschläge und die Löschung sind rot, gleich welcher Urheber" <| fun () ->
-            let dot origin description = historyDotFor (historyLine 1 origin description)
-            Expect.equal (dot MirroredFromYnab "In YNAB gelöscht") Detail.DotRed "Löschung"
-            Expect.equal (dot DecidedInBb "Push nach YNAB gescheitert: Netzwerkfehler") Detail.DotRed "Push gescheitert"
-            Expect.equal (dot DecidedInBb "Prüfvermerk nicht in YNAB: Fehler") Detail.DotRed "Prüfvermerk gescheitert"
-
-        testCase "die rote Punktfarbe hängt an den echten Sätzen des Servers (QueryHandlers.describe)" <| fun () ->
-            let dotOf body =
-                historyDotFor (historyLine 1 DecidedInBb (ReadModel.describe body))
-            Expect.equal (dotOf EntryDeletionObservedInYnab) Detail.DotRed "Löschung"
-            Expect.equal (dotOf (EntryPushToYnabFailed { Reason = "Netzwerkfehler" })) Detail.DotRed "Push gescheitert"
-            Expect.equal
-                (dotOf (EntryReviewMarkWriteBackFailed { Reason = "YNAB 500" }))
-                Detail.DotRed
-                "Prüfvermerk nicht in YNAB"
-            Expect.notEqual
-                (dotOf EntryReviewMarkWrittenBackToYnab)
-                Detail.DotRed
-                "ein gewöhnlicher Satz ist nicht rot"
     ]
 
 // ============================================

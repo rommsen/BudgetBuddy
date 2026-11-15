@@ -380,6 +380,13 @@ function ledgerEntries(accountId, { held = false } = {}) {
   ];
 }
 
+/// Drei Einträge der Historie (ledger-zfj78), ältester zuerst wie `getEntryHistory`; einer mit langem Satz.
+const DETAIL_HISTORY = [
+  { Sequence: 1, OccurredAt: "2026-11-06T18:39:00.0000000", Origin: "MirroredFromYnab", Description: "In YNAB gesehen: AMAZON PAYMENTS, -12,34 €", Amount: eur(-12.34) },
+  { Sequence: 2, OccurredAt: "2026-11-06T18:40:00.0000000", Origin: "DecidedByRule", Description: "Regel „Amazon“: Kategorie Lebensmittel gesetzt, ein langer Satz, der in der schmalen Spalte umbrechen muss", Amount: null },
+  { Sequence: 3, OccurredAt: "2026-11-07T09:20:00.0000000", Origin: "DecidedInBb", Description: "In BB als geprüft markiert", Amount: null },
+];
+
 async function mockLedger(page, { accounts = 3, held = false } = {}) {
   await mockApp(page);
   const accountsFixture = buildAccountsFixture(accounts);
@@ -1114,15 +1121,28 @@ export const STATES = [
     mock: mockLedger,
     open: (page) => openFilteredOut(page, { mobile: true }),
   },
-  // ledger-external-links: das Detail-Sheet mit Bestell-Link.
+  // ledger-external-links: das Detail-Sheet mit Bestell-Link. ledger-zfj78: das Detail nach Prototyp Version 17 mit
+  // aufgeklappter Historie (§7.11), am Handy als Sheet, bei 1440 px im Panel.
   {
     name: "kassenbuch-detail",
     route: "/ledger",
-    widths: HANDY_WIDTHS,
-    mock: mockLedger,
-    open: async (page) => {
-      const sheet = await openLedgerDetail(page, "AMAZON PAYMENTS");
-      await sheet.locator('[data-testid="detail-external-link"]').waitFor();
+    widths: [...HANDY_WIDTHS, 412, 1440],
+    mock: async (page) => {
+      await mockLedger(page);
+      await page.route("**/api/LedgerApi/getEntryHistory", (r) => json(r, DETAIL_HISTORY));
+    },
+    open: async (page, { mobile }) => {
+      let scope;
+      if (mobile) {
+        scope = await openLedgerDetail(page, "AMAZON PAYMENTS");
+      } else {
+        await page.locator("table tbody tr", { hasText: "AMAZON PAYMENTS" }).first().locator("td").nth(2).click();
+        scope = page.locator('[data-testid="ledger-detail-panel"]');
+        await scope.waitFor();
+      }
+      await scope.locator('[data-testid="detail-external-link"]').waitFor();
+      await scope.getByRole("button", { name: "Historie (3)" }).click();
+      await scope.locator('[data-testid="history-row"]').first().waitFor();
     },
   },
   // ledger-split-editor, design-system-j6dnj: Aufteilen im Sheet, Speichern klebt unten, Zeile hinzufügen und

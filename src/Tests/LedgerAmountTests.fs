@@ -322,6 +322,19 @@ let commandTests =
             Expect.equal (entryOf entryId).Amount (eur -14.50m) "Zustand"
             Expect.equal probe.Calls [ ynabId, eur -14.50m ] "genau ein Push"
 
+        // ledger-zfj78: die Historie trägt rechts den Betrag (§7.11), gelesen aus dem Ereignis-Log.
+        testCase "die Historie trägt beim Anlegen den Betrag und bei der Änderung den neuen, sonst keinen" <| fun () ->
+            let account = freshAccount ()
+            let entryId, _ = seedPlain account
+            setAmount (okProbe ()).Push entryId -14.50m |> unwrap |> ignore
+            appendAndApply [ eventOn entryId YnabMirror EntryAmountWrittenBackToYnab ] |> Async.RunSynchronously
+            let (EntryId guid) = entryId
+            let lines = getEntryHistory guid |> Async.RunSynchronously
+            Expect.equal
+                (lines |> List.map (fun l -> l.Amount))
+                [ Some (eur -12.00m); Some (eur -14.50m); None ]
+                "Angelegt mit Betrag, Änderung mit neuem Betrag, Ankunft ohne"
+
         testCase "Kontostand und Aktivität der Kategorie folgen dem neuen Betrag" <| fun () ->
             let account = freshAccount ()
             // Eine eigene Kategorie: die In-Memory-DB ist mit den anderen Tests geteilt.
@@ -694,6 +707,24 @@ let historyTests =
 
         testCase "Betrag geändert, mit neuem und altem Betrag" <| fun () ->
             Expect.equal (ReadModel.describe changedBody) "Betrag geändert auf -14,50 EUR, vorher -12,00 EUR" "Satz"
+
+        // ledger-zfj78: welche Ereignisse einen Betrag in die Historie geben.
+        testCase "Betrag je Ereignis: Anlegen und Betragsänderung, sonst keiner" <| fun () ->
+            let account = LedgerAccountId (Guid.NewGuid())
+            let observed = observedPayload account
+            let details =
+                { OldDate = bookingDay; NewDate = bookingDay; OldAmount = eur -12.00m; NewAmount = eur -13.00m
+                  OldPayee = None; NewPayee = None; OldMemo = None; NewMemo = None
+                  OldAccountId = account; NewAccountId = account }
+            Expect.equal (ReadModel.historyAmountOf (EntryObservedInYnab observed)) (Some (eur -12.00m)) "Spiegel angelegt"
+            Expect.equal (ReadModel.historyAmountOf changedBody) (Some (eur -14.50m)) "in BB geändert: der neue"
+            Expect.equal (ReadModel.historyAmountOf (EntryDetailsChangeObservedInYnab details)) (Some (eur -13.00m)) "in YNAB geändert: der neue"
+            Expect.equal
+                (ReadModel.historyAmountOf (EntryDetailsChangeObservedInYnab { details with NewAmount = eur -12.00m; NewPayee = Some "X" }))
+                None
+                "Kopfdaten ohne Betragsänderung"
+            Expect.equal (ReadModel.historyAmountOf failedBody) None "Fehlschlag"
+            Expect.equal (ReadModel.historyAmountOf EntryAmountWrittenBackToYnab) None "Ankunft"
 
         testCase "Fehlschlag und Ankunft" <| fun () ->
             Expect.equal (ReadModel.describe failedBody) "Betrag nicht in YNAB: Verbindung weg" "Fehlschlag"

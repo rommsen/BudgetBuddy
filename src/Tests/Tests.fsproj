@@ -169,6 +169,7 @@
     <Compile Include="LedgerRowLockWaysTests.fs" />
     <Compile Include="LedgerKeyboardTests.fs" />
     <Compile Include="LedgerPcOrderTests.fs" />
+    <Compile Include="LedgerDetailOrderTests.fs" />
     <Compile Include="MoneyFormatTests.fs" />
     <Compile Include="BudgetPageTests.fs" />
     <Compile Include="OverviewTests.fs" />

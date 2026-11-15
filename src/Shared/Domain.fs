@@ -1589,6 +1589,9 @@ type LedgerHistoryLine = {
     Origin: LedgerOrigin
     /// Der sprechende Satz, z. B. "Kategorie in YNAB geändert: Lebensmittel → Restaurant".
     Description: string
+    /// Der Betrag der Buchung, den der Eintrag setzt (ledger-zfj78, Styleguide §7.11): beim Anlegen (Spiegel,
+    /// Comdirect-Import, Quick Add, Bob) der Betrag, bei einer Betragsänderung der neue. Sonst `None`.
+    Amount: Money option
 }
 
 /// Kontostand: die Summe der **nicht** in YNAB geloeschten Buchungen (ADR 0016).

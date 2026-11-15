@@ -485,12 +485,25 @@ module ReadModel =
         | EntryDiscardedAsDuplicateInBb _ -> "Als doppelt verworfen"
         | EntryDiscardRevokedInBb -> "Verwerfen zurückgenommen"
 
+    /// Der Betrag, den ein Ereignis der Buchung gibt (ledger-zfj78, rechte Spalte der Historie nach §7.11): beim
+    /// Anlegen der Betrag, bei einer Betragsänderung in BB oder in YNAB der neue. Ereignisse ohne eigenen Betrag der
+    /// Buchung (Kategorie, Flag, Prüfvermerk, Löschen, eine Split-Zeile, eine aufgenommene andere Buchung) haben keinen.
+    let historyAmountOf (body: LedgerEventBody) : Money option =
+        match body with
+        | EntryObservedInYnab p -> Some p.Amount
+        | EntryImportedFromComdirect p -> Some p.Amount
+        | CashExpenseAdded p -> Some p.Amount
+        | EntryAmountChangedInBb p -> Some p.NewAmount
+        | EntryDetailsChangeObservedInYnab p when p.OldAmount <> p.NewAmount -> Some p.NewAmount
+        | _ -> None
+
     /// Ein gespeichertes Ereignis als Historien-Zeile.
     let toHistoryLine (recorded: RecordedLedgerEvent) : LedgerHistoryLine = {
         Sequence = recorded.Sequence
         OccurredAt = recorded.Event.OccurredAt
         Origin = originOf recorded.Event.Actor
         Description = describe recorded.Event.Body
+        Amount = historyAmountOf recorded.Event.Body
     }
 
 // ============================================

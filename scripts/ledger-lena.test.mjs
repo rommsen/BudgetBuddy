@@ -2,7 +2,7 @@
 //
 // Wächter für `ledger-xfjcp` (ADR 0056): Lena fragen im Kassenbuch-Detail. Gemessen am echten, per
 // Vite gestarteten Fable-Client gegen gemockte Ledger-Antworten (nie die echte Entwicklungsdatenbank):
-// die Flag-Zeile mit "Lena fragen" bzw. "Rückfrage zurücknehmen", die gesperrte Aktion ohne Farbe,
+// der Knopf "Lena fragen" bzw. "Rückfrage zurücknehmen" in der Knopfzeile (ledger-zfj78), die gesperrte Aktion ohne Farbe,
 // der Toast mit Rückgängig, die Hinweisleiste "Flag nicht in YNAB" mit Erneut senden, der Chip
 // "Rückfrage Lena (n)" samt ausgegrauter Zeile nach dem Zurücknehmen und die Einstellung.
 //
@@ -162,7 +162,6 @@ after(async () => {
 
 const row = (p, text) => p.locator("table tbody tr", { hasText: text }).first();
 const panel = (p) => p.locator('[data-testid="ledger-detail-panel"]');
-const flagField = (scope) => scope.locator('[data-testid="detail-flag"]');
 const flagAction = (scope) => scope.locator('[data-testid="detail-flag-action"]');
 
 async function openDetail(page, payee) {
@@ -176,7 +175,8 @@ test("[flow:lena-fragen] PC: Lena fragen setzt das Kennzeichen, der Knopf wechse
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const page = await open(context);
   await openDetail(page, "Rewe Lena");
-  assert.equal((await flagField(panel(page)).textContent()).includes("Kein Flag"), true, "Wert: Kein Flag");
+  // ledger-zfj78: die Flag-Zeile ist entfallen, den Stand zeigen der Knopf der Knopfzeile und die Marke in der Zeile.
+  assert.equal(await row(page, "Rewe Lena").getByTestId("lena-mark").count(), 0, "Stand: keine Rückfrage");
   assert.equal((await flagAction(panel(page)).textContent()).trim(), "Lena fragen");
   assert.equal(await flagAction(panel(page)).getAttribute("aria-disabled"), "false");
 
@@ -185,7 +185,6 @@ test("[flow:lena-fragen] PC: Lena fragen setzt das Kennzeichen, der Knopf wechse
     document.querySelector('[data-testid="detail-flag-action"]')?.textContent?.trim() === "Rückfrage zurücknehmen"
   );
   assert.deepEqual(state.setCalls, [{ entryId: idOf(1), flagTarget: "AssignLena" }]);
-  assert.ok((await flagField(panel(page)).textContent()).includes("Rückfrage Lena"), "Wert: Rückfrage Lena");
   assert.ok((await row(page, "Rewe Lena").getByTestId("lena-mark").textContent()).includes("Lena"), "Kennzeichen in der Zeile");
   // ADR 0087 Punkt 8 (design-system-dak16): das Kennzeichen ist Flag-Symbol und Name. Welche Farbe das Symbol
   // trägt, prüft der .NET-Test der Abbildung lena_flag_color -> data-lena-flag.

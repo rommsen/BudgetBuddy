@@ -211,6 +211,9 @@ let filterButtonTests =
                     NextPage = 3
                     Selection = Picked (Set.ofList [ Guid.NewGuid() ])
                     DetailFor = Some (view (Some "REWE") None)
+                    // Am PC (Panel) bleibt das Detail offen; am Handy schließt „alle zeigen“ am Payee es (ledger-zfj78,
+                    // `LedgerDetailOrderTests`).
+                    DetailForm = DetailPanel
                     History = Success [] }
 
             // ledger-d9z3n: der Knopf am Payee setzt die Suche auf den Payee, sie steht auch im Feld.

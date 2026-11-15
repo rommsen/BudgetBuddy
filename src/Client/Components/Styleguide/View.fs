@@ -260,6 +260,11 @@ let private buttonSection =
                     // OutlineSelected: der Knopf „Filter (n)“ im Kassenbuch bei gesetzten Filtern (ledger-d9z3n).
                     Button.view { Button.defaultProps with Text = "Filter (2)"; Variant = Button.OutlineSelected; Icon = Some (Icons.filter Icons.SM Icons.Default) }
                 ]
+                note "DangerOutline: Rand und Schrift in Rot ohne Fläche (Prototyp `.btn.danger`), „Buchung löschen“ ganz unten im Buchungs-Detail. Danger mit getönter Fläche bleibt überall, wo es heute steht."
+                row [
+                    Button.view { Button.defaultProps with Text = "Buchung löschen"; Variant = Button.DangerOutline; Size = Button.Small }
+                    Button.view { Button.defaultProps with Text = "Buchung löschen"; Variant = Button.DangerOutline; Size = Button.Small; IsBusy = true }
+                ]
                 row [
                     Button.primaryWithIcon "Hinzufügen" (Icons.plus Icons.SM Icons.Primary) ignore
                     Button.primaryLoading "Speichern…" true ignore
@@ -2272,11 +2277,12 @@ let private FilterPopoverMenuDemo () =
         ]
     ]
 
-/// Buchungs-Detail (ledger-q1hw2, ADR 0053): die Bausteine des Panels und des Sheets im
-/// Kassenbuch. Der Geprüft-Schalter hat lokalen Zustand.
+/// Buchungs-Detail (ledger-q1hw2, ADR 0053, geordnet nach Prototyp Version 17 in ledger-zfj78): die Bausteine des
+/// Panels und des Sheets im Kassenbuch. Prüf-Knopf und Historie haben lokalen Zustand.
 [<ReactComponent>]
 let private DetailDemo () =
     let reviewed, setReviewed = React.useState false
+    let historyOpen, setHistoryOpen = React.useState true
 
     let card (id: string) (name: string) (subtitle: string) (children: ReactElement list) =
         Html.div [
@@ -2290,9 +2296,9 @@ let private DetailDemo () =
 
     section "25. Buchungs-Detail" [
         note "Das Detail einer Buchung: Seitenpanel (420 px) am PC, BottomSheet am Handy und in der \
-              Kompaktliste. Hinweisleiste mit Grund und genau einer Aktion, Felder, Geprüft-Schalter, \
-              Herkunft und Zeitleiste der Historie. Farbe nur für den Hinweis und den Punkt der \
-              Zeitleiste (ADR 0049, ADR 0053)."
+              Kompaktliste. Kopf mit Payee, Betrag mit Prüfstand, Hinweisleiste mit Grund und genau einer Aktion, \
+              Prüf-Knopf, Feldzeilen mit „alle zeigen“, Knopfzeile Aufteilen und Lena, aufklappbare Historie nach \
+              §7.11, Herkunft. Farbe nur für Hinweis und Prüfstand (ADR 0049, ADR 0053, Prototyp Version 17)."
 
         card "components-detail-notice" "Detail: Hinweisleiste" "Rot ohne Aktion, Gelb ohne Aktion, Gelb mit Aktion" [
             Detail.notice
@@ -2319,108 +2325,66 @@ let private DetailDemo () =
                   Action = Some { Label = "Erneut senden"; Busy = false; Disabled = false; OnClick = ignore } }
         ]
 
-        card "components-detail-external-links" "Detail: Link-Zeile" "Externe Links unter dem Memo (Amazon-Bestellung, PayPal-Aktivitäten), öffnen in neuem Tab" [
-            Detail.externalLinksRow
-                [ "Bestellung 304-1234567-7654321", "https://www.amazon.de/gp/your-account/order-details?ie=UTF8&orderID=304-1234567-7654321"
-                  "PayPal Activity", "https://www.paypal.com/activities" ]
+        card "components-detail-external-links" "Detail: Bestell-Link" "„Bestellung bei Amazon“ mit Nummer darunter und „öffnen“, ein anderer Link mit seiner Beschriftung; öffnen in neuem Tab" [
+            Detail.externalLinkRow "Bestellung bei Amazon" (Some "304-1234567-7654321") "https://www.amazon.de/gp/your-account/order-details?ie=UTF8&orderID=304-1234567-7654321"
+            Detail.externalLinkRow "PayPal Activity" None "https://www.paypal.com/activities"
         ]
-        card "components-detail-fields" "Detail: Felder, Filter-Knopf, Schalter, Herkunft" "Feldzeile mit Filter-Knopf, Split, Geprüft-Schalter, Herkunft" [
-            // Payee mit Filter-Knopf und Pfeil `›` (ledger-fxt09): forwardArrow öffnet eine eigene Auswahl, die den
-            // Inhalt ersetzt; änderbar und gesperrt mit Hinweistext am Knopf.
-            Detail.fieldRow
-                "styleguide-detail-payee"
-                "Payee"
-                (Detail.valueText Tokens.Colors.textPrimary "REWE Mitte")
-                (Some (
-                    React.fragment [
-                        Detail.filterButton "Nur Buchungen von REWE Mitte zeigen" ignore
-                        Detail.forwardArrow "styleguide-detail-payee-arrow" "Payee ändern" None ignore
-                    ]
-                ))
-            Detail.fieldRow
-                "styleguide-detail-payee-locked"
-                "Payee"
-                (Detail.valueText Tokens.Colors.textMuted "REWE Mitte")
-                (Some (Detail.forwardArrow "styleguide-detail-payee-arrow-locked" "Payee ändern" (Some "In YNAB gelöscht, der Payee lässt sich nicht ändern") ignore))
-            Detail.fieldRow
+        card "components-detail-head" "Detail: Kopf, Betrag mit Prüfstand, Prüf-Knopf" "Payee als Titel mit „<Tag> · <Konto>“, Betrag mit „zu prüfen“ oder „geprüft“, „Geprüft“ als Hauptaktion bzw. „Als ungeprüft markieren“ neutral" [
+            Detail.titleHead "REWE Mitte" false "Gestern · Girokonto" (Some ignore)
+            Detail.titleHead "ohne Payee" true "10.09.2026 · Girokonto" (Some ignore)
+            Detail.amountRow (Detail.amountButton -48.12m "EUR" "Betrag bearbeiten" (Some ignore)) (Detail.reviewStatus (not reviewed))
+            Detail.reviewButton
+                (if reviewed then "Als ungeprüft markieren" else "Geprüft")
+                (not reviewed)
+                false
+                (fun () -> setReviewed (not reviewed))
+            Detail.reviewButton "Geprüft" true true ignore
+        ]
+        card "components-detail-fields" "Detail: Felder mit „alle zeigen“" "Kategorie mit Pfeil, Split-Karte, Angebot, Memo, Payee mit „alle zeigen“ und Pfeil, gesperrte Zeilen" [
+            // Kategorie: „alle zeigen“ setzt den Filter, der Pfeil öffnet den Picker (ledger-sfab0, ledger-zfj78).
+            Detail.fieldRowWith
+                (Some ignore)
                 "styleguide-detail-category"
                 "Kategorie"
                 (Detail.valueText Tokens.Colors.textPrimary "Alltag: Lebensmittel")
-                (Some (Detail.filterButton "Nur Buchungen in Alltag: Lebensmittel zeigen" ignore))
-            // Kategorie mit Pfeil (ledger-sfab0): änderbar und gesperrt mit Hinweistext am Knopf.
+                (Some (
+                    React.fragment [
+                        Detail.showAllLink "Nur Buchungen in Alltag: Lebensmittel zeigen" ignore
+                        Detail.pickerArrow "Kategorie ändern" false None ignore
+                    ]
+                ))
             Detail.fieldRowWith
                 (Some ignore)
-                "styleguide-detail-category-arrow"
+                "styleguide-detail-category-missing"
                 "Kategorie"
-                (Detail.valueText Tokens.Colors.textPrimary "Alltag: Lebensmittel")
+                (Detail.valueText Tokens.Colors.attention "ohne Kategorie")
                 (Some (Detail.pickerArrow "Kategorie ändern" false None ignore))
             Detail.fieldRow
                 "styleguide-detail-category-locked"
                 "Kategorie"
                 (Detail.valueText Tokens.Colors.textMuted "Keine Kategorie")
                 (Some (Detail.pickerArrow "Kategorie ändern" false (Some "In YNAB gelöscht, die Kategorie lässt sich nicht ändern") ignore))
+            Detail.fieldRow
+                "styleguide-detail-category-split"
+                "Kategorie"
+                (Detail.valueText Tokens.Colors.textPrimary "Aufgeteilt")
+                (Some (Detail.pickerArrow "Kategorie ändern" false (Some "Aufgeteilt, die Kategorie steht je Zeile") ignore))
+            Detail.splitCard [ "Wohnen: Möbel", "-23,40 €"; "Übertrag: Tagesgeld", "-58,50 €" ]
             // Angebot unter der Kategorie nach einer Änderung (ledger-hg5m5): annehmen oder ausblenden.
             Detail.offerRow "styleguide-detail-offer" "Regel für „REWE Mitte“ anlegen?" "Anlegen" ignore "Angebot ausblenden" ignore
-            Detail.fieldRow
-                "styleguide-detail-split"
-                "Split"
-                (Detail.splitLines [ "Lebensmittel", "-30,50 €"; "Übertrag: Tagesgeld", "-20,00 €" ])
-                None
-            // Feld Split mit festem Knopf (ledger-pafkp): unaufgeteilt, aufgeteilt und gesperrt.
-            Detail.fieldRow
-                "styleguide-detail-split-none"
-                "Split"
-                (Detail.valueText Tokens.Colors.textMuted "Kein Split")
-                (Some (Detail.splitActionButton "Aufteilen" None ignore))
-            Detail.fieldRow
-                "styleguide-detail-split-change"
-                "Split"
-                (Detail.splitLines [ "Wohnen: Möbel", "-23,40 €"; "Alltag: Haushalt", "-58,50 €" ])
-                (Some (Detail.splitActionButton "Ändern" None ignore))
-            Detail.fieldRow
-                "styleguide-detail-split-locked"
-                "Split"
-                (Html.div [
-                    prop.className "flex min-w-0 flex-col"
-                    prop.children [
-                        Detail.valueText Tokens.Colors.textMuted "Kein Split"
-                        Detail.splitLockHint "Abgeglichene Buchungen lassen sich nicht aufteilen"
-                    ]
-                 ])
-                (Some (Detail.splitActionButton "Aufteilen" (Some "Abgeglichene Buchungen lassen sich nicht aufteilen") ignore))
-            // Flag-Zeile mit festem Knopf (ledger-xfjcp): Lena fragen, zurücknehmen und gesperrt.
-            Detail.fieldRow
-                "styleguide-detail-flag-ask"
-                "Flag"
-                (Detail.valueText Tokens.Colors.textMuted "Kein Flag")
-                (Some (Detail.fieldActionButton "styleguide-detail-flag-action" "Lena fragen" None false ignore))
-            Detail.fieldRow
-                "styleguide-detail-flag-withdraw"
-                "Flag"
-                (Detail.valueText Tokens.Colors.textPrimary "Rückfrage Lena")
-                (Some (Detail.fieldActionButton "styleguide-detail-flag-action" "Rückfrage zurücknehmen" None false ignore))
-            Detail.fieldRow
-                "styleguide-detail-flag-locked"
-                "Flag"
-                (Html.div [
-                    prop.className "flex min-w-0 flex-col"
-                    prop.children [
-                        Detail.valueText Tokens.Colors.textMuted "Kein Flag"
-                        Detail.fieldLockHint "styleguide-detail-flag-lock-hint" lenaColorMissingReason
-                    ]
-                 ])
-                (Some (Detail.fieldActionButton "styleguide-detail-flag-action" "Lena fragen" (Some lenaColorMissingReason) false ignore))
-            // Memo-Zeile mit festem Knopf (ledger-fa1fp): ohne Memo, mit Memo und gesperrt.
-            Detail.fieldRow
+            // Memo-Zeile mit Pfeil (ledger-fa1fp, ledger-zfj78): ohne Memo, mit Memo und gesperrt.
+            Detail.fieldRowWith
+                (Some ignore)
                 "styleguide-detail-memo"
                 "Memo"
-                (Detail.valueText Tokens.Colors.textMuted "Kein Memo")
-                (Some (Detail.fieldActionButton "styleguide-detail-memo-action" "Memo hinzufügen" None false ignore))
-            Detail.fieldRow
+                (Detail.valueText Tokens.Colors.textMuted "hinzufügen")
+                (Some (Detail.forwardArrow "styleguide-detail-memo-action" "Memo hinzufügen" None ignore))
+            Detail.fieldRowWith
+                (Some ignore)
                 "styleguide-detail-memo-set"
                 "Memo"
                 (Detail.valueText Tokens.Colors.textPrimary "Werkzeug + Lampe")
-                (Some (Detail.fieldActionButton "styleguide-detail-memo-action" "Bearbeiten" None false ignore))
+                (Some (Detail.forwardArrow "styleguide-detail-memo-action-set" "Bearbeiten" None ignore))
             Detail.fieldRow
                 "styleguide-detail-memo-locked"
                 "Memo"
@@ -2431,11 +2395,44 @@ let private DetailDemo () =
                         Detail.fieldLockHint "styleguide-detail-memo-lock-hint" "In YNAB gelöscht, das Memo lässt sich nicht ändern"
                     ]
                  ])
-                (Some (Detail.fieldActionButton "styleguide-detail-memo-action" "Bearbeiten" (Some "In YNAB gelöscht, das Memo lässt sich nicht ändern") false ignore))
-            Detail.reviewedSwitch "Geprüft" reviewed false setReviewed
-            Detail.originRow (
-                Badge.view { Badge.defaultProps with Text = "Comdirect-Import"; Variant = Badge.Info; Size = Badge.Small }
-            )
+                (Some (Detail.forwardArrow "styleguide-detail-memo-action-locked" "Bearbeiten" (Some "In YNAB gelöscht, das Memo lässt sich nicht ändern") ignore))
+            // Payee mit „alle zeigen“ (setzt die Suche) und Pfeil `›` (ledger-fxt09): forwardArrow öffnet eine eigene
+            // Auswahl, die den Inhalt ersetzt; änderbar und gesperrt mit Hinweistext am Knopf.
+            Detail.fieldRowWith
+                (Some ignore)
+                "styleguide-detail-payee"
+                "Payee"
+                (Detail.valueText Tokens.Colors.textPrimary "REWE Mitte")
+                (Some (
+                    React.fragment [
+                        Detail.showAllLink "Nur Buchungen von REWE Mitte zeigen" ignore
+                        Detail.forwardArrow "styleguide-detail-payee-arrow" "Payee ändern" None ignore
+                    ]
+                ))
+            Detail.fieldRow
+                "styleguide-detail-payee-locked"
+                "Payee"
+                (Detail.valueText Tokens.Colors.textMuted "REWE Mitte")
+                (Some (Detail.forwardArrow "styleguide-detail-payee-arrow-locked" "Payee ändern" (Some "In YNAB gelöscht, der Payee lässt sich nicht ändern") ignore))
+        ]
+        card "components-detail-actions" "Detail: Knopfzeile, Herkunft" "Aufteilen und Lena fragen gleich breit, Rückfrage zurücknehmen, gesperrt mit Grund darunter; Herkunft als kleine Zeile" [
+            Detail.actionRow
+                []
+                [ Detail.rowAction "styleguide-detail-split-action" "Aufteilen" None None false ignore
+                  Detail.rowAction "styleguide-detail-flag-action" "Lena fragen" (Some (Icons.flag Icons.SM Icons.LenaFlag)) None false ignore ]
+                []
+            Detail.actionRow
+                []
+                [ Detail.rowAction "styleguide-detail-split-change" "Ändern" None None false ignore
+                  Detail.rowAction "styleguide-detail-flag-withdraw" "Rückfrage zurücknehmen" (Some (Icons.flag Icons.SM Icons.LenaFlag)) None false ignore ]
+                []
+            Detail.actionRow
+                []
+                [ Detail.rowAction "styleguide-detail-split-locked" "Aufteilen" None (Some "Abgeglichene Buchungen lassen sich nicht aufteilen") false ignore
+                  Detail.rowAction "styleguide-detail-flag-locked" "Lena fragen" (Some (Icons.flag Icons.SM Icons.LenaFlag)) (Some lenaColorMissingReason) false ignore ]
+                [ "styleguide-detail-split-lock-hint", "Abgeglichene Buchungen lassen sich nicht aufteilen"
+                  "styleguide-detail-flag-lock-hint", lenaColorMissingReason ]
+            Detail.originLine "Herkunft: Comdirect-Import"
         ]
 
         card "components-detail-memo" "Detail: Memo bearbeiten" "Eingabefeld mit Zähler, Speichern und Abbrechen; zu langer Text; Hinweis Memo nicht in YNAB" [
@@ -2464,14 +2461,19 @@ let private DetailDemo () =
                   Action = Some { Label = "Erneut senden"; Busy = false; Disabled = false; OnClick = ignore } }
         ]
 
-        card "components-detail-timeline" "Detail: Zeitleiste" "Punktfarbe nach Urheber, neueste Zeile oben" [
-            Detail.sectionLabel "HISTORIE"
-            Detail.timeline
-                [ { Key = "4"; Dot = Detail.DotRed; Text = "In YNAB gelöscht"; Stamp = "11.09.2026 08:20 · YNAB-Spiegel" }
-                  { Key = "3"; Dot = Detail.DotGreen; Text = "In BB als geprüft markiert"; Stamp = "10.09.2026 18:10 · In BB entschieden" }
-                  { Key = "2"; Dot = Detail.DotInfo; Text = "Regel: Kategorie Lebensmittel gesetzt"; Stamp = "10.09.2026 17:55 · Regel" }
-                  { Key = "1"; Dot = Detail.DotInfo; Text = "Comdirect-Import: Buchung erfasst"; Stamp = "10.09.2026 17:55 · Comdirect-Import" }
-                  { Key = "0"; Dot = Detail.DotGrey; Text = "Kategorie in YNAB geändert"; Stamp = "10.09.2026 17:50 · YNAB-Spiegel" } ]
+        card "components-detail-history" "Detail: Historie (§7.11)" "Aufklappbare Zeile „Historie (n)“, je Eintrag Zeitpunkt, Kürzel der Herkunft und Text, rechts der Betrag, falls es einen gibt; neueste oben" [
+            Detail.historySection
+                "Historie (5)"
+                historyOpen
+                (fun () -> setHistoryOpen (not historyOpen))
+                (HistoryList.list
+                    "styleguide-history"
+                    [ { Key = "5"; When = "11.09. 08:20"; Who = "YNAB"; Text = "In YNAB gelöscht"; Amount = None }
+                      { Key = "4"; When = "10.09. 18:10"; Who = "ROMAN"; Text = "In BB als geprüft markiert"; Amount = None }
+                      { Key = "3"; When = "10.09. 17:55"; Who = "REGEL"; Text = "Regel: Kategorie Lebensmittel gesetzt"; Amount = None }
+                      { Key = "2"; When = "10.09. 17:55"; Who = "IMPORT"; Text = "Comdirect-Import: Buchung erfasst"; Amount = Some "-48,12 €" }
+                      { Key = "1"; When = "10.09. 17:50"; Who = "BOB"; Text = "Barbuchung angelegt"; Amount = Some "-12,00 €" } ])
+            Html.div [ prop.className "px-4"; prop.children [ HistoryList.empty "Noch keine Einträge" ] ]
         ]
 
         // Betrag im Kopf (ledger-m7mye): als Knopf mit Pfeil, vorübergehend gesperrt (ein Aufruf läuft)
@@ -2488,35 +2490,34 @@ let private DetailDemo () =
             ]
         ]
 
-        card "components-detail-panel" "Detail: Seitenpanel" "Kopf mit Betrag und Konto · Datum, darunter Payee und Kategorie mit Filter-Knopf in einer Spalte (ab md sichtbar)" [
+        card "components-detail-panel" "Detail: Seitenpanel" "Kopf mit Payee und „<Tag> · <Konto>“, Betrag mit Prüfstand, Prüf-Knopf, Feldzeilen (ab md sichtbar)" [
             Html.div [
                 prop.className "relative h-[28rem] overflow-hidden"
                 prop.children [
                     Detail.panel
                         "Detail REWE Mitte"
-                        [ Detail.head
-                              (Detail.amount -48.12m "EUR" false)
-                              "Girokonto Comdirect · 10.09.2026"
-                              (Some ignore)
+                        [ Detail.titleHead "REWE Mitte" false "Gestern · Girokonto Comdirect" (Some ignore)
                           Detail.scrollBody [
-                              Detail.fieldRow
-                                  "styleguide-detail-panel-payee"
-                                  "Payee"
-                                  (Detail.valueText Tokens.Colors.textPrimary "REWE Mitte")
-                                  (Some (Detail.filterButton "Nur Buchungen von REWE Mitte zeigen" ignore))
-                              Detail.fieldRow
+                              Detail.amountRow (Detail.amountButton -48.12m "EUR" "Betrag bearbeiten" (Some ignore)) (Detail.reviewStatus true)
+                              Detail.reviewButton "Geprüft" true false ignore
+                              Detail.fieldRowWith
+                                  (Some ignore)
                                   "styleguide-detail-panel-category"
                                   "Kategorie"
                                   (Detail.valueText Tokens.Colors.textPrimary "Alltag: Lebensmittel")
-                                  (Some (Detail.filterButton "Nur Buchungen in Alltag: Lebensmittel zeigen" ignore))
-                              Detail.fieldRow
+                                  (Some (
+                                      React.fragment [
+                                          Detail.showAllLink "Nur Buchungen in Alltag: Lebensmittel zeigen" ignore
+                                          Detail.pickerArrow "Kategorie ändern" false None ignore
+                                      ]
+                                  ))
+                              Detail.fieldRowWith
+                                  (Some ignore)
                                   "styleguide-detail-panel-memo"
                                   "Memo"
                                   (Detail.valueText Tokens.Colors.textPrimary "Wocheneinkauf")
-                                  None
-                              Detail.originRow (
-                                  Badge.view { Badge.defaultProps with Text = "Regel"; Variant = Badge.Info; Size = Badge.Small }
-                              )
+                                  (Some (Detail.forwardArrow "styleguide-detail-panel-memo-action" "Bearbeiten" None ignore))
+                              Detail.originLine "Herkunft: Regel"
                           ] ]
                 ]
             ]

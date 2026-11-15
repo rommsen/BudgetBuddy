@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-11-15 01:10 -- Task verified and completed: ledger-zfj78 - "Detail einer Buchung ordnen (Sheet und Panel): Payee als Kopf, Betrag mit Prüfstand, Knopf Geprüft, Payee mit alle zeigen, Aufteilen und Lena als Knopfzeile, Historie aufklappbar in der Form von §7.11"
+
+**Type:** Work / Task completion
+**Task:** ledger-zfj78 - "Detail einer Buchung ordnen (Sheet und Panel): Payee als Kopf, Betrag mit Prüfstand, Knopf Geprüft, Payee mit alle zeigen, Aufteilen und Lena als Knopfzeile, Historie aufklappbar in der Form von §7.11"
+**Summary:** Detail einer Buchung nach Prototyp Version 17: Payee als Kopf, Prüf-Knopf, Knopfzeile Aufteilen und Lena, aufklappbare Historie mit Betrag (DS-Baustein HistoryList)
+**Duration:** 2 Iterationen
+**Verification:** PASS (iteration 2)
+**Files changed:** 28
+**Tests added:** 16
+**ADRs written:** none
+
+---
+
+## 2026-11-15 00:51 -- Verification failed: ledger-zfj78 - Detail ordnen
+
+**Type:** Work / Verification failure
+**Task:** ledger-zfj78 - Detail ordnen
+**Iteration:** 1 of 3
+**Reasons:** Abweichungen von der Skizze ohne Eintrag in der Task (Historie ohne Betrag, „Buchung löschen“ mit Fläche, doppelte Einrückung im Sheet, Tag als volles Datum, runder Schließen-Knopf); README-Eintrag **Zellmenü** widerspricht dem Code. Tag und Schließen-Knopf nachts als Abweichung (c) und (d) entschieden, der Rest wird angeglichen
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-11-15 00:17 -- Batch started: [ledger-zfj78]
 
 **Type:** Work / Batch start

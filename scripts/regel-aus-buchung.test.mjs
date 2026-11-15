@@ -66,7 +66,8 @@ test("[flow:regel-aus-buchung] Am Handy aus einer Buchung im Kassenbuch eine Reg
     await settle(page);
 
     await row.tap();
-    await sheet(page).locator('[data-testid="detail-title"]').waitFor();
+    // ledger-zfj78: im Sheet steht der Payee als Titel im Kopf des Sheets.
+    await sheet(page).locator('[data-testid="detail-rule"]').waitFor();
     await sheet(page).locator('[data-testid="detail-rule"]').tap();
 
     // Das Formular ersetzt den Inhalt des Sheets (§7.15): kein zweites Sheet, vorbelegt aus der Buchung.
@@ -82,7 +83,8 @@ test("[flow:regel-aus-buchung] Am Handy aus einer Buchung im Kassenbuch eine Reg
       sheet(page).getByRole("button", { name: "Regel anlegen" }).tap(),
     ]);
     // Zurück im Detail derselben Buchung.
-    await sheet(page).locator('[data-testid="detail-title"]').getByText("Bauhaus").waitFor();
+    await sheet(page).locator('[data-testid="detail-rule"]').waitFor();
+    await sheet(page).locator(".sheet-header h3").getByText("Bauhaus", { exact: true }).waitFor();
     await page.getByText("Regel angelegt").first().waitFor();
     assert.equal(created.length, 1, "angelegt");
   } finally {

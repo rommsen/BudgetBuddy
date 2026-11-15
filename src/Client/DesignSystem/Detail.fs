@@ -1,10 +1,9 @@
-/// Bausteine des Buchungs-Details im Kassenbuch (ledger-q1hw2, Handoff Ablauf 7,
-/// ADR 0053): das Seitenpanel am PC, der Kopf mit Betrag, die Hinweisleiste mit Grund
-/// und Aktion, die Feldzeile, der Geprüft-Schalter, die Herkunft-Zeile, die
-/// Historie-Zeitleiste und der Filter-Knopf. Der Inhalt ist für Panel und BottomSheet
-/// derselbe; nur die Hülle unterscheidet sich (`panel` hier, `BottomSheet.view` dort).
-/// Darstellung ruhig nach ADR 0049: Farbe nur für das, was Aufmerksamkeit braucht
-/// (die Hinweisleiste und der Punkt der Zeitleiste), sonst neutral.
+/// Bausteine des Buchungs-Details im Kassenbuch (ledger-q1hw2, ADR 0053, geordnet nach Prototyp Version 17 in
+/// ledger-zfj78): das Seitenpanel am PC, der Kopf mit Payee, die Betragszeile mit Prüfstand, der Prüf-Knopf, die
+/// Hinweisleiste mit Grund und Aktion, die Feldzeile mit „alle zeigen“, die Split-Karte, die Knopfzeile, die
+/// Herkunft und die aufklappbare Historie (Zeilen aus `HistoryList`, §7.11). Der Inhalt ist für Panel und
+/// BottomSheet derselbe; nur die Hülle unterscheidet sich (`panel` hier, `BottomSheet.view` dort).
+/// Darstellung ruhig nach ADR 0049: Farbe nur für das, was Aufmerksamkeit braucht (Hinweisleiste, Prüfstand).
 module Client.DesignSystem.Detail
 
 open Feliz
@@ -128,35 +127,45 @@ let private closeButton (onClose: unit -> unit) : ReactElement =
         prop.title "Schließen"
         prop.custom ("data-testid", "detail-close")
         prop.className (
-            $"inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border {Borders.default'} " +
-            $"{Backgrounds.elevated} {Colors.textMuted} hover:text-text-primary transition-colors touch-manipulation"
+            $"-mr-2 inline-flex {TouchTargets.mobileSquare} md:h-11 md:w-11 shrink-0 items-center justify-center rounded-xl " +
+            $"{Colors.textSecondary} hover:bg-surface-hover hover:text-text-primary transition-colors touch-manipulation"
         )
         prop.onClick (fun _ -> onClose ())
         prop.children [ Icons.x Icons.SM Icons.Default ]
     ]
 
-/// Der Filter-Knopf neben einem Feld (ADR 0053 Punkt 1): ein kleiner Trichter, dessen
-/// Name und Tooltip das volle Ziel nennen ("Nur Buchungen von REWE zeigen"). Er wirkt
-/// auf die Liste und lässt das Detail offen.
-let filterButton (label: string) (onClick: unit -> unit) : ReactElement =
-    Html.button [
-        prop.type'.button
-        prop.title label
-        prop.ariaLabel label
-        prop.custom ("data-testid", "detail-filter")
-        prop.className (
-            $"inline-flex {TouchTargets.mobileSquare} md:h-8 md:w-8 shrink-0 items-center justify-center rounded-lg {Colors.textMuted} " +
-            "hover:text-text-primary hover:bg-surface-hover transition-colors touch-manipulation"
-        )
-        prop.onClick (fun e ->
-            e.stopPropagation ()
-            onClick ())
-        prop.children [ Icons.filter Icons.SM Icons.Default ]
+/// Der Kopf des Details im Panel (ledger-zfj78, Prototyp Version 17 `sh-head`): der Payee als Titel (17 px
+/// halbfett, gedämpft ohne Payee), darunter „<Tag> · <Konto>“ gedämpft, rechts Schließen. Im Sheet stellt
+/// `BottomSheet.view` denselben Kopf (Titel und Unterzeile). Der Titel trägt `data-testid="detail-title"`.
+let titleHead (title: string) (muted: bool) (subtitle: string) (onClose: (unit -> unit) option) : ReactElement =
+    Html.div [
+        prop.className "flex items-start justify-between gap-3 px-4 pt-3.5 pb-2"
+        prop.children [
+            Html.div [
+                prop.className "min-w-0"
+                prop.children [
+                    Html.h2 [
+                        prop.custom ("data-testid", "detail-title")
+                        prop.className (
+                            $"break-words {FontSizes.lg} font-semibold "
+                            + (if muted then Colors.textMuted else Colors.textPrimary)
+                        )
+                        prop.text title
+                    ]
+                    Html.p [
+                        prop.custom ("data-testid", "detail-subtitle")
+                        prop.className $"mt-0.5 {FontSizes.xs} {Colors.textMuted}"
+                        prop.text subtitle
+                    ]
+                ]
+            ]
+            match onClose with
+            | Some close -> closeButton close
+            | None -> ()
+        ]
     ]
 
-/// Der Kopf des Panels: Betrag, "Konto · Datum" und der Schließen-Knopf. Der Payee steht
-/// als erste Feldzeile darunter, damit sein Filter-Knopf in derselben Spalte sitzt wie der
-/// der Kategorie.
+/// Der Kopf über dem Split-Editor: Betrag, Unterzeile und der Schließen-Knopf.
 let head
     (amountElement: ReactElement)
     (subtitle: string)
@@ -263,7 +272,7 @@ let fieldRowWith
     Html.div [
         prop.custom ("data-testid", testId)
         prop.className (
-            $"flex min-h-14 items-center gap-3 px-4 py-2 border-b {Borders.subtle}"
+            $"flex min-h-14 items-center gap-3 px-4 detail-inset detail-line py-2 border-b {Borders.subtle}"
             + (if onClick.IsSome then " cursor-pointer" else "")
         )
         match onClick with
@@ -310,7 +319,7 @@ let pickerArrow (label: string) (isOpen: bool) (lockedHint: string option) (onCl
         prop.onClick (fun e ->
             e.stopPropagation ()
             if not locked then onClick ())
-        prop.children [ Icons.chevronDown Icons.SM Icons.Default ]
+        prop.children [ Icons.chevronRight Icons.SM Icons.Default ]
     ]
 
 /// Der Pfeil `›` neben einem Feld, das eine eigene Auswahl öffnet, die den Inhalt ersetzt (Payee,
@@ -347,112 +356,36 @@ let valueText (className: string) (text: string) : ReactElement =
         prop.text text
     ]
 
-/// Die Feldzeile "Link" im Buchungs-Detail (ledger-rjhwp): je externem Link ein Eintrag mit
-/// Symbol, der in einem neuen Tab öffnet. Die Trefferfläche ist am Handy mindestens 48 px hoch (Daumen).
-/// `links` sind (Beschriftung, Adresse); eine leere Liste baut keine Zeile (Aufrufer prüft).
-let externalLinksRow (links: (string * string) list) : ReactElement =
-    let value =
-        Html.div [
-            prop.className "flex min-w-0 flex-col items-end"
-            prop.children [
-                for (label, url) in links ->
-                    Html.a [
-                        prop.key url
-                        prop.custom ("data-testid", "detail-external-link")
-                        prop.href url
-                        prop.target "_blank"
-                        prop.rel "noopener noreferrer"
-                        prop.className (
-                            $"inline-flex {TouchTargets.mobileMinHeight} md:min-h-11 min-w-0 items-center gap-2 {FontSizes.sm} {Colors.accent} "
-                            + "hover:underline touch-manipulation"
-                        )
-                        prop.children [
-                            Html.span [ prop.className "min-w-0 break-words"; prop.text label ]
-                            Icons.externalLink Icons.SM Icons.Accent
-                        ]
-                    ]
+/// Ein externer Link im Buchungs-Detail (ledger-rjhwp, geordnet nach Prototyp Version 17 `orderLink` in
+/// ledger-zfj78): links der Titel („Bestellung bei Amazon“) klein und gedämpft, darunter die Nummer in Mono, rechts
+/// „öffnen“ im Akzent mit Pfeil nach außen. Die ganze Zeile ist der Link und öffnet in einem neuen Tab; am Handy
+/// mindestens 52 px hoch wie die Feldzeilen. Dieselbe Form wie `ReviewCard.linkRow` mit dem Rand des Details.
+let externalLinkRow (title: string) (detail: string option) (url: string) : ReactElement =
+    Html.a [
+        prop.key url
+        prop.custom ("data-testid", "detail-external-link")
+        prop.href url
+        prop.target "_blank"
+        prop.rel "noopener noreferrer"
+        prop.className (
+            $"flex min-h-14 w-full items-center justify-between gap-3 border-b {Borders.subtle} px-4 detail-inset detail-line py-2 "
+            + "touch-manipulation hover:bg-surface-hover"
+        )
+        prop.children [
+            Html.span [
+                prop.className "flex min-w-0 flex-col"
+                prop.children [
+                    Html.span [ prop.className $"{FontSizes.xs} {Colors.textMuted}"; prop.text title ]
+                    match detail with
+                    | Some d -> Truncate.text $"{FontSizes.xs} {Fonts.mono} {Colors.textMuted}" d
+                    | None -> ()
+                ]
+            ]
+            Html.span [
+                prop.className $"inline-flex shrink-0 items-center gap-1 text-base md:text-sm {Colors.accent}"
+                prop.children [ Html.span [ prop.text "öffnen" ]; Icons.externalLink Icons.XS Icons.Accent ]
             ]
         ]
-    fieldRow "detail-external-links" "Link" value None
-
-/// Die Zeilen eines Splits, je Ziel und Betrag.
-let splitLines (lines: (string * string) list) : ReactElement =
-    Html.div [
-        prop.className "flex min-w-0 flex-col gap-1"
-        prop.children [
-            for (target, amountText) in lines ->
-                Html.div [
-                    prop.key (target + amountText)
-                    prop.className "flex min-w-0 items-baseline justify-end gap-3"
-                    prop.children [
-                        Truncate.text $"{FontSizes.sm} {Colors.textSecondary}" target
-                        Html.span [
-                            prop.className $"shrink-0 font-mono tabular-nums {FontSizes.sm} {Colors.textPrimary}"
-                            prop.text amountText
-                        ]
-                    ]
-                ]
-        ]
-    ]
-
-/// Der feste Knopf im Feld Split ("Aufteilen" bei einer unaufgeteilten, "Ändern" bei einer
-/// aufgeteilten Buchung, ledger-pafkp). Die Trefferfläche ist mindestens 44 px hoch. `lockedHint`:
-/// gesperrt, der Knopf ist gedämpft und wirkt nicht; der Grund steht als Tooltip und, für
-/// Touch-Geräte, zusätzlich als Text (`splitLockHint`).
-let splitActionButton (label: string) (lockedHint: string option) (onClick: unit -> unit) : ReactElement =
-    let locked = lockedHint.IsSome
-    Html.button [
-        prop.type'.button
-        prop.title (lockedHint |> Option.defaultValue label)
-        prop.custom ("aria-disabled", (if locked then "true" else "false"))
-        prop.custom ("data-testid", "detail-split-action")
-        prop.className (
-            $"inline-flex {TouchTargets.mobileMinHeight} md:min-h-11 shrink-0 items-center justify-center rounded-lg border {Borders.default'} " +
-            $"{Backgrounds.elevated} px-3 {FontSizes.sm} {Colors.textPrimary} transition-colors touch-manipulation " +
-            (if locked then "opacity-40 cursor-not-allowed" else "hover:border-accent active:scale-[0.98]")
-        )
-        prop.onMouseDown (fun e -> e.stopPropagation ())
-        prop.onClick (fun e ->
-            e.stopPropagation ()
-            if not locked then onClick ())
-        prop.text label
-    ]
-
-/// Der Grund, aus dem das Feld Split gesperrt ist, als gedämpfter Text unter dem Wert.
-let splitLockHint (text: string) : ReactElement =
-    Html.p [
-        prop.custom ("data-testid", "detail-split-lock-hint")
-        prop.className $"mt-1 text-right {ListRoles.muted}"
-        prop.text text
-    ]
-
-/// Ein fester Knopf hinter dem Wert einer Feldzeile (Flag-Zeile "Lena fragen", ledger-xfjcp).
-/// Gleiche Gestalt wie `splitActionButton`, mit eigener `testId`. `lockedHint`: gesperrt, der
-/// Knopf ist gedämpft und wirkt nicht; der Grund steht als Tooltip und, für Touch-Geräte,
-/// zusätzlich als Text (`fieldLockHint`). `busy`: der Aufruf läuft, der Knopf wirkt nicht.
-let fieldActionButton
-    (testId: string)
-    (label: string)
-    (lockedHint: string option)
-    (busy: bool)
-    (onClick: unit -> unit)
-    : ReactElement =
-    let inactive = lockedHint.IsSome || busy
-    Html.button [
-        prop.type'.button
-        prop.title (lockedHint |> Option.defaultValue label)
-        prop.custom ("aria-disabled", (if inactive then "true" else "false"))
-        prop.custom ("data-testid", testId)
-        prop.className (
-            $"inline-flex {TouchTargets.mobileMinHeight} md:min-h-11 shrink-0 items-center justify-center rounded-lg border {Borders.default'} " +
-            $"{Backgrounds.elevated} px-3 {FontSizes.sm} {Colors.textPrimary} transition-colors touch-manipulation " +
-            (if inactive then "opacity-40 cursor-not-allowed" else "hover:border-accent active:scale-[0.98]")
-        )
-        prop.onMouseDown (fun e -> e.stopPropagation ())
-        prop.onClick (fun e ->
-            e.stopPropagation ()
-            if not inactive then onClick ())
-        prop.text label
     ]
 
 /// Ein Angebot unter einer Feldzeile, nach einer Änderung (ledger-hg5m5, „Regel für „Rewe“ anlegen?“): die Frage
@@ -468,7 +401,7 @@ let offerRow
     : ReactElement =
     Html.div [
         prop.custom ("data-testid", testId)
-        prop.className $"flex items-center gap-2 px-4 py-2 border-b {Borders.subtle}"
+        prop.className $"flex items-center gap-2 px-4 detail-inset detail-line py-2 border-b {Borders.subtle}"
         prop.children [
             Html.p [
                 prop.className $"min-w-0 flex-1 {FontSizes.sm} {Colors.textSecondary}"
@@ -522,7 +455,7 @@ type MemoEditorProps = {
 let memoEditor (props: MemoEditorProps) : ReactElement =
     Html.div [
         prop.custom ("data-testid", "detail-memo-editor")
-        prop.className $"flex flex-col gap-2 px-4 py-3 border-b {Borders.subtle}"
+        prop.className $"flex flex-col gap-2 px-4 detail-inset detail-line py-3 border-b {Borders.subtle}"
         prop.onKeyDown (fun e ->
             if e.key = "Enter" then
                 e.preventDefault ()
@@ -585,143 +518,181 @@ let memoEditor (props: MemoEditorProps) : ReactElement =
         ]
     ]
 
-/// Der Geprüft-Schalter als eigene Zeile (Handoff: Zeile mit Grund `surface-input`).
-/// `Busy` sperrt ihn, solange der Aufruf läuft. Rolle `switch`, Zustand in `aria-checked`.
-let reviewedSwitch (label: string) (isOn: bool) (busy: bool) (onToggle: bool -> unit) : ReactElement =
-    let track =
-        if isOn then "border-success/40 bg-success/20"
-        else $"{Borders.default'} {Backgrounds.elevated}"
-    let knob =
-        if isOn then "translate-x-6 bg-success"
-        else "translate-x-1 bg-text-muted"
-
-    Html.div [
-        prop.custom ("data-testid", "detail-reviewed")
-        prop.className $"flex min-h-14 items-center justify-between gap-3 px-4 py-2 border-b {Borders.subtle}"
-        prop.children [
-            Html.span [ prop.className $"{FontSizes.sm} font-medium {Colors.textPrimary}"; prop.text label ]
-            Html.button [
-                prop.type'.button
-                prop.role "switch"
-                prop.ariaLabel label
-                prop.custom ("aria-checked", (if isOn then "true" else "false"))
-                prop.disabled busy
-                // Am Handy ist der Knopf die Trefferfläche (48 px, Styleguide), die Schiene liegt darin. Ab md
-                // hat der Knopf wieder die Höhe der Schiene.
-                prop.className
-                    $"inline-flex {TouchTargets.mobileSquare} md:h-7 shrink-0 items-center justify-center touch-manipulation disabled:opacity-50 disabled:cursor-not-allowed"
-                prop.onClick (fun _ -> onToggle (not isOn))
-                prop.children [
-                    // Die Schiene ist nur Zierde, Name und Zustand trägt der Knopf (`role switch`, `aria-checked`).
-                    Html.span [
-                        prop.ariaHidden true
-                        prop.className $"relative inline-flex h-7 w-12 items-center rounded-full border transition-colors {track}"
-                        prop.children [
-                            Html.span [
-                                prop.className $"inline-block h-5 w-5 rounded-full transition-transform {knob}"
-                            ]
-                        ]
-                    ]
-                ]
-            ]
-        ]
-    ]
-
 // ============================================
-// Herkunft und Historie
+// Abschnitte, Knopfzeile, Herkunft und Historie (ledger-zfj78)
 // ============================================
 
-/// Die Überschrift eines Abschnitts im Detail ("HERKUNFT", "HISTORIE").
+/// Die Überschrift eines Abschnitts im Detail ("AUFTEILEN" über dem Split-Editor).
 let sectionLabel (text: string) : ReactElement =
     Html.div [
         prop.className $"{ListRoles.groupHeader} px-4 pt-4 pb-2"
         prop.text text
     ]
 
-/// Die Herkunft-Zeile: Überschrift links, das Badge der Art rechts. Das Badge baut der
-/// Aufrufer (Blau, `Badge.Info`), weil die Wörter zur Domäne gehören.
-let originRow (badge: ReactElement) : ReactElement =
+
+/// Ein Block mit dem Rand der Feldzeilen (`px-4`): Betragszeile, Prüf-Knopf, Knopfzeile, Herkunft, Löschen.
+let block (testId: string) (extra: IReactProperty list) (children: ReactElement list) : ReactElement =
     Html.div [
-        prop.custom ("data-testid", "detail-origin")
-        prop.className $"flex min-h-14 items-center justify-between gap-3 px-4 py-2 border-b {Borders.subtle}"
-        prop.children [
-            Html.span [ prop.className ListRoles.groupHeader; prop.text "HERKUNFT" ]
-            badge
-        ]
+        prop.custom ("data-testid", testId)
+        prop.className "px-4 detail-inset py-2"
+        yield! extra
+        prop.children children
     ]
 
-/// Die Punktfarbe eines Eintrags der Zeitleiste nach Farbrolle (ADR 0087): Blau Hinweis
-/// (Import, Regel), Grau ohne Wertung, Grün gelungen, Rot Fehlschlag und Löschung.
-type DotColor =
-    | DotInfo
-    | DotGrey
-    | DotGreen
-    | DotRed
+/// Der Prüfstand rechts neben dem Betrag (Prototyp Version 17): „zu prüfen“ in Gelb oder „geprüft“ in Grün, 12 px.
+let reviewStatus (needsReview: bool) : ReactElement =
+    Html.span [
+        prop.custom ("data-testid", "detail-review-status")
+        prop.className (
+            $"shrink-0 whitespace-nowrap {FontSizes.xs} "
+            + (if needsReview then Colors.attention else Colors.success)
+        )
+        prop.text (if needsReview then "zu prüfen" else "geprüft")
+    ]
 
-let dotName (dot: DotColor) : string =
-    match dot with
-    | DotInfo -> "info"
-    | DotGrey -> "grey"
-    | DotGreen -> "green"
-    | DotRed -> "red"
+/// Die Zeile unter dem Kopf: links der Betrag (`amountButton` oder `amountLocked`), rechts der Prüfstand, auf der
+/// Grundlinie ausgerichtet wie im Prototyp.
+let amountRow (amountElement: ReactElement) (status: ReactElement) : ReactElement =
+    Html.div [
+        prop.custom ("data-testid", "detail-amount-row")
+        prop.className "flex items-baseline justify-between gap-3 px-4 detail-inset pt-3 pb-1"
+        prop.children [ amountElement; status ]
+    ]
 
-let private dotClass (dot: DotColor) : string =
-    match dot with
-    | DotInfo -> "bg-info"
-    | DotGrey -> "bg-text-muted"
-    | DotGreen -> "bg-success"
-    | DotRed -> "bg-error"
+/// Der Knopf „Geprüft“ bzw. „Als ungeprüft markieren“ über die ganze Breite (Prototyp `.btn.block`): `primary` als
+/// Hauptaktion bei einer ungeprüften Buchung, sonst neutral mit Rand (`Outline`). `busy`: der Aufruf läuft.
+let reviewButton (label: string) (primary: bool) (busy: bool) (onClick: unit -> unit) : ReactElement =
+    block "detail-reviewed" [] [
+        Button.view {
+            Button.defaultProps with
+                Text = label
+                Variant = (if primary then Button.Primary else Button.Outline)
+                IsBusy = busy
+                ClassName = Some "w-full"
+                OnClick = onClick
+        }
+    ]
 
-type TimelineItem = {
-    Key: string
-    Dot: DotColor
-    Text: string
-    /// Zeitstempel und Urheber, z. B. "10.09.2026 17:55 · Regel".
-    Stamp: string
-}
+/// „alle zeigen“ hinter einem Wert (Prototyp Version 17, Payee und Kategorie): 12 px im Akzent, setzt einen Filter
+/// auf die Liste. Name und Tooltip nennen das volle Ziel („Nur Buchungen von REWE zeigen“). Am Handy 48 px hoch.
+let showAllLink (label: string) (onClick: unit -> unit) : ReactElement =
+    Html.button [
+        prop.type'.button
+        prop.title label
+        prop.ariaLabel label
+        prop.custom ("data-testid", "detail-filter")
+        prop.className (
+            $"inline-flex {TouchTargets.mobileMinHeight} md:min-h-11 shrink-0 items-center rounded-lg px-1 {FontSizes.xs} {Colors.accent} "
+            + "whitespace-nowrap hover:underline touch-manipulation"
+        )
+        prop.onMouseDown (fun e -> e.stopPropagation ())
+        prop.onClick (fun e ->
+            e.stopPropagation ()
+            onClick ())
+        prop.text "alle zeigen"
+    ]
 
-/// Die Zeitleiste der Historie, in der Reihenfolge der Liste (der Aufrufer legt die
-/// neueste Zeile nach oben). Der oberste Eintrag trägt den Text in der Hauptfarbe, die
-/// älteren gedämpft.
-let timeline (items: TimelineItem list) : ReactElement =
-    Html.ol [
-        prop.custom ("data-testid", "detail-timeline")
-        prop.className "px-4 pt-1"
+/// Die Zeilen eines Splits in einer Karte direkt unter der Kategorie (Prototyp `.card` mit `.kv`, 40 px je Zeile):
+/// links Kategorie oder Konto, rechts der Betrag in Mono.
+let splitCard (lines: (string * string) list) : ReactElement =
+    Html.div [
+        prop.className "px-4 detail-inset py-2"
         prop.children [
-            for (index, item) in List.indexed items ->
-                Html.li [
-                    prop.key item.Key
-                    prop.className "flex gap-3 pb-4"
-                    prop.children [
-                        Html.span [
-                            prop.custom ("data-dot", dotName item.Dot)
-                            prop.className $"mt-1.5 h-2 w-2 shrink-0 rounded-full {dotClass item.Dot}"
-                        ]
+            Html.div [
+                prop.custom ("data-testid", "detail-split-lines")
+                prop.className $"rounded-xl border {Borders.subtle} {Backgrounds.dark} px-3 py-1"
+                prop.children [
+                    for (target, amountText) in lines ->
                         Html.div [
-                            prop.className "min-w-0"
+                            prop.key (target + amountText)
+                            prop.className $"flex min-h-10 items-center justify-between gap-3 border-b {Borders.subtle} last:border-b-0"
                             prop.children [
-                                Html.p [
-                                    prop.className (
-                                        $"{FontSizes.sm} font-medium leading-snug " +
-                                        (if index = 0 then Colors.textPrimary else Colors.textSecondary)
-                                    )
-                                    prop.text item.Text
-                                ]
-                                Html.p [
-                                    prop.className $"mt-0.5 font-mono {FontSizes.xs} {Colors.textMuted}"
-                                    prop.text item.Stamp
+                                Truncate.text $"{FontSizes.sm} {Colors.textMuted}" target
+                                Html.span [
+                                    prop.className $"shrink-0 font-mono tabular-nums {FontSizes.sm} {Colors.textPrimary}"
+                                    prop.text amountText
                                 ]
                             ]
                         ]
-                    ]
                 ]
+            ]
         ]
     ]
 
-/// Der Leerzustand der Historie.
-let timelineEmpty (text: string) : ReactElement =
+/// Ein Knopf der Knopfzeile (Prototyp `.btnrow .btn.sm`): neutral mit Rand `border-strong`, ohne Füllung, füllt
+/// seine Spalte. `icon` steht vor dem Text (Flagge bei „Lena fragen“). `lockedHint`: gesperrt, gedämpft, ohne Wirkung,
+/// der Grund als Tooltip (und als Text unter der Zeile, `fieldLockHint`). `busy`: der Aufruf läuft. Der Fokus bleibt,
+/// deshalb `aria-disabled` statt `disabled`.
+let rowAction
+    (testId: string)
+    (label: string)
+    (icon: ReactElement option)
+    (lockedHint: string option)
+    (busy: bool)
+    (onClick: unit -> unit)
+    : ReactElement =
+    let inactive = lockedHint.IsSome || busy
+    Html.button [
+        prop.type'.button
+        prop.title (lockedHint |> Option.defaultValue label)
+        prop.custom ("aria-disabled", (if inactive then "true" else "false"))
+        prop.custom ("data-testid", testId)
+        prop.className (
+            $"inline-flex {TouchTargets.mobileMinHeight} md:min-h-9 w-full min-w-0 items-center justify-center gap-1.5 rounded-lg border {Borders.strong} py-1 " +
+            $"bg-transparent px-3 {FontSizes.sm} font-medium {Colors.textPrimary} transition-colors touch-manipulation " +
+            (if inactive then "opacity-40 cursor-not-allowed" else "hover:bg-surface-hover active:scale-[0.98]")
+        )
+        prop.onMouseDown (fun e -> e.stopPropagation ())
+        prop.onClick (fun e ->
+            e.stopPropagation ()
+            if not inactive then onClick ())
+        prop.children [
+            match icon with
+            | Some i -> Html.span [ prop.className "inline-flex shrink-0"; prop.ariaHidden true; prop.children [ i ] ]
+            | None -> ()
+            // Ein langer Text bricht bei schmaler Breite um (320 px, „Rückfrage zurücknehmen“), statt abzuschneiden.
+            Html.span [ prop.className "min-w-0 text-center leading-tight"; prop.text label ]
+        ]
+    ]
+
+/// Die Knopfzeile (Prototyp `.btnrow`): Knöpfe gleich breit nebeneinander, darunter die Gründe gesperrter Knöpfe.
+/// `extra`: Eigenschaften der Hülle, etwa `Badge.lenaFlagScope` für die Farbe der Flagge.
+/// `hints`: (testId, Grund) je gesperrtem Knopf, gedämpft unter der Zeile.
+let actionRow (extra: IReactProperty list) (actions: ReactElement list) (hints: (string * string) list) : ReactElement =
+    block "detail-actions" extra [
+        yield Html.div [
+            prop.className "grid auto-cols-fr grid-flow-col gap-2"
+            prop.children actions
+        ]
+        for (testId, text) in hints do
+            yield Html.p [
+                prop.key testId
+                prop.custom ("data-testid", testId)
+                prop.className $"mt-1.5 {ListRoles.muted}"
+                prop.text text
+            ]
+    ]
+
+/// Die Herkunft als kleine gedämpfte Zeile („Herkunft: YNAB-Spiegel“, Prototyp Version 17).
+let originLine (text: string) : ReactElement =
     Html.p [
-        prop.custom ("data-testid", "detail-timeline-empty")
-        prop.className $"px-4 py-4 {FontSizes.sm} {Colors.textMuted}"
+        prop.custom ("data-testid", "detail-origin")
+        prop.className $"px-4 detail-inset py-2 {FontSizes.xs} {Colors.textMuted}"
         prop.text text
+    ]
+
+/// Die Historie im Detail: eine aufklappbare Zeile „Historie (n)“ (`Button.disclosureSectionHead`), darunter der
+/// Block, zu `hidden`. `content`: die Einträge (`HistoryList.list`), der Leerzustand oder Laden und Fehler.
+let historySection (label: string) (isOpen: bool) (onToggle: unit -> unit) (content: ReactElement) : ReactElement =
+    Html.div [
+        prop.className "px-4 detail-inset detail-history"
+        prop.children [
+            Button.disclosureSectionHead "detail-history-toggle" "detail-history" label isOpen onToggle
+            Html.div [
+                prop.id "detail-history"
+                prop.custom ("data-testid", "detail-history")
+                prop.hidden (not isOpen)
+                prop.children [ content ]
+            ]
+        ]
     ]
