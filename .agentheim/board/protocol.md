@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-11-15 19:08 -- Modeling / Refined: budgeting-wnkgj - Budget an die Bedeutungen angleichen
+
+**Type:** Modeling / Refine
+**BC:** budgeting
+**Status after:** backlog
+**Summary:** Bestandsaufnahme gegen Prototyp Version 17 bei 412 und 1440 px in die Task geschrieben; die vier Punkte aus What mit Datei und Zeile belegt, weitere Abweichungen und Funktionen nur in BB gelistet. Elf Fragen (w01 bis w11) an Roman in der Prüfliste, darunter die Teilung in vier Tasks. Kriterien folgen nach den Antworten.
+
+---
+
 ## 2026-11-15 18:45 -- Review-Lauf: e4b15d01..74f6cfb0
 
 **Type:** Review / Review-Lauf
