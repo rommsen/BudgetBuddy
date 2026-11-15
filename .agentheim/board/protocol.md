@@ -5,6 +5,20 @@ Newest entries on top.
 
 ---
 
+## 2026-11-15 02:00 -- Review-Lauf: 61bf6bd2..6acc9f6e
+
+**Type:** Review / Review-Lauf
+**Bereich:** 61bf6bd2..6acc9f6e (ledger-d9z3n, ledger-cnaz3, ledger-zfj78)
+**Agents:** backend-code-quality, frontend-architecture, design-quality, qa-milestone-reviewer
+**Funde:** behoben 37, verworfen 0, Rückfrage 6, Ticket 0, Kann-Sammlung 5 (ledger-k4n2s 140 bis 144)
+**Commits:** 1eaf9006, 3803ae7d, f997b5fe, dc79d121, 18072bee (Backend), 251f1164, 56e91ffb, b845b926, 5824d188, b94f3533, 148a6a11 (Client, Design, Tests)
+**Behoben, darunter:** Suche maskiert LIKE-Platzhalter (alle zeigen am Payee mit % oder _ zeigte zu viel); alter Client ohne AmountDirection bekam 500; Ausgrauen kannte Suche, Betrag und Richtung nicht; Panel bei alle mit genau einer Buchung; Fokussprung auf ausgegrauter Zeile; L ohne Rückmeldung; gelbe Prüfkante verschwand in der Ankerzeile; Feld Konto zu hoch; negativer Saldo ohne Rot; Wisch auf gelöschter Buchung wieder getestet; wertlose Tests entfernt
+**Rückfrage (Roman, Fahrplan):** gewählte Buchung außerhalb des geladenen Fensters (ledger-ct3cx, Leiste zählt sie nicht, Sammelaktion trifft sie); Farbe von nicht in YNAB in Zeile (Rot) und Detail (Gelb, ADR 0087); Sticky-Filter am Handy (§7.3); Sheet über Sheet im Filter-Sheet (§7.15); Zurücksetzen gegen Filter löschen (§8); ROMAN statt BB in der Historie
+**Verworfen:** keine
+**Verifikation:** VERIFY: PASS (dotnet 5101 grün, node 339 grün, dotnet build, npm run build, guard:classes, guard:tokens grün)
+
+---
+
 ## 2026-11-15 01:11 -- Work session ended
 
 **Type:** Work / Session end
