@@ -2444,7 +2444,7 @@ type Msg =
     /// „×“ am PC-Chip „Betrag“: nimmt Betrag und Richtung zurück, beide stehen in seinem Popover.
     | RemoveAmountAndDirection
 
-    /// „Filter löschen“ und „Zurücksetzen“ (ledger-d9z3n): setzt alle Filter zurück, auch
+    /// „Filter löschen“ am Chip und im Filter-Sheet (ledger-d9z3n): setzt alle Filter zurück, auch
     /// „Zu prüfen“, „Lena“, „Ohne Kategorie“, Sortierung, „Gelöschte zeigen“ und die Suche, und
     /// lädt ab Seite 0 neu. Das Konto bleibt.
     | ClearAllFilters

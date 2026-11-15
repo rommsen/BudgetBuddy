@@ -308,7 +308,7 @@ let removeActiveFilterMsg (filter: ActiveFilter) : Msg =
     | ActiveFilter.Sort -> SetSortExactly LedgerSort.defaultSort
     | ActiveFilter.WithDeleted -> ToggleIncludeDeleted
 
-/// „Filter löschen“ und „Zurücksetzen“ (ledger-d9z3n): alle Filter fallen weg, auch „Zu prüfen“,
+/// „Filter löschen“ am Chip und im Filter-Sheet (ledger-d9z3n): alle Filter fallen weg, auch „Zu prüfen“,
 /// „Lena“, „Ohne Kategorie“, Sortierung, „Gelöschte zeigen“ und die Suche. Das Konto bleibt. Die
 /// Versionen steigen, damit eine wartende Eingabe den Filter nicht zurückholt (ledger-ct3cx). Rein,
 /// ohne Neuaufbau (den macht `update`).

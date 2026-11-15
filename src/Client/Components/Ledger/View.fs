@@ -502,17 +502,14 @@ let private reviewMarkHintView
         ]
     ]
 
-/// Die Wörter in Zeile 2 der Handy-Zeile (ledger-d9z3n, Prototyp `txRow`): „nicht in YNAB“ in Rot,
-/// „doppelt?“ in Gelb, „zu prüfen“ unter dem Betrag in Gelb.
+/// Die Wörter in Zeile 2 der Handy-Zeile (ledger-d9z3n, Prototyp `txRow`): „nicht in YNAB“, „doppelt?“ und
+/// „zu prüfen“ unter dem Betrag in Gelb. „nicht in YNAB“ in Gelb wie die Leiste „Noch nicht in YNAB“ im Detail
+/// (ADR 0087, Roman 2026-11-15; der Prototyp hat Rot).
 let rowNotInYnabText = "nicht in YNAB"
 let rowPossibleDuplicateText = "doppelt?"
 let rowNeedsReviewText = "zu prüfen"
 
-/// Ein Zustandswort in Zeile 2 der Handy-Zeile, klein, in der Farbe seiner Bedeutung: Rot für Fehler,
-/// Gelb für „braucht dich“ (ADR 0087 Punkte 3 und 4).
-let private rowErrorWord (text: string) : ReactElement =
-    Html.span [ prop.className $"{Tokens.FontSizes.xs} {Tokens.Colors.error} whitespace-nowrap"; prop.text text ]
-
+/// Ein Zustandswort in Zeile 2 der Handy-Zeile, klein, in Gelb für „braucht dich“ (ADR 0087 Punkte 3 und 4).
 let private rowAttentionWord (text: string) : ReactElement =
     Html.span [ prop.className $"{Tokens.FontSizes.xs} {Tokens.Colors.attention} whitespace-nowrap"; prop.text text ]
 
@@ -593,7 +590,7 @@ let private entryRow
                     | None -> ()
                     match rowStatusMark entry with
                     | RowDeleted -> keepWidth (deletedBadge ())
-                    | RowNotInYnab -> keepWidth (rowErrorWord rowNotInYnabText)
+                    | RowNotInYnab -> keepWidth (rowAttentionWord rowNotInYnabText)
                     | RowPossibleDuplicate -> keepWidth (rowAttentionWord rowPossibleDuplicateText)
                     | RowOtherStates -> ()
                     // „zu prüfen“ steht unter dem Betrag, zur gelben Kante (Prototyp `txRow`).
@@ -816,7 +813,7 @@ let private payeeMarkView (mark: PayeeMark) : ReactElement =
     match mark with
     | PayeeFlag flag -> flagStatusBadge flag
     | PayeePossibleDuplicate -> rowAttentionWord rowPossibleDuplicateText
-    | PayeeNotInYnab -> rowErrorWord rowNotInYnabText
+    | PayeeNotInYnab -> rowAttentionWord rowNotInYnabText
     | PayeeDeleted -> deletedStatusIcon ()
 
 /// Die Payee-Zelle der PC-Tabelle. Ist die Konto-Spalte ausgeblendet (schmales Fenster
@@ -982,11 +979,12 @@ let private lastRunSubtitle (status: RemoteData<MirrorRunStatus option>) : strin
 let historyLinesForDisplay (lines: LedgerHistoryLine list) : LedgerHistoryLine list = List.rev lines
 
 /// Das Kürzel der Herkunft in einer Zeile der Historie (§7.11, ledger-zfj78): wer den Eintrag schrieb, neutral und
-/// kurz. In BB entschieden und über Quick Add erfasst ist Roman; der Order-ID-Abgleich steht als ABGLEICH.
+/// kurz. In BB entschieden und über Quick Add erfasst steht als BB, weil auch Lena in BB bucht (Roman, 2026-11-15);
+/// der Order-ID-Abgleich steht als ABGLEICH.
 let historyWhoTag (origin: LedgerOrigin) : string =
     match origin with
     | DecidedInBb
-    | AddedViaQuickAdd -> "ROMAN"
+    | AddedViaQuickAdd -> "BB"
     | AddedByBob -> "BOB"
     | MirroredFromYnab -> "YNAB"
     | DecidedByRule -> "REGEL"
@@ -3397,6 +3395,10 @@ let filterSheetShowLabel (entries: RemoteData<LedgerEntryView list>) (totalCount
 /// „Ohne Kategorie“ mit Anzahl, Zeilen „Kategorie“ und „Zeitraum“ (öffnen die Auswahl darüber), „Betrag von“ und
 /// „bis“, Zeile „Sortieren“ und „Gelöschte zeigen“, wenn es gelöschte Buchungen gibt. Jede Änderung wirkt sofort.
 /// Es ist verdeckt, solange Kategorie-, Zeitraum- oder Sortier-Auswahl darüber stehen.
+/// Der Knopf unten links im Filter-Sheet heißt wie der Chip „Filter löschen“, ein Wort für dieselbe Wirkung
+/// (Roman, 2026-11-15).
+let filterSheetClearLabel = "Filter löschen"
+
 let private filterSheet (dispatch: Msg -> unit) (model: Model) (categories: YnabCategory list) : ReactElement =
     let names = selectedCategoryNames categories model.Filters.CategoryIds
     let sort = Components.Ledger.State.effectiveSort model
@@ -3406,7 +3408,7 @@ let private filterSheet (dispatch: Msg -> unit) (model: Model) (categories: Ynab
             prop.children [
                 Button.view
                     { Button.defaultProps with
-                        Text = "Zurücksetzen"
+                        Text = filterSheetClearLabel
                         Variant = Button.Outline
                         ClassName = Some "w-full"
                         OnClick = fun () -> dispatch ClearAllFilters }

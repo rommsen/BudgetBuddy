@@ -229,6 +229,7 @@ let handyFilterTests =
         test "Filter-Sheet: „n zeigen“ mit Trefferzahl, beim Laden nur „Zeigen“" {
             Expect.equal (Components.Ledger.View.filterSheetShowLabel (Success []) 1234) "1.234 zeigen" "Treffer mit Tausenderpunkt"
             Expect.equal (Components.Ledger.View.filterSheetShowLabel Loading 1234) "Zeigen" "beim Laden"
+            Expect.equal Components.Ledger.View.filterSheetClearLabel "Filter löschen" "ein Wort wie am Chip (Roman, 2026-11-15)"
         }
 
         test "Filter-Sheet: Werte der Zeilen Kategorie, Zeitraum und Sortieren" {

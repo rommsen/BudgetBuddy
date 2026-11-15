@@ -669,7 +669,7 @@ Dauer und `prefers-reduced-motion` regelt §6.
 
 **Regel:** Buchung und Kategorie zeigen ihre Historie in derselben Form, je Eintrag eine Zeile mit
 drei Spalten: links der Zeitpunkt (`TT.MM. HH:MM`, Mono, gedämpft), in der Mitte die Herkunft als
-neutrales Kürzel (etwa ROMAN, BOB, YNAB; Mono, Großbuchstaben, dünner Rand, ohne Farbe) und der Text,
+neutrales Kürzel (etwa BB, BOB, YNAB; Mono, Großbuchstaben, dünner Rand, ohne Farbe) und der Text,
 rechts der Betrag, falls es einen gibt. Der neueste Eintrag steht oben. Ein Filter nach Art ist ein
 Auswahlfeld („Zeigen: Alle“).
 

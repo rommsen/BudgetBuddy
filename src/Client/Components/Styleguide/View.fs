@@ -934,7 +934,7 @@ let private calmListSection =
                         dataRow false "Heute" "Bäckerei Krause" [ markWord Tokens.Colors.attention "doppelt?" ] (cat "Alltag: Essen/Einkaufen") "" -6.40m
                         groupRow "GESTERN" "+3.774,00 €"
                         dataRow false "Gestern" "Arbeitgeber GmbH" [] (cat "Ready to Assign") "Gehalt Oktober" 3412.80m
-                        dataRow true "Gestern" "Amazon Marketplace" [ markWord Tokens.Colors.error "nicht in YNAB" ] noCategory "" -37.45m
+                        dataRow true "Gestern" "Amazon Marketplace" [ markWord Tokens.Colors.attention "nicht in YNAB" ] noCategory "" -37.45m
                     ])
                 ]
                 Html.div [
@@ -2483,7 +2483,7 @@ let private DetailDemo () =
                 (HistoryList.list
                     "styleguide-history"
                     [ { Key = "5"; When = "11.09. 08:20"; Who = "YNAB"; Text = "In YNAB gelöscht"; Amount = None }
-                      { Key = "4"; When = "10.09. 18:10"; Who = "ROMAN"; Text = "In BB als geprüft markiert"; Amount = None }
+                      { Key = "4"; When = "10.09. 18:10"; Who = "BB"; Text = "In BB als geprüft markiert"; Amount = None }
                       { Key = "3"; When = "10.09. 17:55"; Who = "REGEL"; Text = "Regel: Kategorie Lebensmittel gesetzt"; Amount = None }
                       { Key = "2"; When = "10.09. 17:55"; Who = "IMPORT"; Text = "Comdirect-Import: Buchung erfasst"; Amount = Some "-48,12 €" }
                       { Key = "1"; When = "10.09. 17:50"; Who = "BOB"; Text = "Barbuchung angelegt"; Amount = Some "-12,00 €" } ])

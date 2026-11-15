@@ -35,11 +35,11 @@ let private line (sequence: int) (origin: LedgerOrigin) (at: DateTime) (text: st
 let historyTests =
     testList "Detail: Historie nach §7.11" [
 
-        testCase "jeder Akteur hat sein Kürzel, in BB und über Quick Add ist es Roman" <| fun () ->
+        testCase "jeder Akteur hat sein Kürzel, in BB und über Quick Add ist es BB, auch wenn Lena bucht" <| fun () ->
             let tags =
                 [ DecidedInBb; AddedViaQuickAdd; AddedByBob; MirroredFromYnab; DecidedByRule; ImportedFromComdirect; MatchedByOrderId ]
                 |> List.map historyWhoTag
-            Expect.equal tags [ "ROMAN"; "ROMAN"; "BOB"; "YNAB"; "REGEL"; "IMPORT"; "ABGLEICH" ] "Kürzel je Herkunft"
+            Expect.equal tags [ "BB"; "BB"; "BOB"; "YNAB"; "REGEL"; "IMPORT"; "ABGLEICH" ] "Kürzel je Herkunft"
 
         testCase "der Zeitpunkt steht als TT.MM. HH:MM in Ortszeit" <| fun () ->
             Expect.equal (historyWhenText (DateTime(2026, 11, 6, 18, 40, 0, DateTimeKind.Local))) "06.11. 18:40" "Ortszeit"
@@ -55,7 +55,7 @@ let historyTests =
                       line 3 DecidedInBb (at 10) "In BB als geprüft markiert" ]
             Expect.equal
                 (items |> List.map (fun i -> i.Key, i.When, i.Who, i.Text, i.Amount))
-                [ "3", "06.11. 10:00", "ROMAN", "In BB als geprüft markiert", None
+                [ "3", "06.11. 10:00", "BB", "In BB als geprüft markiert", None
                   "2", "06.11. 09:00", "REGEL", "Regel: Kategorie gesetzt", None
                   "1", "06.11. 08:00", "IMPORT", "Comdirect-Import: Buchung erfasst", None ]
                 "neueste oben"
