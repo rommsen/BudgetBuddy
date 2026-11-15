@@ -241,8 +241,32 @@ let summaryTests =
             Expect.equal (selectionPartialNote 34 12) (Some "Ausgaben, Einnahmen und Kategorien aus den 12 geladenen Buchungen.") "nur die geladenen"
 
         testCase "„Rückfrage zurücknehmen“ nur, wenn eine gewählte Buchung gefragt ist" <| fun () ->
-            Expect.isFalse (selectionHasAskLena (rows 2)) "keine gefragt"
-            Expect.isTrue (selectionHasAskLena [ entry 1 -1m; { entry 2 -1m with Flag = AskLena } ]) "eine gefragt"
+            let model = modelWith [ entry 1 -1m; { entry 2 -1m with Flag = AskLena }; entry 3 -1m ]
+            Expect.isFalse (selectionOffersWithdraw { model with Selection = picked [ 1; 3 ] }) "keine gefragt"
+            Expect.isTrue (selectionOffersWithdraw { model with Selection = picked [ 1; 2 ] }) "eine gefragt"
+
+        // Bug aus dem Review zu ledger-cnaz3: unter „alle“ sah die Zusammenfassung nur die geladenen Buchungen. War die
+        // gefragte noch nicht geladen, fehlte „Rückfrage zurücknehmen“, obwohl der Zähler sie kennt.
+        testCase "„Rückfrage zurücknehmen“ unter „alle“ auch für eine gefragte, die noch nicht geladen ist" <| fun () ->
+            let all = { modelWith (rows 2) with Selection = AllExcept Set.empty; TotalCount = 40 }
+            Expect.isTrue (selectionOffersWithdraw { all with AskLenaCount = 1 }) "der Zähler kennt eine gefragte"
+            Expect.isFalse (selectionOffersWithdraw { all with AskLenaCount = 0 }) "keine gefragt"
+
+        // Bug aus dem Review zu ledger-cnaz3: unter „alle“ lieferte `singleSelectedEntry` nie eine Buchung. Blieb nach
+        // dem Abwählen genau eine übrig, zeigte die Leiste eine Buchung, das Panel aber weder Detail noch Zusammenfassung.
+        testCase "unter „alle“ mit genau einer übrigen geladenen Buchung ist sie die eine gewählte" <| fun () ->
+            let all = { modelWith (rows 3) with Selection = AllExcept (Set.ofList [ idOf 1; idOf 2 ]) }
+            Expect.equal (singleSelectedEntry all |> Option.map (fun e -> e.Id)) (Some (idOf 3)) "die übrige"
+            Expect.isNone (singleSelectedEntry { all with TotalCount = 5 }) "es fehlen noch nicht geladene"
+            let unloaded = { modelWith (rows 3) with Selection = AllExcept (Set.ofList [ idOf 1; idOf 2; idOf 3 ]); TotalCount = 4 }
+            Expect.isNone (singleSelectedEntry unloaded) "die eine übrige ist nicht geladen"
+
+        testCase "unter „alle“ zeigt das Panel das Detail, wenn nach dem Abwählen eine übrig bleibt" <| fun () ->
+            let all = modelWith (rows 2) |> asPanel |> step ToggleSelectAll
+            Expect.equal (panelContentFor all) PanelSelectionSummary "zwei: Zusammenfassung"
+            let one = all |> step (ClickRowCheckbox (idOf 1, false))
+            Expect.equal (one.DetailFor |> Option.map (fun d -> d.Id)) (Some (idOf 2)) "eine übrig: ihr Detail"
+            Expect.equal (panelContentFor one) PanelDetail "Detail im Panel"
 
         testCase "die gewählten Buchungen kommen aus der Liste, unter AllExcept ohne die Ausnahmen" <| fun () ->
             let model = { modelWith (rows 3) with Selection = AllExcept (Set.singleton (idOf 2)) }

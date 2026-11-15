@@ -3753,9 +3753,13 @@ let selectionPartialNote (selectedCount: int) (loadedCount: int) : string option
     else
         None
 
-/// Steht „Rückfrage zurücknehmen“ in der Zusammenfassung? Nur, wenn eine gewählte Buchung gefragt ist (BB).
-let selectionHasAskLena (entries: LedgerEntryView list) : bool =
-    entries |> List.exists (fun e -> e.Flag = AskLena)
+/// Steht „Rückfrage zurücknehmen“ in der Zusammenfassung? Nur, wenn eine gewählte Buchung gefragt ist (BB). Unter
+/// „alle“ kennt die Liste nur die geladenen; dann reicht auch der Zähler `AskLenaCount` vom Server.
+let selectionOffersWithdraw (model: Model) : bool =
+    let loadedAsked = selectedEntries model |> List.exists (fun e -> e.Flag = AskLena)
+    match model.Selection with
+    | AllExcept _ -> loadedAsked || model.AskLenaCount > 0
+    | _ -> loadedAsked
 
 /// Was das Panel am PC zeigt (ledger-cnaz3, ADR 0087 Punkte 16 und 17): „Neue Buchung“, ab zwei gewählten Buchungen
 /// die Zusammenfassung, sonst das Detail der offenen Buchung oder den leeren Zustand. Rein.
@@ -3859,7 +3863,7 @@ let private selectionSummaryPanel (dispatch: Msg -> unit) (model: Model) : React
             Category =
                 categoryAction dispatch model (fun props -> Some (CategoryPicker.selectionPopoverInPanel model.BatchCategoryPickerOpen props))
             Lena = lena
-            Withdraw = (if selectionHasAskLena entries then Some withdraw else None)
+            Withdraw = (if selectionOffersWithdraw model then Some withdraw else None)
             ClearLabel = selectionClearLabel
             OnClear = fun () -> dispatch ClearSelection
         })

@@ -1849,20 +1849,25 @@ let selectionTotals (model: Model) : SelectionTotals =
 /// erscheint die Leiste.
 let hasSelection (model: Model) : bool = (selectionTotals model).Count > 0
 
-/// Die eine gewählte Buchung, wenn genau eine geladene gewählt ist (ledger-cnaz3): dann zeigt das Panel am PC ihr
-/// Detail. `AllExcept` meint den ganzen Treffer und zählt hier nie als eine.
-let singleSelectedEntry (model: Model) : LedgerEntryView option =
-    match model.Selection with
-    | Picked ids when Set.count ids = 1 ->
-        let id = Set.minElement ids
-        model.Entries |> RemoteData.withDefault [] |> List.tryFind (fun e -> e.Id = id)
-    | _ -> None
-
 /// Die gewählten geladenen Buchungen in Listenreihenfolge (ledger-cnaz3): Grundlage der Zusammenfassung im Panel.
 /// Unter `AllExcept` sind es nur die geladenen; ob weitere fehlen, sagt `selectionTotals` gegen diese Liste.
 let selectedEntries (model: Model) : LedgerEntryView list =
     let selection = model.Selection
     model.Entries |> RemoteData.withDefault [] |> List.filter (fun e -> isSelected selection e.Id && not (model.FilteredOut.Contains e.Id))
+
+/// Die eine gewählte Buchung, wenn genau eine geladene gewählt ist (ledger-cnaz3): dann zeigt das Panel am PC ihr
+/// Detail. Unter `AllExcept` nur, wenn der Treffer nach den Ausnahmen genau eine Buchung meint und sie geladen ist;
+/// dieselbe Zahl, nach der die Leiste `SingleSelectionBar` zeigt.
+let singleSelectedEntry (model: Model) : LedgerEntryView option =
+    match model.Selection with
+    | Picked ids when Set.count ids = 1 ->
+        let id = Set.minElement ids
+        model.Entries |> RemoteData.withDefault [] |> List.tryFind (fun e -> e.Id = id)
+    | AllExcept _ when (selectionTotals model).Count = 1 ->
+        match selectedEntries model with
+        | [ entry ] -> Some entry
+        | _ -> None
+    | _ -> None
 
 /// Die Zeilen, die man wählen kann (ledger-cnaz3): geladen und nicht ausgegraut. Nur sie tragen ein Häkchen, deshalb
 /// nimmt kein Klick, kein Bereich und keine Taste eine andere in `Picked`.
