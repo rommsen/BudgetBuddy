@@ -2733,6 +2733,11 @@ type Msg =
     /// Esc (ledger-q1hw2, Kette ledger-w4vte): schließt genau eine Stufe, erst das offene
     /// Popover, dann das Detail, dann die Auswahl.
     | EscapePressed
+    /// Esc mit dem Fokus in einem Feld: wie `EscapePressed`, nur verlässt es in „Neue Buchung“ erst das Feld
+    /// (Roman, 2026-11-15, `captureEscapeFor`).
+    | EscapePressedInField
+    /// Verlässt das Feld mit dem Fokus (Esc im Feld von „Neue Buchung“). Nur dieser Schritt berührt das DOM.
+    | BlurFocusedField
 
     // ============================================
     // Durchgehen (ledger-v6s7c)
@@ -2789,6 +2794,19 @@ type Msg =
 /// „Buchung anlegen“ läuft, bleibt das Formular offen (`CloseCapture` prüft `Saving`).
 let captureEscapeMsg (capture: Capture.CaptureState) : Msg =
     if capture.Picker.IsSome then CloseCapturePicker else CloseCapture
+
+/// Was Esc in „Neue Buchung“ tut, je nachdem, ob der Fokus in einem Feld steht.
+type CaptureEscape =
+    /// Nur das Feld verlassen, das Formular bleibt offen.
+    | LeaveField
+    /// Eine Stufe schließen (`captureEscapeMsg`).
+    | CaptureStep of Msg
+
+/// Esc aus einem Feld verwirft den Entwurf nicht: es verlässt erst das Feld, erst das nächste Esc schließt
+/// „Neue Buchung“ (Roman, 2026-11-15, nach dem Review zu design-system-gcpws). Eine offene Auswahl im Formular schließt
+/// Esc wie bisher auch aus ihrem Suchfeld.
+let captureEscapeFor (fromField: bool) (capture: Capture.CaptureState) : CaptureEscape =
+    if fromField && capture.Picker.IsNone then LeaveField else CaptureStep (captureEscapeMsg capture)
 
 /// Was die Kassenbuch-Liste kann (§7.8): Mehrfachauswahl, keine Tabs im Panel, eine Suche, in die nicht getippt
 /// wird, weil G, L, J und K belegt sind; gesucht wird mit „/“ (F9, design-system-gcpws).
@@ -2856,7 +2874,7 @@ let keyCommandFor
         | ListKeys.ExtendSelection ListKeys.Backward -> Some (ExtendSelection -1)
         | ListKeys.FocusSearch -> Some FocusSearch
         | ListKeys.ClosePanel
-        | ListKeys.ClearSelection -> Some EscapePressed
+        | ListKeys.ClearSelection -> Some (if focus = ListKeys.InTextField then EscapePressedInField else EscapePressed)
         | ListKeys.StepTab _
         | ListKeys.TypeIntoSearch
         | ListKeys.Leave -> None

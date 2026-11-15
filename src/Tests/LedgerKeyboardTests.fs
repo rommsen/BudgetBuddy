@@ -227,10 +227,10 @@ let keyBindingTests =
                 Expect.isNone (keyCommandFor tag false false false false false "Enter") $"Enter auf {tag}"
             // Esc bleibt auf einem Knopf wirksam: der Fokus nach einem Mausklick liegt oft dort.
             Expect.equal (keyCommandFor "BUTTON" false false false false false "Escape") (Some EscapePressed) "Esc auf Knopf"
-            // design-system-gcpws (§7.8 Punkt 6): Esc schließt eine Stufe auch aus einem Feld, „Neue Buchung“ im Panel
-            // hat den Fokus im Betrag. Welche Stufe, entscheidet `EscapePressed`.
+            // design-system-gcpws (§7.8 Punkt 6): Esc wirkt auch aus einem Feld, als eigene Nachricht, damit „Neue
+            // Buchung“ erst das Feld verlässt (Roman, 2026-11-15). Welche Stufe, entscheidet die Kette in `update`.
             for tag in [ "INPUT"; "TEXTAREA"; "SELECT" ] do
-                Expect.equal (keyCommandFor tag false false false false false "Escape") (Some EscapePressed) $"Esc im Feld {tag}"
+                Expect.equal (keyCommandFor tag false false false false false "Escape") (Some EscapePressedInField) $"Esc im Feld {tag}"
 
         // Die Seiten stehen nie zugleich im DOM, ihre Tasten kollidieren nicht.
         testCase "nur Kassenbuch, Tab Regeln und Budget-Seite hören auf Tasten am Dokument, kein anderes Kürzel kollidiert" <| fun () ->
@@ -271,7 +271,7 @@ let keyBindingTests =
             Expect.equal (ledgerKeyFor false "BODY" false false false false false "ArrowDown") (Some (PageAction (MoveFocus 1))) "Pfeil ab"
             Expect.equal (ledgerKeyFor false "BODY" false false false false false "g") (Some (PageAction (ReviewKeyPressed Reviewed))) "g"
             Expect.equal (ledgerKeyFor false "BUTTON" false false false false false "Escape") (Some (PageAction EscapePressed)) "Esc"
-            Expect.equal (ledgerKeyFor false "INPUT" false false false false false "Escape") (Some (PageAction EscapePressed)) "Esc im Feld"
+            Expect.equal (ledgerKeyFor false "INPUT" false false false false false "Escape") (Some (PageAction EscapePressedInField)) "Esc im Feld"
     ]
 
 // design-system-gcpws: das Kassenbuch bildet seine eigenen Tasten (J/K, G, L, Enter, Leertaste) vor der gemeinsamen
@@ -279,14 +279,15 @@ let keyBindingTests =
 [<Tests>]
 let commonRuleTests =
     let own = [ "j"; "J"; "k"; "K"; "g"; "G"; "l"; "L"; "Enter"; " " ]
-    let expectedFor (action: ListKeys.Action) : Msg option =
+    let expectedFor (focus: ListKeys.Focus) (action: ListKeys.Action) : Msg option =
         match action with
         | ListKeys.FirstRow | ListKeys.StepRow ListKeys.Forward -> Some (MoveFocus 1)
         | ListKeys.LastRow | ListKeys.StepRow ListKeys.Backward -> Some (MoveFocus -1)
         | ListKeys.ExtendSelection ListKeys.Forward -> Some (ExtendSelection 1)
         | ListKeys.ExtendSelection ListKeys.Backward -> Some (ExtendSelection -1)
         | ListKeys.FocusSearch -> Some FocusSearch
-        | ListKeys.ClosePanel | ListKeys.ClearSelection -> Some EscapePressed
+        | ListKeys.ClosePanel | ListKeys.ClearSelection ->
+            Some (if focus = ListKeys.InTextField then EscapePressedInField else EscapePressed)
         | _ -> None
     testList "Kassenbuch: Tasten nach der gemeinsamen Regel" [
         testCase "jede Taste außer den eigenen folgt der gemeinsamen Regel, mit Mehrfachauswahl und ohne Tippen in die Suche" <| fun () ->
@@ -305,7 +306,7 @@ let commonRuleTests =
                                         let isOwn = not command && focus = ListKeys.Elsewhere && List.contains key own
                                         if not isOwn then
                                             let expected =
-                                                expectedFor (
+                                                expectedFor focus (
                                                     ListKeysTests.oracle
                                                         { MultiSelect = true; Tabs = false; Search = true; TypeToSearch = false }
                                                         { Key = key; Focus = focus; Command = command; Shift = shift; Handled = false
@@ -324,6 +325,23 @@ let commonRuleTests =
             Expect.isSome first.Capture "die Auswahl schließt zuerst, das Formular bleibt"
             Expect.isNone (first.Capture |> Option.bind (fun c -> c.Picker)) "Auswahl zu"
             Expect.isNone (first |> step EscapePressed).Capture "dann schließt das Formular"
+
+        // Review 2026-11-15 zu design-system-gcpws: Esc im Betrag verwarf „Neue Buchung“ samt Entwurf ohne Rückfrage.
+        // Roman: erst das Feld verlassen, dann das Formular.
+        testCase "Esc im Feld lässt „Neue Buchung“ offen, erst das nächste Esc schließt sie" <| fun () ->
+            let opened = modelWith (rows 3) |> step OpenCapture
+            let fromField, sent = run EscapePressedInField opened
+            Expect.isSome fromField.Capture "kaputt-Szenario: Esc im Feld schließt das Formular nicht"
+            Expect.equal sent [ BlurFocusedField ] "es verlässt nur das Feld"
+            Expect.isNone (fromField |> step EscapePressed).Capture "intakt: Esc außerhalb des Felds schließt es"
+            // Eine offene Auswahl im Formular schließt Esc auch aus ihrem Suchfeld.
+            let picking = opened |> step (OpenCapturePicker Components.Ledger.Capture.CaptureAccountPicker)
+            let closedPicker = picking |> step EscapePressedInField
+            Expect.isSome closedPicker.Capture "Formular bleibt"
+            Expect.isNone (closedPicker.Capture |> Option.bind (fun c -> c.Picker)) "Auswahl zu"
+            // Ohne „Neue Buchung“ schließt Esc aus einem Feld weiter das Detail (ADR 0096).
+            let detail = modelWith (rows 3) |> step (OpenDetail (entry 1 true))
+            Expect.isNone (detail |> step EscapePressedInField).DetailFor "Detail zu"
     ]
 
 [<Tests>]

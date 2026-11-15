@@ -3129,6 +3129,14 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             NoOp
         | _ -> model, Cmd.none, NoOp
 
+    | BlurFocusedField ->
+        model,
+        Cmd.ofEffect (fun _ ->
+            match Browser.Dom.document.activeElement with
+            | null -> ()
+            | element -> (element :?> Browser.Types.HTMLElement).blur ()),
+        NoOp
+
     | RestorePayeeRowFocus ->
         model,
         Cmd.ofEffect (fun _ ->
@@ -4646,7 +4654,9 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             elif model.Review |> Option.exists (fun r -> r.DetailShown) then updateCore CloseDetail model
             else model, Cmd.none, LeaveReview
 
-    | EscapePressed ->
+    | EscapePressed
+    | EscapePressedInField ->
+        let fromField = (msg = EscapePressedInField)
         // Ein Esc schließt genau eine Stufe: Popover, dann Detail, dann Auswahl. Liegt der
         // Fokus im Popover, behandelt es Esc selbst und das Ereignis erreicht das Dokument
         // nicht; liegt er auf dem Chip, schließt diese Stufe es.
@@ -4672,7 +4682,10 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         else
             match model.Capture with
             // „Neue Buchung“ im Panel (design-system-gcpws): dieselbe Kette wie im Dialog (`captureEscapeMsg`).
-            | Some capture -> updateCore (captureEscapeMsg capture) model
+            | Some capture ->
+                match captureEscapeFor fromField capture with
+                | LeaveField -> model, Cmd.ofMsg BlurFocusedField, NoOp
+                | CaptureStep step -> updateCore step model
             | None ->
                 // Der Rest folgt der gemeinsamen Regel (`ListKeys.escapeStep`, ADR 0096 Punkt 2): erst das Detail,
                 // die Auswahl bleibt, dann die Auswahl.

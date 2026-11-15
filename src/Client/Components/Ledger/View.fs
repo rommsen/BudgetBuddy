@@ -4423,7 +4423,7 @@ let captureShellFor (panelViewport: bool) : CaptureShell =
     if panelViewport then CaptureDialog else CaptureSheet
 
 /// Esc am Dokument, solange der Dialog „Neue Buchung“ offen ist: auch wenn der Fokus noch auf „Buchung“ im Kopf
-/// der Übersicht steht. Ein Ereignis, das schon jemand behandelt hat (Popover der Kategorie), bleibt unberührt.
+/// der Übersicht steht. Aus einem Feld verlässt Esc erst das Feld (`captureEscapeFor`). Ein Ereignis, das schon jemand behandelt hat (Popover der Kategorie), bleibt unberührt.
 [<ReactComponent>]
 let private CaptureDialogEscape (capture: Capture.CaptureState) (dispatch: Msg -> unit) =
     let latest = React.useRef (capture, dispatch)
@@ -4435,7 +4435,11 @@ let private CaptureDialogEscape (capture: Capture.CaptureState) (dispatch: Msg -
                 if e.key = "Escape" && not e.defaultPrevented then
                     let current, send = latest.current
                     e.preventDefault ()
-                    send (captureEscapeMsg current)
+                    let target = e.target :?> Browser.Types.HTMLElement
+                    let fromField = not (isNull target) && isTypingTarget target.tagName target.isContentEditable
+                    match captureEscapeFor fromField current with
+                    | LeaveField -> target.blur ()
+                    | CaptureStep step -> send step
             Browser.Dom.document.addEventListener ("keydown", onKey)
             React.createDisposable (fun () -> Browser.Dom.document.removeEventListener ("keydown", onKey))),
         [||]
