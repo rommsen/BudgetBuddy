@@ -205,7 +205,7 @@ Zuletzt aktualisiert: 2026-11-15 nachts, nach work-Lauf und Review Schnitt 8 (Ka
     im Filter-Sheet fehlen die Trennlinien des Prototyps; „Abrufen“ und „Jetzt spiegeln“ sehen bei 412 px fast gleich aus.
 - **Nächster Schritt:** Deploy auf Romans Anweisung (ledger-sre0f und Schnitt 8, Produktion steht auf 5a0d5394). Eine noch offene
   alte PWA läuft weiter (fehlende Richtung gilt als „Alle“, `Search` ist optional), ihre Payee- und Memo-Filter wirken aber
-  erst nach dem Neuladen nicht mehr; einmal neu laden. Danach die Rückfragen oben.
+  nicht mehr, der Server kennt sie nicht; nach dem Neuladen gibt es dafür die Suche. Danach die Rückfragen oben.
   ledger-ayjzq (Sicht „Für mich“) bleibt eigene Task nach einem Gespräch mit Roman. Romans Blick offen außerdem:
   ledger-pnjz3 und categorization-m47g8, ledger-ea70s und ledger-hg5m5 (Sichtpunkte 1 bis 5 oben). Offen zum Verfeinern:
   ledger-h7de3 (Fehlertexte in Ereignissen), design-system-vf94m (Toast verdeckt „+ Buchung“), ledger-t4rk8 (Betrag eines
