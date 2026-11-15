@@ -1,7 +1,7 @@
 ---
 id: ledger-pkrwd
 title: "Payee einer Buchung leeren: im Detail den Payee entfernen, nach YNAB ohne Payee zurückschreiben"
-status: todo
+status: doing
 type: feature
 context: ledger
 created: 2026-11-15

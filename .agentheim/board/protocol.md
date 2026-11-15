@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-15 16:38 -- Batch started: [ledger-pkrwd]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-pkrwd - "Payee einer Buchung leeren: im Detail den Payee entfernen, nach YNAB ohne Payee zurückschreiben"
+**Parallel:** scoped — builder named ledger-pkrwd; läuft neben dem Review-Lauf zu design-system-gcpws (Worktrees rf2-budget, rf2-dsys)
+
+---
+
 ## 2026-11-15 16:36 -- Modeling / Promoted: ledger-pkrwd - "Payee einer Buchung leeren: im Detail den Payee entfernen, nach YNAB ohne Payee zurückschreiben"
 
 **Type:** Modeling / Promote
