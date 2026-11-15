@@ -343,9 +343,22 @@ let panelRow (model: Model) : (TargetCheckRow * TargetForm) option =
 /// Was die Liste von Targets prüfen kann (§7.8): keine Mehrfachauswahl, keine Tabs, keine Suche.
 let targetCheckListTraits : ListKeys.Traits = { MultiSelect = false; Tabs = false; Search = false; TypeToSearch = false }
 
-/// Esc schließt „Anpassen …“ am PC (F5, design-system-gcpws), über die gemeinsame Regel (`ListKeys.actionFor`). Die
-/// Pfeile belegt die Seite nicht: die Zeilen tragen eigene Knöpfe, das Panel ist ein Formular (F5).
-let targetCheckClosesOn (model: Model) (focus: ListKeys.Focus) (command: bool) (shift: bool) (handled: bool) (key: string) : bool =
+/// Die Kategorie, deren Panel offen ist: dieselbe Bedingung wie `panelRow` (Kategorie und Monat). Ihre Zeile ist
+/// hinterlegt und ihr "Anpassen …" trägt `aria-expanded`.
+let panelCategory (model: Model) : System.Guid option =
+    panelRow model |> Option.map (fun (row, _) -> row.CategoryId)
+
+/// Die Sperrlage des Panels: `targetFormLocksFor` mit dem Monat des Formulars und der Herkunft Panel.
+let panelLocks (model: Model) (form: TargetForm) : TargetFormLocks =
+    targetFormLocksFor model form.CategoryId form.Month FromCheckPanel
+
+/// Was Esc auf der Seite am PC auslöst (F5, design-system-gcpws), über die gemeinsame Regel (`ListKeys.actionFor`).
+/// Die offene Rückfrage im Panel (Warnung vor dem Wechsel der Art, Bestätigung von "Target entfernen") ist eine
+/// eigene Stufe davor: Esc schließt zuerst sie, die Eingabe bleibt. Erst danach schließt Esc „Anpassen …“. Solange
+/// der Aufruf des Panels läuft, schließt Esc nichts. Die Pfeile belegt die Seite nicht: die Zeilen tragen eigene
+/// Knöpfe, das Panel ist ein Formular (F5).
+let targetCheckKeyMsg (model: Model) (focus: ListKeys.Focus) (command: bool) (shift: bool) (handled: bool) (key: string) : Msg option =
+    let panel = panelRow model
     let action =
         ListKeys.actionFor
             targetCheckListTraits
@@ -355,19 +368,16 @@ let targetCheckClosesOn (model: Model) (focus: ListKeys.Focus) (command: bool) (
               Shift = shift
               Handled = handled
               LayerOpen = false
-              RowSelected = (panelRow model).IsSome
-              PanelOpen = (panelRow model).IsSome
+              RowSelected = panel.IsSome
+              PanelOpen = panel.IsSome
               SelectionActive = false }
-    action = ListKeys.ClosePanel
-
-/// Die Kategorie, deren Panel offen ist: dieselbe Bedingung wie `panelRow` (Kategorie und Monat). Ihre Zeile ist
-/// hinterlegt und ihr "Anpassen …" trägt `aria-expanded`.
-let panelCategory (model: Model) : System.Guid option =
-    panelRow model |> Option.map (fun (row, _) -> row.CategoryId)
-
-/// Die Sperrlage des Panels: `targetFormLocksFor` mit dem Monat des Formulars und der Herkunft Panel.
-let panelLocks (model: Model) (form: TargetForm) : TargetFormLocks =
-    targetFormLocksFor model form.CategoryId form.Month FromCheckPanel
+    match panel with
+    | Some (_, form) when action = ListKeys.ClosePanel ->
+        if (panelLocks model form).Running.IsSome then None
+        elif form.ConfirmingChange then Some CancelCheckTargetChange
+        elif form.ConfirmingRemove then Some CancelRemoveCheckTarget
+        else Some CloseCheckPanel
+    | _ -> None
 
 let private changePanel (change: Target option -> TargetFormLocks -> TargetForm -> TargetForm) (model: Model) : Model =
     match panelRow model with

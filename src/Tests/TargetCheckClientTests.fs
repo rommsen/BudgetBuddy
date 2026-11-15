@@ -801,11 +801,37 @@ let private keyTests =
                                             { Key = k; Focus = focus; Command = command; Shift = shift; Handled = handled; LayerOpen = false
                                               RowSelected = (panelRow model).IsSome; PanelOpen = (panelRow model).IsSome; SelectionActive = false }
                                     Expect.equal
-                                        (targetCheckClosesOn model focus command shift handled k)
-                                        (expected = Client.DesignSystem.ListKeys.ClosePanel)
+                                        (targetCheckKeyMsg model focus command shift handled k)
+                                        (if expected = Client.DesignSystem.ListKeys.ClosePanel then Some CloseCheckPanel else None)
                                         $"{k} {focus} {command} {shift} {handled}"
-            Expect.isTrue (targetCheckClosesOn opened Client.DesignSystem.ListKeys.Elsewhere false false false "Escape") "Esc"
+            Expect.equal (targetCheckKeyMsg opened Client.DesignSystem.ListKeys.Elsewhere false false false "Escape") (Some CloseCheckPanel) "Esc"
             Expect.isNone (panelRow (opened |> step CloseCheckPanel)) "zu"
+        }
+
+        // Bug (Review nach design-system-gcpws): Esc schloss bei offener Rückfrage das ganze Panel samt Eingabe. Die
+        // Rückfrage ist eine eigene Stufe: Esc schließt zuerst sie, das Panel bleibt mit der Eingabe offen.
+        test "Esc bei offener Rückfrage schließt nur die Rückfrage, beim zweiten Esc geht das Panel zu" {
+            let esc model = targetCheckKeyMsg model Client.DesignSystem.ListKeys.Elsewhere false false false "Escape"
+            let changing = loaded () |> step (AdjustTarget lessId) |> step (CheckRhythmChanged Monthly) |> step SaveCheckTarget
+            Expect.isTrue (panelOf changing).ConfirmingChange "Warnung vor dem Wechsel offen (der Wochentag ginge verloren)"
+            Expect.equal (esc changing) (Some CancelCheckTargetChange) "Wechsel: nur die Warnung"
+            let afterChange = changing |> step CancelCheckTargetChange
+            Expect.equal (panelOf afterChange).RhythmInput (Some Monthly) "Eingabe bleibt"
+            Expect.equal (esc afterChange) (Some CloseCheckPanel) "danach das Panel"
+            let removing = loaded () |> step (AdjustTarget fitsId) |> step AskRemoveCheckTarget
+            Expect.equal (esc removing) (Some CancelRemoveCheckTarget) "Entfernen: nur die Bestätigung"
+            Expect.equal (esc (removing |> step CancelRemoveCheckTarget)) (Some CloseCheckPanel) "danach das Panel"
+            Expect.equal (targetCheckKeyMsg removing Client.DesignSystem.ListKeys.Elsewhere true false false "Escape") None "mit Zusatztaste nichts"
+        }
+
+        // Bug (Review nach design-system-gcpws): Esc schloss das Panel, während sein Aufruf lief.
+        test "Esc während das Panel speichert schließt nichts, ein Aufruf aus der Zeile sperrt Esc nicht" {
+            let esc model = targetCheckKeyMsg model Client.DesignSystem.ListKeys.Elsewhere false false false "Escape"
+            let saving = loaded () |> step (AdjustTarget moreId) |> step (CheckAmountChanged "170") |> step SaveCheckTarget
+            Expect.isSome (targetCallOrigin moreId current saving) "Aufruf läuft"
+            Expect.equal (esc saving) None "Panel bleibt"
+            let fromRow = loaded () |> step (TakeSuggestion lessId) |> step (AdjustTarget moreId)
+            Expect.equal (esc fromRow) (Some CloseCheckPanel) "fremder Aufruf"
         }
     ]
 

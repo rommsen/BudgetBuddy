@@ -471,12 +471,14 @@ let view (model: Model) (dispatch: Msg -> unit) =
             prop.children [
                 header (loaded |> Option.map (fun (data, groups) -> data, checkCounts groups)) dispatch
                 // ADR 0043: zur Renderzeit genau eine Hülle. Ohne "Anpassen …" ist das Panel zu.
-                // Esc schließt „Anpassen …“ am PC (F5, design-system-gcpws).
+                // Esc schließt am PC erst eine offene Rückfrage, dann „Anpassen …“ (F5, design-system-gcpws).
                 if isPanel then
                     PageKeys.OnDocument (fun e ->
-                        if targetCheckClosesOn model (PageKeys.focusOf None e.target) (e.altKey || e.ctrlKey || e.metaKey) e.shiftKey e.defaultPrevented e.key then
+                        match targetCheckKeyMsg model (PageKeys.focusOf None e.target) (e.altKey || e.ctrlKey || e.metaKey) e.shiftKey e.defaultPrevented e.key with
+                        | Some msg ->
                             e.preventDefault ()
-                            dispatch CloseCheckPanel)
+                            dispatch msg
+                        | None -> ())
                 if isPanel then
                     match panelRow model with
                     | Some _ ->
