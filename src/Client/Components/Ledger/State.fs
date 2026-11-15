@@ -4671,9 +4671,8 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             updateCore CancelMemoEdit model
         else
             match model.Capture with
-            // „Neue Buchung“ im Panel (design-system-gcpws): erst die Auswahl darin, dann das Formular wie „Abbrechen“.
-            | Some capture when capture.Picker.IsSome -> updateCore CloseCapturePicker model
-            | Some _ -> updateCore CloseCapture model
+            // „Neue Buchung“ im Panel (design-system-gcpws): dieselbe Kette wie im Dialog (`captureEscapeMsg`).
+            | Some capture -> updateCore (captureEscapeMsg capture) model
             | None ->
                 // Der Rest folgt der gemeinsamen Regel (`ListKeys.escapeStep`, ADR 0096 Punkt 2): erst das Detail,
                 // die Auswahl bleibt, dann die Auswahl.

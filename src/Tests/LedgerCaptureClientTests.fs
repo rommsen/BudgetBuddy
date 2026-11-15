@@ -640,7 +640,7 @@ let accountListTests =
 /// Dialog schließt eine Stufe, erst die Kontoliste, dann das Formular, nie während „Buchung anlegen“ läuft.
 [<Tests>]
 let overviewDialogTests =
-    let escape (model: Model) = step (Components.Ledger.View.captureEscapeMsg (captureOf model)) model
+    let escape (model: Model) = step (Components.Ledger.Types.captureEscapeMsg (captureOf model)) model
     testList "Neue Buchung: Dialog auf der Übersicht am PC (ledger-s1weh)" [
         testCase "ab 1024 px öffnet das Formular als Dialog, darunter als Sheet" <| fun () ->
             Expect.equal (Components.Ledger.View.captureShellFor true) CaptureDialog "PC"

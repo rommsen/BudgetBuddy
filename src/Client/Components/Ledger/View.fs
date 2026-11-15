@@ -4422,12 +4422,6 @@ let private captureSheetView (dispatch: Msg -> unit) (model: Model) (capture: Ca
 let captureShellFor (panelViewport: bool) : CaptureShell =
     if panelViewport then CaptureDialog else CaptureSheet
 
-/// Was Esc im Dialog „Neue Buchung“ tut: erst die offene Kontoliste schließen, dann das Formular. Das Popover der
-/// Kategorie behandelt Esc selbst und hält das Ereignis an. Während „Buchung anlegen“ läuft, bleibt das Formular
-/// offen (`CloseCapture` prüft `Saving`).
-let captureEscapeMsg (capture: Capture.CaptureState) : Msg =
-    if capture.Picker.IsSome then CloseCapturePicker else CloseCapture
-
 /// Esc am Dokument, solange der Dialog „Neue Buchung“ offen ist: auch wenn der Fokus noch auf „Buchung“ im Kopf
 /// der Übersicht steht. Ein Ereignis, das schon jemand behandelt hat (Popover der Kategorie), bleibt unberührt.
 [<ReactComponent>]

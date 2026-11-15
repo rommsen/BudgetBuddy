@@ -2784,6 +2784,12 @@ type Msg =
     /// Eine Taste am PC (ohne Fokus in einem Feld).
     | ReviewKey of ReviewKeyAction
 
+/// Was Esc bei offenem Formular „Neue Buchung“ tut, im Dialog wie im Panel: erst die offene Auswahl darin schließen,
+/// dann das Formular wie „Abbrechen“. Das Popover der Kategorie behandelt Esc selbst und hält das Ereignis an. Während
+/// „Buchung anlegen“ läuft, bleibt das Formular offen (`CloseCapture` prüft `Saving`).
+let captureEscapeMsg (capture: Capture.CaptureState) : Msg =
+    if capture.Picker.IsSome then CloseCapturePicker else CloseCapture
+
 /// Was die Kassenbuch-Liste kann (§7.8): Mehrfachauswahl, keine Tabs im Panel, eine Suche, in die nicht getippt
 /// wird, weil G, L, J und K belegt sind; gesucht wird mit „/“ (F9, design-system-gcpws).
 let ledgerListTraits : ListKeys.Traits =
