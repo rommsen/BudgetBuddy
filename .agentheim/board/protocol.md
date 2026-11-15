@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-15 17:07 -- Review-Lauf: 98eaf680..5e45b028
+
+**Type:** Review / Review-Lauf
+**Bereich:** design-system-gcpws und ea612c26 (98eaf680..b8255f18), Fixes bis 5e45b028
+**Agents:** frontend-architecture, design-quality, qa-milestone-reviewer
+**Funde:** behoben 21, verworfen 2, Rückfrage 2 (beide entschieden), Ticket 0, Kann-Sammlung 7
+**Commits:** 84859355, a89aa2ad, d273a2c5, 65944a83, 59df0b16, 1284e2b7, 6a2bfbdc, 67481dc9, 5e45b028, c2a1e54c
+**Verworfen:** Rules/State.fs unerreichbarer Zweig bleibt mit Kommentar (sonst FS0025); ListKeysTests doppelter Esc-Test nur Kann-Zeile
+**Rückfragen:** Esc im Feld von Neue Buchung verlässt erst das Feld (Roman, gebaut 5e45b028); noch nicht in YNAB im Budget Gelb (Roman, in budgeting-wnkgj)
+**Verifikation:** VERIFY: PASS (dotnet 5128 grün, node 348 grün)
+
+---
+
 ## 2026-11-15 16:38 -- Batch started: [ledger-pkrwd]
 
 **Type:** Work / Batch start
