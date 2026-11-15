@@ -27,6 +27,13 @@ Die Figur nutzt Palette 2 aus der Skizze zu Etappe 1:
 - Die Düse ist im Entwurf noch orange. Orange gibt es in Palette 2 nicht mehr; für das fertige
   Symbol wird sie gold oder entfällt.
 
+## Vektorfassung (Entwurf 2026-11-15)
+
+`vektor/` enthält Kopf und Figur als flaches SVG, nachgezeichnet nach dem Entwurf (Euro statt Dollar,
+kein Glanz): `kopf.svg`, `kopf-klein.svg` (16 px), `figur-mit-duese.svg`, `figur-ohne-duese.svg` und die
+`maskable-*.svg` (Figur auf 76 %). `zeichnen.mjs` erzeugt alle Dateien neu (`node zeichnen.mjs` im Ordner).
+Welche Fassung gilt, entscheidet Roman in design-system-x1abn (Logo und Icon).
+
 ## Offen
 
 - Saubere Vektor-Fassung (SVG) von Kopf und Figur, ohne Hintergrundraster des Entwurfsblatts.

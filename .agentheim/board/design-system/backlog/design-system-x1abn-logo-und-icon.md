@@ -23,7 +23,8 @@ Buddy aus `standards/frontend/brand/` wird Marke in der Navigation und Icon der 
 ## Acceptance criteria
 Entwurf (2026-11-15, Conductor). Entschieden (Roman, 2026-11-15): F1 (a) Claude zeichnet nach, F2 „€“. F3 offen:
 Roman wählt zwischen Fassung A (goldene Düse) und B (ohne) in der Vorschau https://claude.ai/artifact/3hSxBqGL5XCUzECNgNpVVC
-(Entwurfs-SVGs im Scratchpad unter `buddy/`, beim Bau nach `src/Client/public/` übernehmen).
+(Entwurfs-SVGs und Zeichenskript in `standards/frontend/brand/vektor/`, `node zeichnen.mjs` erzeugt sie neu; beim Bau
+nach `src/Client/public/` übernehmen, die gewählte Fassung als Quelle der PNG-Größen).
 
 Vorlage
 - [ ] Saubere Vektorfassung von Kopf und ganzer Figur als SVG unter `src/Client/public/` (F1), in Palette 2 aus
