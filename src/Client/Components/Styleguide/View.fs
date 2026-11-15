@@ -988,6 +988,16 @@ let private calmListSection =
                         ]
                         PickerParts.footer 1 ignore ignore
                         Html.div [
+                            prop.className "rounded-2xl border border-border-subtle bg-surface-card overflow-clip"
+                            prop.children [
+                                // Ohne `ShortChoice` drumherum: die setzt beim Öffnen den Fokus, hier soll die Seite stehen bleiben.
+                                PickerParts.shortChoiceRow "Alltag" (Some "2 Kategorien") true ignore
+                                PickerParts.shortChoiceRow "Fixkosten" (Some "4 Kategorien") false ignore
+                                PickerParts.shortChoiceRow "Eine Gruppe mit einem langen Namen, der gekürzt werden muss" (Some "1 Kategorie") false ignore
+                            ]
+                        ]
+                        caption "PickerParts.shortChoiceRow: Zeile einer kurzen Auswahl ohne Suche (in ShortChoiceFor, §7.9), etwa die Gruppe in „Kategorie bearbeiten“; die gewählte mit Haken, auf ihr steht beim Öffnen der Fokus"
+                        Html.div [
                             prop.className "space-y-2"
                             prop.children [
                                 DateField.view { Value = None; OnChange = ignore; Invalid = false; Disabled = false; ReadOnly = false; Label = "Leer" }
@@ -2309,7 +2319,7 @@ let private DetailDemo () =
         ]
 
     section "25. Buchungs-Detail" [
-        note "Das Detail einer Buchung: Seitenpanel (420 px) am PC, BottomSheet am Handy und in der \
+        note "Das Detail einer Buchung: Seitenpanel (30 % der Fensterbreite, 380 bis 520 px) am PC, BottomSheet am Handy und in der \
               Kompaktliste. Kopf mit Payee, Betrag mit Prüfstand, Hinweisleiste mit Grund und genau einer Aktion, \
               Prüf-Knopf, Feldzeilen mit „alle zeigen“, Knopfzeile Aufteilen und Lena, aufklappbare Historie nach \
               §7.11, Herkunft. Farbe nur für Hinweis und Prüfstand (ADR 0049, ADR 0053, Prototyp Version 17)."
@@ -2689,7 +2699,7 @@ let private multiSelectSection =
 
         card "components-multiselect-summary-panel" "Mehrfachauswahl: Zusammenfassung im Panel" "Ab zwei gewählten Buchungen: Summe, Ausgaben, Einnahmen, Davon zu prüfen, nach Kategorie, Alle geprüft (§7.7, Prototyp selSummary)" [
             Html.div [
-                prop.className "flex h-[620px] w-[420px] max-w-full flex-col border-l border-border-default bg-surface-card"
+                prop.className $"flex h-[620px] {Tokens.PanelWidths.panel} max-w-full flex-col border-l border-border-default bg-surface-card"
                 prop.children (
                     MultiSelect.summaryPanel {
                         Title = "3 Buchungen ausgewählt"

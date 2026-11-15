@@ -296,17 +296,41 @@ module NavWidths =
     let fixedLeft = "md:left-[72px] lg:left-[232px]"
 
 /// Breite des Seitenpanels rechts neben einer Liste (§7.6, ab 1024 px) und was Spalte und feste Leisten daneben frei
-/// halten. Derselbe Wert wie `Detail.panelWidthPx` (420 px), als wörtliche Klassen, weil Tailwind nur Literale findet.
-/// Ändert sich die Breite, ändern sich `Detail.panelWidthPx` und alle drei.
+/// halten (design-system-gcpws, Prototyp Version 17 `--panel-w`). Das Panel nimmt 30 % der Fensterbreite, mindestens
+/// 380 px, höchstens 520 px. Die eine Quelle ist `panelWidthFor`: `Viewport.start` schreibt sie als CSS-Variable
+/// `--panel-w` auf das Dokument, die Klassen unten lesen die Variable, und die Spaltenwahl im Kassenbuch rechnet mit
+/// derselben Funktion. Wörtliche Klassen, weil Tailwind nur Literale findet.
 module PanelWidths =
+    /// Mindest- und Höchstbreite des Panels und sein Anteil an der Fensterbreite.
+    let minWidth = 380.0
+    let maxWidth = 520.0
+    let share = 0.3
+
+    /// Die Breite des Panels in Pixeln bei dieser Fensterbreite: `clamp(380px, 30vw, 520px)`.
+    let panelWidthFor (windowWidth: float) : float = max minWidth (min maxWidth (share * windowWidth))
+
+    /// Der Name der CSS-Variable, die `Viewport.start` setzt.
+    let cssVariable = "--panel-w"
+
     /// Die Breite des Panels.
-    let panel = "w-[420px]"
+    let panel = "w-[var(--panel-w)]"
     /// Der rechte Rand einer festen Leiste unten, die ab 1024 px am Panel endet: Panel und der rechte Seitenrand
     /// `px-6` (ledger-cnaz3, Prototyp `dselbar`).
-    let fixedRight = "lg:right-[calc(420px+1.5rem)]"
+    let fixedRight = "lg:right-[calc(var(--panel-w)+1.5rem)]"
     /// Der rechte Innenabstand der Spalte, in der das Panel liegt: Panel und 4 px, damit die Filterleiste mit Platz
-    /// für den Fokusring (`-mx-1`) nicht unter das Panel reicht (Layout-Sweep, Invariante 6).
-    let columnInset = "md:pr-[424px]"
+    /// für den Fokusring (`-mx-1`) nicht unter das Panel reicht (Layout-Sweep, Invariante 6). Kassenbuch und Regeln.
+    let columnInset = "md:pr-[calc(var(--panel-w)+4px)]"
+    /// Was `columnInset` zusätzlich zum Panel frei hält, in Pixeln (Spaltenwahl im Kassenbuch).
+    let columnInsetGap = 4.0
+    /// Der rechte Innenabstand der Spalte auf den Budget-Seiten (Budget, Targets prüfen, Kategorien): Panel und 16 px
+    /// Abstand zwischen Liste und Panel.
+    let columnInsetWide = "md:pr-[calc(var(--panel-w)+1rem)]"
+    /// Die Breite des Inhalts im Panel: Panel minus 2 × 16 px Rand (Popover „Kategorie setzen“ in der Zusammenfassung).
+    let panelContent = "w-[calc(var(--panel-w)-2rem)]"
+    /// Der rechte Innenabstand ohne Breakpoint, für eine Seite, die ihn nur am PC setzt (Detail im Durchgehen, F8).
+    let columnInsetPlain = "pr-[var(--panel-w)]"
+    /// Der rechte Rand eines Kopfs über der Spalte, der wie die Liste am Panel endet (Regeln: Panel und `pr-6`).
+    let headInset = "lg:pr-[calc(var(--panel-w)+1.5rem)]"
 
 // ============================================
 // Z-Index Tokens

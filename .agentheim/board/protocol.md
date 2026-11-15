@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-15 15:12 -- Task verified and completed: design-system-gcpws - "Liste mit Panel überall: Panel rund 30 % ab 1024 px, auch für Regeln, Erfassen, Targets prüfen und Kategorien, ein generischer Tastentest"
+
+**Type:** Work / Task completion
+**Task:** design-system-gcpws - "Liste mit Panel überall: Panel rund 30 % ab 1024 px, auch für Regeln, Erfassen, Targets prüfen und Kategorien, ein generischer Tastentest"
+**Summary:** Panel mit 30 % Breite und eine Tastenregel für alle Listen mit Panel
+**Duration:** 2h40m
+**Verification:** PASS (iteration 2)
+**Files changed:** 46
+**Tests added:** 36
+**ADRs written:** none
+
+---
+
 ## 2026-11-15 14:37 -- Modeling / Captured: ledger-zqst5 - "Kassenbuch am Handy: Suche, Filter-Knopf und Chips haften oben beim Scrollen"
 
 **Type:** Modeling / Capture

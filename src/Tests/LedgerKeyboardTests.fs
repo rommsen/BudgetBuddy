@@ -12,6 +12,8 @@ open Types
 open Components.Ledger.Types
 open Client.DesignSystem
 
+module ListKeys = Client.DesignSystem.ListKeys
+
 let private entry (n: int) (needsReview: bool) : LedgerEntryView =
     { LedgerSelectionTests.entryOf n (-10m * decimal n) needsReview false with NeedsReview = needsReview }
 
@@ -57,6 +59,11 @@ let moveTests =
         testCase "ohne Fokus setzt Pfeil ab die erste Zeile" <| fun () ->
             let model = modelWith (rows 3) |> step (MoveFocus 1)
             Expect.equal model.FocusedRow (Some (idOf 1)) "erste Zeile"
+
+        // design-system-gcpws, Bug (Tasten-Sweep T1): ↑ ohne Fokus markierte die erste statt der letzten Zeile (§7.8 Punkt 1).
+        testCase "ohne Fokus setzt Pfeil auf die letzte Zeile" <| fun () ->
+            let model = modelWith (rows 3) |> step (MoveFocus -1)
+            Expect.equal model.FocusedRow (Some (idOf 3)) "letzte Zeile"
 
         testCase "Pfeil ab und auf bewegen den Fokus um eine Zeile" <| fun () ->
             let down = modelWith (rows 3) |> focusOn 1 |> step (MoveFocus 1)
@@ -220,8 +227,10 @@ let keyBindingTests =
                 Expect.isNone (keyCommandFor tag false false false false false "Enter") $"Enter auf {tag}"
             // Esc bleibt auf einem Knopf wirksam: der Fokus nach einem Mausklick liegt oft dort.
             Expect.equal (keyCommandFor "BUTTON" false false false false false "Escape") (Some EscapePressed) "Esc auf Knopf"
+            // design-system-gcpws (§7.8 Punkt 6): Esc schließt eine Stufe auch aus einem Feld, „Neue Buchung“ im Panel
+            // hat den Fokus im Betrag. Welche Stufe, entscheidet `EscapePressed`.
             for tag in [ "INPUT"; "TEXTAREA"; "SELECT" ] do
-                Expect.isNone (keyCommandFor tag false false false false false "Escape") $"Esc im Feld {tag}"
+                Expect.equal (keyCommandFor tag false false false false false "Escape") (Some EscapePressed) $"Esc im Feld {tag}"
 
         // Die Seiten stehen nie zugleich im DOM, ihre Tasten kollidieren nicht.
         testCase "nur Kassenbuch, Tab Regeln und Budget-Seite hören auf Tasten am Dokument, kein anderes Kürzel kollidiert" <| fun () ->
@@ -241,7 +250,11 @@ let keyBindingTests =
                 |> Array.sort
             // categorization-n3sxw: der Tab „Regeln“ hört nur, solange er offen ist; die Tasten der Buchungen hängen
             // dann nicht im DOM (`Components.Ledger.View.view`, Zweig `BookingsTab`).
-            Expect.equal listeners [| "Components/Budget/View.fs"; "Components/Ledger/View.fs"; "Components/Rules/View.fs" |] "die einzigen Dokument-Handler"
+            // design-system-gcpws: Kategorien und Targets prüfen hängen über `PageKeys.OnDocument` am Dokument.
+            Expect.equal
+                listeners
+                [| "Components/Budget/View.fs"; "Components/Ledger/View.fs"; "Components/Rules/View.fs"; "DesignSystem/PageKeys.fs" |]
+                "die einzigen Dokument-Handler"
 
         // ledger-hg5m5, Bug: Am PC steht das Regel-Formular im Detail-Panel. Hatte ein Segment im Formular den Fokus
         // (ein Knopf, kein Feld), wechselte ↑↓/J/K die Buchung und der Entwurf war weg, g/G setzte den Prüfvermerk
@@ -258,7 +271,59 @@ let keyBindingTests =
             Expect.equal (ledgerKeyFor false "BODY" false false false false false "ArrowDown") (Some (PageAction (MoveFocus 1))) "Pfeil ab"
             Expect.equal (ledgerKeyFor false "BODY" false false false false false "g") (Some (PageAction (ReviewKeyPressed Reviewed))) "g"
             Expect.equal (ledgerKeyFor false "BUTTON" false false false false false "Escape") (Some (PageAction EscapePressed)) "Esc"
-            Expect.isNone (ledgerKeyFor false "INPUT" false false false false false "Escape") "Esc im Feld"
+            Expect.equal (ledgerKeyFor false "INPUT" false false false false false "Escape") (Some (PageAction EscapePressed)) "Esc im Feld"
+    ]
+
+// design-system-gcpws: das Kassenbuch bildet seine eigenen Tasten (J/K, G, L, Enter, Leertaste) vor der gemeinsamen
+// Regel ab; alles andere folgt `ListKeys.actionFor` und damit dem Orakel aus §7.8 (`ListKeysTests.oracle`).
+[<Tests>]
+let commonRuleTests =
+    let own = [ "j"; "J"; "k"; "K"; "g"; "G"; "l"; "L"; "Enter"; " " ]
+    let expectedFor (action: ListKeys.Action) : Msg option =
+        match action with
+        | ListKeys.FirstRow | ListKeys.StepRow ListKeys.Forward -> Some (MoveFocus 1)
+        | ListKeys.LastRow | ListKeys.StepRow ListKeys.Backward -> Some (MoveFocus -1)
+        | ListKeys.ExtendSelection ListKeys.Forward -> Some (ExtendSelection 1)
+        | ListKeys.ExtendSelection ListKeys.Backward -> Some (ExtendSelection -1)
+        | ListKeys.FocusSearch -> Some FocusSearch
+        | ListKeys.ClosePanel | ListKeys.ClearSelection -> Some EscapePressed
+        | _ -> None
+    testList "Kassenbuch: Tasten nach der gemeinsamen Regel" [
+        testCase "jede Taste außer den eigenen folgt der gemeinsamen Regel, mit Mehrfachauswahl und ohne Tippen in die Suche" <| fun () ->
+            let mismatches =
+                [ for tag in [ "BODY"; "INPUT"; "BUTTON"; "TEXTAREA" ] do
+                    for inSearch in [ false; true ] do
+                        for ctrlOrMeta in [ false; true ] do
+                            for alt in [ false; true ] do
+                                for shift in [ false; true ] do
+                                    for key in ListKeysTests.keys do
+                                        let command = ctrlOrMeta || alt
+                                        let focus =
+                                            if inSearch then ListKeys.InSearch
+                                            elif tag = "INPUT" || tag = "TEXTAREA" then ListKeys.InTextField
+                                            else ListKeys.Elsewhere
+                                        let isOwn = not command && focus = ListKeys.Elsewhere && List.contains key own
+                                        if not isOwn then
+                                            let expected =
+                                                expectedFor (
+                                                    ListKeysTests.oracle
+                                                        { MultiSelect = true; Tabs = false; Search = true; TypeToSearch = false }
+                                                        { Key = key; Focus = focus; Command = command; Shift = shift; Handled = false
+                                                          LayerOpen = false; RowSelected = true; PanelOpen = true; SelectionActive = true }
+                                                )
+                                            let actual = keyCommandFor tag false inSearch ctrlOrMeta alt shift key
+                                            if actual <> expected then tag, inSearch, ctrlOrMeta, alt, shift, key, actual, expected ]
+            Expect.isEmpty (List.truncate 5 mismatches) $"{List.length mismatches} Abweichungen"
+
+        // design-system-gcpws: „Neue Buchung“ im Panel schloss mit Esc nicht, die Kette kannte das Formular nicht.
+        testCase "Esc schließt „Neue Buchung“ im Panel, eine offene Auswahl darin zuerst" <| fun () ->
+            let opened = modelWith (rows 3) |> step OpenCapture
+            Expect.isSome opened.Capture "Formular offen"
+            let picking = opened |> step (OpenCapturePicker Components.Ledger.Capture.CaptureAccountPicker)
+            let first = picking |> step EscapePressed
+            Expect.isSome first.Capture "die Auswahl schließt zuerst, das Formular bleibt"
+            Expect.isNone (first.Capture |> Option.bind (fun c -> c.Picker)) "Auswahl zu"
+            Expect.isNone (first |> step EscapePressed).Capture "dann schließt das Formular"
     ]
 
 [<Tests>]

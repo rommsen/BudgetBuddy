@@ -7,6 +7,7 @@ module Client.DesignSystem.CategoryMultiSelect
 
 open System
 open Feliz
+open Fable.Core.JsInterop
 open Shared.Domain
 
 type CategoryMultiSelectProps = {
@@ -34,33 +35,108 @@ let private categoryMatchesSearch (search: string) (c: YnabCategory) : bool =
     || c.Name.ToLowerInvariant().Contains(search.Trim().ToLowerInvariant())
     || c.GroupName.ToLowerInvariant().Contains(search.Trim().ToLowerInvariant())
 
-let private categoryRowKeyed (keyPrefix: string) (props: CategoryMultiSelectProps) (c: YnabCategory) =
-    let guid = categoryGuidOf c.Id
-    PickerParts.row
-        "py-2"
-        [ prop.key (keyPrefix + string guid) ]
-        (Input.checkboxListRow (props.Selected.Contains guid) (fun _ -> props.OnToggle guid) c.Name)
-        (c.Available |> Option.map (fun m -> m.Amount, m.Currency))
+/// Die Liste der Optionen und die Id einer Zeile, auf die das Suchfeld per `aria-activedescendant` verweist.
+let listboxId = "category-multi-select-listbox"
+let optionId (index: int) : string = $"category-multi-select-option-{index}"
 
-let private categoryRow (props: CategoryMultiSelectProps) (c: YnabCategory) = categoryRowKeyed "" props c
+/// Pfeil und Enter im Suchfeld (§7.9, design-system-gcpws): ↓ ohne Markierung die erste, ↑ die letzte Zeile, am Rand
+/// bleibt die Markierung stehen; Enter schaltet die markierte Zeile genau einmal. `count`: die sichtbaren Zeilen.
+type MultiKey =
+    | MarkRow of int
+    | ToggleRow of int
+    | KeepKey
 
-let view (props: CategoryMultiSelectProps) : ReactElement =
+let keyAction (key: string) (count: int) (active: int option) : MultiKey =
+    match key, active with
+    | "ArrowDown", None when count > 0 -> MarkRow 0
+    | "ArrowDown", Some i when count > 0 -> MarkRow (min (count - 1) (i + 1))
+    | "ArrowUp", None when count > 0 -> MarkRow (count - 1)
+    | "ArrowUp", Some i when count > 0 -> MarkRow (max 0 (i - 1))
+    | "Enter", Some i when i < count -> ToggleRow i
+    | _ -> KeepKey
+
+[<ReactComponent>]
+let private MultiSelectContent (props: CategoryMultiSelectProps) =
+    let active, setActive = React.useState<int option> None
+    let containerRef = React.useRef<Browser.Types.HTMLElement option> None
     let visibleGroups =
         props.Categories
         |> List.filter (fun c -> not c.Hidden && categoryMatchesSearch props.Search c)
         |> List.groupBy (fun c -> c.GroupName)
 
     let hidden = props.Categories |> List.filter (fun c -> c.Hidden)
+    let showRecent = not (List.isEmpty props.Recent) && String.IsNullOrWhiteSpace props.Search
+    let shownHidden = if props.HiddenExpanded then hidden |> List.filter (categoryMatchesSearch props.Search) else []
+    // Die Zeilen in der Reihenfolge der Liste: Zuletzt verwendet, Gruppen, Versteckt. Einmal je Render.
+    let rows =
+        [ if showRecent then yield! props.Recent
+          for (_, items) in visibleGroups do yield! items
+          yield! shownHidden ]
+        |> List.map (fun c -> categoryGuidOf c.Id)
+    let count = List.length rows
+
+    // Am PC steht der Fokus beim Öffnen in der Suche, am Handy nicht (die Tastatur käme sonst).
+    React.useEffectOnce (fun () ->
+        if Viewport.isFinePointer () then
+            match containerRef.current with
+            | Some el ->
+                let field = el.querySelector "input[type='text'], input:not([type])"
+                if not (isNull field) then (field :?> Browser.Types.HTMLElement).focus ()
+            | None -> ())
+
+    // Die markierte Zeile rückt ins Bild.
+    React.useEffect (
+        (fun () ->
+            match active, containerRef.current with
+            | Some i, Some el ->
+                let target = el.querySelector $"#{optionId i}"
+                if not (isNull target) then target?scrollIntoView (createObj [ "block" ==> "nearest" ])
+            | _ -> ()),
+        [| box active |]
+    )
+
+    let counter = ref 0
+    let row (keyPrefix: string) (c: YnabCategory) =
+        let index = counter.Value
+        counter.Value <- index + 1
+        let guid = categoryGuidOf c.Id
+        let marked = active = Some index
+        PickerParts.row
+            (if marked then "py-2 rounded-lg bg-surface-hover" else "py-2")
+            // Ohne `role="option"`: die Zeile trägt ein Kästchen, Bildschirmleser lesen dessen Zustand.
+            [ prop.key (keyPrefix + string guid)
+              prop.id (optionId index)
+              if marked then prop.custom ("data-marked", "true") ]
+            (Input.checkboxListRow (props.Selected.Contains guid) (fun _ -> props.OnToggle guid) c.Name)
+            (c.Available |> Option.map (fun m -> m.Amount, m.Currency))
 
     Html.div [
+        prop.ref containerRef
         prop.className "flex flex-col gap-3"
+        prop.onKeyDown (fun e ->
+            match keyAction e.key count (active |> Option.filter (fun i -> i < count)) with
+            | MarkRow i ->
+                e.preventDefault ()
+                setActive (Some i)
+            | ToggleRow i ->
+                e.preventDefault ()
+                props.OnToggle (List.item i rows)
+            | KeepKey -> ())
         prop.children [
-            PickerParts.searchField props.Search props.OnSearchChange "Kategorie suchen…"
+            PickerParts.comboSearchField
+                props.Search
+                (fun v ->
+                    props.OnSearchChange v
+                    setActive None)
+                "Kategorie suchen…"
+                listboxId
+                (active |> Option.filter (fun i -> i < count) |> Option.map optionId)
 
             Html.div [
+                prop.id listboxId
                 prop.className "flex flex-col gap-3 max-h-72 overflow-y-auto"
                 prop.children [
-                    if not (List.isEmpty props.Recent) && String.IsNullOrWhiteSpace props.Search then
+                    if showRecent then
                         Html.div [
                             prop.key "zuletzt-verwendet"
                             prop.custom ("data-testid", "category-recent")
@@ -68,7 +144,7 @@ let view (props: CategoryMultiSelectProps) : ReactElement =
                                 PickerParts.groupHeader "Zuletzt verwendet"
                                 Html.div [
                                     prop.className "flex flex-col"
-                                    prop.children (props.Recent |> List.map (categoryRowKeyed "recent-" props))
+                                    prop.children (props.Recent |> List.map (row "recent-"))
                                 ]
                             ]
                         ]
@@ -80,7 +156,7 @@ let view (props: CategoryMultiSelectProps) : ReactElement =
                                 PickerParts.groupHeader groupName
                                 Html.div [
                                     prop.className "flex flex-col"
-                                    prop.children (items |> List.map (categoryRow props))
+                                    prop.children (items |> List.map (row ""))
                                 ]
                             ]
                         ]
@@ -101,10 +177,7 @@ let view (props: CategoryMultiSelectProps) : ReactElement =
                                 if props.HiddenExpanded then
                                     Html.div [
                                         prop.className "flex flex-col"
-                                        prop.children (
-                                            hidden
-                                            |> List.filter (categoryMatchesSearch props.Search)
-                                            |> List.map (categoryRow props))
+                                        prop.children (shownHidden |> List.map (row ""))
                                     ]
                             ]
                         ]
@@ -114,3 +187,6 @@ let view (props: CategoryMultiSelectProps) : ReactElement =
             PickerParts.footerWhen props.ApplyDisabled (Set.count props.Selected) props.OnReset props.OnApply
         ]
     ]
+
+/// Die Auswahl. Ein eigener Baustein mit Zustand für die Markierung (§7.9).
+let view (props: CategoryMultiSelectProps) : ReactElement = MultiSelectContent props

@@ -12,7 +12,7 @@
 // `height` (Höhe des Viewports), `checks` (nur diese Invarianten). Die Fixtures tragen lange Namen und große
 // Beträge (Invariante 4).
 
-import { HANDY_WIDTHS, PAGE_WIDTHS, TABLE_WIDTHS, settle } from "./layout-invariants.mjs";
+import { HANDY_WIDTHS, PAGE_WIDTHS, PANEL_WIDTHS, TABLE_WIDTHS, settle } from "./layout-invariants.mjs";
 import { mockCapture } from "./ledger-capture-fixture.mjs";
 import { buildAccountsFixture, buildBalancesFixture, buildCategoriesFixture, buildEntryFixture, CATEGORY_IDS, fixtureGuid, mockFilterBarApi, mockRunningMirror } from "./ledger-filter-bar.mjs";
 
@@ -775,11 +775,18 @@ export const STATES = [
   {
     name: "budget-buchungen",
     route: "/budget",
-    widths: [...HANDY_WIDTHS, 1440],
+    // design-system-gcpws, Abweichung (a) vom Prototyp (G11): das Panel nimmt 30 % des Fensters; neben ihm steht die
+    // Budget-Tabelle (rund 640 px Liste, Schwelle `@min-[40rem]`) erst ab rund 1340 px, bei 1024 und 1280 px die Zeilen
+    // wie am Handy. Bei 1280 px ragte die Tabelle sonst 40 px unter das Panel. Nachsehen in budgeting-wnkgj.
+    widths: [...HANDY_WIDTHS, ...PANEL_WIDTHS],
     mock: mockBudget,
-    open: async (page, { mobile }) => {
+    open: async (page, { mobile, width }) => {
       await openInspector(page, mobile, "Essen", "Buchungen");
       await page.locator('[data-testid="detail-entry"]:visible').first().waitFor();
+      if (!mobile) {
+        const table = await page.locator('[data-testid="budget-page"] table').filter({ visible: true }).count();
+        if ((table > 0) !== width >= 1440) throw new Error(`Budget-Tabelle bei ${width} px ${table > 0 ? "sichtbar" : "nicht sichtbar"}`);
+      }
     },
   },
   // budgeting-x4k7p, budgeting-v6m3z: Tab Historie mit langem Fehlgrund und Ausgaben-Balken.
@@ -939,7 +946,7 @@ export const STATES = [
   {
     name: "targets-pruefen-anpassen",
     route: "/budget/target-check",
-    widths: [...HANDY_WIDTHS, 1280],
+    widths: [...HANDY_WIDTHS, ...PANEL_WIDTHS],
     mock: mockTargetCheck,
     open: async (page) => {
       const row = page.locator('[data-testid="target-check-row"]').filter({ hasText: "Essen" });
@@ -970,11 +977,23 @@ export const STATES = [
   {
     name: "kategorien-bearbeiten",
     route: "/budget/categories",
-    widths: [...HANDY_WIDTHS, 1280],
+    widths: [...HANDY_WIDTHS, ...PANEL_WIDTHS],
     mock: mockCategoryAdmin,
     open: async (page) => {
       await page.locator('[data-testid="categories-row"]').filter({ hasText: "Essen" }).click();
       await page.locator('[data-testid="categories-form"]:visible').first().waitFor();
+    },
+  },
+  // design-system-gcpws (G13): die Auswahl der Gruppe, am PC als Dialog über dem Panel, am Handy im Sheet.
+  {
+    name: "kategorien-gruppe-auswahl",
+    route: "/budget/categories",
+    widths: [...HANDY_WIDTHS, 1024, 1440],
+    mock: mockCategoryAdmin,
+    open: async (page) => {
+      await page.locator('[data-testid="categories-row"]').filter({ hasText: "Essen" }).click();
+      await page.locator('[data-testid="categories-group-field"]:visible').first().click();
+      await page.locator('[data-testid="categories-group-choice"]:visible button').first().waitFor();
     },
   },
   // ledger-qh9qx, ledger-qns4j (AC5), Regression ledger-filter-bar: Spaltenköpfe, Statuszelle mit zwei
@@ -1126,7 +1145,7 @@ export const STATES = [
   {
     name: "kassenbuch-detail",
     route: "/ledger",
-    widths: [...HANDY_WIDTHS, 412, 1440],
+    widths: [...HANDY_WIDTHS, 412, ...PANEL_WIDTHS],
     mock: async (page) => {
       await mockLedger(page);
       await page.route("**/api/LedgerApi/getEntryHistory", (r) => json(r, DETAIL_HISTORY));
@@ -1136,7 +1155,11 @@ export const STATES = [
       if (mobile) {
         scope = await openLedgerDetail(page, "AMAZON PAYMENTS");
       } else {
-        await page.locator("table tbody tr", { hasText: "AMAZON PAYMENTS" }).first().locator("td").nth(2).click();
+        // Neben dem Panel steht bei 1024 px die Kompaktliste, ab rund 1200 px die Tabelle (design-system-gcpws).
+        await openLedger(page);
+        const tableRow = page.locator("table tbody tr", { hasText: "AMAZON PAYMENTS" }).locator("visible=true");
+        if ((await tableRow.count()) > 0) await tableRow.first().locator("td").nth(2).click();
+        else await page.getByText("AMAZON PAYMENTS", { exact: true }).locator("visible=true").first().click();
         scope = page.locator('[data-testid="ledger-detail-panel"]');
         await scope.waitFor();
       }
@@ -1527,8 +1550,7 @@ export const STATES = [
   {
     name: "kassenbuch-erfassen-panel",
     route: "/ledger",
-    // Unter der Panel-Breite der Tabelle öffnet das Formular als Sheet wie das Detail (`detailFormFor`).
-    widths: [1440],
+    widths: PANEL_WIDTHS,
     mock: async (page) => {
       await mockApp(page);
       await mockCapture(page, { catchAll: false });
@@ -1542,7 +1564,7 @@ export const STATES = [
     // Das DS-Panel (`Detail.panel`, unverändert, gilt auch für das Buchungs-Detail) überlappt nach dem Scrollen ans
     // Ende den haftenden Tabellenkopf um 4 px und die feste Tastatur-Leiste um 9 px. Erster Zustand mit dem Panel am
     // PC; Kann-Sammlung ledger (ledger-at63w).
-    exceptions: [{ width: 1440, inv: 6, selector: '[data-testid="ledger-detail-panel"] und div' }],
+    exceptions: PANEL_WIDTHS.map((width) => ({ width, inv: 6, selector: '[data-testid="ledger-detail-panel"] und div' })),
   },
   // ledger-ea70s: die Kategorie-Auswahl im Buchungs-Detail ersetzt am Handy den Inhalt des Sheets (§7.15).
   {
@@ -1643,13 +1665,13 @@ export const STATES = [
   {
     name: "kassenbuch-auswahl-pc",
     route: "/ledger",
-    widths: [1440],
+    widths: PANEL_WIDTHS,
     mock: mockLedger,
     open: async (page) => {
       await openLedger(page);
-      const rows = page.locator("table tbody tr").filter({ has: page.getByRole("checkbox") });
-      for (const n of [0, 1, 2]) {
-        await rows.nth(n).getByRole("checkbox").click();
+      // Tabelle oder Kompaktliste (bei 1024 px neben dem Panel): die Kästchen der ersten drei Buchungen.
+      for (const payee of ["Bauhaus", "AMAZON PAYMENTS", "PayPal Shop"]) {
+        await page.getByRole("checkbox", { name: `${payee} auswählen` }).locator("visible=true").first().click();
       }
       await page.getByTestId("selection-summary").filter({ visible: true }).waitFor();
     },
@@ -1769,7 +1791,7 @@ export const STATES = [
   {
     name: "regeln-panel",
     route: "/ledger/rules",
-    widths: [1024, 1280, 1440],
+    widths: PANEL_WIDTHS,
     mock: mockRules,
     open: async (page) => {
       await openRule(page, "Regel eins");

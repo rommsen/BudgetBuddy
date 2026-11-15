@@ -14,6 +14,7 @@ open Types
 open Client
 
 module DateField = Client.DesignSystem.DateField
+module ListKeys = Client.DesignSystem.ListKeys
 
 // ============================================
 // Gemerkte Konto-Wahl (ledger-ybmqc)
@@ -4668,12 +4669,18 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             updateCore CancelPayeeEdit model
         elif model.MemoEdit.IsSome then
             updateCore CancelMemoEdit model
-        elif model.DetailFor.IsSome then
-            closeDetail model, Cmd.none, NoOp
-        elif model.SelectionMode || hasSelection model then
-            updateCore ClearSelection model
         else
-            model, Cmd.none, NoOp
+            match model.Capture with
+            // „Neue Buchung“ im Panel (design-system-gcpws): erst die Auswahl darin, dann das Formular wie „Abbrechen“.
+            | Some capture when capture.Picker.IsSome -> updateCore CloseCapturePicker model
+            | Some _ -> updateCore CloseCapture model
+            | None ->
+                // Der Rest folgt der gemeinsamen Regel (`ListKeys.escapeStep`, ADR 0096 Punkt 2): erst das Detail,
+                // die Auswahl bleibt, dann die Auswahl.
+                match ListKeys.escapeStep model.DetailFor.IsSome (model.SelectionMode || hasSelection model) with
+                | ListKeys.ClosePanel -> closeDetail model, Cmd.none, NoOp
+                | ListKeys.ClearSelection -> updateCore ClearSelection model
+                | _ -> model, Cmd.none, NoOp
 
 /// Die Antwort auf „Buchung anlegen“ kommt auf dieser Seite an (ledger-s1weh): Nur im Kassenbuch zeigt das Panel danach
 /// die neue Buchung, auf der Übersicht bleibt die Seite stehen. Der Rahmen kennt die Seite und setzt es vor der Antwort,

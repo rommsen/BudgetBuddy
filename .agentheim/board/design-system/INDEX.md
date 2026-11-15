@@ -10,10 +10,10 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 4
+- **Backlog:** 5
 - **Todo:** 0
-- **Doing:** 1
-- **Done:** 47
+- **Doing:** 0
+- **Done:** 48
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,11 +22,11 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **design-system-gcpws** — "Liste mit Panel überall: Panel rund 30 % ab 1024 px, auch für Regeln, Erfassen, Targets prüfen und Kategorien, ein generischer Tastentest" (feature) — `doing/design-system-gcpws-liste-mit-panel-ueberall.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)
 <!-- done-list:start -->
+- **design-system-gcpws** — "Liste mit Panel überall: Panel rund 30 % ab 1024 px, auch für Regeln, Erfassen, Targets prüfen und Kategorien, ein generischer Tastentest" (feature) — `done/design-system-gcpws-liste-mit-panel-ueberall.md`
 - **design-system-k6kfw** — "Navigation mit drei Orten: Übersicht, Kassenbuch, Budget, Einstellungen hinter dem Zahnrad, ab 768 px links; dazu eine schlichte Übersicht als Einstieg" (feature) — `done/design-system-k6kfw-navigation-mit-drei-orten.md`
 - **design-system-ak97z** — "Segmented mit KeepsFocus: Ausgabe/Einnahme im Sheet Betrag schließt die Tastatur nicht mehr" (bug) — `done/design-system-ak97z-segmented-keepsfocus.md`
 - **design-system-dak16** — "Palette 2 im Token-Layer: ein Akzent für Aktion und Auswahl, Gelb für braucht dich, keine Seitenausnahmen, Kontrast-Wächter" (feature) — `done/design-system-dak16-palette-2-im-token-layer.md`
@@ -38,6 +38,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **design-system-m4e7q** — "Modal: Esc schließt den Dialog auch ohne Fokus darin, der Fokus kehrt zum Auslöser zurück" (bug) — `backlog/design-system-m4e7q-modal-esc-und-fokus.md`
 - **design-system-vf94m** — "Toast am Handy oben statt unten: der Toast mit Rückgängig verdeckt heute den Knopf „+ Buchung“ (Styleguide §7.13)" (bug) — `backlog/design-system-vf94m-toast-am-handy-verdeckt-fab.md`
 - **design-system-x1abn** — "Logo und Icon: Buddy aus standards/frontend/brand/ als Marke und PWA-Icon" (feature) — `backlog/design-system-x1abn-logo-und-icon.md`
 - **design-system-k8s2m** — "Kann-Sammlung design-system" (chore) — `backlog/design-system-k8s2m-kann-sammlung-design-system.md`

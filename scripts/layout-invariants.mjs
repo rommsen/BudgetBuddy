@@ -48,6 +48,8 @@ export const MOBILE_BELOW = 768;
 // 412 (Romans Handy), 900 (Rail) und 1280 (Seitenleiste) seit design-system-k6kfw.
 export const PAGE_WIDTHS = [320, 390, 412, 768, 900, 1024, 1280, 1440, 1920];
 export const HANDY_WIDTHS = [320, 390];
+/// Breiten für Listen mit Panel (design-system-gcpws, §7.6): das Panel nimmt 30 % des Fensters, 380 bis 520 px.
+export const PANEL_WIDTHS = [1024, 1280, 1440, 1920];
 /// Breiten für die Spaltenköpfe des Kassenbuchs (Invariante 8).
 export const TABLE_WIDTHS = [800, 1024, 1280, 1440];
 

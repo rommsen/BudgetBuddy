@@ -415,7 +415,10 @@ let accountBalance (amount: decimal) (currency: string) =
 /// Akzent highlight as the desktop nav's active tab (`Navigation.desktopNavItem`).
 let accountListRowWith (label: string) (value: ReactElement) (isActive: bool) (onClick: unit -> unit) =
     Html.button [
+        prop.type' "button"
         prop.onClick (fun _ -> onClick ())
+        // Die gewählte Option: auf ihr steht der Fokus, wenn eine kurze Auswahl öffnet (`PickerParts.ShortChoice`, §7.9).
+        if isActive then prop.custom ("aria-current", "true")
         prop.className (
             // Am Handy 48 px Trefferfläche (Konto-Auswahl im Sheet, ledger-ea70s), ab md die kompakte Liste.
             $"w-full flex items-center justify-between gap-3 rounded-lg px-3 py-2 {Tokens.TouchTargets.mobileMinHeight} md:min-h-0 text-left transition-colors border-l-2 "

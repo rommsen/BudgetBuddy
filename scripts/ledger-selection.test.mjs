@@ -312,7 +312,7 @@ const countIn = async (page) => {
   return match ? Number(match[1]) : 0;
 };
 
-test("[tastatur] PC 1440x900: Leertaste wählt genau einmal, das Panel zeigt die eine gewählte Buchung, Esc-Kette", async () => {
+test("[tastatur] PC 1440x900: Leertaste wählt genau einmal, das Panel zeigt die eine gewählte Buchung, Klick und G ruhen bei Auswahl", async () => {
   const { page, context } = await openLedger({ width: 1440, height: 900 }, false);
   try {
     const box = (n) =>
@@ -351,36 +351,7 @@ test("[tastatur] PC 1440x900: Leertaste wählt genau einmal, das Panel zeigt die
     await page.keyboard.press("g");
     await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
     assert.equal(reviewCalls, 0, "G schreibt bei laufender Auswahl nichts");
-
-    // Esc schließt erst das Detail, dann die Auswahl.
-    await page.keyboard.press("Escape");
-    await page.getByTestId("ledger-panel-empty").waitFor();
-    assert.equal(await countIn(page), 1, "1. Esc: Detail zu, Auswahl bleibt");
-    await page.keyboard.press("Escape");
-    assert.equal(await countIn(page), 0, "2. Esc hebt die Auswahl auf");
-  } finally {
-    await context.close();
-  }
-});
-
-test("[tastatur] PC 1440x900: „/“ setzt den Fokus in die Suche, die Pfeile wirken von dort auf die Liste", async () => {
-  const { page, context } = await openLedger({ width: 1440, height: 900 }, false);
-  try {
-    const search = page.getByRole("searchbox", { name: "Buchungen durchsuchen" }).filter({ visible: true });
-    await page.keyboard.press("/");
-    await page.waitForFunction(() => document.activeElement?.closest("[data-testid='ledger-search']") !== null);
-    assert.equal(await search.inputValue(), "", "das „/“ steht nicht im Feld");
-    await page.keyboard.press("ArrowDown");
-    await page.keyboard.press("ArrowDown");
-    const focused = page.locator('tr[data-keyboard-focus="true"]');
-    await focused.waitFor();
-    assert.ok((await focused.innerText()).includes("Auswahlzeile 02"), "zwei Zeilen nach unten");
-    assert.ok(
-      await page.evaluate(() => document.activeElement?.closest("[data-testid='ledger-search']") !== null),
-      "der Fokus bleibt in der Suche"
-    );
-    await page.keyboard.press("Shift+ArrowDown");
-    assert.equal(await countIn(page), 2, "Umschalt+↓ aus der Suche wählt die Zeilen 2 und 3");
+    // Die Esc-Reihenfolge (erst das Detail, dann die Auswahl) prüft der Tasten-Sweep, T6 (design-system-gcpws).
   } finally {
     await context.close();
   }

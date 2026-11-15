@@ -154,13 +154,57 @@ let private inactiveSection (groups: ManagedCategoryGroup list) (isOpen: bool) (
             ]
         ]
 
-let private groupOptions (groups: ManagedCategoryGroup list) : Input.SelectOption list =
-    [ for group in groups do
-          ({ Value = string group.Id; Label = group.Name; Disabled = false } : Input.SelectOption)
-      ({ Value = NewGroupChoice; Label = "Neue Gruppe …"; Disabled = false } : Input.SelectOption) ]
+/// Das Feld Gruppe im Formular, als Selektor für die Rückkehr des Fokus aus der Auswahl.
+let private groupFieldSelector = "[data-testid='categories-group-field']"
 
-/// Der Inhalt des Formulars: Name, bei einer Kategorie das Auswahlfeld Gruppe, in beiden Formularen der Hinweis zu
-/// YNAB, darunter ein Fehler.
+/// Die Auswahl der Gruppe (G13, Prototyp `cegroup`): je Gruppe eine Zeile mit der Zahl ihrer aktiven Kategorien, die
+/// gewählte mit Haken, darunter „Neue Gruppe“. Kurze Auswahl ohne Suche (§7.9): Fokus auf der gewählten Gruppe, ↑↓ und
+/// Enter; Esc schließt nur die Auswahl (`categoryKeyAction`), der Fokus geht zurück auf das Feld.
+let private groupChoice (groups: ManagedCategoryGroup list) (editor: CategoryEditor) (dispatch: Msg -> unit) =
+    Html.div [
+        prop.className "flex flex-col gap-3"
+        prop.children [
+            Html.div [
+                prop.className cardClass
+                prop.children [
+                    PickerParts.ShortChoiceFor "categories-group-choice" (Some groupFieldSelector) [
+                        for group in groups ->
+                            React.keyedFragment (
+                                group.Id,
+                                [ PickerParts.shortChoiceRow
+                                      group.Name
+                                      (Some (categoryCountText (activeCategories group).Length))
+                                      (editor.GroupId = Some group.Id)
+                                      (fun () -> dispatch (GroupChosen (string group.Id))) ]
+                            )
+                    ]
+                ]
+            ]
+            Button.view
+                { Button.defaultProps with
+                    Text = "Neue Gruppe"
+                    Variant = Button.Secondary
+                    FullWidth = true
+                    Icon = Some (Icons.plus Icons.SM Icons.Default)
+                    OnClick = fun () -> dispatch (GroupChosen NewGroupChoice) }
+        ]
+    ]
+
+/// Die Auswahl der Gruppe am PC: ein Dialog in der Mitte wie im Prototyp (§7.6, eine Auswahl ist ein Dialog).
+let private groupChoiceDialog (groups: ManagedCategoryGroup list) (form: Form) (dispatch: Msg -> unit) =
+    match form.Editor with
+    | EditingCategory editor when form.GroupChoiceOpen ->
+        Modal.view
+            { Modal.defaultProps with
+                IsOpen = true
+                OnClose = fun () -> dispatch CloseGroupChoice
+                Size = Modal.Large
+                Title = Some "Gruppe" }
+            [ Modal.body [ groupChoice groups editor dispatch ] ]
+    | _ -> Html.none
+
+/// Der Inhalt des Formulars: Name, bei einer Kategorie das Feld Gruppe (öffnet die Auswahl, G13), in beiden
+/// Formularen der Hinweis zu YNAB, darunter ein Fehler.
 let private formBody (groups: ManagedCategoryGroup list) (form: Form) (dispatch: Msg -> unit) =
     let name =
         match form.Editor with
@@ -186,16 +230,16 @@ let private formBody (groups: ManagedCategoryGroup list) (form: Form) (dispatch:
                         OnKeyDown = Some (fun e -> if e.key = "Enter" then dispatch Save) })
             match form.Editor with
             | EditingCategory editor ->
-                Input.groupSimple
+                // Feld mit Pfeil wie im Prototyp (`ceGroupPick`), kein natives Select (G13).
+                let groupName = editor.GroupId |> Option.bind (fun id -> groups |> List.tryFind (fun g -> g.Id = id)) |> Option.map (fun g -> g.Name)
+                Input.pickerField
+                    "categories-group-field"
                     "Gruppe"
-                    (Input.select
-                        { Input.selectDefaults with
-                            Value = editor.GroupId |> Option.map string |> Option.defaultValue ""
-                            Placeholder = if editor.GroupId.IsNone then Some "Gruppe wählen" else None
-                            OnChange = fun (value: string) -> dispatch (GroupChosen value)
-                            Options = groupOptions groups
-                            Disabled = form.IsSaving
-                            ClassName = Some "w-full" })
+                    groupName
+                    "Gruppe wählen"
+                    None
+                    form.GroupChoiceOpen
+                    (fun () -> if not form.IsSaving then dispatch OpenGroupChoice)
                 Html.p [ prop.className ListRoles.muted; prop.text "Name und Gruppe werden nach YNAB übertragen." ]
                 if editor.CategoryId.IsSome then
                     Input.switchRow
@@ -238,10 +282,11 @@ let private formButtons (form: Form) (dispatch: Msg -> unit) =
               OnClick = fun () -> dispatch Save } ]
 
 let private sidePanel (groups: ManagedCategoryGroup list) (form: Form) (dispatch: Msg -> unit) =
-    Html.aside [
-        prop.custom ("data-testid", "categories-panel")
-        prop.className "category-admin-panel flex flex-col gap-3.5 rounded-2xl border border-border-default bg-surface-elevated p-4 overflow-y-auto"
-        prop.onKeyDown (fun e -> if e.key = "Escape" then dispatch CloseForm)
+    // Die Hülle wie in Kassenbuch und Budget (design-system-gcpws, §7.6): unter dem Seitenkopf, ohne Karte. Esc schließt über
+    // die Tasten der Seite (`CategoryKeys`), auch ohne Fokus im Panel.
+    Detail.panelWith "categories-panel" (formTitle form.Editor) [
+      Html.div [
+        prop.className "flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto p-4"
         prop.children [
             Html.div [
                 prop.className "flex items-center justify-between gap-3"
@@ -260,12 +305,24 @@ let private sidePanel (groups: ManagedCategoryGroup list) (form: Form) (dispatch
             ]
             formBody groups form dispatch
             Html.div [ prop.className "grid grid-cols-2 gap-3"; prop.children (formButtons form dispatch) ]
+            groupChoiceDialog groups form dispatch
         ]
+      ]
     ]
 
 /// Das Sheet unter 1024 px. Immer gerendert, damit es ein- und ausfährt.
 let private sheet (groups: ManagedCategoryGroup list) (form: Form option) (dispatch: Msg -> unit) =
     match form with
+    // Am Handy ersetzt die Auswahl der Gruppe den Inhalt des Sheets (§7.15, Sheets werden nicht gestapelt);
+    // Schließen führt zurück ins Formular.
+    | Some ({ Editor = EditingCategory editor } as form) when form.GroupChoiceOpen ->
+        BottomSheet.view
+            { IsOpen = true
+              OnClose = fun () -> dispatch CloseGroupChoice
+              Title = "Gruppe"
+              Subtitle = None
+              Footer = None }
+            [ Html.div [ prop.className "py-2"; prop.children [ groupChoice groups editor dispatch ] ] ]
     | Some form ->
         BottomSheet.view
             { IsOpen = true
@@ -331,12 +388,27 @@ let view (model: Model) (dispatch: Msg -> unit) =
             prop.children [
                 header dispatch
                 // ADR 0043: zur Renderzeit genau eine Hülle. Ohne offenes Formular ist das Panel zu.
+                // Die Tasten am PC (F5, design-system-gcpws): ↑↓ öffnen die nächste Kategorie im Panel, Esc schließt.
+                if isPanel then
+                    PageKeys.OnDocument (fun e ->
+                        let focus = PageKeys.focusOf None e.target
+                        match categoryKeyAction model focus (e.altKey || e.ctrlKey || e.metaKey) e.shiftKey e.defaultPrevented e.key with
+                        | Some msg ->
+                            e.preventDefault ()
+                            dispatch msg
+                        | None -> ())
                 if isPanel then
                     match model.Form with
                     | Some form ->
                         Html.div [
-                            prop.className "grid grid-cols-[minmax(0,1fr)_380px] gap-3 items-start"
-                            prop.children [ content; sidePanel groups form dispatch ]
+                            prop.className "relative"
+                            prop.children [
+                                sidePanel groups form dispatch
+                                Html.div [
+                                    prop.className $"{PanelWidths.columnInsetWide} min-h-[calc(100vh-7rem)]"
+                                    prop.children [ content ]
+                                ]
+                            ]
                         ]
                     | None -> Html.div [ prop.className "max-w-[860px]"; prop.children [ content ] ]
                 else

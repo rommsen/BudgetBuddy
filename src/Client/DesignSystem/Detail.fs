@@ -10,33 +10,37 @@ open Feliz
 open Client.DesignSystem
 open Client.DesignSystem.Tokens
 
-/// Breite des Seitenpanels in Pixeln. Die Spaltenwahl der Tabelle rechnet damit
-/// (`Components.Ledger.View.detailPanelWidth`); die Klassen dazu stehen als Literal in
-/// `Tokens.PanelWidths`, weil Tailwind nur ganze Klassennamen findet.
-let panelWidthPx = 420
-
 // ============================================
 // Hülle: Seitenpanel
 // ============================================
 
-/// Das Seitenpanel rechts neben der Liste. Es haftet unter der Navbar, scrollt in sich
-/// und liegt rechts in der Spalte, die der Aufrufer `relative` hält und mit einem
-/// rechten Innenabstand freihält (`PanelWidths.columnInset`). Nur ab `md`; am Handy öffnet das Detail als BottomSheet.
-let panel (ariaLabel: string) (children: ReactElement list) : ReactElement =
+/// Das Seitenpanel rechts neben einer Liste (§7.6), dieselbe Hülle auf jeder Seite (design-system-gcpws, Prototyp
+/// Version 17 `.dpanel`): beginnt unter dem Seitenkopf wie im Kassenbuch seit ledger-cnaz3 (Abweichung (c) vom
+/// Prototyp, G12), Rand links, ohne Karte, Breite `Tokens.PanelWidths.panel` (30 % des Fensters, 380 bis 520 px). Es haftet unter der Navbar (`.list-panel` in styles.css, die Seite kann den Abstand oben über
+/// `--list-panel-top` setzen), scrollt in sich und liegt rechts in der Spalte, die der Aufrufer `relative` hält und
+/// mit einem rechten Innenabstand freihält (`PanelWidths.columnInset`, `columnInsetWide`). Nur ab `md`; am Handy
+/// öffnet das Detail als BottomSheet. `testId` benennt den Inhalt für Tests, `data-list-panel` die Hülle für den
+/// Tasten-Sweep.
+let panelWith (testId: string) (ariaLabel: string) (children: ReactElement list) : ReactElement =
     Html.div [
         prop.className $"hidden md:block absolute inset-y-0 right-0 {PanelWidths.panel}"
         prop.children [
             Html.aside [
-                prop.custom ("data-testid", "ledger-detail-panel")
+                prop.custom ("data-testid", testId)
+                prop.custom ("data-list-panel", "")
                 prop.ariaLabel ariaLabel
                 prop.className (
-                    $"sticky top-16 flex h-[calc(100vh-7rem)] {PanelWidths.panel} flex-col overflow-hidden " +
+                    $"list-panel flex {PanelWidths.panel} flex-col overflow-hidden " +
                     $"border-l {Borders.default'} {Backgrounds.dark}"
                 )
                 prop.children children
             ]
         ]
     ]
+
+/// Das Seitenpanel des Kassenbuchs (Buchung, Auswahl, neue Buchung, Regeln).
+let panel (ariaLabel: string) (children: ReactElement list) : ReactElement =
+    panelWith "ledger-detail-panel" ariaLabel children
 
 /// Das Panel ohne gewählte Buchung (ledger-cnaz3, §7.6, §7.12, Prototyp Version 17 `.dempty`): ab 1024 px steht
 /// es immer da, mittig ein gedämpfter Satz wie „Buchung wählen, um Details zu sehen.“, ohne Aktion.

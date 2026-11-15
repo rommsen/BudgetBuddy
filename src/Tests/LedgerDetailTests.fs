@@ -250,6 +250,17 @@ let private columnsOf (layout: TableLayout) : LedgerColumn list =
 let formTests =
     testList "Spalten neben dem Panel, das ab 1024 px immer steht" [
 
+        // design-system-gcpws (F3): das Panel nimmt 30 % der Fensterbreite, mindestens 380, höchstens 520 px.
+        testCase "das Panel nimmt 30 % der Fensterbreite, 380 bis 520 px, und die Spaltenwahl rechnet mit derselben Breite" <| fun () ->
+            let panelWidthFor = Client.DesignSystem.Tokens.PanelWidths.panelWidthFor
+            for window, panel in [ 1024.0, 380.0; 1266.0, 380.0; 1280.0, 384.0; 1440.0, 432.0; 1733.0, 519.9; 1734.0, 520.0; 1920.0, 520.0; 2560.0, 520.0 ] do
+                Expect.floatClose Accuracy.high (panelWidthFor window) panel $"{window} px"
+            // Bei 1024 und 1920 px liegt die Grenze zur Kompaktliste (532 px Tabelle) an anderer Stelle: 380 und 520 px Panel.
+            Expect.equal (visibleColumnsBesidePanel 1024.0 915.0 false) CompactList "1024: 915 px Spalte reichen nicht"
+            Expect.notEqual (visibleColumnsBesidePanel 1024.0 916.0 false) CompactList "1024: 916 px reichen"
+            Expect.equal (visibleColumnsBesidePanel 1920.0 1055.0 false) CompactList "1920: 1055 px reichen nicht"
+            Expect.notEqual (visibleColumnsBesidePanel 1920.0 1056.0 false) CompactList "1920: 1056 px reichen"
+
         testCase "Memo erst ab 1500 px Fensterbreite, darunter in keiner Spaltenbreite" <| fun () ->
             for account in [ true; false ] do
                 for width in [ 600.0 .. 50.0 .. 3000.0 ] do
@@ -259,22 +270,23 @@ let formTests =
                 Expect.contains (columnsOf (visibleColumnsBesidePanel 1500.0 3000.0 account)) MemoColumn $"Fenster 1500 px, Gesamtsicht {account}"
 
         testCase "ab 1500 px nur, wenn die Stufe mit Memo neben dem Panel passt" <| fun () ->
-            // Ein Konto: Kästchen 44, Datum 96, Payee 140, Kategorie 120, Memo 120, Betrag 132 = 652 px neben 420 px Panel und 4 px Abstand.
-            Expect.contains (columnsOf (visibleColumnsBesidePanel 1600.0 1076.0 false)) MemoColumn "1076 px: Memo passt"
-            Expect.isFalse (columnsOf (visibleColumnsBesidePanel 1600.0 1075.0 false) |> List.contains MemoColumn) "1075 px: Memo entfällt"
+            // Ein Konto: Kästchen 44, Datum 96, Payee 140, Kategorie 120, Memo 120, Betrag 132 = 652 px neben dem Panel
+            // (bei 1600 px Fenster 30 % = 480 px, design-system-gcpws) und 4 px Abstand.
+            Expect.contains (columnsOf (visibleColumnsBesidePanel 1600.0 1136.0 false)) MemoColumn "1136 px: Memo passt"
+            Expect.isFalse (columnsOf (visibleColumnsBesidePanel 1600.0 1135.0 false) |> List.contains MemoColumn) "1135 px: Memo entfällt"
             // Gesamtsicht: dazu die Konto-Spalte (110 px), also 762 px.
-            Expect.contains (columnsOf (visibleColumnsBesidePanel 1600.0 1186.0 true)) MemoColumn "1186 px: Memo passt"
-            Expect.isFalse (columnsOf (visibleColumnsBesidePanel 1600.0 1185.0 true) |> List.contains MemoColumn) "1185 px: Memo entfällt"
+            Expect.contains (columnsOf (visibleColumnsBesidePanel 1600.0 1246.0 true)) MemoColumn "1246 px: Memo passt"
+            Expect.isFalse (columnsOf (visibleColumnsBesidePanel 1600.0 1245.0 true) |> List.contains MemoColumn) "1245 px: Memo entfällt"
 
         testCase "ohne Platz für eine Stufe neben dem Panel steht die Kompaktliste" <| fun () ->
-            // Kleinste Stufe ohne Memo und Konto: 532 px.
+            // Kleinste Stufe ohne Memo und Konto: 532 px, bei 1440 px Fenster neben 432 px Panel und 4 px Abstand.
             for account in [ true; false ] do
-                Expect.equal (visibleColumnsBesidePanel 1440.0 955.0 account) CompactList $"955 px, Gesamtsicht {account}"
-                Expect.notEqual (visibleColumnsBesidePanel 1440.0 956.0 account) CompactList $"956 px, Gesamtsicht {account}"
+                Expect.equal (visibleColumnsBesidePanel 1440.0 967.0 account) CompactList $"967 px, Gesamtsicht {account}"
+                Expect.notEqual (visibleColumnsBesidePanel 1440.0 968.0 account) CompactList $"968 px, Gesamtsicht {account}"
 
-        testCase "die übrigen Spalten folgen visibleColumns mit der Breite minus 424 px (Panel und Abstand)" <| fun () ->
+        testCase "die übrigen Spalten folgen visibleColumns mit der Breite minus Panel (30 % des Fensters) und 4 px Abstand" <| fun () ->
             for width in [ 1000.0 .. 25.0 .. 2200.0 ] do
-                let plain = columnsOf (visibleColumns (width - 424.0) true) |> List.filter ((<>) MemoColumn)
+                let plain = columnsOf (visibleColumns (width - 436.0) true) |> List.filter ((<>) MemoColumn)
                 let besidePanel = columnsOf (visibleColumnsBesidePanel 1440.0 width true)
                 if not (List.isEmpty plain) then
                     Expect.equal besidePanel plain $"{width}px"

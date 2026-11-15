@@ -1271,25 +1271,15 @@ nav a:focus-visible {
   }
 }
 
-/* Das Inspektor-Panel ab 1024 px: feste Höhe, begrenzt auf die Sichthöhe unter Navbar und Leiste. */
-.budget-inspector-panel {
+/* Das Panel neben einer Liste (`Detail.panelWith`, §7.6, design-system-gcpws): haftet unter der Navbar und reicht bis
+   3rem über den unteren Rand. Die Budget-Seiten setzen den Abstand oben unter ihre feste Leiste. */
+.list-panel {
   position: sticky;
-  top: calc(var(--budget-bar-bottom) + 8px);
-  height: 640px;
-  max-height: calc(100dvh - var(--budget-bar-bottom) - 24px);
+  top: var(--list-panel-top, 4rem);
+  height: calc(100vh - var(--list-panel-top, 4rem) - 3rem);
 }
-/* Das Panel der Seite Targets prüfen (budgeting-c4ve4): haftet wie der Inspektor, so hoch wie sein Inhalt. */
-.target-check-panel {
-  position: sticky;
-  top: calc(var(--budget-nav-height) + 8px);
-  max-height: calc(100dvh - var(--budget-nav-height) - 24px);
-}
-
-/* Das Panel der Seite Kategorien (budgeting-pscgb): haftet wie das Panel von Targets prüfen. */
-.category-admin-panel {
-  position: sticky;
-  top: calc(var(--budget-nav-height) + 8px);
-  max-height: calc(100dvh - var(--budget-nav-height) - 24px);
+.budget-page {
+  --list-panel-top: calc(var(--budget-bar-bottom) + 8px);
 }
 
 /* ============================================================

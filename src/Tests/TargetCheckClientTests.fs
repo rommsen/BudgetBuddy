@@ -783,5 +783,31 @@ let private sketchTests =
         }
     ]
 
+// design-system-gcpws (F5): Esc schließt „Anpassen …“ am PC über die gemeinsame Regel; die Pfeile belegt die Seite nicht.
+let private keyTests =
+    testList "Targets prüfen: Tasten am PC" [
+        test "Esc schließt „Anpassen …“, auch aus einem Feld, ohne Panel und mit Zusatztaste nichts, Pfeile nie" {
+            let opened = loaded () |> step (AdjustTarget moreId)
+            Expect.isSome (panelRow opened) "Panel offen"
+            for focus in ListKeysTests.focuses do
+                for command in [ false; true ] do
+                    for shift in [ false; true ] do
+                        for handled in [ false; true ] do
+                            for k in ListKeysTests.keys do
+                                for model in [ opened; loaded () ] do
+                                    let expected =
+                                        ListKeysTests.oracle
+                                            { MultiSelect = false; Tabs = false; Search = false; TypeToSearch = false }
+                                            { Key = k; Focus = focus; Command = command; Shift = shift; Handled = handled; LayerOpen = false
+                                              RowSelected = (panelRow model).IsSome; PanelOpen = (panelRow model).IsSome; SelectionActive = false }
+                                    Expect.equal
+                                        (targetCheckClosesOn model focus command shift handled k)
+                                        (expected = Client.DesignSystem.ListKeys.ClosePanel)
+                                        $"{k} {focus} {command} {shift} {handled}"
+            Expect.isTrue (targetCheckClosesOn opened Client.DesignSystem.ListKeys.Elsewhere false false false "Escape") "Esc"
+            Expect.isNone (panelRow (opened |> step CloseCheckPanel)) "zu"
+        }
+    ]
+
 [<Tests>]
-let tests = testList "Targets prüfen" [ pageTests; takeTests; panelTests; originTests; walkTests; sketchTests ]
+let tests = testList "Targets prüfen" [ pageTests; takeTests; panelTests; originTests; walkTests; sketchTests; keyTests ]

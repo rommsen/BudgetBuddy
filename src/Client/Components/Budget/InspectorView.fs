@@ -447,9 +447,10 @@ let inspectorSheet (pin: InspectorPin option) (model: Model) (shown: BudgetGroup
 /// bleibt der Inhalt stehen. Lädt der Monat bei bestehender Auswahl, steht ein Skeleton da. Scheitert
 /// das Laden, bleibt das Panel neben der Fehlerkarte leer: es kommt kein Inhalt nach.
 let inspectorPanel (pin: InspectorPin option) (model: Model) (dispatch: Msg -> unit) =
-    Html.aside [
-        prop.custom ("data-testid", "budget-inspector")
-        prop.className $"budget-inspector-panel flex flex-col rounded-xl border border-border-subtle bg-surface-card overflow-hidden {monthChangeClass model}"
+    // Die Hülle ist dieselbe wie im Kassenbuch (design-system-gcpws, §7.6): unter dem Seitenkopf, ohne Karte, 30 % breit.
+    Detail.panelWith "budget-inspector" "Kategorie" [
+      Html.div [
+        prop.className $"flex min-h-0 flex-1 flex-col {monthChangeClass model}"
         prop.children [
             match sheetCategory model with
             | Some (selected, month, (category, groupName)) ->
@@ -481,4 +482,5 @@ let inspectorPanel (pin: InspectorPin option) (model: Model) (dispatch: Msg -> u
                         prop.text "Kategorie wählen"
                     ]
         ]
+      ]
     ]

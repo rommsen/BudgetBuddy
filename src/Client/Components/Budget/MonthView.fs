@@ -414,7 +414,8 @@ let filterChips (model: Model) (month: BudgetMonth) (dispatch: Msg -> unit) =
     ]
 
 /// Die gewählte Zeile rückt ins Bild, wenn sich die Auswahl ändert, nicht bei jedem Render: wer mit
-/// dem Mausrad scrollt, soll nicht zurückspringen.
+/// dem Mausrad scrollt, soll nicht zurückspringen. Am PC auch, wenn neben dem Panel die Zeilen wie am Handy stehen
+/// (design-system-gcpws, Tasten-Sweep T7): dann ist die Tabelle verborgen und die sichtbare Zeile rückt ins Bild.
 [<ReactComponent>]
 let DesktopCategoryList (selectedId: System.Guid option, focusable: bool, content: ReactElement) =
     let listRef = React.useElementRef ()
@@ -422,7 +423,15 @@ let DesktopCategoryList (selectedId: System.Guid option, focusable: bool, conten
         (fun () ->
             match listRef.current with
             | Some element ->
-                let row: obj = element?querySelector ("[aria-current='true']")
+                let inTable: obj = element?querySelector ("[aria-current='true']")
+                let row: obj =
+                    if not (isNull inTable) && not (isNull inTable?offsetParent) then inTable
+                    elif focusable then
+                        Browser.Dom.document.querySelectorAll "[data-testid='budget-category-row'][aria-current='true']"
+                        |> fun found -> [ for i in 0 .. int found.length - 1 -> box (found.item (float i)) ]
+                        |> List.tryFind (fun el -> not (isNull el?offsetParent))
+                        |> Option.defaultValue null
+                    else null
                 if not (isNull row) then
                     row?scrollIntoView (createObj [ "block" ==> "nearest" ])
             | None -> ()),
@@ -431,7 +440,7 @@ let DesktopCategoryList (selectedId: System.Guid option, focusable: bool, conten
     Html.div [
         prop.ref listRef
         // `overflow-clip` statt `overflow-hidden`: sonst haftet der Spaltenkopf an dieser Karte statt an der Seite.
-        prop.className "hidden md:@min-[600px]:block rounded-xl border border-border-subtle bg-surface-card overflow-clip"
+        prop.className "hidden md:@min-[40rem]:block rounded-xl border border-border-subtle bg-surface-card overflow-clip"
         if focusable then
             prop.tabIndex 0
             prop.ariaLabel "Kategorien"
@@ -450,10 +459,12 @@ let categories (model: Model) (month: BudgetMonth) (shown: BudgetGroup list) (di
         ]
     else
         React.fragment [
-            // Die Tabelle braucht rund 600 px. Neben Seitenleiste (232 px) und Panel ist die Liste bei 1024 px schmaler:
-            // dann stehen die Zeilen wie am Handy (Container-Abfrage auf `budget-list-area`, design-system-k6kfw).
+            // Die Tabelle braucht rund 40rem, 640 px bei 16 px Grundschrift (lange Target-Texte wie „12.160,00 € alle
+            // 11 Monate“, gemessen im Layout-Sweep); in rem, weil sie mit der Schrift wächst (Zustand budget-grosse-schrift). Neben Seitenleiste (232 px) und Panel (30 % des Fensters, design-system-gcpws) ist die Liste
+            // erst ab rund 1340 px Fenster so breit; darunter stehen die Zeilen wie am Handy (Container-Abfrage auf
+            // `budget-list-area`, design-system-k6kfw).
             Html.div [
-                prop.className "md:@min-[600px]:hidden"
+                prop.className "md:@min-[40rem]:hidden"
                 prop.children (shown |> List.map (mobileGroup selectedId dispatch))
             ]
             DesktopCategoryList (

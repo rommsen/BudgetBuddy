@@ -92,6 +92,22 @@ let searchField (value: string) (onChange: string -> unit) (placeholder: string)
                     Placeholder = placeholder
                     Size = Input.Small }
 
+/// Wie `searchField`, als Combobox: `listboxId` nennt die Liste, `activeOptionId` die markierte Zeile
+/// (`aria-activedescendant`, §7.9, design-system-gcpws).
+let comboSearchField
+    (value: string)
+    (onChange: string -> unit)
+    (placeholder: string)
+    (listboxId: string)
+    (activeOptionId: string option)
+    : ReactElement =
+    Input.text { Input.textInputDefaults with
+                    Value = value
+                    OnChange = onChange
+                    Placeholder = placeholder
+                    Size = Input.Small
+                    Combobox = Some { ListboxId = listboxId; Expanded = true; ActiveOptionId = activeOptionId } }
+
 /// Übernehmen-Knopf mit freier Beschriftung (Zahl nur bei Auswahl, siehe `applyLabel`)
 let applyButton (selectedCount: int) (onApply: unit -> unit) : ReactElement =
     Html.button [
@@ -123,4 +139,97 @@ let footerWhen (disabled: bool) (selectedCount: int) (onReset: unit -> unit) (on
     Primitives.HStack.spaceBetween [
         Button.ghost "Zurücksetzen" onReset
         applyButtonWhen disabled selectedCount onApply
+    ]
+
+/// Wohin ↑↓ in einer kurzen Auswahl ohne Suche den Fokus setzen (§7.9, F7, design-system-gcpws): auf die nächste bzw.
+/// vorige Option, am Rand bleibt er stehen. Ohne Fokus auf einer Option ↓ die erste, ↑ die letzte. `None`: die Taste
+/// gehört nicht der Auswahl.
+let shortChoiceTarget (key: string) (count: int) (focused: int option) : int option =
+    match key, focused with
+    | _, _ when count = 0 -> None
+    | "ArrowDown", Some i -> Some (min (count - 1) (i + 1))
+    | "ArrowUp", Some i -> Some (max 0 (i - 1))
+    | "ArrowDown", None -> Some 0
+    | "ArrowUp", None -> Some (count - 1)
+    | _ -> None
+
+/// Eine kurze Auswahl ohne Suche (Konto in „Neue Buchung“, Gruppe in „Kategorie bearbeiten“; F7, G13): beim Öffnen am
+/// PC steht der Fokus auf der gewählten Option (`aria-current`), sonst auf der ersten; ↑↓ bewegen ihn, Enter wählt über
+/// den Knopf genau einmal. `returnFocusTo`: der Selektor des Felds, das die Auswahl geöffnet hat; schließt sie (Esc,
+/// Wahl), geht der Fokus dorthin zurück (§7.8 Punkt 6), sofern das Feld noch steht. `data-short-choice` markiert die
+/// Auswahl für die Tests.
+[<ReactComponent>]
+let ShortChoiceFor (testId: string) (returnFocusTo: string option) (children: ReactElement list) =
+    let containerRef = React.useRef<Browser.Types.HTMLElement option> None
+    let options () : Browser.Types.HTMLElement list =
+        match containerRef.current with
+        | Some el ->
+            let found = el.querySelectorAll "button"
+            [ for i in 0 .. int found.length - 1 -> found.item (float i) :?> Browser.Types.HTMLElement ]
+        | None -> []
+    React.useEffect (
+        (fun () ->
+            let fine = Viewport.isFinePointer ()
+            if fine then
+                match containerRef.current with
+                | Some el ->
+                    let current = el.querySelector "button[aria-current='true']"
+                    let target = if isNull current then el.querySelector "button" else current
+                    if not (isNull target) then (target :?> Browser.Types.HTMLElement).focus ()
+                | None -> ()
+            React.createDisposable (fun () ->
+                match returnFocusTo with
+                | Some selector when fine ->
+                    let field = Browser.Dom.document.querySelector selector
+                    if not (isNull field) then (field :?> Browser.Types.HTMLElement).focus ()
+                | _ -> ())),
+        [||]
+    )
+    Html.div [
+        prop.ref containerRef
+        prop.role "group"
+        prop.className "flex flex-col gap-0.5"
+        prop.custom ("data-testid", testId)
+        prop.custom ("data-short-choice", "")
+        prop.onKeyDown (fun e ->
+            let all = options ()
+            let focused = all |> List.tryFindIndex (fun b -> obj.ReferenceEquals (b, Browser.Dom.document.activeElement))
+            match shortChoiceTarget e.key all.Length focused with
+            | Some i ->
+                e.preventDefault ()
+                e.stopPropagation ()
+                (List.item i all).focus ()
+            | None -> ())
+        prop.children children
+    ]
+
+/// `ShortChoiceFor` ohne Rückkehr des Fokus (Konto in „Neue Buchung“).
+let ShortChoice (testId: string) (children: ReactElement list) = ShortChoiceFor testId None children
+
+/// Eine Option einer kurzen Auswahl als Zeile einer Karte (Prototyp `cegroup`, G13): oben der Name, darunter gedämpft
+/// ein Zusatz (etwa „2 Kategorien“), rechts der Haken an der gewählten. Die gewählte trägt `aria-current`, darauf setzt
+/// `ShortChoiceFor` den Fokus. Am Handy 56 px hoch.
+let shortChoiceRow (label: string) (detail: string option) (isChosen: bool) (onPick: unit -> unit) : ReactElement =
+    Html.button [
+        prop.type' "button"
+        if isChosen then prop.custom ("aria-current", "true")
+        prop.className (
+            "flex w-full min-h-[56px] items-center gap-3 px-4 py-2 text-left border-b border-border-subtle last:border-b-0 "
+            + "transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 "
+            + "focus-visible:ring-inset focus-visible:ring-accent "
+            + (if isChosen then Backgrounds.surface else "")
+        )
+        prop.onClick (fun _ -> onPick ())
+        prop.children [
+            Html.span [
+                prop.className "flex min-w-0 flex-1 flex-col"
+                prop.children [
+                    Truncate.text $"block {ListRoles.primary}" label
+                    match detail with
+                    | Some d -> Truncate.text $"block {ListRoles.secondary}" d
+                    | None -> ()
+                ]
+            ]
+            if isChosen then Icons.check Icons.SM Icons.Accent
+        ]
     ]

@@ -676,10 +676,11 @@ let content (model: Model) (dispatch: Msg -> unit) : ReactElement =
             if isPanel then RulesKeyboard model dispatch
             Html.div [
                 // Mit Panel: die Spalte reicht bis an den Fensterrand, die Tastenleiste steht unten (Prototyp `.keys`).
-                prop.className (if isPanel then "md:pr-[420px] md:min-h-[calc(100vh-7rem)] flex flex-col" else "")
+                prop.className (if isPanel then $"{Tokens.PanelWidths.columnInsetPlain} md:min-h-[calc(100vh-7rem)] flex flex-col" else "")
                 prop.children [
                     Html.div [
-                        prop.className "flex flex-col gap-3 md:pr-6"
+                        // Container: Karte oder Tabelle hängt an der Breite neben dem Panel (design-system-gcpws).
+                        prop.className "@container flex flex-col gap-3 md:pr-6"
                         prop.children [
                             Html.p [ prop.className $"{FontSizes.sm} {Colors.textSecondary}"; prop.text priorityHint ]
                             match model.Rules with
@@ -702,14 +703,15 @@ let content (model: Model) (dispatch: Msg -> unit) : ReactElement =
                                         }
                                     ))
                             | RemoteData.Success rules ->
-                                // Neben dem Panel bleiben von 1024 bis 1279 px rund 350 px: zu schmal für sieben Spalten, dort
-                                // steht die Karte wie am Handy. Die Tabelle von 768 bis 1023 px (ohne Panel) und ab 1280 px.
+                                // Sieben Spalten brauchen 560 px Liste. Neben dem Panel (30 % des Fensters, design-system-gcpws)
+                                // bleiben bei 1024 px rund 340 px, dort steht die Karte wie am Handy; ab rund 1200 px Fenster
+                                // und von 768 bis 1023 px (ohne Panel) die Tabelle. Gemessen wird die Breite der Liste.
                                 Html.div [
-                                    prop.className "hidden md:block lg:hidden xl:block"
+                                    prop.className "hidden md:@min-[560px]:block"
                                     prop.children [ ruleTable model rules dispatch ]
                                 ]
                                 Html.div [
-                                    prop.className "md:hidden lg:block xl:hidden"
+                                    prop.className "md:@min-[560px]:hidden"
                                     prop.children [ ruleCard model rules dispatch ]
                                 ]
                                 Primitives.Responsive.mobileOnly [ newRuleButtonBlock dispatch ]

@@ -167,6 +167,7 @@
     <Compile Include="LedgerLenaFlagClientTests.fs" />
     <Compile Include="LedgerLenaFlagBatchClientTests.fs" />
     <Compile Include="LedgerRowLockWaysTests.fs" />
+    <Compile Include="ListKeysTests.fs" />
     <Compile Include="LedgerKeyboardTests.fs" />
     <Compile Include="LedgerPcOrderTests.fs" />
     <Compile Include="LedgerDetailOrderTests.fs" />

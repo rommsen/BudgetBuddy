@@ -389,6 +389,10 @@ let keyAction (key: string) (rows: PickerRow list) (active: int option) (searchi
 // Inhalt
 // ============================================
 
+/// Die Liste der Optionen und die Id einer Zeile, auf die das Suchfeld verweist, solange sie markiert ist.
+let listboxId = "category-picker-listbox"
+let optionId (index: int) : string = $"category-picker-option-{index}"
+
 let private rowClassFor (isActive: bool) : string =
     let tone = if isActive then "bg-surface-hover" else "hover:bg-surface-hover"
     $"px-2 {TouchTargets.mobileMinHeight} md:min-h-9 rounded-lg cursor-pointer {tone}"
@@ -423,8 +427,13 @@ let private Content (input: ContentProps) =
     let rows = navigableRows hiddenExpanded lay
     let searching = isSearching search
 
+    // Wo der Fokus vor dem Öffnen stand (der Auslöser): Esc führt dorthin zurück (§7.8 Punkt 6, design-system-gcpws).
+    let returnTo = React.useRef<Browser.Types.HTMLElement option> None
     // Fokus ins Suchfeld beim Öffnen
     React.useEffectOnce (fun () ->
+        let previous = Browser.Dom.document.activeElement
+        if not (isNull previous) && not (obj.ReferenceEquals (previous, Browser.Dom.document.body)) then
+            returnTo.current <- Some (previous :?> Browser.Types.HTMLElement)
         if input.FocusSearch then
             match containerRef.current with
             | Some el ->
@@ -460,6 +469,7 @@ let private Content (input: ContentProps) =
                 prop.role "option"
                 prop.custom ("aria-selected", isCurrent)
                 prop.custom ("data-row-index", index)
+                prop.id (optionId index)
                 // Der Fokus bleibt im Suchfeld, damit zwischen Tippen und Klick nichts springt.
                 prop.onMouseDown (fun e -> e.preventDefault ())
                 prop.onClick (fun e ->
@@ -484,6 +494,7 @@ let private Content (input: ContentProps) =
                 prop.role "option"
                 prop.custom ("aria-selected", false)
                 prop.custom ("data-row-index", index)
+                prop.id (optionId index)
                 prop.custom ("data-testid", "category-picker-to-be-budgeted")
                 prop.onMouseDown (fun e -> e.preventDefault ())
                 prop.onClick (fun e ->
@@ -503,6 +514,7 @@ let private Content (input: ContentProps) =
                 prop.role "option"
                 prop.custom ("aria-selected", isCurrent)
                 prop.custom ("data-row-index", index)
+                prop.id (optionId index)
                 prop.onMouseDown (fun e -> e.preventDefault ())
                 prop.onClick (fun e ->
                     e.stopPropagation ()
@@ -528,6 +540,7 @@ let private Content (input: ContentProps) =
                 prop.role "option"
                 prop.custom ("aria-selected", isCurrent)
                 prop.custom ("data-row-index", index)
+                prop.id (optionId index)
                 prop.custom ("data-testid", "category-picker-account-row")
                 prop.onMouseDown (fun e -> e.preventDefault ())
                 prop.onClick (fun e ->
@@ -558,22 +571,29 @@ let private Content (input: ContentProps) =
                 // Esc bleibt im Picker: das Dokument schließt sonst zugleich das Detail.
                 e.stopPropagation ()
                 props.OnClose ()
+                match returnTo.current with
+                | Some trigger when (trigger?isConnected: bool) -> trigger.focus ()
+                | _ -> ()
             | NoAction -> ())
         prop.children [
             Html.div [
                 prop.className "sticky top-0 z-10 bg-surface-elevated"
                 prop.children [
-                    PickerParts.searchField
+                    // Das Suchfeld verweist per `aria-activedescendant` auf die markierte Zeile (§7.9, design-system-gcpws).
+                    PickerParts.comboSearchField
                         search
                         (fun v ->
                             setSearch v
                             setActive None)
                         (searchPlaceholder props.Accounts)
+                        listboxId
+                        (active |> Option.filter (fun i -> i < List.length rows) |> Option.map optionId)
                 ]
             ]
 
             Html.div [
                 prop.role "listbox"
+                prop.id listboxId
                 prop.className ("flex flex-col gap-3 " + input.ListClass)
                 prop.children [
                     match lay.Notice with
@@ -769,10 +789,10 @@ let selectionPopover (isOpen: bool) (props: CategoryPickerProps) : ReactElement 
 
 /// Wie `selectionPopover`, aber für „Kategorie setzen“ in der Zusammenfassung im Panel (ledger-cnaz3): es öffnet
 /// unter dem Knopf (links im Inhalt des Panels), rückt beim Öffnen ins Bild und nimmt die Breite des Inhalts
-/// (420 px Panel minus 2 × 16 px Rand); keine Zeile trägt einen Haken.
+/// (Panel minus 2 × 16 px Rand, `Tokens.PanelWidths.panelContent`); keine Zeile trägt einen Haken.
 let selectionPopoverInPanel (isOpen: bool) (props: CategoryPickerProps) : ReactElement =
     FilterPopover.viewRevealed
-        { IsOpen = isOpen; OnClose = props.OnClose; WidthClassName = "w-[388px]" }
+        { IsOpen = isOpen; OnClose = props.OnClose; WidthClassName = Tokens.PanelWidths.panelContent }
         [ selectionContent props ]
 
 let popover (isOpen: bool) (props: CategoryPickerProps) : ReactElement =

@@ -354,3 +354,107 @@ let tests =
             Expect.equal [ canMove StepUp a group; canMove StepDown a group ] [ false; true ] "erste Zeile"
             Expect.equal [ canMove StepUp b group; canMove StepDown b group ] [ true; false ] "letzte Zeile, die deaktivierte zählt nicht"
     ]
+
+// design-system-gcpws (F5): ↑↓ öffnen die nächste Kategorie im Panel, Esc schließt es, auch aus dem Feld Name. Über die
+// gemeinsame Regel (`ListKeysTests.oracle`); die Seite hat keine eigenen Tasten davor.
+[<Tests>]
+let keyTests =
+    let wohnen = Guid.Parse "11111111-0000-0000-0000-000000000003"
+    let miete = Guid.Parse "22222222-0000-0000-0000-000000000005"
+    let strom = Guid.Parse "22222222-0000-0000-0000-000000000006"
+    let alt = Guid.Parse "22222222-0000-0000-0000-000000000007"
+    let three =
+        { init () with
+            Groups =
+                Success
+                    [ { Id = alltag; Name = "Alltag"; Categories = [ { Id = drogerie; Name = "Drogerie"; Active = true }; { Id = alt; Name = "Alt"; Active = false } ] }
+                      { Id = wohnen; Name = "Wohnen"; Categories = [ { Id = miete; Name = "Miete"; Active = true }; { Id = strom; Name = "Strom"; Active = true } ] } ] }
+    let editing id = run three [ EditCategory id ]
+    let key k model = categoryKeyAction model Client.DesignSystem.ListKeys.Elsewhere false false false k
+    testList "Kategorien: Tasten am PC" [
+        testCase "↓ ohne offene Kategorie öffnet die erste, ↑ die letzte aktive, Gruppe für Gruppe" <| fun () ->
+            Expect.equal (key "ArrowDown" three) (Some (EditCategory drogerie)) "erste"
+            Expect.equal (key "ArrowUp" three) (Some (EditCategory strom)) "letzte"
+            Expect.equal (key "ArrowDown" (run three [ NewCategory ])) (Some (EditCategory drogerie)) "eine neue zählt nicht als Auswahl"
+
+        testCase "Danach ↑↓ die nächste bzw. vorige über die Gruppengrenze, die deaktivierte zählt nicht, am Rand nichts" <| fun () ->
+            Expect.equal (key "ArrowDown" (editing drogerie)) (Some (EditCategory miete)) "über die Gruppe"
+            Expect.equal (key "ArrowUp" (editing miete)) (Some (EditCategory drogerie)) "zurück"
+            Expect.equal (key "ArrowDown" (editing strom)) None "Rand unten"
+            Expect.equal (key "ArrowUp" (editing drogerie)) None "Rand oben"
+
+        testCase "Esc schließt das Panel, auch aus dem Feld Name, ohne Panel nichts" <| fun () ->
+            Expect.equal (key "Escape" (editing miete)) (Some CloseForm) "Panel"
+            Expect.equal (categoryKeyAction (editing miete) Client.DesignSystem.ListKeys.InTextField false false false "Escape") (Some CloseForm) "aus dem Feld"
+            Expect.equal (key "Escape" three) None "nichts offen"
+            Expect.isNone (model' (update (Option.get (key "Escape" (editing miete))) (editing miete))).Form "zu"
+
+        testCase "Jede Taste folgt der gemeinsamen Regel" <| fun () ->
+            for model, current in [ three, None; editing miete, Some 1 ] do
+                for focus in ListKeysTests.focuses do
+                    for command in [ false; true ] do
+                        for shift in [ false; true ] do
+                            for handled in [ false; true ] do
+                                for k in ListKeysTests.keys do
+                                    let expected =
+                                        match
+                                            ListKeysTests.oracle
+                                                { MultiSelect = false; Tabs = false; Search = false; TypeToSearch = false }
+                                                { Key = k; Focus = focus; Command = command; Shift = shift; Handled = handled; LayerOpen = false
+                                                  RowSelected = current.IsSome; PanelOpen = model.Form.IsSome; SelectionActive = false }
+                                        with
+                                        | Client.DesignSystem.ListKeys.ClosePanel -> Some CloseForm
+                                        | Client.DesignSystem.ListKeys.FirstRow -> Some (EditCategory drogerie)
+                                        | Client.DesignSystem.ListKeys.LastRow -> Some (EditCategory strom)
+                                        | Client.DesignSystem.ListKeys.StepRow Client.DesignSystem.ListKeys.Forward -> Some (EditCategory strom)
+                                        | Client.DesignSystem.ListKeys.StepRow Client.DesignSystem.ListKeys.Backward -> Some (EditCategory drogerie)
+                                        | _ -> None
+                                    expectSame (categoryKeyAction model focus command shift handled k) expected (fun () -> $"{k} {focus} {command} {shift} {handled}")
+
+        // G13 (design-system-gcpws): die Gruppe ist ein Feld mit Auswahl wie im Prototyp (`cegroup`). Offen ist sie die
+        // oberste Ebene (§7.8 Punkt 6): Esc schließt nur sie, das Formular bleibt; die Pfeile gehören ihr, nicht der Liste.
+        testCase "Offene Gruppenauswahl: Esc schließt nur sie, sonst reagiert die Seite auf keine Taste" <| fun () ->
+            let choosing = run three [ EditCategory miete; OpenGroupChoice ]
+            for focus in ListKeysTests.focuses do
+                for command in [ false; true ] do
+                    for shift in [ false; true ] do
+                        for handled in [ false; true ] do
+                            for k in ListKeysTests.keys do
+                                let expected = if k = "Escape" && not handled then Some CloseGroupChoice else None
+                                expectSame (categoryKeyAction choosing focus command shift handled k) expected (fun () -> $"{k} {focus} {command} {shift} {handled}")
+            let closed = run choosing [ CloseGroupChoice ]
+            Expect.isFalse (closed.Form |> Option.exists (fun f -> f.GroupChoiceOpen)) "Auswahl zu"
+            Expect.isTrue closed.Form.IsSome "das Formular bleibt"
+    ]
+
+[<Tests>]
+let groupChoiceTests =
+    testList "Kategorien: Auswahl der Gruppe" [
+        testCase "Öffnen geht nur aus dem Kategorie-Formular, nicht während des Speicherns" <| fun () ->
+            let isOpen (m: Model) = m.Form |> Option.exists (fun f -> f.GroupChoiceOpen)
+            Expect.isTrue (isOpen (run loaded [ EditCategory drogerie; OpenGroupChoice ])) "Kategorie bearbeiten"
+            Expect.isTrue (isOpen (run loaded [ NewCategory; OpenGroupChoice ])) "Neue Kategorie"
+            Expect.isFalse (isOpen (run loaded [ RenameGroup kinder; OpenGroupChoice ])) "Gruppen-Formular hat keine Gruppe"
+            Expect.isFalse (isOpen (run loaded [ OpenGroupChoice ])) "ohne Formular"
+            Expect.isFalse (isOpen (run loaded [ EditCategory drogerie; NameChanged "Bad"; Save; OpenGroupChoice ])) "Speichern läuft"
+
+        testCase "Eine Gruppe wählen setzt sie und schließt die Auswahl, das Formular bleibt" <| fun () ->
+            let chosen = run loaded [ EditCategory drogerie; OpenGroupChoice; GroupChosen (string kinder) ]
+            match chosen.Form with
+            | Some { Editor = EditingCategory { GroupId = Some id }; GroupChoiceOpen = false } -> Expect.equal id kinder "Gruppe"
+            | other -> failtestf "erwartet Kategorie-Formular mit Kinder, Auswahl zu: %A" other
+
+        testCase "„Neue Gruppe“ aus der Auswahl öffnet das Gruppen-Formular, nach Abbrechen ist die Auswahl zu" <| fun () ->
+            let inGroupForm = run loaded [ EditCategory drogerie; OpenGroupChoice; GroupChosen NewGroupChoice ]
+            match inGroupForm.Form with
+            | Some { Editor = EditingGroup { ReturnTo = Some _ }; GroupChoiceOpen = false } -> ()
+            | other -> failtestf "erwartet Gruppen-Formular: %A" other
+            match (run inGroupForm [ CloseForm ]).Form with
+            | Some { Editor = EditingCategory _; GroupChoiceOpen = false } -> ()
+            | other -> failtestf "erwartet Kategorie-Formular ohne Auswahl: %A" other
+
+        testCase "Die Zeile nennt die Zahl der Kategorien der Gruppe, Einzahl und Mehrzahl" <| fun () ->
+            Expect.equal (categoryCountText 0) "0 Kategorien" "keine"
+            Expect.equal (categoryCountText 1) "1 Kategorie" "eine"
+            Expect.equal (categoryCountText 4) "4 Kategorien" "vier"
+    ]

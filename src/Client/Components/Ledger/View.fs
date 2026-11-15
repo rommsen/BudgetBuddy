@@ -2382,7 +2382,7 @@ let keyboardHintItemText (item: KeyHintPart list) : string =
     |> fun text -> text.Replace(" + ", "+")
 
 /// Die Leiste beginnt rechts von Rail (72 px) und Seitenleiste (232 px), design-system-k6kfw; ab 1024 px endet sie
-/// am Panel (420 px und der rechte Seitenrand `px-6`, ledger-cnaz3). Die Tasten stehen als Tastenkästchen (`ReviewCard.kbd`), die Wörter gedämpft.
+/// am Panel (Panelbreite und der rechte Seitenrand `px-6`, ledger-cnaz3). Die Tasten stehen als Tastenkästchen (`ReviewCard.kbd`), die Wörter gedämpft.
 let private keyboardHint () : ReactElement =
     Html.div [
         prop.custom ("data-testid", "ledger-keys")
@@ -2725,12 +2725,12 @@ let listInteractionTraits (interaction: ListInteraction) : ListInteractionTraits
     | CompactTouch ->
         { CheckboxVisible = false; FocusMarkVisible = false; GesturesEnabled = true; FooterHint = false }
 
-/// Die Breite, die das Seitenpanel der Tabelle nimmt (ledger-q1hw2).
-let detailPanelWidth : float = float Detail.panelWidthPx
-
-/// Was das Panel der Liste an Breite nimmt: das Panel und 4 px Abstand, damit die Filterleiste (`-mx-1`, Platz für
-/// den Fokus-Ring) nicht unter das Panel reicht (Layout-Sweep, Invariante 6). Die Spalte hält ihn als `Tokens.PanelWidths.columnInset`.
-let panelColumnPadding : float = detailPanelWidth + 4.0
+/// Was das Panel der Liste bei dieser Fensterbreite an Breite nimmt: das Panel (`Tokens.PanelWidths.panelWidthFor`,
+/// dieselbe Funktion setzt die CSS-Variable) und 4 px Abstand, damit die Filterleiste (`-mx-1`, Platz für den
+/// Fokus-Ring) nicht unter das Panel reicht (Layout-Sweep, Invariante 6). Die Spalte hält ihn als
+/// `Tokens.PanelWidths.columnInset` (design-system-gcpws).
+let panelColumnPadding (windowWidth: float) : float =
+    Tokens.PanelWidths.panelWidthFor windowWidth + Tokens.PanelWidths.columnInsetGap
 
 /// Ab dieser Fensterbreite darf die Spalte Memo stehen (Roman, 2026-11-14, ledger-cnaz3).
 let memoMinWindowWidth : float = 1500.0
@@ -2740,7 +2740,7 @@ let memoMinWindowWidth : float = 1500.0
 /// wenn die Stufe mit Memo neben dem Panel passt; darunter entfällt sie ohne Ersatz. Reicht die Breite für
 /// keine Stufe, gilt die Kompaktliste.
 let visibleColumnsBesidePanel (windowWidth: float) (columnWidth: float) (showAccountColumn: bool) : TableLayout =
-    visibleColumnsWith (windowWidth >= memoMinWindowWidth) (columnWidth - panelColumnPadding) showAccountColumn
+    visibleColumnsWith (windowWidth >= memoMinWindowWidth) (columnWidth - panelColumnPadding windowWidth) showAccountColumn
 
 /// Breite einer Spalte in Pixeln bei gegebener Tabellenbreite: `Rest` ist, was nach den
 /// festen Spalten übrig bleibt.
@@ -4071,10 +4071,8 @@ let private captureAccountList (dispatch: Msg -> unit) (model: Model) (capture: 
         match choice with
         | Capture.BookableAccounts accounts -> accounts
         | _ -> []
-    Html.div [
-        prop.className "flex flex-col gap-0.5"
-        prop.custom ("data-testid", "capture-account-list")
-        prop.children [
+    // Kurze Auswahl ohne Suche (§7.9, F7): Fokus auf dem gewählten Konto, ↑↓ und Enter.
+    PickerParts.ShortChoice "capture-account-list" [
             match choice with
             | Capture.CaptureAccountsLoading ->
                 yield Html.div [
@@ -4096,7 +4094,6 @@ let private captureAccountList (dispatch: Msg -> unit) (model: Model) (capture: 
                       | Some balance -> Money.accountListRow account.Name balance.Amount balance.Currency isActive pick
                       | None -> Money.accountListRowWith account.Name Html.none isActive pick ]
                 )
-        ]
     ]
 
 /// Wo das Formular steht: im Panel rechts (Kassenbuch am PC), im Dialog (Übersicht am PC, ledger-s1weh) oder im
@@ -4907,7 +4904,7 @@ let view (model: Model) (dispatch: Msg -> unit) (tabs: LedgerTabs) (ruleForm: En
             // Ab 1024 px steht rechts das Panel: der Kopf endet wie die Liste links davon, „+ Neue Regel“ steht am
             // rechten Rand der Listenspalte (Prototyp `rhead`). Der Untertitel nur am PC.
             Html.div [
-                prop.className "lg:pr-[444px]"
+                prop.className Tokens.PanelWidths.headInset
                 prop.children [
                     PageHeader.view
                         { PageHeader.defaultProps with
@@ -5358,7 +5355,7 @@ let private reviewEditors (dispatch: Msg -> unit) (model: Model) (entry: LedgerE
                   Subtitle = Some (payeeLabel entry)
                   Footer = None }
                 [ match payeeEdit with
-                  | Some edit -> PayeePicker.view (payeePickerProps dispatch model entry edit false)
+                  | Some edit -> PayeePicker.view (payeePickerProps dispatch model entry edit (Viewport.isFinePointer ()))
                   | None -> () ]
     ]
 
@@ -5430,7 +5427,7 @@ let ReviewPage (model: Model) (dispatch: Msg -> unit) (onBack: unit -> unit) (ru
             else ruleFormSheet (if card.IsSome && not review.DetailShown then openRuleForm else None)
         Html.div [
             prop.custom ("data-testid", "review-page")
-            prop.className ("relative flex min-h-full flex-col" + (if desk && review.DetailShown then " pr-[420px]" else ""))
+            prop.className ("relative flex min-h-full flex-col" + (if desk && review.DetailShown then $" {Tokens.PanelWidths.columnInsetPlain}" else ""))
             yield! Badge.lenaFlagScope (lenaColorOf model.LenaFlagColor)
             prop.children [
                 Html.div [

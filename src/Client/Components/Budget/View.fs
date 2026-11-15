@@ -26,7 +26,7 @@ open Components.Budget.TargetsView
 open Components.Budget.MovesView
 open Components.Budget.InspectorView
 
-/// Wo der Fokus steht, für `pageKeyAction`. Das Suchfeld erkennt sie an seiner Hülle.
+/// Wo der Fokus steht, für `pageListAction`. Das Suchfeld erkennt sie an seiner Hülle.
 let private keyFocus (target: obj) : KeyFocus =
     let tag: string = target?tagName
     if tag = "INPUT" || tag = "TEXTAREA" || tag = "SELECT" then
@@ -48,18 +48,18 @@ let private PageKeys (model: Model, dispatch: Msg -> unit) =
         (fun () ->
             let onKey (event: Browser.Types.Event) =
                 let e = event :?> Browser.Types.KeyboardEvent
-                if not (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey) then
-                    let current, send = latest.current
-                    let focus = keyFocus e.target
-                    if typesIntoSearch current e.key focus then
-                        let search: obj = Browser.Dom.document.querySelector "[data-testid='budget-category-search'] input"
-                        if not (isNull search) then search?focus ()
-                    elif not e.shiftKey then
-                        match pageKeyActionFor current e.key focus with
-                        | LeaveKey -> ()
-                        | action ->
-                            e.preventDefault ()
-                            send (PageKeyPressed action)
+                let current, send = latest.current
+                let command = e.altKey || e.ctrlKey || e.metaKey
+                match pageListAction current e.key (keyFocus e.target) e.shiftKey command e.defaultPrevented with
+                | ListKeys.TypeIntoSearch ->
+                    let search: obj = Browser.Dom.document.querySelector "[data-testid='budget-category-search'] input"
+                    if not (isNull search) then search?focus ()
+                | action ->
+                    match pageKeyOf action with
+                    | LeaveKey -> ()
+                    | key ->
+                        e.preventDefault ()
+                        send (PageKeyPressed key)
             Browser.Dom.document.addEventListener ("keydown", onKey)
             React.createDisposable (fun () -> Browser.Dom.document.removeEventListener ("keydown", onKey))),
         [||]
@@ -302,12 +302,17 @@ let view (pin: InspectorPin option) (model: Model) (dispatch: Msg -> unit) =
                 moveRetries model (pageRetries isPanel model) dispatch
                 // ADR 0043: zur Renderzeit genau eine Hülle um denselben Inhalt.
                 if isPanel then
+                    // Das Panel liegt rechts in der Spalte (`Detail.panelWith`, design-system-gcpws); die Liste hält
+                    // seinen Platz frei, die Mindesthöhe hält das haftende Panel auch bei kurzer Liste im Bild.
                     Html.div [
-                        prop.className "grid grid-cols-[minmax(0,1fr)_340px] gap-4 items-start"
+                        prop.className "relative"
                         prop.children [
                             PageKeys (model, dispatch)
-                            listArea model shown wide dispatch
                             inspectorPanel pin model dispatch
+                            Html.div [
+                                prop.className $"{Tokens.PanelWidths.columnInsetWide} min-h-[calc(100vh-7rem)]"
+                                prop.children [ listArea model shown wide dispatch ]
+                            ]
                         ]
                     ]
                 else

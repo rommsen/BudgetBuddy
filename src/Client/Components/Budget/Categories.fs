@@ -3,6 +3,8 @@
 /// Formular ist offen, am Handy als Sheet, ab 1024 px als Panel (§7.6). "Neue Gruppe" im Auswahlfeld ersetzt das
 /// Kategorie-Formular durch das Gruppen-Formular und kehrt nach dem Anlegen mit der neuen Gruppe zurück (§7.15,
 /// Sheets werden nicht gestapelt). Reine Übergänge; Aufrufe von `Api` liegen hinter Lambdas.
+/// Die Gruppe wählt man über ein Feld mit Pfeil, das eine kurze Auswahl der Gruppen öffnet (G13, design-system-gcpws,
+/// Prototyp `cegroup`): am PC als Dialog, am Handy ersetzt sie den Inhalt des Sheets.
 /// Deaktivieren (Schalter "Aktiv" im Formular, "Aktivieren" im Abschnitt Deaktiviert) und die Pfeile für BBs
 /// Reihenfolge je Gruppe gehen nur an BB, nicht nach YNAB (budgeting-sn2sn, ADR 0088 Punkte 2 und 3).
 module Components.Budget.Categories
@@ -35,12 +37,14 @@ type SaveCall =
 
 /// Das offene Formular. `Saving`: der Aufruf läuft, Speichern und Schließen sind gesperrt. `Error`: die Meldung
 /// des Servers, sie bleibt im Formular, bis etwas geändert wird. `Notice`: der Hinweis nach gelungenem
-/// Deaktivieren oder Aktivieren, er kommt als Toast, wenn das Formular schließt.
+/// Deaktivieren oder Aktivieren, er kommt als Toast, wenn das Formular schließt. `GroupChoiceOpen`: die Auswahl der
+/// Gruppe steht offen über dem Formular (oberste Ebene, §7.8 Punkt 6).
 type Form =
     { Editor: Editor
       Saving: SaveCall option
       Error: string option
-      Notice: string option }
+      Notice: string option
+      GroupChoiceOpen: bool }
     member form.IsSaving = form.Saving.IsSome
 
 /// Der Aufruf für die Reihenfolge einer Gruppe, der gerade läuft. `Next`: die zuletzt gewünschte Reihenfolge, die
@@ -75,7 +79,11 @@ type Msg =
     /// "Umbenennen" an einer Gruppe.
     | RenameGroup of Guid
     | NameChanged of string
-    /// Wahl im Auswahlfeld Gruppe: eine Gruppen-Id oder `NewGroupChoice`.
+    /// Das Feld Gruppe öffnet die Auswahl der Gruppen (G13).
+    | OpenGroupChoice
+    /// Esc, Schließen oder der Hintergrund: nur die Auswahl geht zu, das Formular bleibt.
+    | CloseGroupChoice
+    /// Wahl in der Auswahl der Gruppe: eine Gruppen-Id oder `NewGroupChoice`. Schließt die Auswahl.
     | GroupChosen of string
     | Save
     /// "Abbrechen", Schließen oder Esc. Im Gruppen-Formular aus "Neue Gruppe" zurück zum Kategorie-Formular.
@@ -136,7 +144,12 @@ let private groupsOf (model: Model) : ManagedCategoryGroup list =
     | Success groups -> groups
     | _ -> []
 
-let private opened (editor: Editor) : Form option = Some { Editor = editor; Saving = None; Error = None; Notice = None }
+let private opened (editor: Editor) : Form option =
+    Some { Editor = editor; Saving = None; Error = None; Notice = None; GroupChoiceOpen = false }
+
+/// Die zweite Zeile einer Gruppe in der Auswahl (Prototyp `cegroup`): die Zahl ihrer aktiven Kategorien.
+let categoryCountText (count: int) : string =
+    if count = 1 then "1 Kategorie" else $"{count} Kategorien"
 
 /// Der Hinweis nach dem Deaktivieren: die YNAB-API kann nicht ausblenden (ADR 0088 Punkt 2).
 let deactivatedNotice (name: string) : string = $"{name} deaktiviert. In YNAB noch sichtbar, dort ausblenden."
@@ -175,6 +188,58 @@ let canMove (step: OrderStep) (categoryId: Guid) (group: ManagedCategoryGroup) :
     (movedOrder step categoryId group).IsSome
 
 /// Die Gruppe mit ihren Kategorien in der Reihenfolge `order`.
+/// Was die Liste der Kategorien kann (§7.8, F5): keine Mehrfachauswahl, keine Tabs, keine Suche.
+let categoryListTraits : Client.DesignSystem.ListKeys.Traits =
+    { MultiSelect = false; Tabs = false; Search = false; TypeToSearch = false }
+
+/// Die aktiven Kategorien in der Reihenfolge der Seite, Gruppe für Gruppe.
+let private shownOrder (groups: ManagedCategoryGroup list) : Guid list =
+    groups |> List.collect (fun g -> activeCategories g |> List.map (fun c -> c.Id))
+
+/// Die Tasten am PC über die gemeinsame Regel (`ListKeys.actionFor`, design-system-gcpws, F5): ↓ ohne offene
+/// Kategorie öffnet die erste, ↑ die letzte im Panel, danach die nächste bzw. vorige; am Rand bleibt es stehen. Esc
+/// schließt das Panel, auch aus dem Feld Name. In einem Feld gehören die Pfeile dem Cursor, Alt+↑↓ verschiebt die
+/// Kategorie (`moveKey` an der Zeile).
+let categoryKeyAction
+    (model: Model)
+    (focus: Client.DesignSystem.ListKeys.Focus)
+    (command: bool)
+    (shift: bool)
+    (handled: bool)
+    (key: string)
+    : Msg option =
+    let order = shownOrder (groupsOf model)
+    let current =
+        match model.Form with
+        | Some { Editor = EditingCategory { CategoryId = Some id } } -> order |> List.tryFindIndex ((=) id)
+        | _ -> None
+    // Die offene Auswahl der Gruppe ist die oberste Ebene: Esc schließt nur sie, die Liste ruht (§7.8 Punkt 6).
+    let choosing = model.Form |> Option.exists (fun f -> f.GroupChoiceOpen)
+    let action =
+        Client.DesignSystem.ListKeys.actionFor
+            categoryListTraits
+            { Key = key
+              Focus = focus
+              Command = command
+              Shift = shift
+              Handled = handled
+              LayerOpen = choosing
+              RowSelected = current.IsSome
+              PanelOpen = model.Form.IsSome
+              SelectionActive = false }
+    let openAt index =
+        match List.tryItem index order with
+        | Some id when Some index <> current -> Some (EditCategory id)
+        | _ -> None
+    match action, current with
+    | _ when choosing -> if key = "Escape" && not handled then Some CloseGroupChoice else None
+    | Client.DesignSystem.ListKeys.ClosePanel, _ -> Some CloseForm
+    | Client.DesignSystem.ListKeys.FirstRow, _ -> openAt 0
+    | Client.DesignSystem.ListKeys.LastRow, _ -> openAt (List.length order - 1)
+    | Client.DesignSystem.ListKeys.StepRow Client.DesignSystem.ListKeys.Forward, Some i -> openAt (i + 1)
+    | Client.DesignSystem.ListKeys.StepRow Client.DesignSystem.ListKeys.Backward, Some i -> openAt (i - 1)
+    | _ -> None
+
 let private reordered (order: Guid list) (group: ManagedCategoryGroup) : ManagedCategoryGroup =
     let byId = group.Categories |> List.map (fun c -> c.Id, c) |> Map.ofList
     { group with Categories = order |> List.choose (fun id -> Map.tryFind id byId) }
@@ -230,6 +295,10 @@ let private request (editor: Editor) : (SaveCall * Cmd<Msg>) option =
         Some (SavingCategory, saveCategoryCmd { CategoryId = id; Name = name; GroupId = groupId })
     | EditingCategory _ -> None
     | EditingGroup group -> Some (SavingGroup, saveGroupCmd { GroupId = group.GroupId; Name = group.Name })
+
+/// Die Auswahl der Gruppe ist zu (nach einer Wahl).
+let private withChoiceClosed (model: Model) : Model =
+    { model with Form = model.Form |> Option.map (fun f -> if f.IsSaving then f else { f with GroupChoiceOpen = false }) }
 
 let private withEditor (change: Editor -> Editor) (model: Model) : Model =
     match model.Form with
@@ -307,12 +376,19 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
             | EditingCategory editor -> EditingCategory { editor with Name = name }
             | EditingGroup editor -> EditingGroup { editor with Name = name }
         withEditor named model, Cmd.none, NoOp
+    | OpenGroupChoice ->
+        match model.Form with
+        | Some ({ Editor = EditingCategory _ } as form) when not form.IsSaving ->
+            { model with Form = Some { form with GroupChoiceOpen = true } }, Cmd.none, NoOp
+        | _ -> model, Cmd.none, NoOp
+    | CloseGroupChoice ->
+        { model with Form = model.Form |> Option.map (fun f -> { f with GroupChoiceOpen = false }) }, Cmd.none, NoOp
     | GroupChosen NewGroupChoice ->
         let toGroupForm =
             function
             | EditingCategory editor -> EditingGroup { GroupId = None; Name = ""; ReturnTo = Some editor }
             | other -> other
-        withEditor toGroupForm model, Cmd.none, NoOp
+        withChoiceClosed (withEditor toGroupForm model), Cmd.none, NoOp
     | GroupChosen value ->
         match Guid.TryParse value with
         | true, groupId ->
@@ -320,7 +396,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
                 function
                 | EditingCategory editor -> EditingCategory { editor with GroupId = Some groupId }
                 | other -> other
-            withEditor chosen model, Cmd.none, NoOp
+            withChoiceClosed (withEditor chosen model), Cmd.none, NoOp
         | _ -> model, Cmd.none, NoOp
     | Save ->
         match model.Form with

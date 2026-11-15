@@ -1045,7 +1045,8 @@ let SearchableSelect (props: SearchableSelectProps) =
                                     prop.className $"w-full bg-surface-card text-text-primary border border-border-strong rounded-md px-3 py-2 min-h-[36px] focus:ring-2 focus:ring-accent focus:outline-none focus-visible:outline-none placeholder:text-text-muted/70 {searchFieldTextClass}"
                                     prop.placeholder searchPlaceholderText
                                     prop.value searchText
-                                    prop.autoFocus true
+                                    // Am PC sofort in der Suche, am Handy nicht: die Tastatur käme sonst (§7.9, design-system-gcpws).
+                                    prop.autoFocus (Viewport.isFinePointer ())
                                     prop.onChange setSearchText
                                     prop.onKeyDown handleKeyDown
                                 ]

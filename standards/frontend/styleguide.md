@@ -181,7 +181,7 @@ durchgestrichen und gedämpft, Pfeil, neuer Wert), eine leere Liste rendert nich
 in `/styleguide` unter „26. Kategorie-Picker (Einfachauswahl)“, dort auch `sheetContent` in einem Sheet.
 Im Buchungs-Detail öffnet `Detail.pickerArrow` (Pfeil `›` rechts an der Kategorie-Zeile, `Detail.fieldRowWith`
 macht die ganze Zeile klickbar) den Picker: am PC `CategoryPicker.popoverInPanel` (Breite des
-420-px-Panels abzüglich Rand), am Handy ersetzt `sheetContent` den Inhalt des Detail-Sheets. Sitzt der Auslöser im Scrollbereich des
+Panels abzüglich Rand), am Handy ersetzt `sheetContent` den Inhalt des Detail-Sheets. Sitzt der Auslöser im Scrollbereich des
 Panels (Tab Geld), nimmt man `CategoryPicker.popoverInPanelRevealed`: es rückt beim Öffnen ins Bild und
 nimmt die volle Breite des schon eingerückten Inhalts. Der Pfeil ist bei gesperrten Buchungen
 gedämpft (`opacity-40`), ohne Wirkung und nennt den Grund im Tooltip. Beide Zeilen stehen in
@@ -271,7 +271,7 @@ Module in [`Tokens.fs`](../../src/Client/DesignSystem/Tokens.fs):
 - `Spacing`, `Padding`, `Margin` — alle mobile-first (z. B.
   `Padding.cardMobile = "p-4 md:p-6"`).
 - `NavWidths` und `PanelWidths` (Breite des Panels rechts neben einer Liste, der rechte Rand der festen Leisten
-  daneben und der Innenabstand der Spalte; derselbe Wert wie `Detail.panelWidthPx`).
+  daneben und der Innenabstand der Spalte, alle über die CSS-Variable `--panel-w` aus `PanelWidths.panelWidthFor`, §7.6).
 - `Radius`, `ZIndex`, `TouchTargets` (`minSize = "min-h-[48px] min-w-[48px]"`; `minHeight` 48 px nur am Handy;
   `mobileMinHeight` und `mobileSquare` als Handy-Wert, den PC-Wert setzt der Aufrufer mit `md:` dahinter;
   `mobileOverlap` für kleine Knöpfe in einer festen Zeile), `Breakpoints`.
@@ -563,14 +563,23 @@ Bereiche mit eigenem Inhalt sind `Tabs` (§5). Freitext, wo es eine endliche Men
 ### 7.6 Liste mit Panel (PC)
 
 **Regel:** Ab 1024 px Breite (`lg`) stehen Liste und Panel nebeneinander, darunter nur eins von beiden. Das
-Panel ist eine feste Spalte rechts mit rund 30 % der Breite (im Prototyp 30 % der Fensterbreite,
-mindestens 380 px, höchstens 520 px). Was ein Ding der Liste zeigt, bearbeitet oder neu anlegt, steht
+Panel ist eine feste Spalte rechts mit 30 % der Fensterbreite, mindestens 380 px, höchstens 520 px
+(`clamp(380px, 30vw, 520px)` wie im Prototyp Version 17). Die eine Quelle ist `Tokens.PanelWidths.panelWidthFor`:
+`Viewport.start` schreibt sie als CSS-Variable `--panel-w`, die Klassen in `Tokens.PanelWidths` lesen sie, und die
+Spaltenwahl der Kassenbuch-Tabelle rechnet mit derselben Funktion. Die Hülle ist auf jeder Seite dieselbe
+(`Detail.panelWith`): sie beginnt unter dem Seitenkopf und haftet dort, mit Rand links und dem Seitenrand rechts, ohne
+Karte, wie im Kassenbuch seit ledger-cnaz3. Der Prototyp lässt das Panel von oben bis an den Fensterrand reichen; BB
+bleibt bei der Hülle des Kassenbuchs (Abweichung (c), Roman 2026-11-15, G12). Reicht die Breite neben dem
+Panel nicht, fällt die Liste zurück: Kompaktliste im Kassenbuch, Karte in den Regeln (unter 560 px Liste),
+Zeilen wie am Handy im Budget (unter 40rem Liste, bei 16 px Grundschrift also erst ab rund 1340 px Fenster die Tabelle;
+Abweichung (a), G11), gestapelte Zeilen in Targets prüfen (unter 720 px). Was ein Ding der Liste zeigt, bearbeitet oder neu anlegt, steht
 im Panel: Buchung, Regel, Kategorie, Target, die neue Buchung. Nach dem Anlegen zeigt das Panel das
 neue Ding. Ein Dialog (`Modal`) ist nur eine kurze Frage (Rückfrage vor dem Löschen) oder eine Auswahl
 (Kategorie, Konto, Targets anwenden).
 
 **Wann:** jede Liste am PC, deren Zeilen ein Detail haben (Kassenbuch mit Buchungen und Regeln,
-Budget, Targets prüfen, Kategorien).
+Budget, Targets prüfen, Kategorien). Im Kassenbuch und im Budget steht das Panel immer, in Targets prüfen nach
+„Anpassen …“, in Kategorien mit offenem Formular. Das Detail im Durchgehen hat dieselbe Breite.
 
 **Wann nicht:** Unter 1024 px öffnet das Detail als `BottomSheet` (§7.1). Eine Rückfrage oder eine
 Auswahl wird kein Panel. Auf einer Seite ohne Liste öffnen „Neue Buchung“ (Übersicht) und „Regel anlegen“ aus dem
@@ -609,8 +618,9 @@ Zeile zeigt das Panel ihr Detail.
 
 ### 7.8 Tastatur
 
-**Regel** (am PC, für jede Liste mit Panel; Vorbild ist `pageKeyAction` in
-[`Inspector.fs`](../../src/Client/Components/Budget/Inspector.fs)):
+**Regel** (am PC, für jede Liste mit Panel; eine reine Regel für alle Seiten ist `ListKeys.actionFor` in
+[`ListKeys.fs`](../../src/Client/DesignSystem/ListKeys.fs). Die Seite bildet ihre eigenen Tasten davor ab, etwa das
+Kassenbuch G, L, J, K, Leertaste und Enter):
 
 1. **Pfeile gehören der Liste**, auch wenn der Fokus im Suchfeld der Liste steht: ↑↓ wechseln die
    Zeile, ←→ den Tab im Panel. Ohne Auswahl wählt ↓ die erste und ↑ die letzte sichtbare Zeile;
@@ -621,20 +631,26 @@ Zeile zeigt das Panel ihr Detail.
 4. Ein Druck ist ein Schritt. Hat `Tabs` die Taste schon genommen (`defaultPrevented`), reagiert die
    Seite nicht noch einmal.
 5. Ein druckbares Zeichen, während kein Feld den Fokus hat, geht in die Suche der Liste
-   (`typesIntoSearch`); die Leertaste bleibt beim Knopf mit Fokus und beim Scrollen.
+   (`typesIntoSearch`); die Leertaste bleibt beim Knopf mit Fokus und beim Scrollen. **Ausnahme Kassenbuch:**
+   dort sind G, L, J und K belegt, getippt wird nicht in die Suche; „/“ setzt den Fokus in die Suche (Roman,
+   2026-11-15, F9).
 6. **Oberster Dialog zuerst:** Ist ein Dialog, ein Picker oder ein Sheet offen, bekommt er die Tasten
    zuerst und verbraucht sie; die Liste darunter reagiert nicht (`pageKeyActionFor`). Esc schließt nur
    den obersten Dialog und führt dorthin zurück, wo man herkam: der Fokus geht auf den Auslöser, aus
-   dem Picker zurück ins Detail. Ohne Dialog hebt Esc zuerst eine Mehrfachauswahl auf und schließt
-   danach das Panel.
+   dem Picker zurück ins Detail. Ohne Dialog schließt Esc zuerst das Panel (Detail, Formular, „Neue Buchung“),
+   die Auswahl bleibt stehen; das nächste Esc hebt die Auswahl auf (ADR 0096 Punkt 2, Roman 2026-11-15, F4).
+   Esc wirkt auch aus einem Feld, außer das Feld nimmt es selbst (etwa „Abbrechen“ einer Bearbeitung).
 
-**Wann:** Kassenbuch (Buchungen und Regeln), Budget, Targets prüfen, Kategorien, jede neue Liste
-mit Panel.
+**Wann:** Kassenbuch (Buchungen und Regeln), Budget, Kategorien (↑↓ öffnen die nächste Kategorie im Panel),
+jede neue Liste mit Panel. Targets prüfen belegt nur Esc (die Zeilen tragen eigene Knöpfe, F5).
 
 **Wann nicht:** Am Handy gibt es keine Seitentasten; dort schließt Esc nur ein offenes Sheet.
 
-**Quelle:** ADR 0087 Punkte 18 und 19; Code `pageKeyAction`, `pageKeyActionFor` und
-`typesIntoSearch` in `src/Client/Components/Budget/Inspector.fs`.
+**Quelle:** ADR 0087 Punkte 18 und 19, ADR 0096 Punkt 2; Code `ListKeys.actionFor` und `ListKeys.escapeStep`,
+geprüft gegen §7.8 als Aufzählung in `src/Tests/ListKeysTests.fs` und im Browser von
+`scripts/key-invariants.test.mjs`. Eine neue Liste mit Panel bekommt dort einen Eintrag in `LISTS`, ein neuer
+Auswahl-Dialog einen in `DIALOGS`. Diese Regel ist prose-only (nicht mechanisch erzwungen): kein Test merkt, wenn
+eine Liste fehlt.
 
 ### 7.9 Auswahl-Dialog
 
@@ -644,7 +660,12 @@ die Liste neu aufzubauen; die markierte Option rückt ins Bild. Enter wählt die
 schließt nur den Dialog (§7.8). Ein Klick übernimmt sofort (Click-Commit, §7.1). Am Handy gibt es
 keinen Autofokus, die Tastatur kommt erst beim Tippen ins Suchfeld (`Viewport.isFinePointer()`).
 
-**Wann:** `CategoryPicker`, `Input.searchableSelect` und jede neue
+Eine kurze Auswahl (bis etwa sieben Optionen, etwa das Konto in „Neue Buchung“) hat keine Suche: am PC steht der
+Fokus beim Öffnen auf der gewählten Option, ↑↓ bewegen ihn, Enter wählt (`PickerParts.ShortChoice`, Roman
+2026-11-15, F7). Am Handy steht dieselbe Auswahl als Sheet. Beispiele: das Konto in „Neue Buchung“, die Gruppe in
+„Kategorie bearbeiten“ (Feld mit Pfeil wie im Prototyp, G13).
+
+**Wann:** `CategoryPicker`, `CategoryMultiSelect`, `PayeePicker`, `Input.searchableSelect` und jede neue
 Auswahl aus einer Liste.
 
 **Wann nicht:** Ein Formular mit mehreren Feldern ist kein Auswahl-Dialog und steht im Panel (§7.6).

@@ -16,6 +16,8 @@ open Fable.Core
 open Shared.Domain
 open Types
 
+module ListKeys = Client.DesignSystem.ListKeys
+
 /// Wie viele Buchungen eine Seite traegt (AC5, ledger-b1xwe). Ein Modul-Wert statt
 /// eines Literals: `RunLoadEntriesPage` und die Tests teilen sich diese eine Zahl.
 let pageSize = 100
@@ -2131,14 +2133,14 @@ let removeFromSelection (id: Guid) (selection: Selection) : Selection =
 // ============================================
 
 /// Der Index der Zeile hinter dem Fokus; ohne Fokus oder mit einem Fokus außerhalb der
-/// Liste die erste. `None` nur bei leerer Liste.
+/// Liste ↓ die erste und ↑ die letzte (§7.8 Punkt 1, design-system-gcpws). `None` nur bei leerer Liste.
 let private clampedFocusIndex (entries: LedgerEntryView list) (focus: Guid option) (delta: int) : int option =
     match entries with
     | [] -> None
     | _ ->
         match focus |> Option.bind (fun id -> entries |> List.tryFindIndex (fun e -> e.Id = id)) with
         | Some index -> Some (max 0 (min (List.length entries - 1) (index + delta)))
-        | None -> Some 0
+        | None -> Some (if delta < 0 then List.length entries - 1 else 0)
 
 /// Wohin der Fokus nach einer Pfeiltaste wandert. Am Listenende und am Listenanfang
 /// bleibt er stehen.
@@ -2782,15 +2784,32 @@ type Msg =
     /// Eine Taste am PC (ohne Fokus in einem Feld).
     | ReviewKey of ReviewKeyAction
 
-/// Die Tastenbelegung der Kassenbuch-Liste (PC): Pfeil ab/auf und J/K bewegen den Fokus,
-/// G setzt "Geprüft", Umschalt+G "Ungeprüft", Enter öffnet das Detail der markierten Zeile
-/// und Esc schließt eine Stufe (ledger-q1hw2), die Leertaste wählt die markierte Zeile
-/// (ledger-w4vte). Seit ledger-cnaz3 (§7.7, §7.8): L fragt Lena, „/“ springt in die Suche,
-/// Umschalt+↑↓ erweitert die Auswahl, und aus der Suche (`inSearch`) wirken die Pfeile auf die
-/// Liste (ADR 0087 Punkt 18); jede andere Taste gehört dort dem Feld. Ein Tastenereignis aus einem
-/// anderen Eingabefeld oder mit Strg, Meta oder Alt löst nichts aus. Enter und Leertaste auf einem
-/// Knopf oder Link bleiben dessen eigene Aktivierung: sonst löste ein fokussierter Knopf zweimal aus
-/// (ADR 0053).
+/// Was die Kassenbuch-Liste kann (§7.8): Mehrfachauswahl, keine Tabs im Panel, eine Suche, in die nicht getippt
+/// wird, weil G, L, J und K belegt sind; gesucht wird mit „/“ (F9, design-system-gcpws).
+let ledgerListTraits : ListKeys.Traits =
+    { MultiSelect = true; Tabs = false; Search = true; TypeToSearch = false }
+
+/// Die eigenen Tasten der Kassenbuch-Liste vor der gemeinsamen Regel (F9): J/K bewegen den Fokus, G setzt
+/// „Geprüft“, Umschalt+G „Ungeprüft“, L fragt Lena, Enter öffnet das Detail der markierten Zeile (ledger-q1hw2), die
+/// Leertaste wählt sie (ledger-w4vte). Nur ohne Feldfokus; Enter und Leertaste auf einem Knopf oder Link bleiben
+/// dessen eigene Aktivierung, sonst löste ein fokussierter Knopf zweimal aus (ADR 0053).
+let private ledgerOwnKey (tagName: string) (key: string) : Msg option =
+    match key with
+    | "j" | "J" -> Some (MoveFocus 1)
+    | "k" | "K" -> Some (MoveFocus -1)
+    | "g" -> Some (ReviewKeyPressed Reviewed)
+    | "G" -> Some (ReviewKeyPressed Unreviewed)
+    | "l" | "L" -> Some LenaKeyPressed
+    | "Enter" when not (isActivatable tagName) -> Some OpenFocusedDetail
+    | " " when not (isActivatable tagName) -> Some ToggleFocusedSelected
+    | _ -> None
+
+/// Die Tastenbelegung der Kassenbuch-Liste (PC): erst die eigenen Tasten (`ledgerOwnKey`), dann die gemeinsame Regel
+/// aller Listen mit Panel (`ListKeys.actionFor`, design-system-gcpws): ↑↓ bewegen den Fokus (ohne Fokus ab der ersten
+/// bzw. letzten Zeile, das entscheidet `MoveFocus`), Umschalt+↑↓ erweitert die Auswahl, „/“ springt in die Suche,
+/// aus der Suche (`inSearch`) wirken die Pfeile auf die Liste (ADR 0087 Punkt 18), Esc schließt eine Stufe, auch aus
+/// einem Feld. Welche Stufe, entscheidet die Kette in `EscapePressed` (Popover, Picker, Bearbeitung, neue Buchung,
+/// Detail, Auswahl); für die Regel gelten Panel und Auswahl deshalb als offen. Mit Strg, Meta oder Alt löst nichts aus.
 let keyCommandFor
     (tagName: string)
     (isContentEditable: bool)
@@ -2800,30 +2819,41 @@ let keyCommandFor
     (shift: bool)
     (key: string)
     : Msg option =
-    let arrow () =
-        match key with
-        | "ArrowDown" -> Some (if shift then ExtendSelection 1 else MoveFocus 1)
-        | "ArrowUp" -> Some (if shift then ExtendSelection -1 else MoveFocus -1)
-        | _ -> None
-    if ctrlOrMeta || alt then
-        None
-    elif inSearch then
-        arrow ()
-    elif isTypingTarget tagName isContentEditable then
-        None
-    else
-        match key with
-        | "ArrowDown" | "ArrowUp" -> arrow ()
-        | "j" | "J" -> Some (MoveFocus 1)
-        | "k" | "K" -> Some (MoveFocus -1)
-        | "g" -> Some (ReviewKeyPressed Reviewed)
-        | "G" -> Some (ReviewKeyPressed Unreviewed)
-        | "l" | "L" -> Some LenaKeyPressed
-        | "/" -> Some FocusSearch
-        | "Enter" when not (isActivatable tagName) -> Some OpenFocusedDetail
-        | " " when not (isActivatable tagName) -> Some ToggleFocusedSelected
-        | "Escape" -> Some EscapePressed
-        | _ -> None
+    let command = ctrlOrMeta || alt
+    let focus =
+        if inSearch then ListKeys.InSearch
+        elif isTypingTarget tagName isContentEditable then ListKeys.InTextField
+        else ListKeys.Elsewhere
+    let own =
+        if command || focus <> ListKeys.Elsewhere then None else ledgerOwnKey tagName key
+    match own with
+    | Some msg -> Some msg
+    | None ->
+        let action =
+            ListKeys.actionFor
+                ledgerListTraits
+                { Key = key
+                  Focus = focus
+                  Command = command
+                  Shift = shift
+                  Handled = false
+                  LayerOpen = false
+                  RowSelected = true
+                  PanelOpen = true
+                  SelectionActive = true }
+        match action with
+        | ListKeys.FirstRow
+        | ListKeys.StepRow ListKeys.Forward -> Some (MoveFocus 1)
+        | ListKeys.LastRow
+        | ListKeys.StepRow ListKeys.Backward -> Some (MoveFocus -1)
+        | ListKeys.ExtendSelection ListKeys.Forward -> Some (ExtendSelection 1)
+        | ListKeys.ExtendSelection ListKeys.Backward -> Some (ExtendSelection -1)
+        | ListKeys.FocusSearch -> Some FocusSearch
+        | ListKeys.ClosePanel
+        | ListKeys.ClearSelection -> Some EscapePressed
+        | ListKeys.StepTab _
+        | ListKeys.TypeIntoSearch
+        | ListKeys.Leave -> None
 
 /// Wohin eine Taste am PC auf Kassenbuch und Durchgehen geht (ledger-hg5m5).
 type PageKeyTarget<'action> =

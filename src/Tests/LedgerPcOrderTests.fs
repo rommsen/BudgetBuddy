@@ -61,13 +61,15 @@ let keyTests =
             Expect.equal (keyCommandFor "BODY" false false false false true "ArrowUp") (Some (ExtendSelection -1)) "⇧+↑"
             Expect.equal (keyCommandFor "BODY" false false false false false "ArrowDown") (Some (MoveFocus 1)) "↓"
 
-        testCase "aus der Suche wirken nur die Pfeile, jede andere Taste gehört dem Feld" <| fun () ->
+        testCase "aus der Suche wirken nur die Pfeile und Esc, jede andere Taste gehört dem Feld" <| fun () ->
             let inSearch shift k = keyCommandFor "INPUT" false true false false shift k
             Expect.equal (inSearch false "ArrowDown") (Some (MoveFocus 1)) "↓"
             Expect.equal (inSearch false "ArrowUp") (Some (MoveFocus -1)) "↑"
             Expect.equal (inSearch true "ArrowDown") (Some (ExtendSelection 1)) "⇧+↓"
-            for k in [ "g"; "G"; "l"; "j"; "k"; "/"; " "; "Enter"; "Escape"; "a" ] do
+            for k in [ "g"; "G"; "l"; "j"; "k"; "/"; " "; "Enter"; "a" ] do
                 Expect.isNone (inSearch false k) $"{k} schreibt in die Suche"
+            // design-system-gcpws (§7.8 Punkt 6): Esc schließt eine Stufe auch aus der Suche.
+            Expect.equal (inSearch false "Escape") (Some EscapePressed) "Esc"
             Expect.isNone (keyCommandFor "INPUT" false true true false false "ArrowDown") "Strg+↓ bleibt dem Feld"
             Expect.isNone (keyCommandFor "INPUT" false false false false false "ArrowDown") "in einem anderen Feld nichts"
 

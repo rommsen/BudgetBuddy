@@ -7,6 +7,8 @@ open Components.Rules.Types
 open Types
 open Shared.Domain
 
+module ListKeys = Client.DesignSystem.ListKeys
+
 let init () : Model * Cmd<Msg> =
     { Rules = NotAsked; LoadVersion = 0; Categories = NotAsked; Panel = None; SaveRequests = 0; Reorder = ReorderIdle }, Cmd.none
 
@@ -103,33 +105,47 @@ type RuleKey =
     | CloseRulePanel
     | CloseRulePicker
 
-/// Die Tastenlogik am PC (§7.8, ADR 0087 Punkte 18 und 19): ↓ ohne Auswahl öffnet die erste, ↑ die letzte Regel,
-/// danach die nächste bzw. vorige; in einem Textfeld gehören die Pfeile dem Cursor. Esc schließt zuerst die
-/// Auswahl der Kategorie, dann das Panel. Mit Alt, Strg oder Cmd und nach `defaultPrevented` reagiert sie nicht.
+/// Was die Liste der Regeln kann (§7.8): keine Mehrfachauswahl, keine Tabs, keine Suche.
+let ruleListTraits : ListKeys.Traits = { MultiSelect = false; Tabs = false; Search = false; TypeToSearch = false }
+
+/// Die Tastenlogik am PC über die gemeinsame Regel (`ListKeys.actionFor`, design-system-gcpws): ↓ ohne Auswahl öffnet
+/// die erste, ↑ die letzte Regel, danach die nächste bzw. vorige; in einem Textfeld gehören die Pfeile dem Cursor.
+/// Esc schließt das Panel, auch aus einem Feld. Davor steht die eigene Ebene der Seite: bei offener Auswahl der
+/// Kategorie schließt Esc nur sie, und die Pfeile gehören ihr. Mit Alt, Strg, Cmd oder Umschalt (`modifier`) und nach
+/// `defaultPrevented` reagiert sie nicht.
 let ruleKeyAction (model: Model) (focus: KeyFocus) (modifier: bool) (handled: bool) (key: string) : RuleKey option =
     let pickerOpen = model.Panel |> Option.exists (fun p -> p.PickerOpen)
-    if handled || modifier then
-        None
+    let current =
+        match model.Panel, model.Rules with
+        | Some { Editor = Editing rule }, Success rules -> rules |> List.tryFindIndex (fun r -> r.Id = rule.Id)
+        | _ -> None
+    if pickerOpen && key = "Escape" && not modifier && not handled then
+        Some CloseRulePicker
     else
-        match key with
-        | "Escape" when pickerOpen -> Some CloseRulePicker
-        | "Escape" when model.Panel.IsSome -> Some CloseRulePanel
-        | ("ArrowDown" | "ArrowUp") when not pickerOpen && focus = Elsewhere ->
-            match model.Rules with
-            | Success rules when not rules.IsEmpty ->
-                let last = rules.Length - 1
-                let current =
-                    match model.Panel with
-                    | Some { Editor = Editing rule } -> rules |> List.tryFindIndex (fun r -> r.Id = rule.Id)
-                    | _ -> None
-                let target =
-                    match key, current with
-                    | "ArrowDown", None -> 0
-                    | "ArrowDown", Some i -> min last (i + 1)
-                    | _, None -> last
-                    | _, Some i -> max 0 (i - 1)
-                if Some target = current then None else Some (ShowRule rules.[target].Id)
-            | _ -> None
+        let action =
+            ListKeys.actionFor
+                ruleListTraits
+                { Key = key
+                  Focus = (match focus with InTextField -> ListKeys.InTextField | Elsewhere -> ListKeys.Elsewhere)
+                  Command = modifier
+                  Shift = false
+                  Handled = handled
+                  LayerOpen = pickerOpen
+                  RowSelected = current.IsSome
+                  PanelOpen = model.Panel.IsSome
+                  SelectionActive = false }
+        match action, model.Rules with
+        | ListKeys.ClosePanel, _ -> Some CloseRulePanel
+        | (ListKeys.FirstRow | ListKeys.LastRow | ListKeys.StepRow _), Success rules when not rules.IsEmpty ->
+            let last = rules.Length - 1
+            let target =
+                match action, current with
+                | ListKeys.FirstRow, _ -> 0
+                | ListKeys.LastRow, _ -> last
+                | ListKeys.StepRow ListKeys.Forward, Some i -> min last (i + 1)
+                | _, Some i -> max 0 (i - 1)
+                | _, None -> 0
+            if Some target = current then None else Some (ShowRule rules.[target].Id)
         | _ -> None
 
 // ============================================

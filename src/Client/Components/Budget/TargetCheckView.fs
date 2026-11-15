@@ -326,9 +326,10 @@ let private panelBody (model: Model) (row: TargetCheckRow) (form: TargetForm) (i
 let private sidePanel (model: Model) (dispatch: Msg -> unit) =
     match panelRow model with
     | Some (row, form) ->
-        Html.aside [
-            prop.custom ("data-testid", "target-check-panel")
-            prop.className "target-check-panel flex flex-col gap-3.5 rounded-2xl border border-border-default bg-surface-elevated p-4 overflow-y-auto"
+        // Die Hülle wie in Kassenbuch und Budget (design-system-gcpws, §7.6): unter dem Seitenkopf, ohne Karte.
+        Detail.panelWith "target-check-panel" "Target anpassen" [
+          Html.div [
+            prop.className "flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto p-4"
             prop.children [
                 Html.div [
                     prop.className "flex items-baseline justify-between gap-3"
@@ -350,6 +351,7 @@ let private sidePanel (model: Model) (dispatch: Msg -> unit) =
                 ]
                 panelBody model row form true dispatch
             ]
+          ]
         ]
     | None -> Html.none
 
@@ -469,12 +471,24 @@ let view (model: Model) (dispatch: Msg -> unit) =
             prop.children [
                 header (loaded |> Option.map (fun (data, groups) -> data, checkCounts groups)) dispatch
                 // ADR 0043: zur Renderzeit genau eine Hülle. Ohne "Anpassen …" ist das Panel zu.
+                // Esc schließt „Anpassen …“ am PC (F5, design-system-gcpws).
+                if isPanel then
+                    PageKeys.OnDocument (fun e ->
+                        if targetCheckClosesOn model (PageKeys.focusOf None e.target) (e.altKey || e.ctrlKey || e.metaKey) e.shiftKey e.defaultPrevented e.key then
+                            e.preventDefault ()
+                            dispatch CloseCheckPanel)
                 if isPanel then
                     match panelRow model with
                     | Some _ ->
                         Html.div [
-                            prop.className "grid grid-cols-[minmax(0,1fr)_360px] gap-3 items-start"
-                            prop.children [ content; sidePanel model dispatch ]
+                            prop.className "relative"
+                            prop.children [
+                                sidePanel model dispatch
+                                Html.div [
+                                    prop.className $"{PanelWidths.columnInsetWide} min-h-[calc(100vh-7rem)]"
+                                    prop.children [ content ]
+                                ]
+                            ]
                         ]
                     | None -> content
                 else

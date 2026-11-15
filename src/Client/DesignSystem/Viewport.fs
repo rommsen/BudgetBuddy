@@ -60,6 +60,13 @@ let observeHeight (element: Element) (onResize: float -> unit) : (unit -> unit) 
 let mirrorChildHeight (variable: string) (element: Element) : (unit -> unit) =
     jsNative
 
+/// Schreibt die Breite des Panels neben einer Liste (`Tokens.PanelWidths.panelWidthFor`) als `--panel-w` auf das
+/// Dokument (design-system-gcpws). Die Klassen in `Tokens.PanelWidths` lesen die Variable.
+let private syncPanelWidth () =
+    let style: obj = document.documentElement?style
+    let width = Client.DesignSystem.Tokens.PanelWidths.panelWidthFor window.innerWidth
+    style?setProperty (Client.DesignSystem.Tokens.PanelWidths.cssVariable, sprintf "%.2fpx" width)
+
 let mutable private started = false
 
 /// Starts mirroring the visual viewport into CSS vars. Idempotent; call once at startup.
@@ -67,6 +74,8 @@ let start () =
     if not started then
         started <- true
         sync ()
+        syncPanelWidth ()
+        window.addEventListener ("resize", fun _ -> syncPanelWidth ())
 
         match tryVisualViewport () with
         | Some vv ->

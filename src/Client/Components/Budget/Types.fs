@@ -292,6 +292,8 @@ type PageKeyAction =
     | FirstRow
     | LastRow
     | StepTab of Direction
+    /// Esc: der Inspektor schließt.
+    | ClosePanelKey
     | LeaveKey
 
 /// Die gewählte Kategorie, der einzige Auswahl-Zustand. Hält nur die Id: Zugewiesen, Aktivität und

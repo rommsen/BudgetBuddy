@@ -324,6 +324,32 @@ let keyTests =
             Expect.equal (key "Escape" shown) None "nichts offen"
             Expect.equal (key "ArrowDown" (step CategoryPickerOpened opened)) None "Pfeile gehören dem Picker"
         }
+        // design-system-gcpws (F10): die Tasten folgen der gemeinsamen Regel (`ListKeysTests.oracle`): ohne Mehrfachauswahl,
+        // Tabs und Suche; Umschalt zählt wie bisher als Zusatztaste.
+        test "Jede Taste folgt der gemeinsamen Regel" {
+            let onSecond = step (RuleChosen r2.Id) shown
+            for model, current in [ shown, None; onSecond, Some 1 ] do
+                for focus in [ InTextField; Elsewhere ] do
+                    for modifier in [ false; true ] do
+                        for handled in [ false; true ] do
+                            for k in ListKeysTests.keys do
+                                let expected =
+                                    match
+                                        ListKeysTests.oracle
+                                            { MultiSelect = false; Tabs = false; Search = false; TypeToSearch = false }
+                                            { Key = k
+                                              Focus = (if focus = InTextField then Client.DesignSystem.ListKeys.InTextField else Client.DesignSystem.ListKeys.Elsewhere)
+                                              Command = modifier; Shift = false; Handled = handled; LayerOpen = false
+                                              RowSelected = current.IsSome; PanelOpen = model.Panel.IsSome; SelectionActive = false }
+                                    with
+                                    | Client.DesignSystem.ListKeys.ClosePanel -> Some CloseRulePanel
+                                    | Client.DesignSystem.ListKeys.FirstRow -> Some (ShowRule r1.Id)
+                                    | Client.DesignSystem.ListKeys.LastRow -> Some (ShowRule r3.Id)
+                                    | Client.DesignSystem.ListKeys.StepRow Client.DesignSystem.ListKeys.Forward -> Some (ShowRule r3.Id)
+                                    | Client.DesignSystem.ListKeys.StepRow Client.DesignSystem.ListKeys.Backward -> Some (ShowRule r1.Id)
+                                    | _ -> None
+                                Expect.equal (ruleKeyAction model focus modifier handled k) expected $"{k} {focus} {modifier} {handled}"
+        }
     ]
 
 // ============================================

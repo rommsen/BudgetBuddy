@@ -555,30 +555,30 @@ let private pageKeyTests =
     testList "Pfeiltasten am PC" [
         test "Hoch und Runter wechseln die Zeile, auch im Suchfeld" {
             for focus in [ SearchField; OtherFocus ] do
-                Expect.equal (pageKeyAction true "ArrowDown" focus) (StepRow Next) "Runter"
-                Expect.equal (pageKeyAction true "ArrowUp" focus) (StepRow Previous) "Hoch"
+                Expect.equal (pageKeyActionFor opened "ArrowDown" focus) (StepRow Next) "Runter"
+                Expect.equal (pageKeyActionFor opened "ArrowUp" focus) (StepRow Previous) "Hoch"
         }
         // Bug (Roman, 2026-11-03): Wer aus der Suche mit Hoch und Runter eine Kategorie wählte, behielt
         // den Fokus im Suchfeld, und Links und Rechts bewegten nur den Cursor statt den Tab zu wechseln.
         test "Links und Rechts wechseln den Tab, auch im Suchfeld" {
             for focus in [ SearchField; OtherFocus ] do
-                Expect.equal (pageKeyAction true "ArrowRight" focus) (StepTab Next) "Rechts"
-                Expect.equal (pageKeyAction true "ArrowLeft" focus) (StepTab Previous) "Links"
+                Expect.equal (pageKeyActionFor opened "ArrowRight" focus) (StepTab Next) "Rechts"
+                Expect.equal (pageKeyActionFor opened "ArrowLeft" focus) (StepTab Previous) "Links"
         }
         test "Ohne Auswahl wählt Runter die erste und Hoch die letzte Zeile, Links und Rechts tun nichts" {
             for focus in [ SearchField; OtherFocus ] do
-                Expect.equal (pageKeyAction false "ArrowDown" focus) FirstRow "Runter"
-                Expect.equal (pageKeyAction false "ArrowUp" focus) LastRow "Hoch"
-                Expect.equal (pageKeyAction false "ArrowRight" focus) LeaveKey "Rechts"
-                Expect.equal (pageKeyAction false "ArrowLeft" focus) LeaveKey "Links"
+                Expect.equal (pageKeyActionFor (init ()) "ArrowDown" focus) FirstRow "Runter"
+                Expect.equal (pageKeyActionFor (init ()) "ArrowUp" focus) LastRow "Hoch"
+                Expect.equal (pageKeyActionFor (init ()) "ArrowRight" focus) LeaveKey "Rechts"
+                Expect.equal (pageKeyActionFor (init ()) "ArrowLeft" focus) LeaveKey "Links"
         }
         test "Ein Textfeld sperrt alle vier Richtungen" {
-            for hasSelection in [ true; false ] do
+            for model in [ opened; init () ] do
                 for key in [ "ArrowUp"; "ArrowDown"; "ArrowLeft"; "ArrowRight" ] do
-                    Expect.equal (pageKeyAction hasSelection key TextField) LeaveKey key
+                    Expect.equal (pageKeyActionFor model key TextField) LeaveKey key
         }
         test "Andere Tasten lässt die Seite in Ruhe" {
-            Expect.equal (pageKeyAction true "Enter" OtherFocus) LeaveKey "Enter"
+            Expect.equal (pageKeyActionFor opened "Enter" OtherFocus) LeaveKey "Enter"
         }
         test "Bei offenem Dialog bekommt die Seite die Tasten nicht" {
             let withTargets = { opened with Targets = PreviewLoading }
@@ -596,6 +596,37 @@ let private pageKeyTests =
         }
         test "Bei offenem Dialog geht kein Zeichen in die Suche" {
             Expect.isFalse (typesIntoSearch { opened with Targets = PreviewLoading } "a" OtherFocus) "Targets anwenden"
+        }
+        // design-system-gcpws: Esc schloss den Inspektor am PC nicht.
+        test "Esc schließt den Inspektor, auch aus dem Suchfeld, bei offenem Dialog nicht" {
+            for focus in [ SearchField; OtherFocus; TextField ] do
+                Expect.equal (pageKeyActionFor opened "Escape" focus) ClosePanelKey $"{focus}"
+            Expect.isNone (press "Escape" OtherFocus opened).Selected "zu"
+            Expect.equal (pageKeyActionFor (init ()) "Escape" OtherFocus) LeaveKey "ohne Auswahl nichts"
+            Expect.equal (pageKeyActionFor { opened with Targets = PreviewLoading } "Escape" OtherFocus) LeaveKey "Dialog zuerst"
+            Expect.equal (pageKeyActionFor { opened with MenuOpen = true } "Escape" OtherFocus) LeaveKey "Menü zuerst"
+        }
+        // design-system-gcpws (F10): die Seite nutzt die gemeinsame Regel, ohne eigene Tasten davor.
+        test "Jede Taste folgt der gemeinsamen Regel mit Tabs, Suche und Tippen in die Suche" {
+            let traits : Client.DesignSystem.ListKeys.Traits = { MultiSelect = false; Tabs = true; Search = true; TypeToSearch = true }
+            let listFocus =
+                function
+                | TextField -> Client.DesignSystem.ListKeys.InTextField
+                | SearchField -> Client.DesignSystem.ListKeys.InSearch
+                | OtherFocus -> Client.DesignSystem.ListKeys.Elsewhere
+            for model, layer in [ opened, false; init (), false; { opened with Targets = PreviewLoading }, true ] do
+                for focus in [ TextField; SearchField; OtherFocus ] do
+                    for shift in [ false; true ] do
+                        for key in ListKeysTests.keys do
+                            let expected =
+                                ListKeysTests.oracle
+                                    traits
+                                    { Key = key; Focus = listFocus focus; Command = false; Shift = shift; Handled = false
+                                      LayerOpen = layer; RowSelected = model.Selected.IsSome; PanelOpen = model.Selected.IsSome
+                                      SelectionActive = false }
+                            Expect.equal (pageListAction model key focus shift false false) expected $"{key} {focus} {shift}"
+                            if not shift then
+                                Expect.equal (typesIntoSearch model key focus) (expected = Client.DesignSystem.ListKeys.TypeIntoSearch) key
         }
         test "Ohne Dialog gilt die Regel mit der Auswahl aus dem Modell" {
             Expect.equal (pageKeyActionFor opened "ArrowDown" OtherFocus) (StepRow Next) "mit Auswahl"

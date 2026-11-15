@@ -73,35 +73,61 @@ let stepSelection (direction: Direction) (model: Model) : Model =
         | None -> model
     | _ -> model
 
-/// Die Regel der Pfeiltasten ab 1024 px. In `TextField` (Zugewiesen und Betrag) gehören sie dem
-/// Cursor. Im Suchfeld gelten alle vier Richtungen, damit man aus der Suche heraus Kategorie und Tab
-/// wechseln kann, ohne zur Maus zu greifen; ohne Auswahl bleiben Links und Rechts beim Cursor, denn
-/// dann gibt es keinen Tab zu wechseln.
-let pageKeyAction (hasSelection: bool) (key: string) (focus: KeyFocus) : PageKeyAction =
-    match focus, key with
-    | TextField, _ -> LeaveKey
-    | _, "ArrowDown" -> if hasSelection then StepRow Next else FirstRow
-    | _, "ArrowUp" -> if hasSelection then StepRow Previous else LastRow
-    | _, "ArrowRight" when hasSelection -> StepTab Next
-    | _, "ArrowLeft" when hasSelection -> StepTab Previous
-    | _ -> LeaveKey
+/// Was die Budget-Liste kann (§7.8): keine Mehrfachauswahl, Tabs im Panel, eine Suche, in die getippt wird.
+let budgetListTraits : ListKeys.Traits = { MultiSelect = false; Tabs = true; Search = true; TypeToSearch = true }
 
-/// `pageKeyAction` im Zustand der Seite: Targets anwenden und der offene Picker der Gegenseite
-/// behalten die Tasten für sich.
+let private listFocus (focus: KeyFocus) : ListKeys.Focus =
+    match focus with
+    | TextField -> ListKeys.InTextField
+    | SearchField -> ListKeys.InSearch
+    | OtherFocus -> ListKeys.Elsewhere
+
+/// Die gemeinsame Tastenregel (`ListKeys.actionFor`, design-system-gcpws) im Zustand der Seite: Targets anwenden,
+/// Targets nach YNAB, das Menü ⋮ und der offene Picker der Gegenseite liegen als Ebene darüber und behalten die
+/// Tasten für sich; die gewählte Kategorie
+/// ist die gewählte Zeile und das, was im Panel offen ist.
+let pageListAction (model: Model) (key: string) (focus: KeyFocus) (shift: bool) (command: bool) (handled: bool) : ListKeys.Action =
+    ListKeys.actionFor
+        budgetListTraits
+        { Key = key
+          Focus = listFocus focus
+          Command = command
+          Shift = shift
+          Handled = handled
+          LayerOpen =
+              model.Targets <> TargetsClosed
+              || model.TargetsToYnab <> TargetsToYnabClosed
+              || model.MenuOpen
+              || pickerOpen model
+          RowSelected = model.Selected.IsSome
+          PanelOpen = model.Selected.IsSome
+          SelectionActive = false }
+
+/// Was die Regel auf der Budget-Seite auslöst. Die Seite hat keine eigenen Tasten davor (§7.8).
+let pageKeyOf (action: ListKeys.Action) : PageKeyAction =
+    match action with
+    | ListKeys.FirstRow -> FirstRow
+    | ListKeys.LastRow -> LastRow
+    | ListKeys.StepRow ListKeys.Forward -> StepRow Next
+    | ListKeys.StepRow ListKeys.Backward -> StepRow Previous
+    | ListKeys.StepTab ListKeys.Forward -> StepTab Next
+    | ListKeys.StepTab ListKeys.Backward -> StepTab Previous
+    | ListKeys.ClosePanel -> ClosePanelKey
+    | ListKeys.ExtendSelection _
+    | ListKeys.ClearSelection
+    | ListKeys.FocusSearch
+    | ListKeys.TypeIntoSearch
+    | ListKeys.Leave -> LeaveKey
+
+/// Eine Taste ohne Zusatztaste im Zustand der Seite.
 let pageKeyActionFor (model: Model) (key: string) (focus: KeyFocus) : PageKeyAction =
-    match model.Targets with
-    | TargetsClosed when not (pickerOpen model) -> pageKeyAction model.Selected.IsSome key focus
-    | _ -> LeaveKey
+    pageKeyOf (pageListAction model key focus false false false)
 
-/// Tippen ohne Klick in die Suche: ein druckbares Zeichen, während kein Eingabefeld den Fokus hat,
-/// geht in die Suche. Die Leertaste nicht, sie gehört dem Knopf mit Fokus und dem Scrollen. Bei
-/// offenem Dialog oder Picker gehören die Tasten dort hin.
+/// Tippen ohne Klick in die Suche: ein druckbares Zeichen, während kein Eingabefeld den Fokus hat, geht in die Suche
+/// (§7.8 Punkt 5). Die Leertaste nicht, sie gehört dem Knopf mit Fokus und dem Scrollen. Bei offenem Dialog oder
+/// Picker gehören die Tasten dort hin.
 let typesIntoSearch (model: Model) (key: string) (focus: KeyFocus) : bool =
-    focus = OtherFocus
-    && key.Length = 1
-    && key <> " "
-    && model.Targets = TargetsClosed
-    && not (pickerOpen model)
+    pageListAction model key focus false false false = ListKeys.TypeIntoSearch
 
 /// Der Nachbar-Tab, an den Rändern bleibt er stehen.
 let private neighbourTab (direction: Direction) (tab: InspectorTab) : InspectorTab =
@@ -128,6 +154,8 @@ let applyPageKey (action: PageKeyAction) (model: Model) : Model =
     | FirstRow -> selectRow List.tryHead model
     | LastRow -> selectRow List.tryLast model
     | StepTab direction -> { model with Tab = neighbourTab direction model.Tab }
+    // Esc schließt den Inspektor am PC (design-system-gcpws), wie `CloseInspector`.
+    | ClosePanelKey -> { model with Selected = None }
     | LeaveKey -> model
 
 /// Wie Tab-Daten geholt werden.

@@ -12,6 +12,8 @@
     <Compile Include="DesignSystem/Tokens.fs" />
     <Compile Include="DesignSystem/Truncate.fs" />
     <Compile Include="DesignSystem/Viewport.fs" />
+    <Compile Include="DesignSystem/ListKeys.fs" />
+    <Compile Include="DesignSystem/PageKeys.fs" />
     <Compile Include="DesignSystem/Swipe.fs" />
     <Compile Include="DesignSystem/Primitives.fs" />
     <Compile Include="DesignSystem/Icons.fs" />
