@@ -1080,13 +1080,53 @@ let ruleCategoryOf (entry: LedgerEntryView) : YnabCategoryId option =
 let ruleSeedFor (entry: LedgerEntryView) : (string * YnabCategoryId option) option =
     rulePayeeOf entry |> Option.map (fun payee -> payee, ruleCategoryOf entry)
 
-/// Passt die Buchung nach der Änderung noch zu den aktiven Kategorie-Filtern? Ohne
-/// Kategorie-Filter und ohne Chip "Ohne Kategorie" passt sie immer. Mit beiden gilt Oder
-/// (ADR 0048). "Ohne Kategorie" trifft keinen Übertrag und keinen Split.
+/// Die Faltung der Suche, dieselbe wie `Core.searchFold` auf dem Server (ADR 0037): `ToLowerInvariant`, das
+/// auch Umlaute faltet. Der Server-Baustein liegt in `src/Server` und ist hier nicht erreichbar.
+let searchFold (text: string) : string =
+    if isNull text then "" else text.ToLowerInvariant()
+
+/// Trifft die freie Suche die Buchung? Dieselbe Regel wie `buildFilterClause` auf dem Server (ledger-d9z3n):
+/// Teiltext in Payee, Memo oder Kategoriename, auch im Namen einer Split-Zeile. Ohne Suche passt jede.
+let private searchMatches (search: string option) (entry: LedgerEntryView) : bool =
+    match search with
+    | None -> true
+    | Some text ->
+        let needle = searchFold text
+        let contains (value: string option) =
+            value |> Option.exists (fun v -> (searchFold v).Contains needle)
+        let splitNames =
+            entry.Splits
+            |> List.choose (fun s ->
+                match s.Target with
+                | ToCategory (_, name) -> Some name
+                | _ -> None)
+        contains entry.Payee
+        || contains entry.Memo
+        || contains entry.CategoryName
+        || splitNames |> List.exists (Some >> contains)
+
+/// Trifft der Betragsfilter die Buchung? Dieselbe Regel wie `amountMatches` auf dem Server (ADR 0095): die
+/// Grenzen gelten für die Höhe ohne Vorzeichen, die Richtung trennt Ausgaben (unter 0) und Einnahmen (über 0).
+let private amountMatches (filters: Filters) (amount: decimal) : bool =
+    let height = abs amount
+    let directionMatches =
+        match filters.AmountDirection with
+        | AllDirections -> true
+        | OnlyOutflows -> amount < 0m
+        | OnlyInflows -> amount > 0m
+    directionMatches
+    && (filters.AmountMin |> Option.forall (fun min -> height >= min))
+    && (filters.AmountMax |> Option.forall (fun max -> height <= max))
+
+/// Passt die Buchung nach der Änderung noch zu den aktiven Filtern? Suche, Betrag und Richtung und der Chip
+/// "Rückfrage Lena" sind Und-Bedingungen. Ohne Kategorie-Filter und ohne Chip "Ohne Kategorie" passt sie bei
+/// der Kategorie immer, mit beiden gilt Oder (ADR 0048). "Ohne Kategorie" trifft keinen Übertrag und keinen Split.
 let rowMatchesFilters (filters: Filters) (entry: LedgerEntryView) : bool =
     let hasCategoryFilter = not (Set.isEmpty filters.CategoryIds)
     // Der Chip "Rückfrage Lena" ist eine Und-Bedingung (ADR 0056, Punkt 6).
     if filters.OnlyAskLena && entry.Flag <> AskLena then
+        false
+    elif not (searchMatches filters.Search entry) || not (amountMatches filters entry.Amount.Amount) then
         false
     elif not hasCategoryFilter && not filters.WithoutCategory then
         true

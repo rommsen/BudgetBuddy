@@ -468,6 +468,50 @@ let listTests =
                 (rowMatchesFilters { noFilters with WithoutCategory = true } { without with IsTransfer = true })
                 "ein Übertrag ist nicht ohne Kategorie"
 
+        // Bug aus dem Review zu ledger-d9z3n: `rowMatchesFilters` kannte Suche, Betrag und Richtung nicht. Eine Zeile,
+        // die nach einer Bearbeitung nicht mehr zur Suche oder zum Betragsfilter passte, blieb hell stehen.
+        testCase "Der Filter-Treffer-Test sucht wie der Server Teiltext in Payee, Memo und Kategoriename" <| fun () ->
+            let search text = { noFilters with Search = Some text }
+            let entry = { entryOf 1 with Payee = Some "REWE Markt"; Memo = Some "Wocheneinkauf"; CategoryName = Some "Möbel" }
+            Expect.isTrue (rowMatchesFilters (search "rewe") entry) "Payee, ohne Groß- und Kleinschreibung"
+            Expect.isTrue (rowMatchesFilters (search "einkauf") entry) "Memo"
+            Expect.isTrue (rowMatchesFilters (search "MÖB") entry) "Kategoriename, auch mit Umlaut"
+            Expect.isFalse (rowMatchesFilters (search "aldi") entry) "nirgends enthalten"
+            Expect.isFalse
+                (rowMatchesFilters (search "rewe") { entry with Payee = Some "Aldi" })
+                "nach geändertem Payee kein Treffer mehr"
+            let split =
+                { entryOf 2 with
+                    Payee = Some "Bauhaus"
+                    CategoryName = None
+                    CategoryId = None
+                    Splits =
+                        [ { Target = ToCategory (catId 2, "Haushalt"); Amount = eur -4m; Memo = None }
+                          { Target = ToCategory (catId 3, "Garten"); Amount = eur -6m; Memo = None } ] }
+            Expect.isTrue (rowMatchesFilters (search "garten") split) "Kategoriename einer Split-Zeile"
+
+        testCase "Der Filter-Treffer-Test prüft die Höhe ohne Vorzeichen und die Richtung" <| fun () ->
+            let between = { noFilters with AmountMin = Some 5m; AmountMax = Some 50m }
+            let outflow = { entryOf 1 with Amount = eur -12m }
+            let inflow = { entryOf 1 with Amount = eur 12m }
+            Expect.isTrue (rowMatchesFilters between outflow) "Ausgabe über 12 € liegt zwischen 5 und 50"
+            Expect.isTrue (rowMatchesFilters between inflow) "Einnahme über 12 € ebenso"
+            Expect.isFalse (rowMatchesFilters between { outflow with Amount = eur -60m }) "nach geändertem Betrag zu hoch"
+            Expect.isFalse (rowMatchesFilters { noFilters with AmountMin = Some 20m } outflow) "unter dem Mindestbetrag"
+            Expect.isTrue (rowMatchesFilters { noFilters with AmountMax = Some 12m } outflow) "die Grenze zählt mit"
+            Expect.isTrue (rowMatchesFilters { noFilters with AmountDirection = OnlyOutflows } outflow) "Ausgabe bei Ausgaben"
+            Expect.isFalse (rowMatchesFilters { noFilters with AmountDirection = OnlyOutflows } inflow) "Einnahme bei Ausgaben"
+            Expect.isTrue (rowMatchesFilters { noFilters with AmountDirection = OnlyInflows } inflow) "Einnahme bei Einnahmen"
+            Expect.isFalse
+                (rowMatchesFilters { noFilters with AmountDirection = OnlyInflows } { inflow with Amount = eur 0m })
+                "0 € ist keine Einnahme"
+
+        testCase "Der Filter-Treffer-Test verknüpft Suche, Betrag und Kategorie mit Und" <| fun () ->
+            let filters = { noFilters with Search = Some "payee"; AmountMax = Some 50m; CategoryIds = Set.singleton (catGuid 1) }
+            Expect.isTrue (rowMatchesFilters filters (entryOf 1)) "alles passt"
+            Expect.isFalse (rowMatchesFilters filters { entryOf 1 with CategoryId = Some (catGuid 3) }) "Kategorie passt nicht"
+            Expect.isFalse (rowMatchesFilters filters { entryOf 1 with Amount = eur -80m }) "Betrag passt nicht"
+
         testCase "OrderStale: bei Sortierung nach Kategorie gesetzt, mit Neuladen der Zähler, auch bei Filter-Nichttreffer" <| fun () ->
             let model0 =
                 { modelWith [ entryOf 1; entryOf 2 ] with
