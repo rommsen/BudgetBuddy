@@ -25,7 +25,8 @@ Verfeinert 2026-11-15 nach der Bestandsaufnahme (Notes). Roman hat F1 bis F10 in
 entschieden (Abschnitt „Entscheidungen“).
 
 Panel
-- [ ] Ein Baustein für die Panel-Hülle (`Detail.panel`: volle Höhe rechts, ohne Karte) auf jeder Liste mit Detail ab 1024 px:
+- [ ] Ein Baustein für die Panel-Hülle (`Detail.panel`: rechts, ohne Karte, beginnt unter dem Seitenkopf mit Rand rechts wie
+      im Kassenbuch seit ledger-cnaz3; Abweichung (c), G12) auf jeder Liste mit Detail ab 1024 px:
       Kassenbuch Buchungen und Regeln, Targets prüfen, Kategorien, Budget (Hülle und Breite, Inhalt in budgeting-wnkgj,
       F1, F2), das Detail im Durchgehen (nur Breite, F8).
 - [ ] Breite `clamp(380px, 30vw, 520px)` wie Prototyp Version 17 (F3), aus einer reinen Funktion `panelWidthFor fensterbreite`,
@@ -62,8 +63,20 @@ Tests
       Layout-Sweep.
 - [ ] Die seitenweisen Tastentests, deren Aussage im Sweep steht, entfallen (Liste in der Bestandsaufnahme, Abschnitt 5);
       vor jedem Löschen mit Bug-Bezug Doktrin Punkt 8.
-- [ ] Layout-Sweep: die Panel-Zustände bei 1024, 1280, 1440 und 1920 px; die Budget-Tabelle steht erst ab 1280 px.
-- [ ] Seiten neben dem Prototyp verglichen (Screenshots bei 1024 und 1440 px je Liste), Abweichungen nur die genannten.
+- [ ] Layout-Sweep: die Panel-Zustände bei 1024, 1280, 1440 und 1920 px; die Budget-Tabelle steht neben dem Panel erst ab rund
+      1340 px (Schwelle `@min-[40rem]` der Liste, bei 1280 px Zeilen wie am Handy; Abweichung (a), G11).
+- [ ] Kategorien, Panel „Kategorie bearbeiten“: die Gruppe ist ein Feld mit Pfeil wie im Prototyp (`kategorien-bearbeiten-*.png`,
+      Prototyp `ceGroupPick`/`cegroup`), das eine kurze Auswahl der Gruppen öffnet (§7.9, kurze Liste ohne Suche: Fokus auf der
+      gewählten Gruppe, ↑↓ und Enter, Esc schließt nur die Auswahl); am Handy als Sheet. Kein natives Select (G13). Die Auswahl
+      steht als Eintrag in `DIALOGS` des `[fokus]`-Tests.
+- [ ] Wächter gegen feste Panelbreiten: ein Test (in `npm run test:scripts` oder unter .NET) schlägt an, wenn in `src/Client/`
+      eine Klasse `w-[NNNpx]`, `pr-[NNNpx]` oder `md:/lg:pr-[NNNpx]` mit 300 bis 600 px als Panelbreite oder Panel-Abstand steht
+      (Popover- und Navigationsbreiten ausgenommen, Ausnahmen als Liste mit Grund im Test), mit Gegenbeweis.
+- [ ] Die Regel „eine neue Liste mit Panel bekommt einen Eintrag in `LISTS`“ ist prose-only (nicht mechanisch erzwungen); das
+      steht so im Styleguide §7.8 und in der README-Zeile zum Tasten-Sweep.
+- [ ] Seiten neben dem Prototyp verglichen (Screenshots bei 1024 und 1440 px je Liste), Abweichungen nur die genannten:
+      (a) Budget-Tabelle ab rund 1340 px, (c) Panel unter dem Seitenkopf, dazu F6 (Inhalt Targets prüfen), F8 (Neue Buchung auf
+      der Übersicht als Dialog), Budget-Panelinhalt in budgeting-wnkgj.
 
 ## Entscheidungen (Roman, 2026-11-15, BB Prüfliste)
 - F1 Budget in diesem Schnitt auf 30 % (nur Breite und Hülle, Inhalt in budgeting-wnkgj): ja.
@@ -76,6 +89,10 @@ Tests
 - F8 „Neue Buchung“ auf der Übersicht bleibt Modal, das Durchgehen-Panel bekommt nur die neue Breite: ja.
 - F9 Kassenbuch bleibt Ausnahme beim Tippen in die Suche (G, L, J, K belegt): ja, als Ausnahme im Styleguide.
 - F10 Tests auf zwei Ebenen: .NET-Aufzählung plus Browser-Sweep: ja.
+- G11 (nach Iteration 1) Budget-Tabelle erst ab rund 1340 px, weil sie neben dem Panel rund 640 px braucht: ja, in
+  budgeting-wnkgj nochmal ansehen.
+- G12 Panel unter dem Seitenkopf wie im Kassenbuch statt volle Höhe wie im Prototyp: ja (A).
+- G13 Gruppe in „Kategorie bearbeiten“: wie im Prototyp, als Feld mit Auswahl, kein natives Select.
 
 ## Notes
 Schnitt aus Etappe 3 (Fahrplan, Roman 2026-11-11). Styleguide §7.6, §7.8, §7.9.
