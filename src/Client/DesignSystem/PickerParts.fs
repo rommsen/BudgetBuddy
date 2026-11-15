@@ -215,8 +215,10 @@ let shortChoiceRow (label: string) (detail: string option) (isChosen: bool) (onP
         if isChosen then prop.custom ("aria-current", "true")
         prop.className (
             "flex w-full min-h-[56px] items-center gap-3 px-4 py-2 text-left border-b border-border-subtle last:border-b-0 "
-            + "transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 "
-            + "focus-visible:ring-inset focus-visible:ring-accent "
+            // Die Markierung der Pfeiltasten wie `Button.checkRow`, über `:focus`: `ShortChoiceFor` setzt den Fokus per
+            // Skript, nach Öffnen mit der Maus greift `focus-visible` dann nicht und die Markierung fehlte.
+            + "transition-colors hover:bg-surface-hover focus:outline focus:outline-1 focus:-outline-offset-1 "
+            + "focus:outline-accent focus:bg-accent/10 "
             + (if isChosen then Backgrounds.surface else "")
         )
         prop.onClick (fun _ -> onPick ())
