@@ -85,6 +85,28 @@ let keyTests =
             Expect.isTrue (Map.isEmpty (step LenaKeyPressed asked).FlagRows) "schon gefragt: nichts"
             Expect.equal (step LenaKeyPressed (modelWith (rows 2))) (modelWith (rows 2)) "ohne Markierung nichts"
 
+        // Bug aus dem Review zu ledger-cnaz3: ohne Lena-Farbe oder auf einer gesperrten Zeile verwarf L still. Der Knopf
+        // nennt den Grund, die Taste jetzt auch, als Rückmeldung.
+        testCase "L meldet den Grund, wenn „Lena fragen“ gesperrt ist" <| fun () ->
+            let reasonOf (model: Model) =
+                let model', _, external = Components.Ledger.State.update LenaKeyPressed model
+                Expect.isTrue (Map.isEmpty model'.FlagRows) "nichts gesendet"
+                Expect.isNone model'.BatchRunning "kein Sammelaufruf"
+                match external with
+                | ShowToast (text, _) -> Some text
+                | _ -> None
+            let noColor = { modelWith (rows 2) with LenaFlagColor = Success None; FocusedRow = Some (idOf 1) }
+            Expect.equal (reasonOf noColor) (selectionLenaDisabledReason noColor.LenaFlagColor) "Zeile ohne Farbe"
+            Expect.isSome (reasonOf noColor) "ein Grund steht da"
+            Expect.equal
+                (reasonOf { noColor with Selection = picked [ 1; 2 ] })
+                (selectionLenaDisabledReason noColor.LenaFlagColor)
+                "Auswahl ohne Farbe"
+            let deleted = modelWith [ { entry 1 -10m with DeletedInYnab = true } ]
+            Expect.equal (reasonOf { deleted with FocusedRow = Some (idOf 1) }) (Some lenaDeletedReason) "in YNAB gelöscht"
+            let _, _, fine = Components.Ledger.State.update LenaKeyPressed { modelWith (rows 2) with FocusedRow = Some (idOf 1) }
+            Expect.equal fine NoOp "mit Farbe keine Meldung"
+
         testCase "„/“ setzt einen Befehl ab, bei offenem Popover nicht" <| fun () ->
             let _, cmd, _ = Components.Ledger.State.update FocusSearch (modelWith (rows 2))
             Expect.isNonEmpty cmd "Fokus in die Suche"
@@ -137,6 +159,19 @@ let selectionTests =
             Expect.equal twice.Selection (picked [ 1; 2; 3 ]) "dazu 3"
             let up = step (ExtendSelection -1) { modelWith (rows 4) with FocusedRow = Some (idOf 3) }
             Expect.equal up.Selection (picked [ 2; 3 ]) "nach oben"
+
+        // Bug aus dem Review zu ledger-cnaz3: stand die Markierung auf einer ausgegrauten Zeile, fand `movedFocus` sie in
+        // den wählbaren Zeilen nicht und sprang mit Umschalt+↓ auf die erste Zeile der Liste.
+        testCase "Umschalt+↓ auf einer ausgegrauten Zeile wählt die nächste wählbare darunter" <| fun () ->
+            let greyed = { modelWith (rows 5) with FilteredOut = Set.ofList [ idOf 3; idOf 4 ]; FocusedRow = Some (idOf 3) }
+            let down = step (ExtendSelection 1) greyed
+            Expect.equal down.Selection (picked [ 5 ]) "die nächste wählbare, nicht die erste"
+            Expect.equal down.FocusedRow (Some (idOf 5)) "die Markierung rückt dorthin"
+            let up = step (ExtendSelection -1) greyed
+            Expect.equal up.Selection (picked [ 2 ]) "nach oben die nächste wählbare"
+            let atEnd = step (ExtendSelection 1) { greyed with FilteredOut = Set.ofList [ idOf 5 ]; FocusedRow = Some (idOf 5) }
+            Expect.equal atEnd.Selection NoSelection "darunter keine wählbare: nichts"
+            Expect.equal atEnd.FocusedRow (Some (idOf 5)) "die Markierung bleibt"
 
         testCase "Umschalt+↓ ohne Markierung wählt die erste Zeile, bei offenem Popover nichts" <| fun () ->
             Expect.equal (step (ExtendSelection 1) (modelWith (rows 3))).Selection (picked [ 1 ]) "erste Zeile"

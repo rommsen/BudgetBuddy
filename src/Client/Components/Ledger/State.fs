@@ -4279,7 +4279,9 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             model, Cmd.none, NoOp
         else
             let entries = selectableEntries model
-            match movedFocus entries model.FocusedRow delta with
+            let all = model.Entries |> RemoteData.withDefault []
+            let selectable (e: LedgerEntryView) = not (model.FilteredOut.Contains e.Id)
+            match movedSelectableFocus all selectable model.FocusedRow delta with
             | Some next ->
                 // Die markierte Zeile und die nächste kommen dazu; ohne Markierung nur die erste bzw. letzte Zeile.
                 let ids = [ yield! model.FocusedRow |> Option.filter (fun id -> entries |> List.exists (fun e -> e.Id = id)) |> Option.toList; next ]
@@ -4293,14 +4295,22 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
 
     | LenaKeyPressed ->
         // Wie „Lena fragen“: mit Auswahl für die Auswahl, sonst für die markierte Zeile. Eine schon gefragte Zeile
-        // bleibt, wie sie ist (die Taste nimmt keine Rückfrage zurück).
+        // bleibt, wie sie ist (die Taste nimmt keine Rückfrage zurück). Ist „Lena fragen“ gesperrt, nennt eine
+        // Rückmeldung denselben Grund wie der Knopf.
         if keyboardBlocked model || model.SelectionMode then
             model, Cmd.none, NoOp
         elif hasSelection model then
-            updateCore (StartLenaBatch AssignLena) model
+            match selectionLenaDisabledReason model.LenaFlagColor with
+            | Some reason -> model, Cmd.none, ShowToast (reason, ToastInfo)
+            | None -> updateCore (StartLenaBatch AssignLena) model
         else
-            match model.FocusedRow with
-            | Some id -> updateCore (StartSetLenaFlag (id, AssignLena)) model
+            match model.FocusedRow |> Option.bind (findEntry model) with
+            | Some entry ->
+                let action = lenaActionFor model.LenaFlagColor entry
+                match action.Target, action.DisabledReason with
+                | AssignLena, Some reason -> model, Cmd.none, ShowToast (reason, ToastInfo)
+                | AssignLena, None -> updateCore (StartSetLenaFlag (entry.Id, AssignLena)) model
+                | WithdrawLena, _ -> model, Cmd.none, NoOp
             | None -> model, Cmd.none, NoOp
 
     | FocusSearch ->

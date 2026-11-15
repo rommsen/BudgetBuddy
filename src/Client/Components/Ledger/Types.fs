@@ -2179,6 +2179,29 @@ let private clampedFocusIndex (entries: LedgerEntryView list) (focus: Guid optio
 let movedFocus (entries: LedgerEntryView list) (focus: Guid option) (delta: int) : Guid option =
     clampedFocusIndex entries focus delta |> Option.map (fun i -> (List.item i entries).Id)
 
+/// Wohin die Markierung mit Umschalt+↑↓ wandert (ledger-cnaz3): zur nächsten wählbaren Zeile in Richtung `delta`,
+/// gezählt ab der Stelle der Markierung in der vollen Liste. So springt sie von einer ausgegrauten Zeile nicht an den
+/// Anfang. Ohne wählbare Zeile in dieser Richtung bleibt eine wählbare Markierung stehen, eine ausgegraute ergibt
+/// `None`. Ohne Markierung in der Liste wie `movedFocus` über die wählbaren Zeilen.
+let movedSelectableFocus
+    (entries: LedgerEntryView list)
+    (isSelectable: LedgerEntryView -> bool)
+    (focus: Guid option)
+    (delta: int)
+    : Guid option =
+    match focus |> Option.bind (fun id -> entries |> List.tryFindIndex (fun e -> e.Id = id)) with
+    | None -> movedFocus (entries |> List.filter isSelectable) focus delta
+    | Some index ->
+        let current = List.item index entries
+        let inDirection =
+            if delta > 0 then entries |> List.skip (index + 1)
+            elif delta < 0 then entries |> List.take index |> List.rev
+            else []
+        let ahead = inDirection |> List.filter isSelectable
+        match ahead with
+        | [] -> if isSelectable current then Some current.Id else None
+        | _ -> Some (List.item (min (abs delta) (List.length ahead) - 1) ahead).Id
+
 /// Der Fokus nach dem Nachladen: liegt er noch in der Liste, bleibt er; sonst springt er auf
 /// die erste Zeile. Ohne Fokus bleibt es dabei (die Liste zeigt ihn erst nach der ersten Taste).
 let reconcileFocus (entries: LedgerEntryView list) (focus: Guid option) : Guid option =
