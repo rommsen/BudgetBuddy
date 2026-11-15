@@ -2430,6 +2430,8 @@ let ledgerPagingTests =
             seedEntryFull account 913 3m (day 4) (Some "Zinsen") None None |> Async.RunSynchronously
             seedDeletedEntryFull account 914 -20m (day 5) (Some "Bäcker") None None |> Async.RunSynchronously
             seedDeletedEntryFull account 915 20m (day 6) (Some "Erstattung") None None |> Async.RunSynchronously
+            // ADR 0095 Punkt 2: ein Betrag von 0 ist weder Ausgabe noch Einnahme.
+            seedEntryFull account 916 0m (day 7) (Some "Nullbuchung") None None |> Async.RunSynchronously
 
             let (LedgerAccountId raw) = account
             let page query = Ledger.QueryHandlers.getLedgerEntriesPage query |> Async.RunSynchronously
@@ -2453,15 +2455,57 @@ let ledgerPagingTests =
             Expect.equal (amounts inflows) [ 12m ] "mit Richtung „Einnahmen“ nur die Einnahme"
 
             let onlyOutflows = page { baseQuery (Some raw) with AmountDirection = OnlyOutflows }
-            Expect.equal (amounts onlyOutflows) [ -60m; -12m ] "Richtung allein ohne Betrag filtert ebenso"
+            Expect.equal (amounts onlyOutflows) [ -60m; -12m ] "Richtung allein ohne Betrag filtert ebenso, die Buchung über 0,00 € ist keine Ausgabe"
             Expect.equal onlyOutflows.TotalCount 2 "Trefferzahl ohne Betrag"
             Expect.equal onlyOutflows.DeletedCount 1 "gelöschte Ausgabe ohne Betrag"
             let onlyInflows = page { baseQuery (Some raw) with AmountDirection = OnlyInflows }
-            Expect.equal (amounts onlyInflows) [ 3m; 12m ] "nur Einnahmen ohne Betrag"
+            Expect.equal (amounts onlyInflows) [ 3m; 12m ] "nur Einnahmen ohne Betrag, die Buchung über 0,00 € ist keine Einnahme"
+            Expect.equal (amounts (page (baseQuery (Some raw)))) [ -60m; -12m; 0m; 3m; 12m ] "ohne Richtung ist die Buchung über 0,00 € dabei"
             Expect.equal
                 (suggestions { baseSuggestionQuery (Some raw) with AmountDirection = OnlyInflows })
                 [ "Erstattung"; "Zinsen" ]
                 "Payee-Vorschläge folgen der Richtung"
+
+        // ledger-d9z3n: die Zahl hinter „Ohne Kategorie“ zählt Buchungen ohne Ziel im Konto, ohne gelöschte
+        // und ohne Übertrag, und hängt nicht an Suche, Betrag oder Richtung. Gegenprobe: zählte
+        // `countWithoutCategoryEntries` über den Filter der Anfrage (`countEntries accountId { filter with
+        // WithoutCategory = true }`), wäre die Zahl mit gesetzter Suche, Betrag oder Richtung 0 und der Test rot.
+        testCase "Ohne Kategorie: die Zahl zählt Buchungen ohne Ziel und bleibt bei Suche, Betrag und Richtung gleich" <| fun () ->
+            let account = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8000-000000000033")
+            saveAccount { Id = account; Name = "Konto Ohne Kategorie"; Kind = BankAccount; Link = BbOwned; Closed = false }
+            |> Async.RunSynchronously
+            let day n = DateTime(2026, 6, n)
+            seedEntryFull account 940 -10m (day 1) (Some "Mit Kategorie") None (Some { CategoryId = catId 1; CategoryName = "Kat" })
+            |> Async.RunSynchronously
+            seedEntryFull account 941 -20m (day 2) (Some "Ohne Ziel") None None |> Async.RunSynchronously
+            seedDeletedEntryFull account 942 -30m (day 3) (Some "Ohne Ziel gelöscht") None None |> Async.RunSynchronously
+            let transfer : EntryObservedInYnabPayload = {
+                AccountId = account
+                YnabTransactionId = "pagetest-943"
+                ImportId = None
+                Date = day 4
+                Amount = { Amount = 40m; Currency = "EUR" }
+                Payee = Some "Übertrag"
+                Memo = None
+                Category = None
+                Splits = []
+                Cleared = Uncleared
+                TransferAccountId = Some (YnabAccountId (Guid.Parse "0195bb02-0000-7000-8000-000000000943"))
+                TransferYnabTransactionId = None
+                Approved = true
+                FlagColor = None
+                FlagName = None
+            }
+            appendAndApply [
+                { EntryId = pageEntryId 943; OccurredAt = DateTime.SpecifyKind(day 4, DateTimeKind.Utc); Actor = YnabMirror; Body = EntryObservedInYnab transfer } ]
+            |> Async.RunSynchronously
+
+            let (LedgerAccountId raw) = account
+            let countOf query = (Ledger.QueryHandlers.getLedgerEntriesPage query |> Async.RunSynchronously).WithoutCategoryCount
+            Expect.equal (countOf (baseQuery (Some raw))) 1 "nur die Buchung ohne Ziel, nicht die mit Kategorie, die gelöschte und den Übertrag"
+            Expect.equal (countOf { baseQuery (Some raw) with Search = Some "mit kategorie" }) 1 "mit Suche gleich"
+            Expect.equal (countOf { baseQuery (Some raw) with AmountMin = Some 5m; AmountMax = Some 15m }) 1 "mit Betrag gleich"
+            Expect.equal (countOf { baseQuery (Some raw) with AmountDirection = OnlyInflows }) 1 "mit Richtung gleich"
 
         // Verhindert den Review-Fund zu ledger-d9z3n: ein noch gecachter alter Client (PWA) schickt
         // LedgerEntryPageQuery und LedgerPayeeSuggestionQuery ohne das Feld AmountDirection.
