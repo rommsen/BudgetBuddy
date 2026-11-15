@@ -161,6 +161,11 @@ let reactivatedNotice (name: string) : string = $"{name} ist wieder aktiv"
 let activeCategories (group: ManagedCategoryGroup) : ManagedCategory list =
     group.Categories |> List.filter (fun c -> c.Active)
 
+/// Die zweite Zeile einer Gruppe in der Auswahl der Gruppe (Prototyp `cegroup`): die Zahl ihrer aktiven Kategorien,
+/// die deaktivierten zählen nicht.
+let groupChoiceDetail (group: ManagedCategoryGroup) : string =
+    categoryCountText (activeCategories group).Length
+
 /// Der Abschnitt Deaktiviert: jede deaktivierte Kategorie mit ihrer Gruppe, Gruppe für Gruppe.
 let inactiveCategories (groups: ManagedCategoryGroup list) : (ManagedCategoryGroup * ManagedCategory) list =
     groups |> List.collect (fun g -> g.Categories |> List.filter (fun c -> not c.Active) |> List.map (fun c -> g, c))
@@ -187,7 +192,6 @@ let movedOrder (step: OrderStep) (categoryId: Guid) (group: ManagedCategoryGroup
 let canMove (step: OrderStep) (categoryId: Guid) (group: ManagedCategoryGroup) : bool =
     (movedOrder step categoryId group).IsSome
 
-/// Die Gruppe mit ihren Kategorien in der Reihenfolge `order`.
 /// Was die Liste der Kategorien kann (§7.8, F5): keine Mehrfachauswahl, keine Tabs, keine Suche.
 let categoryListTraits : Client.DesignSystem.ListKeys.Traits =
     { MultiSelect = false; Tabs = false; Search = false; TypeToSearch = false }
@@ -196,10 +200,31 @@ let categoryListTraits : Client.DesignSystem.ListKeys.Traits =
 let private shownOrder (groups: ManagedCategoryGroup list) : Guid list =
     groups |> List.collect (fun g -> activeCategories g |> List.map (fun c -> c.Id))
 
+/// Das Formular einer Kategorie im Stand der Liste, wie "Bearbeiten" es öffnet.
+let private categoryEditorOf (group: ManagedCategoryGroup) (category: ManagedCategory) : CategoryEditor =
+    { CategoryId = Some category.Id
+      Name = category.Name
+      GroupId = Some group.Id
+      Active = category.Active
+      WasActive = category.Active }
+
+/// Darf ↑↓ zur nächsten Kategorie wechseln? Ohne Formular ja. Mit Formular nur, wenn es eine bestehende Kategorie
+/// unverändert zeigt und nicht speichert: sonst ginge die Eingabe verloren, und aus „Neue Kategorie“ und dem
+/// Gruppen-Formular öffnete ↓ die erste Kategorie.
+let private canLeaveForm (model: Model) : bool =
+    match model.Form with
+    | None -> true
+    | Some form when form.IsSaving -> false
+    | Some { Editor = EditingCategory ({ CategoryId = Some id } as editor) } ->
+        groupsOf model
+        |> List.exists (fun g -> g.Categories |> List.exists (fun c -> c.Id = id && categoryEditorOf g c = editor))
+    | Some _ -> false
+
 /// Die Tasten am PC über die gemeinsame Regel (`ListKeys.actionFor`, design-system-gcpws, F5): ↓ ohne offene
 /// Kategorie öffnet die erste, ↑ die letzte im Panel, danach die nächste bzw. vorige; am Rand bleibt es stehen. Esc
 /// schließt das Panel, auch aus dem Feld Name. In einem Feld gehören die Pfeile dem Cursor, Alt+↑↓ verschiebt die
-/// Kategorie (`moveKey` an der Zeile).
+/// Kategorie (`moveKey` an der Zeile). Ein geändertes, neues oder speicherndes Formular und das Gruppen-Formular
+/// lassen ↑↓ stehen (`canLeaveForm`).
 let categoryKeyAction
     (model: Model)
     (focus: Client.DesignSystem.ListKeys.Focus)
@@ -229,7 +254,7 @@ let categoryKeyAction
               SelectionActive = false }
     let openAt index =
         match List.tryItem index order with
-        | Some id when Some index <> current -> Some (EditCategory id)
+        | Some id when Some index <> current && canLeaveForm model -> Some (EditCategory id)
         | _ -> None
     match action, current with
     | _ when choosing -> if key = "Escape" && not handled then Some CloseGroupChoice else None
@@ -240,6 +265,7 @@ let categoryKeyAction
     | Client.DesignSystem.ListKeys.StepRow Client.DesignSystem.ListKeys.Backward, Some i -> openAt (i - 1)
     | _ -> None
 
+/// Die Gruppe mit ihren Kategorien in der Reihenfolge `order`.
 let private reordered (order: Guid list) (group: ManagedCategoryGroup) : ManagedCategoryGroup =
     let byId = group.Categories |> List.map (fun c -> c.Id, c) |> Map.ofList
     { group with Categories = order |> List.choose (fun id -> Map.tryFind id byId) }
@@ -351,19 +377,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
             groupsOf model
             |> List.tryPick (fun g -> g.Categories |> List.tryFind (fun c -> c.Id = id) |> Option.map (fun c -> g, c))
         match found with
-        | Some (group, category) ->
-            { model with
-                Form =
-                    opened (
-                        EditingCategory
-                            { CategoryId = Some id
-                              Name = category.Name
-                              GroupId = Some group.Id
-                              Active = category.Active
-                              WasActive = category.Active }
-                    ) },
-            Cmd.none,
-            NoOp
+        | Some (group, category) -> { model with Form = opened (EditingCategory (categoryEditorOf group category)) }, Cmd.none, NoOp
         | None -> model, Cmd.none, NoOp
     | NewGroup -> { model with Form = opened (EditingGroup { GroupId = None; Name = ""; ReturnTo = None }) }, Cmd.none, NoOp
     | RenameGroup id ->

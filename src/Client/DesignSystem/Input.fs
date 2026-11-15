@@ -562,8 +562,10 @@ let groupWithError label error children =
 /// darunter der gewählte Wert (oder gedämpft der Platzhalter), rechts optional ein Zusatz (etwa der
 /// Saldo eines Kontos) und der Pfeil. Ein Tipp öffnet die Auswahl (`CategoryPicker`, Sheet am
 /// Handy). Der Knopf nimmt den Fokus beim Tippen nicht weg (`preventDefault` auf `mousedown`),
-/// damit eine offene Tastatur bei einem Wechsel zwischen Feldern nicht zuklappt.
-let pickerField
+/// damit eine offene Tastatur bei einem Wechsel zwischen Feldern nicht zuklappt. `locked`: gesperrt wie
+/// `ReadOnly` (`aria-disabled`, gedämpft, ohne Zeiger), etwa solange das Formular speichert; ein Klick wirkt nicht.
+let pickerFieldWith
+    (locked: bool)
     (testId: string)
     (label: string)
     (value: string option)
@@ -572,16 +574,19 @@ let pickerField
     (isOpen: bool)
     (onClick: unit -> unit)
     : ReactElement =
+    let lockedClass = if locked then " opacity-60 cursor-default" else ""
     Html.button [
         prop.type' "button"
         prop.custom ("data-testid", testId)
         prop.custom ("aria-haspopup", "dialog")
         prop.custom ("aria-expanded", (if isOpen then "true" else "false"))
+        if locked then prop.custom ("aria-disabled", "true")
         prop.className (
             "input-field w-full flex items-center gap-3 px-4 py-2 min-h-[52px] text-left touch-manipulation"
+            + lockedClass
         )
         prop.onMouseDown (fun e -> e.preventDefault ())
-        prop.onClick (fun _ -> onClick ())
+        prop.onClick (fun _ -> if not locked then onClick ())
         prop.children [
             Html.span [
                 prop.className "flex min-w-0 flex-1 flex-col"
@@ -598,6 +603,18 @@ let pickerField
             Icons.chevronRight Icons.SM Icons.Default
         ]
     ]
+
+/// Das Auswahlfeld ohne Sperre (`pickerFieldWith false`).
+let pickerField
+    (testId: string)
+    (label: string)
+    (value: string option)
+    (placeholder: string)
+    (extra: ReactElement option)
+    (isOpen: bool)
+    (onClick: unit -> unit)
+    : ReactElement =
+    pickerFieldWith false testId label value placeholder extra isOpen onClick
 
 /// Ein Auswahlfeld mit Pfeil nach unten (ledger-d9z3n, Prototyp `.field`, Kontowahl im Kassenbuch am Handy):
 /// die Bezeichnung klein oben, darunter der Wert mittelstark und gleich daneben ein Zusatz (etwa der Saldo,

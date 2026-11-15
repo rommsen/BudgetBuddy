@@ -173,7 +173,7 @@ let private groupChoice (groups: ManagedCategoryGroup list) (editor: CategoryEdi
                                 group.Id,
                                 [ PickerParts.shortChoiceRow
                                       group.Name
-                                      (Some (categoryCountText (activeCategories group).Length))
+                                      (Some (groupChoiceDetail group))
                                       (editor.GroupId = Some group.Id)
                                       (fun () -> dispatch (GroupChosen (string group.Id))) ]
                             )
@@ -183,7 +183,7 @@ let private groupChoice (groups: ManagedCategoryGroup list) (editor: CategoryEdi
             Button.view
                 { Button.defaultProps with
                     Text = "Neue Gruppe"
-                    Variant = Button.Secondary
+                    Variant = Button.Outline
                     FullWidth = true
                     Icon = Some (Icons.plus Icons.SM Icons.Default)
                     OnClick = fun () -> dispatch (GroupChosen NewGroupChoice) }
@@ -202,6 +202,10 @@ let private groupChoiceDialog (groups: ManagedCategoryGroup list) (form: Form) (
                 Title = Some "Gruppe" }
             [ Modal.body [ groupChoice groups editor dispatch ] ]
     | _ -> Html.none
+
+/// Der Name der Gruppe mit der Id, `None` ohne Gruppe oder wenn sie nicht in der Liste steht.
+let private groupNameOf (groups: ManagedCategoryGroup list) (groupId: System.Guid option) : string option =
+    groupId |> Option.bind (fun id -> groups |> List.tryFind (fun g -> g.Id = id)) |> Option.map (fun g -> g.Name)
 
 /// Der Inhalt des Formulars: Name, bei einer Kategorie das Feld Gruppe (öffnet die Auswahl, G13), in beiden
 /// Formularen der Hinweis zu YNAB, darunter ein Fehler.
@@ -231,15 +235,16 @@ let private formBody (groups: ManagedCategoryGroup list) (form: Form) (dispatch:
             match form.Editor with
             | EditingCategory editor ->
                 // Feld mit Pfeil wie im Prototyp (`ceGroupPick`), kein natives Select (G13).
-                let groupName = editor.GroupId |> Option.bind (fun id -> groups |> List.tryFind (fun g -> g.Id = id)) |> Option.map (fun g -> g.Name)
-                Input.pickerField
+                // Während des Speicherns gesperrt wie die übrigen Felder.
+                Input.pickerFieldWith
+                    form.IsSaving
                     "categories-group-field"
                     "Gruppe"
-                    groupName
+                    (groupNameOf groups editor.GroupId)
                     "Gruppe wählen"
                     None
                     form.GroupChoiceOpen
-                    (fun () -> if not form.IsSaving then dispatch OpenGroupChoice)
+                    (fun () -> dispatch OpenGroupChoice)
                 Html.p [ prop.className ListRoles.muted; prop.text "Name und Gruppe werden nach YNAB übertragen." ]
                 if editor.CategoryId.IsSome then
                     Input.switchRow

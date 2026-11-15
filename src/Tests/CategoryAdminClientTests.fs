@@ -375,13 +375,33 @@ let keyTests =
         testCase "↓ ohne offene Kategorie öffnet die erste, ↑ die letzte aktive, Gruppe für Gruppe" <| fun () ->
             Expect.equal (key "ArrowDown" three) (Some (EditCategory drogerie)) "erste"
             Expect.equal (key "ArrowUp" three) (Some (EditCategory strom)) "letzte"
-            Expect.equal (key "ArrowDown" (run three [ NewCategory ])) (Some (EditCategory drogerie)) "eine neue zählt nicht als Auswahl"
 
         testCase "Danach ↑↓ die nächste bzw. vorige über die Gruppengrenze, die deaktivierte zählt nicht, am Rand nichts" <| fun () ->
             Expect.equal (key "ArrowDown" (editing drogerie)) (Some (EditCategory miete)) "über die Gruppe"
             Expect.equal (key "ArrowUp" (editing miete)) (Some (EditCategory drogerie)) "zurück"
             Expect.equal (key "ArrowDown" (editing strom)) None "Rand unten"
             Expect.equal (key "ArrowUp" (editing drogerie)) None "Rand oben"
+
+        // Bug (Review nach design-system-gcpws): ↑↓ ersetzten das offene Formular ohne Prüfung. Ein geänderter Name
+        // oder eine andere Gruppe gingen verloren, aus „Neue Kategorie“ und dem Gruppen-Formular öffnete ↓ die erste
+        // Kategorie, und während des Speicherns wechselte es auch. ↑↓ gehen nur zur Liste, solange das Formular den
+        // Stand einer Kategorie unverändert zeigt.
+        testCase "↑↓ lassen ein geändertes, neues oder speicherndes Formular und das Gruppen-Formular stehen" <| fun () ->
+            let saving =
+                let m = editing miete
+                { m with Form = m.Form |> Option.map (fun f -> { f with Saving = Some SavingCategory }) }
+            for name, model in
+                [ "Name geändert", run three [ EditCategory miete; NameChanged "Kaltmiete" ]
+                  "Gruppe geändert", run three [ EditCategory miete; OpenGroupChoice; GroupChosen (string alltag) ]
+                  "Aktiv geändert", run three [ EditCategory miete; ActiveToggled false ]
+                  "Neue Kategorie", run three [ NewCategory ]
+                  "Neue Gruppe", run three [ NewGroup ]
+                  "Gruppe umbenennen", run three [ RenameGroup wohnen ]
+                  "Speichern läuft", saving ] do
+                for k in [ "ArrowDown"; "ArrowUp" ] do
+                    Expect.equal (key k model) None $"{name} {k}"
+            Expect.equal (key "Escape" (run three [ EditCategory miete; NameChanged "Kaltmiete" ])) (Some CloseForm) "Esc gilt weiter"
+            Expect.equal (key "ArrowDown" (run three [ EditCategory miete; NameChanged "Kaltmiete"; NameChanged "Miete" ])) (Some (EditCategory strom)) "zurück auf den Stand"
 
         testCase "Esc schließt das Panel, auch aus dem Feld Name, ohne Panel nichts" <| fun () ->
             Expect.equal (key "Escape" (editing miete)) (Some CloseForm) "Panel"
@@ -457,4 +477,13 @@ let groupChoiceTests =
             Expect.equal (categoryCountText 0) "0 Kategorien" "keine"
             Expect.equal (categoryCountText 1) "1 Kategorie" "eine"
             Expect.equal (categoryCountText 4) "4 Kategorien" "vier"
+
+        testCase "Die Zeile einer Gruppe zählt nur ihre aktiven Kategorien" <| fun () ->
+            let mixed =
+                { Id = alltag
+                  Name = "Alltag"
+                  Categories =
+                    [ { Id = drogerie; Name = "Drogerie"; Active = true }
+                      { Id = Guid.Parse "22222222-0000-0000-0000-000000000009"; Name = "Alt"; Active = false } ] }
+            Expect.equal (groupChoiceDetail mixed) "1 Kategorie" "die deaktivierte zählt nicht"
     ]

@@ -144,6 +144,8 @@ let ruleKeyAction (model: Model) (focus: KeyFocus) (modifier: bool) (handled: bo
                 | ListKeys.LastRow, _ -> last
                 | ListKeys.StepRow ListKeys.Forward, Some i -> min last (i + 1)
                 | _, Some i -> max 0 (i - 1)
+                // Unerreichbar: `StepRow` kommt nur mit gewählter Zeile (`RowSelected = current.IsSome`). Der Fall
+                // bleibt, weil der Compiler das nicht sieht und sonst eine unvollständige Prüfung meldet.
                 | _, None -> 0
             if Some target = current then None else Some (ShowRule rules.[target].Id)
         | _ -> None
