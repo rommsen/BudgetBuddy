@@ -389,13 +389,13 @@ let listCategoryLabel (form: ListRowForm) (entry: LedgerEntryView) : string =
 /// (`entryTableRow`), damit beide Ansichten denselben Platzhaltertext zeigen
 /// (ledger-n3pqw, Lücke 9 aus dem QA-Review: vorher stand dieser Platzhalter an
 /// zwei Stellen im File, je einmal pro Ansicht).
-let payeeLabel (entry: LedgerEntryView) : string =
-    entry.Payee |> Option.defaultValue "ohne Payee"
-
-/// Steht in der Liste der Platzhalter statt eines Payees (ledger-pkrwd)? Dann in `text-muted`, auch nach
-/// "Payee entfernen". Leer oder nur Leerzeichen zählt als kein Payee.
+/// Steht statt eines Payees der Platzhalter (ledger-pkrwd)? Dann in `text-muted`, in Liste, Tabelle, Detail
+/// und Karte. Leer oder nur Leerzeichen zählt als kein Payee.
 let payeeMissing (entry: LedgerEntryView) : bool =
     entry.Payee |> Option.forall String.IsNullOrWhiteSpace
+
+let payeeLabel (entry: LedgerEntryView) : string =
+    if payeeMissing entry then "ohne Payee" else entry.Payee.Value
 
 /// Die Beschriftung des Menüeintrags "Nach <Payee> filtern" (ledger-rfq5p). `None`, wenn
 /// es nichts zu filtern gibt: Buchung ohne Payee (leer oder nur Leerzeichen).
@@ -572,8 +572,7 @@ let private entryRow
                 prop.className Tokens.ListRoles.mobileLine1
                 prop.children [
                     Truncate.text
-                        (if payeeMissing entry then $"{Tokens.ListRoles.primarySize} font-medium {Tokens.Colors.textMuted}"
-                         else Tokens.ListRoles.primary)
+                        (if payeeMissing entry then Tokens.ListRoles.primaryMissing else Tokens.ListRoles.primary)
                         (payeeLabel entry)
                     Html.span [ prop.className "shrink-0"; prop.children [ entryMoney entry ] ]
                 ]
@@ -1383,7 +1382,7 @@ let amountEditMsg (model: Model) (entry: LedgerEntryView) : Msg option =
 /// Der Kopf des Details im Panel: Payee als Titel (oder „ohne Payee“ gedämpft), darunter „<Tag> · <Konto>“,
 /// rechts Schließen (ledger-zfj78). Im Sheet stellt `BottomSheet.view` Titel und Unterzeile.
 let private detailTitleHead (today: DateTime) (model: Model) (entry: LedgerEntryView) (onClose: (unit -> unit) option) =
-    Detail.titleHead (payeeLabel entry) entry.Payee.IsNone (detailSubtitleFor today (accountNameOf model entry) entry) onClose
+    Detail.titleHead (payeeLabel entry) (payeeMissing entry) (detailSubtitleFor today (accountNameOf model entry) entry) onClose
 
 /// Die Betragszeile: der Betrag als Knopf, der das Sheet "Betrag" öffnet; gesperrt steht er ohne Pfeil, mit dem
 /// Grund darunter (ADR 0092). Rechts der Prüfstand, nicht bei einer in YNAB gelöschten Buchung: sie ist ein
@@ -1830,7 +1829,7 @@ let private detailContent (dispatch: Msg -> unit) (model: Model) (entry: LedgerE
                   "detail-payee"
                   "Payee"
                   (Detail.valueText
-                      (if muted || entry.Payee.IsNone then Tokens.Colors.textMuted else Tokens.Colors.textPrimary)
+                      (if muted || payeeMissing entry then Tokens.Colors.textMuted else Tokens.Colors.textPrimary)
                       (payeeLabel entry))
                   (Some (
                       React.fragment [
@@ -5169,6 +5168,7 @@ let private reviewNormalCard (dispatch: Msg -> unit) (model: Model) (review: Rev
             ReviewCard.meta (reviewMetaText today (reviewAccountName model entry.AccountId) entry)
             ReviewCard.payee
                 (payeeLabel entry)
+                (payeeMissing entry)
                 payeeEditLabel
                 (payeeEditMsg model entry |> Option.map (fun msg -> fun () -> dispatch msg))
             ReviewCard.amount (amountText entry.Amount)
@@ -5279,7 +5279,7 @@ let private reviewDuplicateCard (dispatch: Msg -> unit) (model: Model) (review: 
     React.fragment [
         ReviewCard.card true [ prop.custom ("data-testid", "review-duplicate-card") ] [
             ReviewCard.metaAttention "Möglicherweise doppelt · noch nicht in YNAB"
-            ReviewCard.payee (payeeLabel entry) "" None
+            ReviewCard.payee (payeeLabel entry) (payeeMissing entry) "" None
             ReviewCard.amount (amountText entry.Amount)
             ReviewCard.metaSecondary (reviewMetaText today (reviewAccountName model entry.AccountId) entry)
             ReviewCard.sectionHead "Schon im Kassenbuch"

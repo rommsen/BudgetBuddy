@@ -1843,7 +1843,7 @@ let private PayeePickerDemo () =
                       OnClose = ignore }
             ]
         ]
-        caption $"""Gewählt: {chosen |> Option.defaultValue "Ohne Payee"}"""
+        caption $"""Gewählt: {chosen |> Option.defaultValue "ohne Payee"}"""
     ]
 
 /// Split-Editor (ledger-pafkp): Summe, Zeilen, Knopfzeile "Zeile hinzufügen" und "Barabhebung", Fußleisten und der
@@ -2753,7 +2753,7 @@ let private reviewCardSection =
             prop.children [
                 ReviewCard.card false [] [
                     ReviewCard.meta "Heute · Girokonto · Comdirect-Import"
-                    ReviewCard.payee "Amazon" "Payee ändern" (Some ignore)
+                    ReviewCard.payee "Amazon" false "Payee ändern" (Some ignore)
                     ReviewCard.amount "-21,50 €"
                     ReviewCard.field "demo-review-category" "Kategorie" (Some "Kinderkram") "Kategorie wählen" false (Some ignore)
                     ReviewCard.caption "demo-review-order" "aus Bestellnummer"
@@ -2764,7 +2764,7 @@ let private reviewCardSection =
                 ]
                 ReviewCard.card false [] [
                     ReviewCard.meta "Gestern · Kreditkarte · YNAB-Spiegel"
-                    ReviewCard.payee "Markt" "" None
+                    ReviewCard.payee "Markt" false "" None
                     ReviewCard.amount "-42,80 €"
                     ReviewCard.field "demo-review-missing" "Kategorie" None "Kategorie wählen" false (Some ignore)
                 ]
@@ -2777,7 +2777,7 @@ let private reviewCardSection =
             prop.children [
                 ReviewCard.card true [] [
                     ReviewCard.metaAttention "Möglicherweise doppelt · noch nicht in YNAB"
-                    ReviewCard.payee "Markt" "" None
+                    ReviewCard.payee "Markt" false "" None
                     ReviewCard.amount "-42,80 €"
                     ReviewCard.metaSecondary "Heute · Girokonto · Comdirect-Import"
                     ReviewCard.sectionHead "Schon im Kassenbuch"

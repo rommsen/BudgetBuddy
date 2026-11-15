@@ -58,9 +58,11 @@ let metaAttention (text: string) : ReactElement =
 
 /// Der Payee groß und halbfett. Mit `onClick` ein Knopf (Payee ändern), sonst Text. Der Name des Knopfs
 /// ist `ariaLabel` mit dem sichtbaren Payee dahinter („Payee ändern: Amazon“), damit Sprachsteuerung
-/// ihn über das sichtbare Wort findet.
-let payee (text: string) (ariaLabel: string) (onClick: (unit -> unit) option) : ReactElement =
-    let cls = $"{FontSizes.placeTitle} {FontWeights.semibold} {Colors.textPrimary} min-w-0 break-words"
+/// ihn über das sichtbare Wort findet. `missing`: statt eines Payees steht der Platzhalter („ohne Payee“),
+/// gedämpft wie in Liste und Detail (ledger-pkrwd).
+let payee (text: string) (missing: bool) (ariaLabel: string) (onClick: (unit -> unit) option) : ReactElement =
+    let tone = if missing then Colors.textMuted else Colors.textPrimary
+    let cls = $"{FontSizes.placeTitle} {FontWeights.semibold} {tone} min-w-0 break-words"
     match onClick with
     | Some click ->
         Html.button [

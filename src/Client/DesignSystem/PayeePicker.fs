@@ -101,7 +101,7 @@ let keyAction (key: string) (rows: PayeeOption list) (active: int option) (searc
         match active with
         | Some i when i >= 0 && i < count -> Pick (payeeOf (List.item i rows))
         | _ ->
-            match rows |> List.filter (fun row -> row <> RemovePayee) with
+            match rows |> List.filter (function RemovePayee -> false | TakeTyped _ | Suggested _ -> true) with
             | first :: _ -> Pick (payeeOf first)
             | [] -> Pick (Some (if isNull search then "" else search))
     | "Escape" -> CloseOnly
@@ -251,11 +251,7 @@ let View (props: PayeePickerProps) =
                                     ]
                                     (match row, count with
                                      // Ruhiger Text, keine Fehlerfarbe: Entfernen ist kein Fehler (ledger-pkrwd).
-                                     | RemovePayee, _ ->
-                                         Html.span [
-                                             prop.className $"{ListRoles.primarySize} {Colors.textMuted} truncate min-w-0"
-                                             prop.text label
-                                         ]
+                                     | RemovePayee, _ -> PickerParts.mutedName label
                                      | _, None -> PickerParts.name label
                                      | _, Some n ->
                                          Html.span [
@@ -277,7 +273,9 @@ let View (props: PayeePickerProps) =
                     else
                         match props.LoadError with
                         | Some message -> ErrorDisplay.inline' message
-                        | None when List.isEmpty props.Suggestions && List.isEmpty rows ->
+                        // „Payee entfernen“ allein zählt nicht als Vorschlag: der Leertext bleibt (Review ledger-pkrwd).
+                        | None when List.isEmpty props.Suggestions
+                                    && rows |> List.forall (function RemovePayee -> true | TakeTyped _ | Suggested _ -> false) ->
                             Html.p [ prop.className $"py-2 {FontSizes.sm} {Colors.textMuted}"; prop.text emptyText ]
                         | None -> ()
                 ]

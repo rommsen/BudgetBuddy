@@ -113,6 +113,8 @@ module ListRoles =
     /// Payee und Betrag: 15px am Handy, 14px ab md
     let primarySize = "text-[15px] md:text-sm"
     let primary = "text-[15px] md:text-sm font-medium text-text-primary"
+    /// Platzhalter statt eines Payees („ohne Payee“): wie `primary`, gedämpft (ledger-pkrwd).
+    let primaryMissing = "text-[15px] md:text-sm font-medium text-text-muted"
     /// Kategorie: 12px, gedämpft
     let secondary = "text-xs text-text-secondary"
     /// Memo: 12px, noch stärker gedämpft

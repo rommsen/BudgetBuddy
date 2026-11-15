@@ -133,7 +133,6 @@ let pickerTests =
             Expect.equal (PayeePicker.pickerRows suggestions "rewe" None) (PayeePicker.options suggestions "rewe") "ohne Payee fehlt die Zeile"
             Expect.equal (PayeePicker.pickerRows suggestions "rewe" (Some "  ")) (PayeePicker.options suggestions "rewe") "Leerraum zählt als kein Payee"
             Expect.equal (PayeePicker.payeeOf PayeePicker.RemovePayee) None "das Ziel ist ohne Payee"
-            Expect.equal PayeePicker.removeLabel "Payee entfernen" "Beschriftung"
 
         testCase "Tasten: „Payee entfernen“ ist per ↑↓ erreichbar und markiert mit Enter wählbar, nie als erste Zeile" <| fun () ->
             let rows = PayeePicker.pickerRows suggestions "rewe" (Some "Rewe")
@@ -179,6 +178,8 @@ let buildingBlockTests =
             Expect.isTrue (Components.Ledger.View.payeeMissing { entryOf 1 with Payee = Some "  " }) "Leerraum"
             Expect.isFalse (Components.Ledger.View.payeeMissing (entryOf 1)) "mit Payee"
             Expect.equal (Components.Ledger.View.payeeLabel { entryOf 1 with Payee = None }) "ohne Payee" "Platzhalter, keine Lücke"
+            // Review ledger-pkrwd: bei nur Leerraum dämpfte die Liste die Zeile, zeigte aber den leeren Text.
+            Expect.equal (Components.Ledger.View.payeeLabel { entryOf 1 with Payee = Some "  " }) "ohne Payee" "Leerraum zeigt den Platzhalter"
             Expect.isNone (Components.Ledger.View.payeeFilterLabel { entryOf 1 with Payee = None }) "kein „alle zeigen“"
 
         testCase "Sperre: gelöscht, nicht verknüpft und Übertrag; abgeglichen bleibt änderbar" <| fun () ->

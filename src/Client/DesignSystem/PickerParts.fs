@@ -58,6 +58,14 @@ let name (text: string) : ReactElement =
         prop.text text
     ]
 
+/// Name einer Zeile, gedämpft: eine ruhige Aktion wie „Payee entfernen“ (ledger-pkrwd).
+let mutedName (text: string) : ReactElement =
+    Html.span [
+        prop.className $"{ListRoles.primaryMissing} truncate min-w-0"
+        prop.title text
+        prop.text text
+    ]
+
 /// Picker-Zeile. `nameElement` ist der Name (bei Mehrfachauswahl die Checkbox mit
 /// Beschriftung), `available` der Verfügbar-Betrag. `extraClass` und `extraProps`
 /// tragen Innenabstand und Verhalten des Aufrufers.

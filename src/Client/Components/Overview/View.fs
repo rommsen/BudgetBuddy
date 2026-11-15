@@ -310,7 +310,9 @@ let private recentBlock (actions: Actions) (today: DateTime) (recent: RemoteData
                                     Html.div [
                                         prop.className "flex-1 min-w-0"
                                         prop.children [
-                                            Truncate.text $"block {ListRoles.primary}" (Components.Ledger.View.payeeLabel entry)
+                                            Truncate.text
+                                                (if Components.Ledger.View.payeeMissing entry then $"block {ListRoles.primaryMissing}" else $"block {ListRoles.primary}")
+                                                (Components.Ledger.View.payeeLabel entry)
                                             Html.div [
                                                 prop.className $"{FontSizes.compact} {Colors.textSecondary} truncate"
                                                 prop.children [
