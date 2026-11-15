@@ -101,13 +101,22 @@ let private MultiSelectContent (props: CategoryMultiSelectProps) =
         counter.Value <- index + 1
         let guid = categoryGuidOf c.Id
         let marked = active = Some index
+        let isSelected = props.Selected.Contains guid
         PickerParts.row
-            (if marked then "py-2 rounded-lg bg-surface-hover" else "py-2")
-            // Ohne `role="option"`: die Zeile trägt ein Kästchen, Bildschirmleser lesen dessen Zustand.
+            // Die Zeile ist jetzt die Trefferfläche (Option): am Handy 48 px (Styleguide, Touch-Targets).
+            (if marked then $"py-2 {Tokens.TouchTargets.minHeight} rounded-lg bg-surface-hover" else $"py-2 {Tokens.TouchTargets.minHeight}")
+            // Die Zeile ist die Option der Listbox und trägt Name und Zustand; das Kästchen darin ist nur Bild.
             [ prop.key (keyPrefix + string guid)
               prop.id (optionId index)
+              prop.role "option"
+              prop.ariaSelected isSelected
+              prop.ariaLabel c.Name
               if marked then prop.custom ("data-marked", "true") ]
-            (Input.checkboxListRow (props.Selected.Contains guid) (fun _ -> props.OnToggle guid) c.Name)
+            (Html.div [
+                prop.ariaHidden true
+                prop.className "contents"
+                prop.children [ Input.checkboxListRow isSelected (fun _ -> props.OnToggle guid) c.Name ]
+            ])
             (c.Available |> Option.map (fun m -> m.Amount, m.Currency))
 
     Html.div [
@@ -134,6 +143,9 @@ let private MultiSelectContent (props: CategoryMultiSelectProps) =
 
             Html.div [
                 prop.id listboxId
+                prop.role "listbox"
+                prop.ariaMultiSelectable true
+                prop.ariaLabel "Kategorien"
                 prop.className "flex flex-col gap-3 max-h-72 overflow-y-auto"
                 prop.children [
                     if showRecent then

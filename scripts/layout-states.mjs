@@ -463,7 +463,9 @@ const openFilteredOut = async (page, { mobile }) => {
   else await payee.click();
   const arrow = page.locator('[data-testid="detail-category-arrow"]').filter({ visible: true }).first();
   await arrow.click();
-  await page.locator('[role="option"]', { hasText: "Nebenkosten" }).filter({ visible: true }).last().click();
+  // Ohne die Optionen des Kategorie-Filters: dessen geschlossenes Sheet steht weiter im DOM (role="option" seit
+  // design-system-gcpws).
+  await page.locator('[role="option"]:not([id^="category-multi-select-option-"])', { hasText: "Nebenkosten" }).filter({ visible: true }).last().click();
   await page.locator('[data-toast-action="true"]').first().waitFor();
   await page.locator('[data-testid="filtered-out-note"]').filter({ visible: true }).first().waitFor();
   if (mobile) {
