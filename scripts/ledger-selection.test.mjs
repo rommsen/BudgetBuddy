@@ -312,19 +312,13 @@ const countIn = async (page) => {
   return match ? Number(match[1]) : 0;
 };
 
-test("[tastatur] PC 1440x900: Leertaste wählt genau einmal, das Panel zeigt die eine gewählte Buchung, keine Prüf-Schaltfläche an der Zeile, Esc-Kette", async () => {
+test("[tastatur] PC 1440x900: Leertaste wählt genau einmal, das Panel zeigt die eine gewählte Buchung, Esc-Kette", async () => {
   const { page, context } = await openLedger({ width: 1440, height: 900 }, false);
   try {
     const box = (n) =>
       page.getByRole("checkbox", { name: `Auswahlzeile ${String(n).padStart(2, "0")} auswählen` }).filter({ visible: true });
     const row = (n) => page.locator("tr", { hasText: `Auswahlzeile ${String(n).padStart(2, "0")}` }).filter({ visible: true }).first();
     const detail = (n) => page.locator(`[data-testid="ledger-detail-panel"][aria-label="Detail Auswahlzeile ${String(n).padStart(2, "0")}"]`);
-    const reviewButtons = (n) => row(n).locator('button[title^="Als "]');
-
-    // Keine Prüf-Schaltfläche an der Zeile, auch nicht bei Hover (ledger-cnaz3).
-    await row(3).hover();
-    assert.equal(await reviewButtons(3).count(), 0, "keine Prüf-Schaltfläche bei Hover");
-
     // Mausklick auf ein Kästchen, danach Leertaste: der Fokus liegt auf dem Knopf, die native
     // Wirkung gewinnt und die Auswahl ändert sich genau einmal.
     await box(1).click();

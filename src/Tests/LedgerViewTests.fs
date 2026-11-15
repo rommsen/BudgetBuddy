@@ -462,7 +462,16 @@ let private statusColumnTests =
         }
 
         test "gelöscht vor doppelt? vor nicht in YNAB" {
-            Expect.equal (payeeMarks { linked with DeletedInYnab = true; LinkedToYnab = false }) [ PayeeDeleted ] "gelöscht"
+            let duplicate : PossibleDuplicateView =
+                { Reason = "gleicher Betrag am selben Tag"
+                  MatchDate = DateTime(2026, 3, 10)
+                  MatchAmount = { Amount = -10m; Currency = "EUR" }
+                  MatchPayee = Some "Rewe"
+                  MatchCategoryName = None
+                  MatchEntryId = None }
+            let unsure = { linked with PossibleDuplicate = Some duplicate; LinkedToYnab = false }
+            Expect.equal (payeeMarks { unsure with DeletedInYnab = true }) [ PayeeDeleted ] "gelöscht vor doppelt?"
+            Expect.equal (payeeMarks unsure) [ PayeePossibleDuplicate ] "doppelt? vor nicht in YNAB"
             Expect.equal (payeeMarks { linked with LinkedToYnab = false }) [ PayeeNotInYnab ] "nicht in YNAB"
         }
     ]

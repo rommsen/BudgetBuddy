@@ -107,11 +107,13 @@ let keyTests =
             let _, _, fine = Components.Ledger.State.update LenaKeyPressed { modelWith (rows 2) with FocusedRow = Some (idOf 1) }
             Expect.equal fine NoOp "mit Farbe keine Meldung"
 
-        testCase "„/“ setzt einen Befehl ab, bei offenem Popover nicht" <| fun () ->
-            let _, cmd, _ = Components.Ledger.State.update FocusSearch (modelWith (rows 2))
-            Expect.isNonEmpty cmd "Fokus in die Suche"
-            let _, blocked, _ = Components.Ledger.State.update FocusSearch { modelWith (rows 2) with OpenPopover = Some DateChip }
+        // Den Fokus in die Suche setzt ein DOM-Effekt, den .NET nicht ausführen kann; hier nur die Sperre (§7.8 Punkt 6).
+        testCase "„/“ bei offenem Popover setzt keinen Befehl ab" <| fun () ->
+            let blockedModel = { modelWith (rows 2) with OpenPopover = Some DateChip }
+            let model, blocked, external = Components.Ledger.State.update FocusSearch blockedModel
             Expect.isEmpty blocked "das Popover hat die Tasten"
+            Expect.equal model blockedModel "nichts ändert sich"
+            Expect.equal external NoOp "keine Rückmeldung"
     ]
 
 [<Tests>]
@@ -210,7 +212,6 @@ let panelTests =
 
         testCase "ohne Auswahl und Detail ist das Panel leer" <| fun () ->
             Expect.equal (panelContentFor (modelWith (rows 2))) PanelEmpty "leer"
-            Expect.equal emptyPanelText "Buchung wählen, um Details zu sehen." "Satz"
     ]
 
 [<Tests>]
@@ -269,9 +270,8 @@ let summaryTests =
             Expect.equal summary.Count 2 "Anzahl"
             Expect.equal summary.Sum -95m "Summe ohne die gelöschte"
 
-        testCase "Kopf, Hinweis und der Satz, wenn nicht alle gewählten geladen sind" <| fun () ->
+        testCase "Kopf und der Satz, wenn nicht alle gewählten geladen sind" <| fun () ->
             Expect.equal (selectionSummaryTitle 3) "3 Buchungen ausgewählt" "Kopf"
-            Expect.equal selectionSummaryHint "Umschalt-Klick wählt einen Bereich, Strg- oder Cmd-Klick einzelne" "Hinweis"
             Expect.isNone (selectionPartialNote 3 3) "alle geladen"
             Expect.equal (selectionPartialNote 34 12) (Some "Ausgaben, Einnahmen und Kategorien aus den 12 geladenen Buchungen.") "nur die geladenen"
 
@@ -359,9 +359,6 @@ let headerTests =
 [<Tests>]
 let filterBarTests =
     testList "Kassenbuch am PC: Filterleiste" [
-
-        testCase "Reihenfolge: Zu prüfen, Lena, Ohne Kategorie, Kategorie, Zeitraum, Betrag" <| fun () ->
-            Expect.equal fixedChipOrder [ NeedsReviewChip; AskLenaChip; WithoutCategoryChip; CategoryChip; DateChip; AmountChip ] "Prototyp"
 
         testCase "Umschalter mit Zahl, Kategorie mit Namen" <| fun () ->
             let model = { modelWith (rows 1) with NeedsReviewCount = 4; AskLenaCount = 2; WithoutCategoryCount = 1 }

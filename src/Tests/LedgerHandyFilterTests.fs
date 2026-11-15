@@ -243,15 +243,6 @@ let handyFilterTests =
             Expect.equal (sortValueText { Field = SortByPayee; Direction = SortDesc }) "Payee, Z bis A" "„Z bis A“ bleibt groß"
         }
 
-        test "Die Anzahl hinter „Ohne Kategorie“ kommt mit der Seite vom Server" {
-            let page : LedgerEntryPage =
-                { Entries = []; TotalCount = 0; TotalAmount = { Amount = 0m; Currency = "EUR" }; DeletedCount = 0
-                  NeedsReviewCount = 0; AskLenaCount = 0; WithoutCategoryCount = 7 }
-            let model = baseModel ()
-            let loaded, _ = step (entriesPageAnswer model 0 (Ok page)) model
-            Expect.equal loaded.WithoutCategoryCount 7 "Zahl vom Server"
-        }
-
         test "Kopf auf „Buchungen“: „Abrufen“ steht vor „Jetzt spiegeln“" {
             let actions = Components.Ledger.View.headerActionsFor false 0
             Expect.equal

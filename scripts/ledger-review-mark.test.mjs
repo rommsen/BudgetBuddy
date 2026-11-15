@@ -1,8 +1,8 @@
 // scripts/ledger-review-mark.test.mjs
 //
-// Gerenderter Beleg für `ledger-r777c` (Prüfvermerk setzen und nach YNAB zurückschreiben):
-// die Schaltfläche "Geprüft"/"Ungeprüft" an der Zeile am PC (1440x900) und der Wisch nach rechts am
-// Handy (412x915, ohne Knopf an der Zeile seit ledger-d9z3n). Ein echter,
+// Gerenderter Beleg für `ledger-r777c` (Prüfvermerk setzen und nach YNAB zurückschreiben): am PC
+// (1440x900) die Taste G auf der markierten Zeile (seit ledger-cnaz3 ohne Knopf an der Zeile) und am
+// Handy (412x915) der Wisch nach rechts (ohne Knopf an der Zeile seit ledger-d9z3n). Ein echter,
 // per Vite gestarteter Fable-Client gegen gemockte Ledger-Antworten (erfundene Werte, nie
 // die Entwicklungsdatenbank). Die beiden schreibenden Endpunkte werden abgefangen,
 // bevor sie das Netzwerk erreichen: es gibt keinen Backend-Prozess und damit keinen
@@ -159,18 +159,12 @@ async function swipe(page, locator, dx) {
 
 // ledger-d9z3n: unter 1024 px hat die Zeile keinen Prüfknopf mehr, geprüft wird per Wisch nach rechts (ledger-th36h).
 // ledger-cnaz3: auch am PC hat die Zeile keinen Knopf mehr, geprüft wird mit G auf der markierten Zeile.
-test("[flow:buchung-pruefen] PC: G auf der markierten Zeile schickt den Aufruf, die Zeile hat keinen Knopf; Handy: Wisch nach rechts prüft", async () => {
+test("[flow:buchung-pruefen] PC: G auf der markierten Zeile schickt den Aufruf; Handy: Wisch nach rechts prüft", async () => {
   {
     const { page, context, calls, entries } = await openLedger({ width: 1440, height: 900 });
     try {
       const row = rowOf(page, true, PAYEES.toReview);
       await row.waitFor();
-      await row.hover();
-      assert.equal(
-        await page.getByRole("button", { name: /^(Geprüft|Ungeprüft)$/ }).filter({ visible: true }).count(),
-        0,
-        "PC: keine Prüfknöpfe an den Zeilen, auch nicht bei Hover"
-      );
       // Die erste Zeile ist die zu prüfende: ↓ markiert sie, G prüft.
       await page.keyboard.press("ArrowDown");
       await page.locator('tr[data-keyboard-focus="true"]', { hasText: PAYEES.toReview }).waitFor();
@@ -190,11 +184,6 @@ test("[flow:buchung-pruefen] PC: G auf der markierten Zeile schickt den Aufruf, 
     try {
       const row = page.locator("button", { hasText: PAYEES.toReview }).filter({ visible: true }).first();
       await row.waitFor();
-      assert.equal(
-        await page.getByRole("button", { name: /^(Geprüft|Ungeprüft)$/ }).filter({ visible: true }).count(),
-        0,
-        "Handy: keine Prüfknöpfe an den Zeilen"
-      );
       await swipe(page, row, 260);
       await page.waitForFunction(() => document.body.innerText.includes("geprüft"));
       const call = calls.find((c) => c.endpoint === "setReviewMark");

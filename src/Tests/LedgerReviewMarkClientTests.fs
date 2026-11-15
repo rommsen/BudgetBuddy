@@ -221,6 +221,17 @@ let swipeReviewedTests =
             Expect.isEmpty (dispatchedMsgs cmd) "kein Aufruf"
             Expect.equal external NoOp "kein Toast"
 
+        // Ersetzt die entfallene Zusicherung aus `[flow:buchung-pruefen]` (ledger-cnaz3): früher bekamen in YNAB gelöschte
+        // Buchungen die Prüf-Schaltfläche an der Zeile, und der Server lehnte den Prüfvermerk ab.
+        testCase "Wisch auf eine in YNAB gelöschte Buchung: kein Aufruf, kein Toast" <| fun () ->
+            let e = { entryView 1 true with DeletedInYnab = true }
+            Expect.isFalse (swipeAppliesTo e) "der Wisch wirkt nicht"
+            let before = modelWith false [ e ]
+            let model, cmd, external = update (StartSwipeReviewed e.Id) before
+            Expect.equal model before "nichts ändert sich"
+            Expect.isEmpty (dispatchedMsgs cmd) "kein Aufruf"
+            Expect.equal external NoOp "kein Toast"
+
         testCase "Antwort ohne Änderung erzeugt keinen Toast mit Rückgängig" <| fun () ->
             let e = entryView 1 true
             let unchanged = { swipeOutcome uncleared with Change = ReviewMarkUnchanged; WriteBack = ReviewMarkNotSent }

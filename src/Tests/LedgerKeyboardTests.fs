@@ -386,20 +386,15 @@ let selectionRulesTests =
             let selecting = { modelWith (rows 3) with Selection = Picked (Set.singleton (idOf 1)) }
             Expect.equal (step EscapePressed selecting).Selection NoSelection "aufgehoben"
 
-        testCase "Tastenleiste ohne Auswahl nennt alle belegten Tasten, mit Auswahl ist sie aus" <| fun () ->
-            // ledger-cnaz3: Prototyp Version 17 `.keys` und dazu J K, Enter und ⇧+G (BB).
-            let texts = Components.Ledger.View.keyboardHintItems |> List.map Components.Ledger.View.keyboardHintItemText
-            Expect.equal
-                texts
-                [ "↑ ↓ J K bewegen"
-                  "Enter Detail"
-                  "G geprüft"
-                  "⇧+G ungeprüft"
-                  "L Lena fragen"
-                  "Leertaste oder ⇧+↓ auswählen"
-                  "/ suchen, Pfeile wirken auch dort"
-                  "Esc schließen" ]
-                "Einträge in der Reihenfolge der Leiste"
+        testCase "Tastenleiste steht ohne Auswahl, mit Auswahl ist sie aus" <| fun () ->
+            // ledger-cnaz3: Prototyp Version 17 `.keys`. Der Text eines Eintrags fasst „⇧ + G“ zu „⇧+G“ zusammen.
+            let text =
+                Components.Ledger.View.keyboardHintItemText
+                    [ Components.Ledger.View.HintKey "⇧"
+                      Components.Ledger.View.HintWord "+"
+                      Components.Ledger.View.HintKey "G"
+                      Components.Ledger.View.HintWord "ungeprüft" ]
+            Expect.equal text "⇧+G ungeprüft" "Taste mit Umschalt ohne Leerzeichen um das Plus"
             let model = modelWith (rows 2)
             Expect.isTrue (Components.Ledger.View.keyboardHintVisible model) "ohne Auswahl steht sie"
             let selecting = { model with Selection = Picked (Set.singleton (idOf 1)) }

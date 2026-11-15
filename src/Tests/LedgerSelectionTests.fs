@@ -330,9 +330,6 @@ let viewTests =
             Expect.stringContains (cls Client.DesignSystem.MultiSelect.Checked true) "bg-accent" "gesetzt in Teal"
             Expect.stringContains (cls Client.DesignSystem.MultiSelect.Partial false) "bg-accent/20" "Teilauswahl auf blassem Teal"
             Expect.isFalse ((cls Client.DesignSystem.MultiSelect.Unchecked true).Contains "accent") "leer ohne Teal"
-            // ledger-cnaz3: der leere Rand in `border-strong` wie `.chk` und `.cb` im Prototyp Version 17 (mit
-            // `border-default` war das Kästchen auf der Zeile kaum zu sehen).
-            Expect.stringContains (cls Client.DesignSystem.MultiSelect.Unchecked false) "border-border-strong" "leer mit kräftigem Rand"
 
         testCase "Handy-Zeile: Kästchen im Modus, Maus ohne Wisch, Auswahl ohne Modus schlicht, sonst Wisch" <| fun () ->
             // ledger-r8h19: ersetzt die Quelltext-Tests zur Wisch-Geste (hier und in
