@@ -1,7 +1,7 @@
 ---
 id: design-system-gcpws
 title: "Liste mit Panel überall: Panel rund 30 % ab 1024 px, auch für Regeln, Erfassen, Targets prüfen und Kategorien, ein generischer Tastentest"
-status: backlog
+status: todo
 type: feature
 context: design-system
 created: 2026-11-11
@@ -21,8 +21,8 @@ Das Panel ist heute fest 340, 360 oder 420 px breit, nicht jede Liste hat eins, 
 Panel rund 30 % der Breite (min 380, max 520 px) ab 1024 px auf jeder Liste mit Detail. Tastenregeln aus §7.8 und §7.9 als ein generischer Test über alle Listen mit Panel, wie der Layout-Sweep. Auswahl-Dialoge mit Fokus in der Suche.
 
 ## Acceptance criteria
-Entwurf (2026-11-15, Conductor) nach der Bestandsaufnahme (Notes). Offen sind F1 bis F10 unten, Roman antwortet in der
-BB Prüfliste; die Kriterien gelten mit den Empfehlungen und werden nach den Antworten angepasst.
+Verfeinert 2026-11-15 nach der Bestandsaufnahme (Notes). Roman hat F1 bis F10 in der BB Prüfliste nach Empfehlung
+entschieden (Abschnitt „Entscheidungen“).
 
 Panel
 - [ ] Ein Baustein für die Panel-Hülle (`Detail.panel`: volle Höhe rechts, ohne Karte) auf jeder Liste mit Detail ab 1024 px:
@@ -38,6 +38,8 @@ Panel
       prüfen (F6).
 
 Tastatur (Styleguide §7.8)
+- [ ] Styleguide §7.8 nennt das Kassenbuch als Ausnahme beim Tippen in die Suche (G, L, J, K belegt, gesucht wird mit
+      „/“; F9).
 - [ ] Eine reine Regel für alle Listen mit Panel (`ListKeys.actionFor`: Fokus, Zusatztasten, oberste Ebene, Auswahl, Taste
       ergibt erste, letzte, nächste Zeile, Tab-Schritt, Auswahl erweitern, Panel schließen, Auswahl leeren, Suche, Tippen in
       die Suche). Die Seiten bilden ihre eigenen Tasten davor ab (Kassenbuch G, L, J/K, Leertaste, Enter; F9).
@@ -63,17 +65,17 @@ Tests
 - [ ] Layout-Sweep: die Panel-Zustände bei 1024, 1280, 1440 und 1920 px; die Budget-Tabelle steht erst ab 1280 px.
 - [ ] Seiten neben dem Prototyp verglichen (Screenshots bei 1024 und 1440 px je Liste), Abweichungen nur die genannten.
 
-## Offene Fragen (für Roman, in der BB Prüfliste)
-- F1 Budget in diesem Schnitt auf 30 % (nur Breite und Hülle, Inhalt in budgeting-wnkgj)? Empfehlung ja.
-- F2 Eine Panel-Hülle für alle Seiten? Empfehlung ja.
-- F3 Breite als `clamp` wie der Prototyp oder in Stufen je Breakpoint? Empfehlung `clamp`.
-- F4 Esc-Reihenfolge: Styleguide an ADR 0096 angleichen (erst Detail, dann Auswahl)? Empfehlung ja.
-- F5 Tasten auf Kategorien voll, auf Targets prüfen nur Esc? Empfehlung ja.
-- F6 Targets prüfen bei 1440 px mit offenem Panel gestapelt hinnehmen, Inhalt bleibt BB? Empfehlung ja.
-- F7 Kurze Auswahllisten ohne Suche, mit ↑↓ und Enter? Empfehlung ja.
-- F8 „Neue Buchung“ auf der Übersicht bleibt Modal, das Durchgehen-Panel bekommt nur die neue Breite? Empfehlung ja.
-- F9 Kassenbuch bleibt Ausnahme beim Tippen in die Suche (G, L, J, K belegt)? Empfehlung ja.
-- F10 Tests auf zwei Ebenen: .NET-Aufzählung plus Browser-Sweep? Empfehlung ja.
+## Entscheidungen (Roman, 2026-11-15, BB Prüfliste)
+- F1 Budget in diesem Schnitt auf 30 % (nur Breite und Hülle, Inhalt in budgeting-wnkgj): ja.
+- F2 Eine Panel-Hülle für alle Seiten: ja.
+- F3 Breite als `clamp` wie der Prototyp oder in Stufen je Breakpoint: `clamp` (Antwort „a“).
+- F4 Esc-Reihenfolge: Styleguide an ADR 0096 angleichen (erst Detail, dann Auswahl): ja.
+- F5 Tasten auf Kategorien voll, auf Targets prüfen nur Esc: ja.
+- F6 Targets prüfen bei 1440 px mit offenem Panel gestapelt hinnehmen, Inhalt bleibt BB: ja.
+- F7 Kurze Auswahllisten ohne Suche, mit ↑↓ und Enter: ja.
+- F8 „Neue Buchung“ auf der Übersicht bleibt Modal, das Durchgehen-Panel bekommt nur die neue Breite: ja.
+- F9 Kassenbuch bleibt Ausnahme beim Tippen in die Suche (G, L, J, K belegt): ja, als Ausnahme im Styleguide.
+- F10 Tests auf zwei Ebenen: .NET-Aufzählung plus Browser-Sweep: ja.
 
 ## Notes
 Schnitt aus Etappe 3 (Fahrplan, Roman 2026-11-11). Styleguide §7.6, §7.8, §7.9.

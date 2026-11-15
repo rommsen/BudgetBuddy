@@ -21,6 +21,9 @@ BB hat noch kein eigenes Logo. Ein Entwurf liegt seit 2026-11-07 vor (Palette 2)
 Buddy aus `standards/frontend/brand/` wird Marke in der Navigation und Icon der PWA.
 
 ## Acceptance criteria
+Zurückgestellt (Roman, 2026-11-15): das Logo kommt später in einem eigenen Durchgang, nicht in Etappe 3 neben gcpws.
+F3 bleibt bis dahin offen.
+
 Entwurf (2026-11-15, Conductor). Entschieden (Roman, 2026-11-15): F1 (a) Claude zeichnet nach, F2 „€“. F3 offen:
 Roman wählt zwischen Fassung A (goldene Düse) und B (ohne) in der Vorschau https://claude.ai/artifact/3hSxBqGL5XCUzECNgNpVVC
 (Entwurfs-SVGs und Zeichenskript in `standards/frontend/brand/vektor/`, `node zeichnen.mjs` erzeugt sie neu; beim Bau
