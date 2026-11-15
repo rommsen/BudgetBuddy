@@ -3,7 +3,7 @@
 Stand 2026-11-07. Grundlage: ADR 0086, `vision.md` Abschnitt „What success looks like“.
 
 ## Stand
-Zuletzt aktualisiert: 2026-11-15 nachmittags, nach work-Lauf Schnitt 9 (Liste mit Panel überall), vor dem Review.
+Zuletzt aktualisiert: 2026-11-15 abends, nach Review von Schnitt 9 und work-Lauf ledger-pkrwd (Payee entfernen).
 
 - **Etappe 1 · Bedeutungen:** erledigt, 5 von 5 (Skizze und Prototyp, Layout-Sweep, Muster im
   Styleguide, Designwert-Tests aufgeräumt, Palette 2 im Token-Layer). Romans Blick auf dak16 neben
@@ -218,12 +218,21 @@ Zuletzt aktualisiert: 2026-11-15 nachmittags, nach work-Lauf Schnitt 9 (Liste mi
   umgesetzt (ea612c26). Logo design-system-x1abn zurückgestellt (Roman), später eigener Durchgang.
   Neu im Backlog: design-system-m4e7q (Modal: Esc ohne Fokus, Fokus zurück), ledger-fp4wn (Auswahl außerhalb des
   geladenen Fensters mitzählen, Roman q-fenster), ledger-zqst5 (Suche und Filter am Handy haften, Roman q-sticky).
-- **Nächster Schritt:** `/review-agents` für gcpws (frontend-architecture, design-quality, qa-milestone-reviewer). Dann
-  Schnitt 10 budgeting-wnkgj verfeinern (Bestandsaufnahme, Prototyp-Abgleich, Fragen in die Prüfliste; G11 dort nachsehen).
-  Offen in der Prüfliste: q-sheet (neu formuliert), die Sichtpunkte „Ansehen“. Verfeinern bei Gelegenheit: ledger-fp4wn
-  (berührt Sammelaktionen), ledger-zqst5, ledger-h7de3, design-system-vf94m, ledger-t4rk8 (Geld, Roman entscheidet).
-  ledger-ayjzq (Sicht „Für mich“) nach Gespräch mit Roman. Vorschlag: `/architecture-review ledger` (21 erledigte Tasks
-  seit dem letzten Bestandsreview).
+- **Review-Lauf 98eaf680..5e45b028 (2026-11-15):** gcpws mit 4 Agents, Fixes in 84859355..5e45b028, darunter: Esc in
+  einem Feld von „Neue Buchung“ verlässt erst das Feld, das nächste Esc schließt das Formular (Roman, 5e45b028). Kann-Zeilen
+  c2a1e54c, Protokoll e4b15d01. Gate auf main: VERIFY: PASS (dotnet 5128, node 348).
+- **Work-Lauf ledger-pkrwd (Payee einer Buchung entfernen), 69c4b537:** „Payee entfernen“ in der Payee-Auswahl, derselbe
+  Befehl `setEntryPayee` mit Ziel `None`, `EntryPayeeChangedInBb` jetzt Schema-Version 2 (Version 1 bleibt lesbar), PUT mit
+  `payee_id` und `payee_name` null (Probelauf gegen Budget „Test“ grün). Verifier: Iteration 1 FAIL (Flow-Test fand den
+  abgehenden Toast nach dem Merge von main, Timing, kein App-Fehler), Iteration 2 PASS. Platzhalter bleibt „ohne Payee“ klein
+  wie in der Übersicht. Sichtpunkte pk1 bis pk3 in der Prüfliste. Nicht gepusht, nicht deployt.
+- **Nächster Schritt:** `/review-agents` für pkrwd vorschlagen (backend-code-quality, frontend-architecture,
+  qa-milestone-reviewer). Dann Schnitt 10 budgeting-wnkgj verfeinern (Bestandsaufnahme, Prototyp-Abgleich Version 17, Fragen
+  in die Prüfliste; Vorab-Entscheidungen in den Notes: Gelb für „noch nicht in YNAB“, Budget-Tabelle ab rund 1340 px).
+  Offen in der Prüfliste: q-sheet, die Sichtpunkte „Ansehen“ (g20 bis g22, pk1 bis pk3). Verfeinern bei Gelegenheit:
+  ledger-fp4wn (berührt Sammelaktionen), ledger-zqst5, design-system-m4e7q, ledger-h7de3, design-system-vf94m, ledger-t4rk8
+  (Geld, Roman entscheidet). ledger-ayjzq (Sicht „Für mich“) nach Gespräch mit Roman. Vorschlag: `/architecture-review
+  ledger` (mehr als 20 erledigte Tasks seit dem letzten Bestandsreview).
 - Verfeinert wird nur die nächste Etappe. Spätere Etappen haben Zeilen, keine Tickets.
 - Neue Ideen für spätere Etappen kommen hier als Zeile dazu.
 - Bestehende Tasks tragen einen Tag: `etappe-1`, `etappe-2`, `etappe-3`, `laufend`, `danach`.
