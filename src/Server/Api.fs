@@ -1409,9 +1409,9 @@ let ledgerApi : LedgerApi = {
     setEntryPayee = fun entryId payee -> async {
         match Validation.validatePayeeChange entryId payee with
         | Error errors -> return Error (String.concat " " errors)
-        | Ok trimmed ->
+        | Ok target ->
             let! push = payeePush ()
-            return! Ledger.CommandHandlers.setEntryPayee DateTime.UtcNow push (Ledger.Events.EntryId entryId) trimmed
+            return! Ledger.CommandHandlers.setEntryPayee DateTime.UtcNow push (Ledger.Events.EntryId entryId) target
     }
 
     retryPayeeWriteBack = fun entryId -> async {

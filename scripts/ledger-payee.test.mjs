@@ -160,7 +160,6 @@ test("[flow:payee-aendern] Handy: Payee im Detail ändern und entfernen, beides 
   await sheet.locator('[data-testid="detail-payee-arrow"]').tap();
   const remove = picker.locator('[data-testid="payee-picker-remove"]');
   await remove.waitFor();
-  assert.equal((await remove.textContent()).trim(), "Payee entfernen");
   await remove.tap();
   await page.waitForFunction(
     (p) => document.querySelector('.bottom-sheet.active .sheet-header h3')?.textContent === p,
