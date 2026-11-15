@@ -5,6 +5,18 @@ Newest entries on top.
 
 ---
 
+## 2026-11-15 18:45 -- Review-Lauf: e4b15d01..74f6cfb0
+
+**Type:** Review / Review-Lauf
+**Bereich:** e4b15d01..74f6cfb0 (ledger-pkrwd)
+**Agents:** review-backend, review-frontend, review-design, review-tests
+**Funde:** behoben 14, verworfen 3, Rückfrage 0 (eine Sichtfrage als Prüfpunkt pk1), Ticket 0
+**Commits:** 8126b479, eca846f7, 9053f2c6, 74f6cfb0
+**Verworfen:** eigener DU statt string option (Task gibt string option vor, alte Clients bleiben kompatibel); Zeile „Payee entfernen“ während des Ladens ausblenden (stört nicht); doppeltes „Payee“ im Warn-Toast (folgt dem bestehenden Muster „Payee geändert · X. Payee nicht in YNAB“)
+**Verifikation:** VERIFY: PASS (dotnet 5148 grün, node 348 grün)
+
+---
+
 ## 2026-11-15 17:42 -- Work session ended
 
 **Type:** Work / Session end
