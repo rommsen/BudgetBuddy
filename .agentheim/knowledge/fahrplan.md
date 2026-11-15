@@ -3,7 +3,7 @@
 Stand 2026-11-07. Grundlage: ADR 0086, `vision.md` Abschnitt „What success looks like“.
 
 ## Stand
-Zuletzt aktualisiert: 2026-11-15 abends, nach Review von Schnitt 9 und work-Lauf ledger-pkrwd (Payee entfernen).
+Zuletzt aktualisiert: 2026-11-15 abends, nach work-Lauf und Review von ledger-pkrwd (Payee entfernen), Verfeinerung budgeting-wnkgj läuft.
 
 - **Etappe 1 · Bedeutungen:** erledigt, 5 von 5 (Skizze und Prototyp, Layout-Sweep, Muster im
   Styleguide, Designwert-Tests aufgeräumt, Palette 2 im Token-Layer). Romans Blick auf dak16 neben
@@ -226,10 +226,13 @@ Zuletzt aktualisiert: 2026-11-15 abends, nach Review von Schnitt 9 und work-Lauf
   `payee_id` und `payee_name` null (Probelauf gegen Budget „Test“ grün). Verifier: Iteration 1 FAIL (Flow-Test fand den
   abgehenden Toast nach dem Merge von main, Timing, kein App-Fehler), Iteration 2 PASS. Platzhalter bleibt „ohne Payee“ klein
   wie in der Übersicht. Sichtpunkte pk1 bis pk3 in der Prüfliste. Nicht gepusht, nicht deployt.
-- **Nächster Schritt:** `/review-agents` für pkrwd vorschlagen (review-backend, review-frontend,
-  review-tests). Dann Schnitt 10 budgeting-wnkgj verfeinern (Bestandsaufnahme, Prototyp-Abgleich Version 17, Fragen
+- **Review-Lauf e4b15d01..74f6cfb0 (2026-11-15, ledger-pkrwd):** 4 Agents, 14 Funde behoben in 8126b479..74f6cfb0:
+  V2-Codec verlangt `newPayee` (ein fehlendes Feld war still „Payee entfernt“), „Rückgängig“ auch nach dem ersten Payee,
+  „ohne Payee“ überall gleich gedämpft (Liste, Detail, Karte, Übersicht, Rolle `ListRoles.primaryMissing`). Gate: VERIFY:
+  PASS (dotnet 5148, node 348). Sichtpunkte pk1 bis pk4 in der Prüfliste.
+- **Nächster Schritt:** Schnitt 10 budgeting-wnkgj verfeinern (Bestandsaufnahme, Prototyp-Abgleich Version 17, Fragen
   in die Prüfliste; Vorab-Entscheidungen in den Notes: Gelb für „noch nicht in YNAB“, Budget-Tabelle ab rund 1340 px).
-  Offen in der Prüfliste: q-sheet, die Sichtpunkte „Ansehen“ (g20 bis g22, pk1 bis pk3). Verfeinern bei Gelegenheit:
+  Offen in der Prüfliste: q-sheet, die Sichtpunkte „Ansehen“ (g20 bis g22, pk1 bis pk4). Verfeinern bei Gelegenheit:
   ledger-fp4wn (berührt Sammelaktionen), ledger-zqst5, design-system-m4e7q, ledger-h7de3, design-system-vf94m, ledger-t4rk8
   (Geld, Roman entscheidet). ledger-ayjzq (Sicht „Für mich“) nach Gespräch mit Roman. Vorschlag: `/architecture-review
   ledger` (mehr als 20 erledigte Tasks seit dem letzten Bestandsreview).
