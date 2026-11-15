@@ -1275,10 +1275,11 @@ let private needsReviewSqlClause = "(approved = 0 OR cleared = 'Uncleared')"
 let private askLenaSqlClause =
     "bb_lower(trim(flag_name, ' ' || char(9) || char(10) || char(13))) = 'lena'"
 
-/// Die fünf Such-Filter (ledger-vgfw3, ADR 0036), plus die beiden bestehenden
-/// Schalter — gebündelt, weil inzwischen fünf der acht Lese-Funktionen unten
-/// dieselben Kriterien anwenden müssen (AC "alle vier Zählwege ziehen mit").
-/// `AmountMin`/`AmountMax` werden bewusst NICHT Teil der SQL-Klausel unten: der
+/// Die Such-Filter Kategorie, Zeitraum, Suche und Betrag mit Richtung (ledger-vgfw3, ADR 0036,
+/// ledger-d9z3n, ADR 0095), dazu die Schalter Gelöschte, Zu prüfen, Rückfrage Lena und Ohne
+/// Kategorie. Gebündelt, weil die meisten Lese-Funktionen unten dieselben Kriterien anwenden
+/// müssen (AC "alle Zählwege ziehen mit").
+/// `AmountMin`/`AmountMax` und `AmountDirection` werden bewusst NICHT Teil der SQL-Klausel unten: der
 /// Betrag liegt als exakter Dezimal-Text (ADR 0017), ein SQL-Vergleich (auch über
 /// `CAST(amount AS REAL)`) würde dieselbe Rundungsdrift riskieren, die ADR 0017
 /// gerade ausschließt. Sie wirken stattdessen als Nachfilter in F#
@@ -1359,8 +1360,8 @@ let private amountMatches (filter: EntryFilter) (amount: decimal) : bool =
     && (filter.AmountMax |> Option.forall (fun max -> height <= max))
 
 /// Baut die WHERE-Klausel (ohne die führende `WHERE`) und die dazugehörigen
-/// Dapper-Parameter aus Konto und `EntryFilter` — ohne `AmountMin`/`AmountMax`
-/// (siehe `EntryFilter`). Gemeinsame Grundlage für alle Lese-Funktionen unten,
+/// Dapper-Parameter aus Konto und `EntryFilter`, ohne `AmountMin`/`AmountMax` und
+/// `AmountDirection` (die wirken als Nachfilter in F#, siehe `EntryFilter`). Gemeinsame Grundlage für alle Lese-Funktionen unten,
 /// damit sie nie auseinanderlaufen können (AC "denselben Filter anwenden").
 let private buildFilterClause (accountId: LedgerAccountId option) (filter: EntryFilter) : string * DynamicParameters =
     let clause = System.Text.StringBuilder("1 = 1")
@@ -1734,8 +1735,8 @@ let private sortEntriesInMemory
 /// Liest ausschliesslich die Zustandstabelle (ADR 0013).
 /// `filter.IncludeDeleted = false` (Standard, ledger-p3n8k) lässt in YNAB gelöschte
 /// Buchungen aus der Seite weg, sonst zählen sie mit. `filter.OnlyNeedsReview = true`
-/// (ADR 0032) lässt nur ungeprüfte Buchungen stehen. Die fünf Such-Filter
-/// (ledger-vgfw3) wirken zusätzlich, alle als Und-Verknüpfung. Datum, Payee und Konto
+/// (ADR 0032) lässt nur ungeprüfte Buchungen stehen. Die Such-Filter (Kategorie, Zeitraum,
+/// Suche, Betrag mit Richtung) wirken zusätzlich, alle als Und-Verknüpfung. Datum, Payee und Konto
 /// sortieren in SQL, Betrag und Kategorie sowie jeder Betragsfilter in F#.
 let loadEntriesPage
     (accountId: LedgerAccountId option)
@@ -1794,7 +1795,7 @@ let countEntries (accountId: LedgerAccountId option) (filter: EntryFilter) : Asy
 /// Die Zahl der in YNAB gelöschten Buchungen eines Kontos oder aller Konten
 /// (unabhängig von `filter.IncludeDeleted`, ledger-p3n8k
 /// AC2): die Seite soll "N gelöschte Buchungen ausgeblendet" auch zeigen können,
-/// während sie ausgeblendet sind. Die fünf Such-Filter (ledger-vgfw3) gelten
+/// während sie ausgeblendet sind. Die Such-Filter (Kategorie, Zeitraum, Suche, Betrag mit Richtung) gelten
 /// trotzdem mit, ebenso `OnlyNeedsReview` (ledger-fgt4k): sonst passt die Zahl nicht
 /// mehr zum aktiven Filter (AC).
 let countDeletedEntries (accountId: LedgerAccountId option) (filter: EntryFilter) : Async<int> =
@@ -1824,7 +1825,7 @@ let countWithoutCategoryEntries (accountId: LedgerAccountId option) : Async<int>
 /// Die Zahl der zu prüfenden Buchungen eines Kontos oder aller Konten (ADR 0032),
 /// unabhängig von `onlyNeedsReview` (wie `countDeletedEntries`/`IncludeDeleted`):
 /// die Seite soll den Chip "Zu prüfen (n)" auch zeigen können, während der Filter
-/// aus ist. Gelöschte Buchungen zählen nie mit. Bewusst OHNE die fünf Such-Filter
+/// aus ist. Gelöschte Buchungen zählen nie mit. Bewusst OHNE die Such-Filter (Kategorie, Zeitraum, Suche, Betrag mit Richtung)
 /// (ledger-vgfw3): der Chip ist ein fester Zähler über das Konto, keine
 /// Trefferzahl der laufenden Suche — anders als `countDeletedEntries`, das die
 /// Summenzeile stützt.
