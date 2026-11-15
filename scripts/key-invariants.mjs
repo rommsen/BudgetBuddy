@@ -401,6 +401,9 @@ export async function runList(browser, baseUrl, list, width, { initScript = null
     });
 
   // T5: oberste Ebene zuerst, für jede Ebene der Liste.
+  // Regressionstest (Test-Doktrin Punkt 8): Esc im CategoryPicker schloss die Auswahl, der Fokus fiel aber auf `body`
+  // statt auf den Auslöser zurück (§7.8 Punkt 6). Fix in 86ceeb32 (`returnTo` in `DesignSystem/CategoryPicker.fs`);
+  // ohne den Rücksprung meldet die letzte Prüfung unten „der Fokus steht nicht auf dem Auslöser“.
   for (const layer of [list.layer, ...(list.layers ?? [])].filter(Boolean)) {
     if (!want("T5")) break;
     await fresh(async (page) => {
