@@ -3,7 +3,7 @@
 Stand 2026-11-07. Grundlage: ADR 0086, `vision.md` Abschnitt „What success looks like“.
 
 ## Stand
-Zuletzt aktualisiert: 2026-11-14 abends, nach work-Lauf und Review ledger-sre0f.
+Zuletzt aktualisiert: 2026-11-15 nachts, nach work-Lauf und Review Schnitt 8 (Kassenbuch ordnen), Roman offline.
 
 - **Etappe 1 · Bedeutungen:** erledigt, 5 von 5 (Skizze und Prototyp, Layout-Sweep, Muster im
   Styleguide, Designwert-Tests aufgeräumt, Palette 2 im Token-Layer). Romans Blick auf dak16 neben
@@ -20,7 +20,7 @@ Zuletzt aktualisiert: 2026-11-14 abends, nach work-Lauf und Review ledger-sre0f.
   Backlog, danach kann die Sperre für Überträge fallen. ledger-nb4tv (ETF-Konto und Abgleich) nach
   Etappe 3 verschoben (Roman, 2026-11-10).
   Deployt (2026-11-10, f85d3b3d): ledger-m7k2d, ledger-z6sya, ledger-m7mye.
-- **Etappe 3 · Ein Produkt:** in elf Schnitte geteilt (Roman, 2026-11-11). 7 erledigt (6 categorization-n3sxw mit ledger-hg5m5, 7 ledger-ea70s, siehe Work-Lauf 2026-11-13/14 unten; deployt 2026-11-14, 1b3a8108), davon 1 design-system-k6kfw, 2 ledger-s1weh
+- **Etappe 3 · Ein Produkt:** in elf Schnitte geteilt (Roman, 2026-11-11). 8 erledigt (8 Kassenbuch ordnen, siehe Work-Lauf 2026-11-14/15 unten, nicht deployt; 6 categorization-n3sxw mit ledger-hg5m5, 7 ledger-ea70s, siehe Work-Lauf 2026-11-13/14 unten; deployt 2026-11-14, 1b3a8108), davon 1 design-system-k6kfw, 2 ledger-s1weh
   (beide deployt), 3 budgeting-w9yt4 (Angepinnte Kategorien, 828f6a24), 4 banking-import-d0fey (Import direkt, ADR 0093, 613eee26)
   mit ledger-r7h2w (wartendes Duplikat übernehmen oder verwerfen, ef7e039b), ledger-fxt09 (Payee ändern, 0a7d9cf0) und
   banking-import-t4raw (automatisch abrufen, Vorgabe an, 1b1c868f), 5 ledger-v6s7c (Durchgehen, 64a3402f). Work-Lauf
@@ -167,13 +167,50 @@ Zuletzt aktualisiert: 2026-11-14 abends, nach work-Lauf und Review ledger-sre0f.
   (dotnet 5031, node 340). Nicht gepusht, nicht deployt. Entschieden (Roman): Einnahmen stehen im Chip mit „+“ vor dem Betrag.
   Für Romans Blick nach dem Deploy: „+ Buchung“, Konto Bar wählen, die üblichen Bar-Buchungen stehen als Chips, ein Tipp
   füllt Payee, Kategorie, Betrag und Memo.
-- **Nächster Schritt:** Deploy von ledger-sre0f auf Romans Anweisung. Danach Schnitt 8 bauen, verfeinert in drei Tasks
-  (in todo, nacheinander): ledger-d9z3n (Handy), ledger-cnaz3 (PC), ledger-zfj78 (Detail), dann Review-Lauf; ledger-ayjzq (Sicht „Für mich“) bleibt eigene
-  Task nach einem Gespräch mit Roman. Romans Blick offen: ledger-pnjz3 und categorization-m47g8 (Punkte oben), ledger-ea70s
-  und ledger-hg5m5 (Bob, Regel aus der Buchung im Detail, Tab Regeln neben dem Prototyp, Sichtpunkte 1 bis 5). Offen zum
-  Verfeinern: ledger-h7de3 (Fehlertexte in Ereignissen), design-system-vf94m (Toast verdeckt „+ Buchung“), ledger-t4rk8
-  (Betrag eines Übertrags in BB). Vorschlag: `/architecture-review ledger` (18 erledigte Tasks seit dem letzten
-  Bestandsreview).
+- **Work-Lauf 2026-11-14/15 nachts, Roman offline:** Schnitt 8 Kassenbuch ordnen nach Prototyp Version 17, drei Tasks
+  nacheinander. ledger-d9z3n (Handy unter 1024 px: Auswahlfeld „Konto“, freie Suche statt Payee- und Memo-Filter,
+  „Filter (n)“ mit Filter-Sheet, gesetzte Filter als Chips mit „×“, „Filter löschen“ außer Konto, Betragsfilter als Höhe
+  ohne Vorzeichen mit Umschalter „Alle | Ausgaben | Einnahmen“ nach Romans Regel, ADR 0095; a2b25490, Verifier PASS in
+  Iteration 2). ledger-cnaz3 (PC ab 1024 px: Kopf mit Konto, Saldo, „Abrufen“, „n durchgehen“, Filterleiste mit Suche
+  rechts, Tabelle ohne Status und Prüf-Knopf, Panel immer da und ab zwei gewählten als Zusammenfassung, Strg-, Umschalt-
+  Klick, Umschalt+↑↓, L, „/“, ADR 0096; 35f75369, Verifier PASS in Iteration 3: zweimal traf eine Sammelaktion eine
+  Buchung ohne Häkchen, jetzt wählt kein Weg eine nicht geladene oder ausgegraute Buchung). ledger-zfj78 (Detail: Payee
+  als Kopf, Prüf-Knopf statt Schalter, Knopfzeile Aufteilen und Lena, aufklappbare Historie mit Betrag als DS-Baustein
+  `HistoryList`, „Buchung löschen“ nur mit rotem Rand; fe9159d1, Verifier PASS in Iteration 2). Review-Lauf
+  61bf6bd2..6acc9f6e mit 4 Agents, 37 Funde behoben in 1eaf9006..148a6a11, darunter: die Suche nahm `%` und `_` als
+  Platzhalter (bei „alle zeigen“ am Payee zu viele Treffer), ein alter Client ohne Richtung bekam 500, das Ausgrauen
+  kannte Suche und Betrag nicht, die gelbe Prüfkante verschwand in der Ankerzeile, negativer Saldo ohne Rot. Kann-Sammlung
+  ledger 126 bis 144, budgeting-h9c3w (Historie im Budget auf `HistoryList`). Gate auf main: VERIFY: PASS (dotnet 5101,
+  node 339). Nicht gepusht, nicht deployt.
+- **Für Romans Blick (nachts selbst entschieden oder offen), Route `#/ledger`, am Handy 412 px und am PC 1440 px:**
+  - Rückfragen aus dem Review, unverändert gelassen:
+    (1) Eine gewählte Buchung, die beim Nachladen aus dem geladenen Fenster rutscht, bleibt gewählt (ledger-ct3cx); die
+    Leiste zählt sie dann nicht mehr, „Geprüft“ und „Kategorie setzen“ treffen sie aber. Soll sie aus der Auswahl fallen,
+    oder sollen Leiste und Panel sie mitzählen?
+    (2) „nicht in YNAB“ steht in der Zeile jetzt Rot (Prototyp), im Detail die Leiste „Noch nicht in YNAB“ weiter Gelb
+    (ADR 0087 Punkt 3). Eine Farbe für beides?
+    (3) Am Handy scrollen Suche, Filter-Knopf und Chips mit weg; §7.3 verlangt haftende Filter.
+    (4) Kategorie, Zeitraum und Sortieren öffnen aus dem Filter-Sheet ein zweites Sheet; §7.15 will den Inhalt ersetzen.
+    (5) Im Filter-Sheet heißt die Aktion „Zurücksetzen“, sonst „Filter löschen“ (beides Prototyp).
+    (6) Die Historie zeigt bei Erfassungen in BB „ROMAN“, auch wenn Lena gebucht hat; „BB“ wäre genauer.
+  - Nachts selbst entschieden (steht als Abweichung oder Entscheidung in der Task):
+    ledger-d9z3n: „Filter löschen“ setzt auch Sortierung und „Gelöschte zeigen“ zurück; die Zahl am Filter-Knopf zählt die
+    Chips ohne Suche; „Abrufen“ mit dem Rahmen von `Button.Secondary`; voller Kontoname in der Zeile; ein Betrag von 0 ist
+    bei gesetzter Richtung weder Ausgabe noch Einnahme; am PC trägt der Chip „Betrag“ Betrag und Richtung.
+    ledger-cnaz3: (f) die Kompaktliste ab 1024 px behält die Handy-Zeile; (g) Kopfknöpfe, Tabs und Chips in den DS-Größen;
+    (h) das Panel beginnt unter dem Kopf; „n durchgehen“ zählt in einem Konto über die Übersicht; „Lena fragen“ am PC ohne
+    Zahl; „Kategorie: <Name> +k“ bei mehreren; Strg- oder Umschalt-Klick nimmt die im Panel offene Buchung mit.
+    ledger-zfj78: (c) Tag im Kopf „Di., 03.11.“, mit Jahr nur bei älteren Jahren; (d) runder Schließen-Knopf im Sheet.
+  - Hinweise der Verifier: im Konto-Sheet hat die gewählte Zeile nur Rahmen und Haken (Prototyp hinterlegt sie leicht);
+    im Filter-Sheet fehlen die Trennlinien des Prototyps; „Abrufen“ und „Jetzt spiegeln“ sehen bei 412 px fast gleich aus.
+- **Nächster Schritt:** Deploy auf Romans Anweisung (ledger-sre0f und Schnitt 8, Produktion steht auf 5a0d5394). Eine noch offene
+  alte PWA läuft weiter (fehlende Richtung gilt als „Alle“, `Search` ist optional), ihre Payee- und Memo-Filter wirken aber
+  erst nach dem Neuladen nicht mehr; einmal neu laden. Danach die Rückfragen oben.
+  ledger-ayjzq (Sicht „Für mich“) bleibt eigene Task nach einem Gespräch mit Roman. Romans Blick offen außerdem:
+  ledger-pnjz3 und categorization-m47g8, ledger-ea70s und ledger-hg5m5 (Sichtpunkte 1 bis 5 oben). Offen zum Verfeinern:
+  ledger-h7de3 (Fehlertexte in Ereignissen), design-system-vf94m (Toast verdeckt „+ Buchung“), ledger-t4rk8 (Betrag eines
+  Übertrags in BB). Danach Schnitt 9 design-system-gcpws. Vorschlag: `/architecture-review ledger` (21 erledigte Tasks
+  seit dem letzten Bestandsreview).
 - Verfeinert wird nur die nächste Etappe. Spätere Etappen haben Zeilen, keine Tickets.
 - Neue Ideen für spätere Etappen kommen hier als Zeile dazu.
 - Bestehende Tasks tragen einen Tag: `etappe-1`, `etappe-2`, `etappe-3`, `laufend`, `danach`.
@@ -233,7 +270,7 @@ Baut ein Schnitt eine Seite um, gilt die Zeile „Browser-Tests beim Umbau“ al
 5. ✓ `ledger-v6s7c` Durchgehen Karte für Karte (2026-11-12)
 6. ✓ `categorization-n3sxw` Regeln ins Kassenbuch (2026-11-13) (nimmt `categorization-krscs` auf), danach ✓ `ledger-hg5m5` Regel aus der Buchung (2026-11-14)
 7. ✓ `ledger-ea70s` Ein Erfassen, Quick Add entfällt (2026-11-14) (nimmt `design-system-taytp` und `ledger-yhemh` auf)
-8. Kassenbuch ordnen, verfeinert 2026-11-14 in `ledger-d9z3n` (Handy, unter 1024 px), `ledger-cnaz3` (PC) und
+8. ✓ Kassenbuch ordnen (2026-11-15): `ledger-d9z3n` (Handy, unter 1024 px), `ledger-cnaz3` (PC) und
    `ledger-zfj78` (Detail); `ledger-ayjzq` (Sicht „Für mich“) bleibt eigene Task
 9. `design-system-gcpws` Liste mit Panel überall, generischer Tastentest
 10. `budgeting-wnkgj` Budget angleichen
