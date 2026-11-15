@@ -1403,9 +1403,9 @@ let ledgerApi : LedgerApi = {
         return! Ledger.CommandHandlers.retryMemoWriteBack DateTime.UtcNow push (Ledger.Events.EntryId entryId)
     }
 
-    // Payee ändern (ledger-fxt09): Prüfung an der Grenze, dann Kassenbuch zuerst und der Push
-    // (`payee_id` null und `payee_name`), unter der Schreib-Sperre. Das Rückgängig läuft über
-    // denselben Befehl.
+    // Payee ändern (ledger-fxt09) und entfernen (ledger-pkrwd, `None`): Prüfung an der Grenze, dann
+    // Kassenbuch zuerst und der Push (`payee_id` null und `payee_name`, beim Entfernen auch null),
+    // unter der Schreib-Sperre. Das Rückgängig läuft über denselben Befehl.
     setEntryPayee = fun entryId payee -> async {
         match Validation.validatePayeeChange entryId payee with
         | Error errors -> return Error (String.concat " " errors)

@@ -4273,9 +4273,9 @@ let retryMemoWriteBack
 // ============================================
 
 /// Der Push des Payees, injiziert wie `MemoPush`: bekommt die YNAB-Transaction-Id und den
-/// getrimmten Payee. Der Aufrufer (`Server.Api`) bindet Token und Budget ein (`Ynab.updatePayee`:
-/// `payee_id` null und `payee_name`).
-type PayeePush = string -> string -> Async<YnabResult<unit>>
+/// getrimmten Payee (`None`: Payee entfernen, ledger-pkrwd). Der Aufrufer (`Server.Api`) bindet
+/// Token und Budget ein (`Ynab.updatePayee`: `payee_id` null und `payee_name`).
+type PayeePush = string -> string option -> Async<YnabResult<unit>>
 
 /// Der Grund-Text für den Hinweis "Payee nicht in YNAB". Wie `describeMemoPushError`.
 let describePayeePushError (error: YnabError) : string =
@@ -4305,7 +4305,7 @@ let private pushPayee
     (push: PayeePush)
     (entry: Entry)
     (baseline: string option)
-    (payee: string)
+    (payee: string option)
     : Async<PayeeWriteBack> =
     async {
         let entryId = entry.Id
@@ -4336,7 +4336,9 @@ let private pushPayee
     }
 
 /// Den Payee einer Buchung ändern (ledger-fxt09) und "Rückgängig" (derselbe Befehl mit dem alten
-/// Payee). Die Eingabe läuft durch `normalizePayee`: getrimmt, leer und zu lang werden abgelehnt.
+/// Payee). Das Ziel läuft durch `normalizePayeeTarget`: ein Text wird getrimmt, leer und zu lang
+/// werden abgelehnt; `None` entfernt den Payee (ledger-pkrwd, Ziel gleich Ist, wenn die Buchung
+/// schon keinen hat).
 /// Abgelehnt ohne Ereignis und ohne Push: unbekannte Buchung und was `payeeNotChangeableReason`
 /// sperrt (in YNAB gelöscht, nicht mit YNAB verknüpft, Übertrag). Abgeglichene Buchungen bleiben
 /// änderbar. Ziel gleich Ist (getrimmt, ohne Groß- und Kleinschreibung, `payeeKey`): weder Ereignis
@@ -4348,9 +4350,9 @@ let setEntryPayee
     (now: DateTime)
     (push: PayeePush)
     (entryId: EntryId)
-    (text: string)
+    (target: string option)
     : Async<Result<PayeeOutcome, string>> =
-    match normalizePayee text with
+    match normalizePayeeTarget target with
     | Error reason -> async { return Error reason }
     | Ok newPayee ->
         WriteGuard.exclusive (
@@ -4363,7 +4365,7 @@ let setEntryPayee
                     | Some reason -> return Error reason
                     | None ->
                         let previous = entry.Payee
-                        if payeeKey (Some newPayee) = payeeKey previous then
+                        if payeeKey newPayee = payeeKey previous then
                             return
                                 Ok {
                                     PreviousPayee = previous
@@ -4384,7 +4386,7 @@ let setEntryPayee
                             return
                                 Ok {
                                     PreviousPayee = previous
-                                    CurrentPayee = Some newPayee
+                                    CurrentPayee = newPayee
                                     PayeeChange = PayeeChanged
                                     PayeeWriteBack = writeBack
                                 }
@@ -4406,13 +4408,13 @@ let retryPayeeWriteBack
             | None -> return Error "Buchung nicht gefunden"
             | Some entry when isHeldAsPossibleDuplicate entry -> return Error possibleDuplicateLockedText
             | Some entry ->
-                match payeeNotChangeableReason entry, entry.Payee with
-                | Some reason, _ -> return Error reason
-                | None, _ when entry.PayeeWriteBackFailure.IsNone -> return Ok PayeeNotSent
-                | None, None -> return Ok PayeeNotSent
-                | None, Some payee ->
+                match payeeNotChangeableReason entry with
+                | Some reason -> return Error reason
+                | None when entry.PayeeWriteBackFailure.IsNone -> return Ok PayeeNotSent
+                | None ->
+                    // Ohne Payee (nach "Payee entfernen", ledger-pkrwd) geht wieder `null` hinaus.
                     let baseline = payeeBaseline entry entry.Payee
-                    let! writeBack = pushPayee now push entry baseline payee
+                    let! writeBack = pushPayee now push entry baseline entry.Payee
                     return Ok writeBack
         }
     )

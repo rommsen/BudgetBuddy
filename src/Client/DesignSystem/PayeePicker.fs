@@ -4,7 +4,9 @@
 /// PC steht der Fokus in der Suche, ↑↓ und Enter wählen, Esc schließt nur die Auswahl (§7.9). Am
 /// Handy kein Autofokus. Der Baustein kennt weder Kassenbuch-Model noch -Msg: der Aufrufer liefert
 /// Payee, Vorschläge und Rückrufe. Das Buchungs-Detail zeigt ihn im Sheet (Handy) oder im Dialog
-/// (PC); die Karte beim Durchgehen (ledger-v6s7c) öffnet ihn ohne das Detail.
+/// (PC); die Karte beim Durchgehen (ledger-v6s7c) öffnet ihn ohne das Detail. Hat die Buchung einen
+/// Payee, steht unter den Vorschlägen „Payee entfernen“ (ledger-pkrwd); die Zeile übernimmt wie eine
+/// Vorschlagszeile, mit `None` als Ziel.
 module Client.DesignSystem.PayeePicker
 
 open System
@@ -18,12 +20,17 @@ type PayeeOption =
     | TakeTyped of payee: string
     /// Ein vorhandener Payee mit der Zahl seiner Buchungen.
     | Suggested of payee: string * count: int
+    /// „Payee entfernen“ (ledger-pkrwd): das Ziel ist "ohne Payee".
+    | RemovePayee
 
 /// Höchstens so viele Vorschläge stehen in der Liste; die Suche grenzt weiter ein.
 let maxShown = 50
 
 /// Die Zeile, die die Eingabe als neuen Payee übernimmt.
 let takeLabel (typed: string) : string = $"„{typed}“ übernehmen"
+
+/// Die Zeile, die den Payee entfernt (ledger-pkrwd).
+let removeLabel = "Payee entfernen"
 
 let searchPlaceholder = "Payee suchen oder eingeben…"
 let loadingText = "Payees werden geladen…"
@@ -58,24 +65,33 @@ let options (suggestions: (string * int) list) (search: string) : PayeeOption li
 /// Nur die vorhandenen Payees zur Eingabe, ohne „übernehmen“ (ledger-dn4vy): der Payee-Filter des
 /// Kassenbuchs sucht unter den Treffern, ein getippter Name ohne Buchung fände nichts. Rein.
 let suggestedOptions (suggestions: (string * int) list) (search: string) : PayeeOption list =
-    options suggestions search |> List.filter (function Suggested _ -> true | TakeTyped _ -> false)
+    options suggestions search |> List.filter (function Suggested _ -> true | TakeTyped _ | RemovePayee -> false)
 
-/// Der Payee, den eine Zeile übernimmt.
-let payeeOf (option: PayeeOption) : string =
+/// Die Zeilen der Auswahl: `options` und darunter „Payee entfernen“, wenn die Buchung einen Payee
+/// hat (`current`, leer zählt als keiner). Rein.
+let pickerRows (suggestions: (string * int) list) (search: string) (current: string option) : PayeeOption list =
+    let hasPayee = current |> Option.exists (fun p -> p.Trim() <> "")
+    options suggestions search @ [ if hasPayee then RemovePayee ]
+
+/// Das Ziel, das eine Zeile übernimmt: ein Payee oder `None` („Payee entfernen“).
+let payeeOf (option: PayeeOption) : string option =
     match option with
-    | TakeTyped payee -> payee
-    | Suggested (payee, _) -> payee
+    | TakeTyped payee -> Some payee
+    | Suggested (payee, _) -> Some payee
+    | RemovePayee -> None
 
 /// Was eine Taste im Suchfeld tut.
 type KeyAction =
     | MoveTo of int
-    /// Übernimmt diesen Text (auch leer: dann meldet der Aufrufer den Feldfehler).
-    | Pick of string
+    /// Übernimmt dieses Ziel: einen Text (auch leer: dann meldet der Aufrufer den Feldfehler) oder
+    /// `None` („Payee entfernen“).
+    | Pick of string option
     | CloseOnly
     | NoAction
 
 /// ↑↓ bewegen die Markierung, Enter übernimmt die markierte Zeile, ohne Markierung die erste, ohne
-/// Zeile die Eingabe selbst. Esc schließt nur die Auswahl. Rein.
+/// Zeile die Eingabe selbst. „Payee entfernen“ wählt Enter nur markiert, nie als erste Zeile: eine
+/// leere Eingabe bleibt sonst ein Feldfehler. Esc schließt nur die Auswahl. Rein.
 let keyAction (key: string) (rows: PayeeOption list) (active: int option) (search: string) : KeyAction =
     let count = List.length rows
     match key with
@@ -85,9 +101,9 @@ let keyAction (key: string) (rows: PayeeOption list) (active: int option) (searc
         match active with
         | Some i when i >= 0 && i < count -> Pick (payeeOf (List.item i rows))
         | _ ->
-            match rows with
+            match rows |> List.filter (fun row -> row <> RemovePayee) with
             | first :: _ -> Pick (payeeOf first)
-            | [] -> Pick (if isNull search then "" else search)
+            | [] -> Pick (Some (if isNull search then "" else search))
     | "Escape" -> CloseOnly
     | _ -> NoAction
 
@@ -106,7 +122,8 @@ type PayeePickerProps = {
     FocusSearch: bool
     /// Ein Aufruf läuft: weitere Übernahmen wirken nicht.
     Busy: bool
-    OnPick: string -> unit
+    /// Übernimmt einen Text oder `None` („Payee entfernen“).
+    OnPick: string option -> unit
     /// Getippt: der Aufrufer nimmt einen Feldfehler zurück.
     OnSearchChanged: unit -> unit
     OnClose: unit -> unit
@@ -123,7 +140,7 @@ let View (props: PayeePickerProps) =
     let search, setSearch = React.useState (props.Current |> Option.defaultValue "")
     let active, setActive = React.useState<int option> None
     let containerRef = React.useRef<Browser.Types.HTMLElement option> None
-    let rows = options props.Suggestions search
+    let rows = pickerRows props.Suggestions search props.Current
 
     // Fokus ins Suchfeld beim Öffnen, der heutige Payee markiert: Tippen ersetzt ihn.
     React.useEffectOnce (fun () ->
@@ -148,7 +165,7 @@ let View (props: PayeePickerProps) =
         [| box active |]
     )
 
-    let pick (payee: string) = if not props.Busy then props.OnPick payee
+    let pick (payee: string option) = if not props.Busy then props.OnPick payee
 
     Html.div [
         prop.ref containerRef
@@ -216,24 +233,31 @@ let View (props: PayeePickerProps) =
                                     match row with
                                     | TakeTyped payee -> takeLabel payee, None
                                     | Suggested (payee, n) -> payee, Some n
+                                    | RemovePayee -> removeLabel, None
                                 PickerParts.row
                                     (rowClassFor (active = Some index))
                                     [
-                                        prop.key (match row with TakeTyped p -> $"take-{p}" | Suggested (p, _) -> $"s-{p}")
+                                        prop.key (match row with TakeTyped p -> $"take-{p}" | Suggested (p, _) -> $"s-{p}" | RemovePayee -> "remove")
                                         prop.id (optionId index)
                                         prop.role "option"
                                         prop.custom ("aria-selected", (active = Some index))
                                         prop.custom ("data-row-index", index)
-                                        prop.custom ("data-testid", (match row with TakeTyped _ -> "payee-picker-take" | Suggested _ -> "payee-picker-option"))
+                                        prop.custom ("data-testid", (match row with TakeTyped _ -> "payee-picker-take" | Suggested _ -> "payee-picker-option" | RemovePayee -> "payee-picker-remove"))
                                         // Der Fokus bleibt im Suchfeld: am Handy bleibt die Tastatur offen (§7.1).
                                         prop.onMouseDown (fun e -> e.preventDefault ())
                                         prop.onClick (fun e ->
                                             e.stopPropagation ()
                                             pick (payeeOf row))
                                     ]
-                                    (match count with
-                                     | None -> PickerParts.name label
-                                     | Some n ->
+                                    (match row, count with
+                                     // Ruhiger Text, keine Fehlerfarbe: Entfernen ist kein Fehler (ledger-pkrwd).
+                                     | RemovePayee, _ ->
+                                         Html.span [
+                                             prop.className $"{ListRoles.primarySize} {Colors.textMuted} truncate min-w-0"
+                                             prop.text label
+                                         ]
+                                     | _, None -> PickerParts.name label
+                                     | _, Some n ->
                                          Html.span [
                                              prop.className "flex min-w-0 flex-1 items-center justify-between gap-3"
                                              prop.children [

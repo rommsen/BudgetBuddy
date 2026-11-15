@@ -3181,9 +3181,12 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
     | PayeeSet (entryId, Ok outcome) ->
         let model' = applyPayeeResult entryId outcome model
         let external =
-            match outcome.PayeeChange, outcome.CurrentPayee with
-            | PayeeChanged, Some current ->
-                let text = payeeToastText current
+            match outcome.PayeeChange with
+            | PayeeChanged ->
+                let text =
+                    match outcome.CurrentPayee with
+                    | Some current -> payeeToastText current
+                    | None -> payeeRemovedToastText
                 let toast toastText toastType =
                     match outcome.PreviousPayee with
                     | Some previous ->
@@ -3192,7 +3195,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
                 match outcome.PayeeWriteBack with
                 | PayeeSendFailed reason -> toast $"{text}. {payeeHintTitle}: {reason}" ToastWarning
                 | _ -> toast text ToastSuccess
-            | _ -> NoOp
+            | PayeeUnchanged -> NoOp
         let cmd =
             Cmd.batch [
                 Cmd.ofMsg RestorePayeeRowFocus
@@ -3222,7 +3225,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         let cmd =
             Cmd.OfAsync.either
                 (Api.ledger.setEntryPayee entryId)
-                previous
+                (Some previous)
                 (fun result -> PayeeRestored (entryId, result))
                 (fun ex -> PayeeRestored (entryId, Error ex.Message))
         model, cmd, NoOp

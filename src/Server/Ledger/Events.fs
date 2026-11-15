@@ -465,10 +465,11 @@ type EntryMemoWriteBackFailedPayload = {
 
 /// Der Payee wurde in BB geändert (ledger-fxt09, Muster ADR 0062): Ändern und "Rückgängig"
 /// erzeugen denselben Typ. `OldPayee` ist der Payee davor (`None`, wenn die Buchung keinen trug),
-/// `NewPayee` der getrimmte neue. Actor `UserInBb`.
+/// `NewPayee` der getrimmte neue, `None` heißt "Payee entfernt" (ledger-pkrwd, Schema-Version 2;
+/// Version 1 trug immer einen Text). Actor `UserInBb`.
 type EntryPayeeChangedInBbPayload = {
     OldPayee: string option
-    NewPayee: string
+    NewPayee: string option
 }
 
 /// Das Zurückschreiben des Payees nach YNAB ist gescheitert (ledger-fxt09, Muster ADR 0062).
@@ -731,7 +732,8 @@ let categorySettingEventTypes : string list =
 /// bleiben unangetastet lesbar (ADR 0013, Punkt 7). `EntryObservedInYnab`,
 /// `EntryImportedFromComdirect` und `CashExpenseAdded` schreiben seit ADR 0032 Version 2
 /// (`approved`, bei `EntryObservedInYnab` zusätzlich Flag); Version 1 bleibt lesbar.
-/// `CashExpenseAdded` schreibt seit ledger-p3vq8 Version 3 (`importId`).
+/// `CashExpenseAdded` schreibt seit ledger-p3vq8 Version 3 (`importId`). `EntryPayeeChangedInBb`
+/// schreibt seit ledger-pkrwd Version 2 (`newPayee` darf `null` sein, "Payee entfernt").
 let schemaVersion (body: LedgerEventBody) : int =
     match body with
     | EntryObservedInYnab _ -> 2
@@ -764,7 +766,7 @@ let schemaVersion (body: LedgerEventBody) : int =
     | EntryAmountChangedInBb _ -> 1
     | EntryAmountWriteBackFailed _ -> 1
     | EntryAmountWrittenBackToYnab -> 1
-    | EntryPayeeChangedInBb _ -> 1
+    | EntryPayeeChangedInBb _ -> 2
     | EntryPayeeWriteBackFailed _ -> 1
     | EntryPayeeWrittenBackToYnab -> 1
     | EntryReplacedInYnab _ -> 1
@@ -1547,13 +1549,21 @@ module Codec =
     let encodePayeeChangedInBb (p: EntryPayeeChangedInBbPayload) =
         Encode.object [
             "oldPayee", encodeOptionalString p.OldPayee
-            "newPayee", Encode.string p.NewPayee
+            "newPayee", encodeOptionalString p.NewPayee
         ]
 
+    /// Version 1 (ledger-fxt09): `newPayee` ist immer ein Text.
+    let decodePayeeChangedInBbV1 : Decoder<EntryPayeeChangedInBbPayload> =
+        Decode.object (fun get -> {
+            OldPayee = get.Optional.Field "oldPayee" Decode.string
+            NewPayee = Some (get.Required.Field "newPayee" Decode.string)
+        })
+
+    /// Version 2 (ledger-pkrwd): `newPayee` ist `null`, wenn der Payee entfernt wurde.
     let decodePayeeChangedInBb : Decoder<EntryPayeeChangedInBbPayload> =
         Decode.object (fun get -> {
             OldPayee = get.Optional.Field "oldPayee" Decode.string
-            NewPayee = get.Required.Field "newPayee" Decode.string
+            NewPayee = get.Optional.Field "newPayee" Decode.string
         })
 
     let encodePayeeWriteBackFailed (p: EntryPayeeWriteBackFailedPayload) =
@@ -1711,6 +1721,8 @@ let decodePayload (eventType: string) (version: int) (payload: string) : Result<
         Decode.fromString Codec.decodeAmountWriteBackFailed payload |> Result.map EntryAmountWriteBackFailed
     | "EntryAmountWrittenBackToYnab", 1 -> Ok EntryAmountWrittenBackToYnab
     | "EntryPayeeChangedInBb", 1 ->
+        Decode.fromString Codec.decodePayeeChangedInBbV1 payload |> Result.map EntryPayeeChangedInBb
+    | "EntryPayeeChangedInBb", 2 ->
         Decode.fromString Codec.decodePayeeChangedInBb payload |> Result.map EntryPayeeChangedInBb
     | "EntryPayeeWriteBackFailed", 1 ->
         Decode.fromString Codec.decodePayeeWriteBackFailed payload |> Result.map EntryPayeeWriteBackFailed

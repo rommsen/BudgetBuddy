@@ -381,11 +381,13 @@ let private rows : Row list = [
       Run = fun () -> ledgerApi.setEntryMemo (Guid.NewGuid()) "Notiz" |> run |> expectError "Memo" }
     { Endpoint = "LedgerApi.retryMemoWriteBack"; Case = "unbekannte Buchung: Fehler"
       Run = fun () -> ledgerApi.retryMemoWriteBack (Guid.NewGuid()) |> run |> expectError "Memo erneut" }
-    // ledger-fxt09: Payee ändern. Leer scheitert an der API-Grenze, eine unbekannte Buchung im Befehl.
+    // ledger-fxt09: Payee ändern. Leer scheitert an der API-Grenze, eine unbekannte Buchung im Befehl,
+    // auch beim Entfernen (ledger-pkrwd, `None`).
     { Endpoint = "LedgerApi.setEntryPayee"; Case = "ungültige Eingabe (leer) und unbekannte Buchung: Fehler"
       Run = fun () ->
-        ledgerApi.setEntryPayee (Guid.NewGuid()) "   " |> run |> expectError "Payee leer"
-        ledgerApi.setEntryPayee (Guid.NewGuid()) "Rewe" |> run |> expectError "Payee unbekannt" }
+        ledgerApi.setEntryPayee (Guid.NewGuid()) (Some "   ") |> run |> expectError "Payee leer"
+        ledgerApi.setEntryPayee (Guid.NewGuid()) (Some "Rewe") |> run |> expectError "Payee unbekannt"
+        ledgerApi.setEntryPayee (Guid.NewGuid()) None |> run |> expectError "Payee entfernen unbekannt" }
     { Endpoint = "LedgerApi.retryPayeeWriteBack"; Case = "unbekannte Buchung: Fehler"
       Run = fun () -> ledgerApi.retryPayeeWriteBack (Guid.NewGuid()) |> run |> expectError "Payee erneut" }
     { Endpoint = "LedgerApi.setEntryAmount"; Case = "ungültige Eingabe (leer, unbekannte Richtung): Fehler"

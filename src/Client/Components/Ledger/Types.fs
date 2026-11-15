@@ -947,6 +947,9 @@ let payeeEditLabel = "Payee ändern"
 /// Der Toast nach dem Ändern (§7.13): "Payee geändert · Rewe".
 let payeeToastText (payee: string) : string = $"Payee geändert · {payee}"
 
+/// Der Toast nach "Payee entfernen" (ledger-pkrwd, §7.13).
+let payeeRemovedToastText : string = "Payee entfernt"
+
 /// Der Toast nach "Rückgängig".
 let payeeRestoredToastText : string = "Payee zurückgesetzt"
 
@@ -959,13 +962,13 @@ type PayeeSaveStep =
     | PayeeSaveRejected of reason: string
     /// Derselbe Payee (getrimmt, ohne Groß- und Kleinschreibung): zurück ins Detail, kein Aufruf.
     | PayeeSaveUnchanged
-    /// `setEntryPayee` mit dem getrimmten Payee.
-    | PayeeSaveSends of payee: string
+    /// `setEntryPayee` mit dem getrimmten Payee, `None` entfernt ihn (ledger-pkrwd).
+    | PayeeSaveSends of payee: string option
 
-let payeeSaveStep (text: string) (entry: LedgerEntryView) : PayeeSaveStep =
-    match normalizePayee text with
+let payeeSaveStep (target: string option) (entry: LedgerEntryView) : PayeeSaveStep =
+    match normalizePayeeTarget target with
     | Error reason -> PayeeSaveRejected reason
-    | Ok payee when payeeKey (Some payee) = payeeKey entry.Payee -> PayeeSaveUnchanged
+    | Ok payee when payeeKey payee = payeeKey entry.Payee -> PayeeSaveUnchanged
     | Ok payee -> PayeeSaveSends payee
 
 /// Wann der Pfeil an der Kategorie wirkt und wann nicht (ADR 0055 Punkt 7).
@@ -2346,9 +2349,10 @@ type Msg =
     | RestorePayeeRowFocus
     /// Getippt im Suchfeld: nimmt einen Feldfehler zurück.
     | PayeeSearchEdited
-    /// Ein Vorschlag oder "„…“ übernehmen": übernimmt sofort (§7.1).
-    | StartSavePayee of Guid * string
-    | RunSetPayee of Guid * string
+    /// Ein Vorschlag, "„…“ übernehmen" oder "Payee entfernen" (`None`, ledger-pkrwd): übernimmt
+    /// sofort (§7.1).
+    | StartSavePayee of Guid * string option
+    | RunSetPayee of Guid * string option
     | PayeeSet of Guid * Result<PayeeOutcome, string>
     /// "Rückgängig" im Toast: derselbe Befehl mit dem alten Payee.
     | StartUndoPayee of Guid * string

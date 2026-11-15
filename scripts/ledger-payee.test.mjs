@@ -4,7 +4,7 @@
 // gestarteten Fable-Client gegen gemockte Ledger-Antworten (nie die echte Entwicklungsdatenbank).
 // Nur, was der Browser allein zeigen kann: der eine Happy Path am Handy mit Touch (die Auswahl
 // ersetzt den Inhalt des Sheets, die Tastatur bleibt beim Tippen und Übernehmen offen, Rückgängig im
-// Toast) und der Fokus am PC (Fokus in der Suche, Esc zurück auf die Payee-Zeile). Texte, Sperren und
+// Toast, dazu „Payee entfernen“ mit Toast und Rückgängig, ledger-pkrwd) und der Fokus am PC (Fokus in der Suche, Esc zurück auf die Payee-Zeile). Texte, Sperren und
 // Zustände prüfen `src/Tests/LedgerPayeeClientTests.fs` und `src/Tests/LedgerPayeeTests.fs`.
 //
 // Ausführen: node --test scripts/ledger-payee.test.mjs
@@ -84,7 +84,8 @@ async function open(context) {
     const [entryId, text] = route.request().postDataJSON();
     state.setCalls.push({ entryId, text });
     const previous = state.payee;
-    state.payee = text.trim();
+    // `None` („Payee entfernen“, ledger-pkrwd) kommt als null.
+    state.payee = text === null ? null : text.trim();
     route.fulfill({
       contentType: "application/json",
       body: JSON.stringify({
@@ -112,7 +113,7 @@ const detailTitle = (scope) => scope.locator('[data-testid="detail-title"]');
 // ledger-zfj78: im Sheet steht der Payee als Titel im Kopf des Sheets, der Inhalt beginnt mit dem Betrag.
 const detailContent = (scope) => scope.locator('[data-testid="detail-payee"]');
 
-test("[flow:payee-aendern] Handy: Payee im Detail ändern und im Toast rückgängig machen, die Tastatur bleibt bis zum Schließen offen", async () => {
+test("[flow:payee-aendern] Handy: Payee im Detail ändern und entfernen, beides im Toast rückgängig machen, die Tastatur bleibt bis zum Schließen offen", async () => {
   const context = await browser.newContext({ viewport: { width: 412, height: 915 }, hasTouch: true, isMobile: true });
   const page = await open(context);
   await page.getByText(BANK_PAYEE, { exact: true }).first().tap();
@@ -151,6 +152,28 @@ test("[flow:payee-aendern] Handy: Payee im Detail ändern und im Toast rückgän
     BANK_PAYEE
   );
   assert.deepEqual(state.setCalls[1], { entryId: idOf(1), text: BANK_PAYEE }, "Rückgängig schickt den alten Payee über denselben Befehl");
+  // Der getippte Toast geht in seinem Abgang (`Types.Toast.exitDurationMs`) noch mit Knopf aus dem DOM, ein
+  // zweiter Tipp darauf wirkt nicht mehr (`ToastActionClicked`). Erst wenn er weg ist, steht nur noch der nächste da.
+  await page.getByText("Payee geändert · Rewe Markt").waitFor({ state: "detached" });
+
+  // ledger-pkrwd: „Payee entfernen“ antippen übernimmt sofort, der Toast bietet Rückgängig.
+  await sheet.locator('[data-testid="detail-payee-arrow"]').tap();
+  const remove = picker.locator('[data-testid="payee-picker-remove"]');
+  await remove.waitFor();
+  assert.equal((await remove.textContent()).trim(), "Payee entfernen");
+  await remove.tap();
+  await page.waitForFunction(
+    (p) => document.querySelector('.bottom-sheet.active .sheet-header h3')?.textContent === p,
+    "ohne Payee"
+  );
+  assert.deepEqual(state.setCalls[2], { entryId: idOf(1), text: null }, "entfernen schickt den Befehl ohne Payee");
+  await page.getByText("Payee entfernt", { exact: true }).first().waitFor();
+  await page.locator('[data-toast-action="true"]', { hasText: "Rückgängig" }).tap();
+  await page.waitForFunction(
+    (p) => document.querySelector('.bottom-sheet.active .sheet-header h3')?.textContent === p,
+    BANK_PAYEE
+  );
+  assert.deepEqual(state.setCalls[3], { entryId: idOf(1), text: BANK_PAYEE }, "Rückgängig setzt den alten Payee mit demselben Befehl");
   await context.close();
 });
 

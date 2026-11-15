@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-11-15 17:39 -- Task verified and completed: ledger-pkrwd - "Payee einer Buchung leeren: im Detail den Payee entfernen, nach YNAB ohne Payee zurückschreiben"
+
+**Type:** Work / Task completion
+**Task:** ledger-pkrwd - "Payee einer Buchung leeren: im Detail den Payee entfernen, nach YNAB ohne Payee zurückschreiben"
+**Summary:** Payee einer Buchung entfernen: setEntryPayee mit Ziel None, EntryPayeeChangedInBb Version 2, PUT mit payee_id/payee_name null, Zeile „Payee entfernen“ in der Payee-Auswahl
+**Duration:** (unknown)
+**Verification:** PASS (iteration 2)
+**Files changed:** 0
+**Tests added:** 0
+**ADRs written:** none
+
+---
+
+## 2026-11-15 17:18 -- Verification failed: ledger-pkrwd - Payee einer Buchung leeren
+
+**Type:** Work / Verification failure
+**Task:** ledger-pkrwd - Payee einer Buchung leeren
+**Iteration:** 1 of 3
+**Reasons:** [flow:payee-aendern] nach Merge von main rot, zwei Rückgängig-Knöpfe im DOM (strict mode)
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-11-15 17:07 -- Review-Lauf: 98eaf680..5e45b028
 
 **Type:** Review / Review-Lauf

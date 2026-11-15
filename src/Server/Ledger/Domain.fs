@@ -541,7 +541,8 @@ let apply (existing: Entry option) (event: LedgerEvent) : Entry =
     | EntryPayeeChangedInBb p ->
         // Eine neue Änderung setzt einen offenen Fehlschlag zurück (ledger-fxt09, wie ADR 0062).
         let e = requireExisting ()
-        { e with Payee = Some p.NewPayee; PayeeWriteBackFailure = None }
+        // `NewPayee = None` heißt "Payee entfernt" (ledger-pkrwd).
+        { e with Payee = p.NewPayee; PayeeWriteBackFailure = None }
 
     | EntryPayeeWriteBackFailed p ->
         let e = requireExisting ()

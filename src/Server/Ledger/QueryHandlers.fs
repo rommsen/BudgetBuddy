@@ -461,7 +461,10 @@ module ReadModel =
         | EntryAmountChangedInBb p -> describeAmountChangedInBb p
         | EntryAmountWriteBackFailed p -> $"Betrag nicht in YNAB: {p.Reason}"
         | EntryAmountWrittenBackToYnab -> "Betrag in YNAB angekommen"
-        | EntryPayeeChangedInBb p -> $"Payee geändert auf {p.NewPayee}, vorher {payeeOr p.OldPayee}"
+        | EntryPayeeChangedInBb p ->
+            match p.NewPayee with
+            | Some newPayee -> $"Payee geändert auf {newPayee}, vorher {payeeOr p.OldPayee}"
+            | None -> $"Payee entfernt, vorher {payeeOr p.OldPayee}"
         | EntryPayeeWriteBackFailed p -> $"Payee nicht in YNAB: {p.Reason}"
         | EntryPayeeWrittenBackToYnab -> "Payee in YNAB angekommen"
         | EntryReplacedInYnab _ -> "In YNAB neu angelegt (Split-Buchung ersetzt)"

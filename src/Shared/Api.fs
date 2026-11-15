@@ -448,8 +448,9 @@ type LedgerApi = {
     /// YNAB finds or creates the payee). The text is trimmed; empty and longer than YNAB's limit
     /// (200) are rejected. Error without event and without YNAB call when the booking is unknown,
     /// deleted in YNAB, not linked to YNAB or a transfer. Same payee (trimmed, ignoring case):
-    /// PayeeUnchanged. Reconciled bookings stay changeable.
-    setEntryPayee: Guid -> string -> Async<Result<PayeeOutcome, string>>
+    /// PayeeUnchanged. Reconciled bookings stay changeable. `None` removes the payee
+    /// (ledger-pkrwd, sent as `payee_id` and `payee_name` null); an empty text stays an error.
+    setEntryPayee: Guid -> string option -> Async<Result<PayeeOutcome, string>>
 
     /// Sends the booking's current payee to YNAB again ("Erneut senden"). Does nothing
     /// (PayeeNotSent) without an open payee write-back failure.

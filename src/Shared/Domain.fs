@@ -1411,6 +1411,14 @@ let normalizePayee (text: string) : Result<string, string> =
     elif trimmed.Length > ynabPayeeMaxLength then Error payeeTooLongReason
     else Ok trimmed
 
+/// Das Ziel von `setEntryPayee` (ledger-pkrwd): `None` heißt "Payee entfernen" und ist immer
+/// gültig, ein Text läuft durch `normalizePayee` (ein leerer Text bleibt ein Fehler, Leeren geht
+/// nur über `None`).
+let normalizePayeeTarget (target: string option) : Result<string option, string> =
+    match target with
+    | None -> Ok None
+    | Some text -> normalizePayee text |> Result.map Some
+
 /// Der Payee als Vergleichswert: getrimmt, ohne Groß- und Kleinschreibung, leer zählt als kein
 /// Payee. "Ziel gleich Ist" beim Ändern (`PayeeUnchanged`) und "ist schon ein Vorschlag" in der
 /// Auswahl lesen diese Regel.
@@ -1453,7 +1461,7 @@ type PayeeWriteBack =
 type PayeeOutcome = {
     /// Der Payee vor dem Befehl, Grundlage für "Rückgängig".
     PreviousPayee: string option
-    /// Der Payee nach dem Befehl (getrimmt).
+    /// Der Payee nach dem Befehl (getrimmt), `None` nach "Payee entfernen".
     CurrentPayee: string option
     PayeeChange: PayeeChange
     PayeeWriteBack: PayeeWriteBack

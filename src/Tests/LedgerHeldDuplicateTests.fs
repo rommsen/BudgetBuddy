@@ -198,7 +198,7 @@ let private commands : (string * (EntryId -> Async<Result<unit, string>>)) list 
       "retryMemoWriteBack", fun id -> retryMemoWriteBack at (fun _ _ -> noYnab "MemoPush") id |> ignoreOk
       "retryAmountWriteBack", fun id -> retryAmountWriteBack at (fun _ _ -> noYnab "AmountPush") splitTools id |> ignoreOk
       // ledger-fxt09 (Payee ändern): ADR 0093 Punkt 6 nennt den Payee ausdrücklich.
-      "setEntryPayee", fun id -> setEntryPayee at (fun _ _ -> noYnab "PayeePush") id "Neuer Payee" |> ignoreOk
+      "setEntryPayee", fun id -> setEntryPayee at (fun _ _ -> noYnab "PayeePush") id (Some "Neuer Payee") |> ignoreOk
       "retryPayeeWriteBack", fun id -> retryPayeeWriteBack at (fun _ _ -> noYnab "PayeePush") id |> ignoreOk ]
 
 [<Tests>]

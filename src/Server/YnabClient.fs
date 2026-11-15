@@ -1802,13 +1802,15 @@ let updateMemo
 /// sucht YNAB den Payee über den Namen oder legt ihn an; nur `payee_name` ließe die alte
 /// `payee_id` stehen. Weder Kategorie noch Memo oder Prüfvermerk (ADR 0028, Punkt 1), damit bleiben
 /// auch `import_id` und Bank-Referenz. Der Text geht unverändert hinaus (BB hat ihn vorher
-/// getrimmt und auf die Grenze von YNAB geprüft, `Shared.Domain.normalizePayee`). Non-private,
-/// damit der JSON-Vertrag direkt testbar ist.
-let buildPayeeBody (payee: string) : string =
+/// getrimmt und auf die Grenze von YNAB geprüft, `Shared.Domain.normalizePayee`). `None` heißt
+/// "Payee entfernen" (ledger-pkrwd): dann sind `payee_id` und `payee_name` beide `null`, YNAB
+/// behält danach keinen Payee (Probelauf gegen das Budget "Test"). Non-private, damit der
+/// JSON-Vertrag direkt testbar ist.
+let buildPayeeBody (payee: string option) : string =
     Encode.object [
         "transaction", Encode.object [
             "payee_id", Encode.nil
-            "payee_name", Encode.string payee
+            "payee_name", (match payee with Some p -> Encode.string p | None -> Encode.nil)
         ]
     ]
     |> Encode.toString 2
@@ -1820,7 +1822,7 @@ let sendPayee
     (httpClient: System.Net.Http.HttpClient)
     (YnabBudgetId budgetId: YnabBudgetId)
     (ynabTransactionId: string)
-    (payee: string)
+    (payee: string option)
     : Async<YnabResult<unit>> =
     async {
         try
@@ -1852,7 +1854,7 @@ let updatePayee
     (token: string)
     (budgetId: YnabBudgetId)
     (ynabTransactionId: string)
-    (payee: string)
+    (payee: string option)
     : Async<YnabResult<unit>> =
     async {
         use httpClient = new System.Net.Http.HttpClient()

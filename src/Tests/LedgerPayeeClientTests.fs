@@ -69,8 +69,11 @@ let private rowOf (n: int) (model: Model) =
     | Success entries -> entries |> List.find (fun e -> e.Id = idOf n)
     | _ -> failtest "Entries sollte geladen sein"
 
+let private outcomeTo (previous: string option) (current: string option) (writeBack: PayeeWriteBack) : PayeeOutcome =
+    { PreviousPayee = previous; CurrentPayee = current; PayeeChange = PayeeChanged; PayeeWriteBack = writeBack }
+
 let private outcome (previous: string option) (current: string) (writeBack: PayeeWriteBack) : PayeeOutcome =
-    { PreviousPayee = previous; CurrentPayee = Some current; PayeeChange = PayeeChanged; PayeeWriteBack = writeBack }
+    outcomeTo previous (Some current) writeBack
 
 /// Detail offen, Auswahl offen, Payees geladen.
 let private opened () : Model =
@@ -111,11 +114,35 @@ let pickerTests =
             Expect.equal (PayeePicker.keyAction "ArrowDown" rows None "rew") (PayeePicker.MoveTo 0) "erste"
             Expect.equal (PayeePicker.keyAction "ArrowDown" rows (Some 2) "rew") (PayeePicker.MoveTo 2) "bleibt unten"
             Expect.equal (PayeePicker.keyAction "ArrowUp" rows None "rew") (PayeePicker.MoveTo 2) "letzte"
-            Expect.equal (PayeePicker.keyAction "Enter" rows (Some 1) "rew") (PayeePicker.Pick "Rewe City") "markiert"
-            Expect.equal (PayeePicker.keyAction "Enter" rows None "rew") (PayeePicker.Pick "rew") "erste Zeile übernimmt die Eingabe"
-            Expect.equal (PayeePicker.keyAction "Enter" [] None "") (PayeePicker.Pick "") "leer geht an den Aufrufer"
+            Expect.equal (PayeePicker.keyAction "Enter" rows (Some 1) "rew") (PayeePicker.Pick (Some "Rewe City")) "markiert"
+            Expect.equal (PayeePicker.keyAction "Enter" rows None "rew") (PayeePicker.Pick (Some "rew")) "erste Zeile übernimmt die Eingabe"
+            Expect.equal (PayeePicker.keyAction "Enter" [] None "") (PayeePicker.Pick (Some "")) "leer geht an den Aufrufer"
             Expect.equal (PayeePicker.keyAction "Escape" rows None "rew") PayeePicker.CloseOnly "Esc"
             Expect.equal (PayeePicker.keyAction "a" rows None "rew") PayeePicker.NoAction "Tippen"
+
+        // ledger-pkrwd: „Payee entfernen“ unter den Vorschlägen, nur wenn die Buchung einen Payee hat.
+        testCase "„Payee entfernen“ steht unter den Vorschlägen, nur wenn die Buchung einen Payee hat" <| fun () ->
+            Expect.equal
+                (PayeePicker.pickerRows suggestions "rewe" (Some "Rewe"))
+                [ PayeePicker.Suggested ("Rewe City", 30); PayeePicker.Suggested ("Rewe", 12); PayeePicker.RemovePayee ]
+                "als letzte Zeile"
+            Expect.equal
+                (PayeePicker.pickerRows suggestions "Zahnarzt" (Some "Rewe"))
+                [ PayeePicker.TakeTyped "Zahnarzt"; PayeePicker.RemovePayee ]
+                "auch bei einer neuen Eingabe"
+            Expect.equal (PayeePicker.pickerRows suggestions "rewe" None) (PayeePicker.options suggestions "rewe") "ohne Payee fehlt die Zeile"
+            Expect.equal (PayeePicker.pickerRows suggestions "rewe" (Some "  ")) (PayeePicker.options suggestions "rewe") "Leerraum zählt als kein Payee"
+            Expect.equal (PayeePicker.payeeOf PayeePicker.RemovePayee) None "das Ziel ist ohne Payee"
+            Expect.equal PayeePicker.removeLabel "Payee entfernen" "Beschriftung"
+
+        testCase "Tasten: „Payee entfernen“ ist per ↑↓ erreichbar und markiert mit Enter wählbar, nie als erste Zeile" <| fun () ->
+            let rows = PayeePicker.pickerRows suggestions "rewe" (Some "Rewe")
+            Expect.equal (PayeePicker.keyAction "ArrowUp" rows None "rewe") (PayeePicker.MoveTo 2) "von oben her die letzte Zeile"
+            Expect.equal (PayeePicker.keyAction "ArrowDown" rows (Some 1) "rewe") (PayeePicker.MoveTo 2) "erreichbar"
+            Expect.equal (PayeePicker.keyAction "Enter" rows (Some 2) "rewe") (PayeePicker.Pick None) "markiert: entfernen"
+            let onlyRemove = PayeePicker.pickerRows [] "  " (Some "Rewe")
+            Expect.equal onlyRemove [ PayeePicker.RemovePayee ] "nur die Zeile"
+            Expect.equal (PayeePicker.keyAction "Enter" onlyRemove None "  ") (PayeePicker.Pick (Some "  ")) "ohne Markierung bleibt ein leerer Text ein Feldfehler"
 
         // ledger-dn4vy: der Payee-Filter sucht unter den Treffern; „übernehmen“ fände dort nichts.
         testCase "Payee-Filter: Vorschläge ohne Übernehmen-Zeile, sonst wie die Auswahl" <| fun () ->
@@ -137,10 +164,22 @@ let buildingBlockTests =
 
         testCase "Übernehmen: leer und zu lang abgelehnt, gleich bis auf Schreibweise unverändert, sonst getrimmt gesendet" <| fun () ->
             let entry = entryOf 1
-            Expect.equal (payeeSaveStep "  " entry) (PayeeSaveRejected payeeEmptyReason) "leer"
-            Expect.equal (payeeSaveStep (String('x', ynabPayeeMaxLength + 1)) entry) (PayeeSaveRejected payeeTooLongReason) "zu lang"
-            Expect.equal (payeeSaveStep " rewe sagt danke 4711 " entry) PayeeSaveUnchanged "gleich"
-            Expect.equal (payeeSaveStep "  Rewe " entry) (PayeeSaveSends "Rewe") "getrimmt"
+            Expect.equal (payeeSaveStep (Some "  ") entry) (PayeeSaveRejected payeeEmptyReason) "leer"
+            Expect.equal (payeeSaveStep (Some (String('x', ynabPayeeMaxLength + 1))) entry) (PayeeSaveRejected payeeTooLongReason) "zu lang"
+            Expect.equal (payeeSaveStep (Some " rewe sagt danke 4711 ") entry) PayeeSaveUnchanged "gleich"
+            Expect.equal (payeeSaveStep (Some "  Rewe ") entry) (PayeeSaveSends (Some "Rewe")) "getrimmt"
+
+        // ledger-pkrwd: `None` heißt „Payee entfernen“.
+        testCase "Payee entfernen: mit Payee gesendet, ohne Payee unverändert" <| fun () ->
+            Expect.equal (payeeSaveStep None (entryOf 1)) (PayeeSaveSends None) "gesendet"
+            Expect.equal (payeeSaveStep None { entryOf 1 with Payee = None }) PayeeSaveUnchanged "schon ohne Payee"
+
+        testCase "Liste ohne Payee: der Platzhalter steht gedämpft an der Stelle des Payees" <| fun () ->
+            Expect.isTrue (Components.Ledger.View.payeeMissing { entryOf 1 with Payee = None }) "ohne Payee"
+            Expect.isTrue (Components.Ledger.View.payeeMissing { entryOf 1 with Payee = Some "  " }) "Leerraum"
+            Expect.isFalse (Components.Ledger.View.payeeMissing (entryOf 1)) "mit Payee"
+            Expect.equal (Components.Ledger.View.payeeLabel { entryOf 1 with Payee = None }) "ohne Payee" "Platzhalter, keine Lücke"
+            Expect.isNone (Components.Ledger.View.payeeFilterLabel { entryOf 1 with Payee = None }) "kein „alle zeigen“"
 
         testCase "Sperre: gelöscht, nicht verknüpft und Übertrag; abgeglichen bleibt änderbar" <| fun () ->
             Expect.equal (payeeLockFor { entryOf 1 with DeletedInYnab = true }) (Some payeeDeletedReason) "gelöscht"
@@ -207,30 +246,30 @@ let reducerTests =
             Expect.isSome escaped.DetailFor "das Detail bleibt"
 
         testCase "ein leerer oder zu langer Payee wird zum Feldfehler, ohne Aufruf; Tippen nimmt ihn zurück" <| fun () ->
-            let rejected, msgs, external = run (StartSavePayee (idOf 1, "  ")) (opened ())
+            let rejected, msgs, external = run (StartSavePayee (idOf 1, Some "  ")) (opened ())
             Expect.equal (rejected.PayeeEdit |> Option.bind (fun e -> e.PayeeFieldError)) (Some payeeEmptyReason) "Feldfehler"
             Expect.isEmpty msgs "kein Aufruf"
             Expect.equal external NoOp "kein Toast"
-            let tooLong, _, _ = run (StartSavePayee (idOf 1, String('x', ynabPayeeMaxLength + 1))) (opened ())
+            let tooLong, _, _ = run (StartSavePayee (idOf 1, Some (String('x', ynabPayeeMaxLength + 1)))) (opened ())
             Expect.equal (tooLong.PayeeEdit |> Option.bind (fun e -> e.PayeeFieldError)) (Some payeeTooLongReason) "zu lang"
             let typed, _, _ = run PayeeSearchEdited rejected
             Expect.equal (typed.PayeeEdit |> Option.bind (fun e -> e.PayeeFieldError)) None "zurückgenommen"
 
         testCase "derselbe Payee schließt die Auswahl ohne Aufruf" <| fun () ->
-            let model, msgs, _ = run (StartSavePayee (idOf 1, "rewe sagt danke 4711")) (opened ())
+            let model, msgs, _ = run (StartSavePayee (idOf 1, Some "rewe sagt danke 4711")) (opened ())
             Expect.isNone model.PayeeEdit "zu"
             Expect.equal msgs [ RestorePayeeRowFocus ] "kein Aufruf"
 
         testCase "ein neuer Payee sperrt die Zeile und stößt den Befehl mit dem getrimmten Payee an; ein zweiter Klick schickt nichts" <| fun () ->
-            let model, msgs, _ = run (StartSavePayee (idOf 1, " Rewe ")) (opened ())
+            let model, msgs, _ = run (StartSavePayee (idOf 1, Some " Rewe ")) (opened ())
             Expect.equal (model.PayeeRows |> Map.tryFind (idOf 1)) (Some PayeeSending) "läuft"
-            Expect.equal msgs [ RunSetPayee (idOf 1, "Rewe") ] "Aufruf"
+            Expect.equal msgs [ RunSetPayee (idOf 1, Some "Rewe") ] "Aufruf"
             Expect.isSome model.PayeeEdit "die Auswahl bleibt offen, bis die Antwort kommt"
-            let _, again, _ = run (StartSavePayee (idOf 1, "Edeka")) model
+            let _, again, _ = run (StartSavePayee (idOf 1, Some "Edeka")) model
             Expect.isEmpty again "gesperrt"
 
         testCase "PayeeSet Ok: Payee in Zeile und Detail, Auswahl zu, Toast „Payee geändert · Rewe“ mit Rückgängig, Historie neu" <| fun () ->
-            let sending, _, _ = run (StartSavePayee (idOf 1, "Rewe")) (opened ())
+            let sending, _, _ = run (StartSavePayee (idOf 1, Some "Rewe")) (opened ())
             let model, msgs, external = run (PayeeSet (idOf 1, Ok (outcome (Some "REWE SAGT DANKE 4711") "Rewe" PayeeSent))) sending
             Expect.equal (rowOf 1 model).Payee (Some "Rewe") "Zeile"
             Expect.equal (model.DetailFor |> Option.bind (fun d -> d.Payee)) (Some "Rewe") "Detail zieht mit"
@@ -242,6 +281,37 @@ let reducerTests =
             | ShowToastWithAction ("Payee geändert · Rewe", ToastSuccess, { Kind = UndoPayee (id, previous) }) ->
                 Expect.equal (id, previous) (idOf 1, "REWE SAGT DANKE 4711") "Rückgängig kennt den alten Payee"
             | other -> failtest $"erwartet Toast mit Rückgängig, war {other}"
+
+        // ledger-pkrwd: Payee entfernen über dieselbe Nachricht, Toast „Payee entfernt“ mit Rückgängig.
+        testCase "Payee entfernen stößt den Befehl ohne Payee an; die Antwort leert Zeile und Detail, Toast „Payee entfernt“ mit Rückgängig auf den alten Payee" <| fun () ->
+            let sending, msgs, _ = run (StartSavePayee (idOf 1, None)) (opened ())
+            Expect.equal msgs [ RunSetPayee (idOf 1, None) ] "Aufruf ohne Payee"
+            let model, _, external = run (PayeeSet (idOf 1, Ok (outcomeTo (Some "REWE SAGT DANKE 4711") None PayeeSent))) sending
+            Expect.equal (rowOf 1 model).Payee None "Zeile ohne Payee"
+            Expect.equal (model.DetailFor |> Option.bind (fun d -> d.Payee)) None "Detail zieht mit"
+            Expect.isNone model.PayeeEdit "zu"
+            match external with
+            | ShowToastWithAction ("Payee entfernt", ToastSuccess, { Label = "Rückgängig"; Kind = UndoPayee (id, previous) }) ->
+                Expect.equal (id, previous) (idOf 1, "REWE SAGT DANKE 4711") "Rückgängig setzt den alten Payee"
+            | other -> failtest $"erwartet Toast mit Rückgängig, war {other}"
+            let undo, undoMsgs, _ = run (StartUndoPayee (idOf 1, "REWE SAGT DANKE 4711")) model
+            Expect.equal undoMsgs [ RunUndoPayee (idOf 1, "REWE SAGT DANKE 4711") ] "derselbe Befehl mit dem alten Payee"
+            let restored, _, _ = run (PayeeRestored (idOf 1, Ok (outcome None "REWE SAGT DANKE 4711" PayeeSent))) undo
+            Expect.equal (rowOf 1 restored).Payee (Some "REWE SAGT DANKE 4711") "wieder da"
+
+        testCase "Payee entfernen bei einer Buchung ohne Payee schließt die Auswahl ohne Aufruf" <| fun () ->
+            let model = { opened () with Entries = Success [ { entryOf 1 with Payee = None } ]; DetailFor = Some { entryOf 1 with Payee = None } }
+            let after, msgs, _ = run (StartSavePayee (idOf 1, None)) model
+            Expect.isNone after.PayeeEdit "zu"
+            Expect.equal msgs [ RestorePayeeRowFocus ] "kein Aufruf"
+
+        testCase "Payee entfernen mit gescheitertem Versand: Fehlschlag an der Buchung, Warn-Toast, die Buchung bleibt ohne Payee" <| fun () ->
+            let model, _, external = run (PayeeSet (idOf 1, Ok (outcomeTo (Some "REWE SAGT DANKE 4711") None (PayeeSendFailed "YNAB weg")))) (opened ())
+            Expect.equal (rowOf 1 model).PayeeWriteBackFailure (Some "YNAB weg") "Grund"
+            Expect.equal (rowOf 1 model).Payee None "ohne Payee"
+            match external with
+            | ShowToastWithAction (text, ToastWarning, { Kind = UndoPayee _ }) -> Expect.equal text "Payee entfernt. Payee nicht in YNAB: YNAB weg" "Grund im Toast"
+            | other -> failtest $"erwartet Warn-Toast, war {other}"
 
         testCase "PayeeSet mit gescheitertem Versand: Fehlschlag an der Buchung, Warn-Toast, der Payee bleibt in BB" <| fun () ->
             let model, _, external = run (PayeeSet (idOf 1, Ok (outcome (Some "REWE SAGT DANKE 4711") "Rewe" (PayeeSendFailed "YNAB weg")))) (opened ())
@@ -256,7 +326,7 @@ let reducerTests =
             Expect.equal external (ShowToast ("Payee geändert · Rewe", ToastSuccess)) "ohne Aktion"
 
         testCase "PayeeSet Error: der Grund steht als Feldfehler unter dem Suchfeld, die Auswahl bleibt offen" <| fun () ->
-            let sending, _, _ = run (StartSavePayee (idOf 1, "Rewe")) (opened ())
+            let sending, _, _ = run (StartSavePayee (idOf 1, Some "Rewe")) (opened ())
             let model, _, external = run (PayeeSet (idOf 1, Error payeeTransferReason)) sending
             Expect.equal (model.PayeeEdit |> Option.bind (fun e -> e.PayeeFieldError)) (Some payeeTransferReason) "Feldfehler"
             Expect.isEmpty model.PayeeRows "Sperre gelöst"
@@ -297,7 +367,7 @@ let reducerTests =
         // Review-Fund zu ledger-fxt09: Schloss das Detail während des Speicherns, ging ein Fehler von
         // setEntryPayee still verloren (kein Feldfehler mehr da, kein Toast).
         testCase "PayeeSet Error bei geschlossener Auswahl: ein Fehler-Toast nennt den Grund" <| fun () ->
-            let sending, _, _ = run (StartSavePayee (idOf 1, "Rewe")) (opened ())
+            let sending, _, _ = run (StartSavePayee (idOf 1, Some "Rewe")) (opened ())
             let closed, _, _ = run CloseDetail sending
             let model, _, external = run (PayeeSet (idOf 1, Error "YNAB weg")) closed
             Expect.equal external (ShowToast ("Payee nicht geändert: YNAB weg", ToastError)) "Toast mit Grund"
@@ -310,7 +380,7 @@ let reducerTests =
             let opening, _, _ = run (OpenPayeeEdit (idOf 1)) (modelWith [ entryOf 1 ])
             let oldAnswer = Components.Ledger.State.payeeChoicesAnswer opening
             let oldList = [ { Payee = "REWE SAGT DANKE 4711"; Count = 3 } ]
-            let sending, _, _ = run (StartSavePayee (idOf 1, "Rewe")) opening
+            let sending, _, _ = run (StartSavePayee (idOf 1, Some "Rewe")) opening
             let changed, _, _ = run (PayeeSet (idOf 1, Ok (outcome (Some "REWE SAGT DANKE 4711") "Rewe" PayeeSent))) sending
             let late, _, _ = run (oldAnswer (Ok oldList)) changed
             Expect.equal late.PayeeChoices NotAsked "die alte Liste bleibt draußen"
@@ -332,7 +402,7 @@ let reducerTests =
 /// Welcher Aufruf zum Payee unterwegs ist, wie die Aufzählung ihn kennt. Der Merker ist eigen: Der
 /// Test soll nicht der Sperre glauben, die er prüft.
 type private PayeeCall =
-    | SaveCall of payee: string
+    | SaveCall of payee: string option
     | UndoCall of payee: string
     | RetryCall
 
@@ -354,12 +424,12 @@ let private payeeEvents (model: Model) (pending: PayeeCall option) : (string * M
       "Schließen", CancelPayeeEdit
       "Detail zu", CloseDetail
       "Detail auf", OpenDetail current
-      "Übernehmen", StartSavePayee (id, other)
+      "Übernehmen", StartSavePayee (id, Some other)
       "Rückgängig", StartUndoPayee (id, "REWE SAGT DANKE 4711")
       "Erneut senden", StartRetryPayee id
       match pending with
       | Some (SaveCall payee) ->
-          "Antwort", PayeeSet (id, Ok (outcome current.Payee payee PayeeSent))
+          "Antwort", PayeeSet (id, Ok (outcomeTo current.Payee payee PayeeSent))
           "Fehler", PayeeSet (id, Error "weg")
       | Some (UndoCall payee) ->
           "Antwort", PayeeRestored (id, Ok (outcome current.Payee payee PayeeSent))

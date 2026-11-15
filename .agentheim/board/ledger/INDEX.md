@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 9
 - **Todo:** 0
-- **Doing:** 1
-- **Done:** 143
+- **Doing:** 0
+- **Done:** 144
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,11 +22,11 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **ledger-pkrwd** — "Payee einer Buchung leeren: im Detail den Payee entfernen, nach YNAB ohne Payee zurückschreiben" (feature) — `doing/ledger-pkrwd-payee-leeren.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)
 <!-- done-list:start -->
+- **ledger-pkrwd** — "Payee einer Buchung leeren: im Detail den Payee entfernen, nach YNAB ohne Payee zurückschreiben" (feature) — `done/ledger-pkrwd-payee-leeren.md`
 - **ledger-zfj78** — "Detail einer Buchung ordnen (Sheet und Panel): Payee als Kopf, Betrag mit Prüfstand, Knopf Geprüft, Payee mit alle zeigen, Aufteilen und Lena als Knopfzeile, Historie aufklappbar in der Form von §7.11" (feature) — `done/ledger-zfj78-detail-ordnen.md`
 - **ledger-cnaz3** — "Kassenbuch am PC ordnen: Kopf mit Konto und Saldo, Abrufen, n durchgehen und + Buchung; Filterleiste mit Suche; Tabelle ohne Status-Spalte und Prüf-Knopf; Panel immer da, ab zwei gewählten Buchungen als Zusammenfassung" (feature) — `done/ledger-cnaz3-kassenbuch-pc-ordnen.md`
 - **ledger-d9z3n** — "Kassenbuch am Handy ordnen: eine Kontowahl als Feld mit Saldo, freie Suche statt Payee- und Memo-Filter, Filter-Knopf mit Sheet und gesetzte Filter als Chips; gilt unter 1024 px" (feature) — `done/ledger-d9z3n-kassenbuch-handy-ordnen.md`

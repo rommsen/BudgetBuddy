@@ -1816,16 +1816,16 @@ let private CategoryPickerSingleDemo () =
 /// Beispieldaten, Zustand lokal. Im Kassenbuch steht sie im Sheet (Handy) oder im Dialog (PC).
 [<ReactComponent>]
 let private PayeePickerDemo () =
-    let chosen, setChosen = React.useState "REWE SAGT DANKE 4711"
+    let chosen, setChosen = React.useState<string option> (Some "REWE SAGT DANKE 4711")
     let error, setError = React.useState<string option> None
     section "Payee-Auswahl" [
-        note "Ein Auswahl-Dialog nach §7.9 für einen frei wählbaren Text: oben die Suche, vorbelegt mit dem heutigen Payee. Passt die Eingabe zu keinem vorhandenen Payee, steht „„Eingabe“ übernehmen“ als erste Zeile. Ein leerer oder zu langer Payee steht als Feldfehler unter dem Suchfeld."
+        note "Ein Auswahl-Dialog nach §7.9 für einen frei wählbaren Text: oben die Suche, vorbelegt mit dem heutigen Payee. Passt die Eingabe zu keinem vorhandenen Payee, steht „„Eingabe“ übernehmen“ als erste Zeile. Ein leerer oder zu langer Payee steht als Feldfehler unter dem Suchfeld. Hat die Buchung einen Payee, steht unter den Vorschlägen „Payee entfernen“ in ruhigem Text."
         Html.div [
             prop.custom ("data-ds-demo", "payee-picker")
             prop.className "max-w-sm"
             prop.children [
                 PayeePicker.view
-                    { Current = Some chosen
+                    { Current = chosen
                       Suggestions = [ "Rewe", 42; "REWE SAGT DANKE 4711", 7; "Edeka Center", 18; "Bäckerei Krume", 25 ]
                       Loading = false
                       LoadError = None
@@ -1834,7 +1834,7 @@ let private PayeePickerDemo () =
                       Busy = false
                       OnPick =
                         fun payee ->
-                            match Shared.Domain.normalizePayee payee with
+                            match Shared.Domain.normalizePayeeTarget payee with
                             | Ok trimmed ->
                                 setError None
                                 setChosen trimmed
@@ -1843,7 +1843,7 @@ let private PayeePickerDemo () =
                       OnClose = ignore }
             ]
         ]
-        caption $"Gewählt: {chosen}"
+        caption $"""Gewählt: {chosen |> Option.defaultValue "Ohne Payee"}"""
     ]
 
 /// Split-Editor (ledger-pafkp): Summe, Zeilen, Knopfzeile "Zeile hinzufügen" und "Barabhebung", Fußleisten und der

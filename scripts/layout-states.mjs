@@ -346,7 +346,7 @@ export const POSSIBLE_DUPLICATE = {
   MatchEntryId: null,
 };
 
-function ledgerEntries(accountId, { held = false } = {}) {
+function ledgerEntries(accountId, { held = false, withoutPayee = false } = {}) {
   const entry = (n, extra) => buildEntryFixture(accountId, n, { Date: TODAY, LinkedToYnab: true, CategorizationWriteBackFailure: null, ...extra });
   const lebensmittel = { CategoryId: CATEGORY_IDS.lebensmittel, CategoryName: "Lebensmittel", CategoryGroupName: "Alltag" };
   return [
@@ -354,6 +354,8 @@ function ledgerEntries(accountId, { held = false } = {}) {
       ? [entry(10, { Payee: HELD_PAYEE, NeedsReview: true, LinkedToYnab: false, Amount: eur(-12345.67), PossibleDuplicate: POSSIBLE_DUPLICATE, ...lebensmittel })]
       : []),
     entry(1, { Payee: "Bauhaus", NeedsReview: true, Amount: eur(-81.9), ...lebensmittel }),
+    // ledger-pkrwd: eine Buchung ohne Payee (aus YNAB oder nach „Payee entfernen“).
+    ...(withoutPayee ? [entry(11, { Payee: null, Amount: eur(-4.5), ...lebensmittel })] : []),
     entry(2, {
       Payee: "AMAZON PAYMENTS",
       Memo: "304-1234567-7654321 Lampe und ein sehr langes Memo, das weit über die Spalte hinausgeht",
@@ -387,14 +389,14 @@ const DETAIL_HISTORY = [
   { Sequence: 3, OccurredAt: "2026-11-07T09:20:00.0000000", Origin: "DecidedInBb", Description: "In BB als geprüft markiert", Amount: null },
 ];
 
-async function mockLedger(page, { accounts = 3, held = false } = {}) {
+async function mockLedger(page, { accounts = 3, held = false, withoutPayee = false } = {}) {
   await mockApp(page);
   const accountsFixture = buildAccountsFixture(accounts);
   accountsFixture.Accounts[2].Name = "Gemeinschaftskonto mit einem sehr langen Kontonamen";
   await mockFilterBarApi(page, {
     accountsFixture,
     balancesFixture: buildBalancesFixture(accountsFixture.Accounts).map((b, i) => (i === 2 ? { ...b, Balance: eur(-12345.67) } : b)),
-    resolveEntries: () => ledgerEntries(accountsFixture.DefaultAccountId, { held }),
+    resolveEntries: () => ledgerEntries(accountsFixture.DefaultAccountId, { held, withoutPayee }),
   });
   for (const [name, body] of [
     ["getEntryHistory", []],
@@ -1370,6 +1372,26 @@ export const STATES = [
       await row.locator("td").nth(2).click();
       await page.locator('[data-testid="detail-payee-arrow"]').filter({ visible: true }).first().click();
       await page.locator('[data-testid="payee-picker-option"]').filter({ visible: true }).first().waitFor();
+    },
+  },
+  // ledger-pkrwd: das Detail einer Buchung ohne Payee. Die Payee-Zeile zeigt „ohne Payee“ gedämpft, ohne
+  // „alle zeigen“, der Pfeil bleibt. Am Handy als Sheet, am PC im Panel.
+  {
+    name: "kassenbuch-detail-ohne-payee",
+    route: "/ledger",
+    widths: [412, 1440],
+    mock: (page) => mockLedger(page, { withoutPayee: true }),
+    open: async (page) => {
+      const width = page.viewportSize().width;
+      if (width < 1024) {
+        const sheet = await openLedgerDetail(page, "ohne Payee");
+        await sheet.locator('[data-testid="detail-payee-arrow"]').waitFor();
+      } else {
+        const row = page.locator("table tbody tr", { hasText: "ohne Payee" }).first();
+        await row.waitFor();
+        await row.locator("td").nth(2).click();
+        await page.locator('[data-testid="ledger-detail-panel"] [data-testid="detail-payee-arrow"]').waitFor();
+      }
     },
   },
   // ledger-at63w: "Neue Buchung" am Handy als Sheet. "Buchung anlegen" klebt unten und bleibt auch bei

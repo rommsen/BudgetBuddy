@@ -392,6 +392,11 @@ let listCategoryLabel (form: ListRowForm) (entry: LedgerEntryView) : string =
 let payeeLabel (entry: LedgerEntryView) : string =
     entry.Payee |> Option.defaultValue "ohne Payee"
 
+/// Steht in der Liste der Platzhalter statt eines Payees (ledger-pkrwd)? Dann in `text-muted`, auch nach
+/// "Payee entfernen". Leer oder nur Leerzeichen zählt als kein Payee.
+let payeeMissing (entry: LedgerEntryView) : bool =
+    entry.Payee |> Option.forall String.IsNullOrWhiteSpace
+
 /// Die Beschriftung des Menüeintrags "Nach <Payee> filtern" (ledger-rfq5p). `None`, wenn
 /// es nichts zu filtern gibt: Buchung ohne Payee (leer oder nur Leerzeichen).
 let payeeMenuLabel (entry: LedgerEntryView) : string option =
@@ -566,7 +571,10 @@ let private entryRow
             Html.div [
                 prop.className Tokens.ListRoles.mobileLine1
                 prop.children [
-                    Truncate.text Tokens.ListRoles.primary (payeeLabel entry)
+                    Truncate.text
+                        (if payeeMissing entry then $"{Tokens.ListRoles.primarySize} font-medium {Tokens.Colors.textMuted}"
+                         else Tokens.ListRoles.primary)
+                        (payeeLabel entry)
                     Html.span [ prop.className "shrink-0"; prop.children [ entryMoney entry ] ]
                 ]
             ]
@@ -833,7 +841,7 @@ let private payeeCell (accountAbbreviation: string option) (entry: LedgerEntryVi
             prop.className "flex min-w-0 items-center gap-2"
             prop.children [
                 abbreviation
-                Truncate.text "min-w-0" payee
+                Truncate.text (if payeeMissing entry then $"min-w-0 {Tokens.Colors.textMuted}" else "min-w-0") payee
                 // Die gelbe Kante sagt „zu prüfen“ nur dem Auge (§2 Ruhige Listen).
                 if entry.NeedsReview then Html.span [ prop.className "sr-only"; prop.text "zu prüfen" ]
                 for mark in payeeMarks entry do

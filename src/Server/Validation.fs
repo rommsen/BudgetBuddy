@@ -520,10 +520,11 @@ let validateTransferRequest (entryId: Guid) (YnabAccountId target: YnabAccountId
 let payeeEntryMissingText = "Die Buchung fehlt."
 
 /// Prüft die Anfrage von `setEntryPayee` an der API-Grenze: die Buchung braucht eine Id, der Payee
-/// folgt `Shared.Domain.normalizePayee` (leer, über 200 Zeichen). Alle Fehler gesammelt; `Ok` trägt
-/// den getrimmten Payee.
-let validatePayeeChange (entryId: Guid) (payee: string) : Result<string, string list> =
-    let normalized = normalizePayee payee
+/// folgt `Shared.Domain.normalizePayeeTarget` (leer, über 200 Zeichen; `None` heißt "Payee
+/// entfernen" und ist gültig, ledger-pkrwd). Alle Fehler gesammelt; `Ok` trägt den getrimmten
+/// Payee oder `None`.
+let validatePayeeChange (entryId: Guid) (payee: string option) : Result<string option, string list> =
+    let normalized = normalizePayeeTarget payee
     let errors =
         [
             if entryId = Guid.Empty then payeeEntryMissingText
