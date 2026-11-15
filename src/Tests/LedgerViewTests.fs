@@ -725,46 +725,6 @@ let private moduleStartupTests =
 // Neue testList am Dateiende (Konvention dieses Batches): kein Eingriff in
 // bestehende Listen, die ein paralleler Task (ledger-nnn47) in dieser Datei anfasst.
 
-let private chipOrderingTests =
-    testList "Chip-Reihenfolge (AC: aktive Chips wandern am Handy nach vorn)" [
-
-        test "Am PC bleibt die feste Reihenfolge, egal welche Chips aktiv sind" {
-            let activity = { NeedsReview = true; AskLena = false; Category = true; WithoutCategory = false; Date = false; Amount = false }
-            Expect.equal (orderChipsForDisplay false activity) fixedChipOrder "PC ändert die Reihenfolge nie"
-        }
-
-        test "Ohne aktiven Filter bleibt auch am Handy die feste Reihenfolge" {
-            let activity = { NeedsReview = false; AskLena = false; Category = false; WithoutCategory = false; Date = false; Amount = false }
-            Expect.equal (orderChipsForDisplay true activity) fixedChipOrder "Nichts zu ordnen, wenn nichts aktiv ist"
-        }
-
-        test "Am Handy wandert ein aktiver Kategorie-Filter vor das inaktive 'Zu prüfen' (Handoff Screen 2.4)" {
-            let activity = { NeedsReview = false; AskLena = false; Category = true; WithoutCategory = false; Date = false; Amount = false }
-            Expect.equal
-                (orderChipsForDisplay true activity)
-                [ CategoryChip; NeedsReviewChip; AskLenaChip; WithoutCategoryChip; DateChip; AmountChip ]
-                "Kategorie ist aktiv, das inaktive 'Zu prüfen' rutscht dahinter"
-        }
-
-        test "Zwei aktive Chips (inkl. 'Zu prüfen') behalten ihre bisherige Reihenfolge zueinander" {
-            let activity = { NeedsReview = true; AskLena = false; Category = true; WithoutCategory = false; Date = false; Amount = false }
-            Expect.equal
-                (orderChipsForDisplay true activity)
-                [ NeedsReviewChip; CategoryChip; AskLenaChip; WithoutCategoryChip; DateChip; AmountChip ]
-                "Beide aktiv: die stabile Partition ändert ihre gegenseitige Reihenfolge nicht"
-        }
-
-        test "Mehrere aktive Chips behalten am Handy ihre bisherige Reihenfolge untereinander" {
-            // Die aktiven Chips selbst bleiben in ihrer festen Reihenfolge zueinander,
-            // nur alle inaktiven rutschen gemeinsam dahinter.
-            let activity = { NeedsReview = false; AskLena = false; Category = true; WithoutCategory = false; Date = false; Amount = true }
-            Expect.equal
-                (orderChipsForDisplay true activity)
-                [ CategoryChip; AmountChip; NeedsReviewChip; AskLenaChip; WithoutCategoryChip; DateChip ]
-                "Kategorie vor Betrag (ihre feste Reihenfolge), beide vor den inaktiven"
-        }
-    ]
-
 let private quickDateRangeTests =
     testList "Zeitraum-Schnellwahl: Von/Bis (Handoff 2.5: 'Die Schnellwahl füllt Von/Bis mit')" [
 
@@ -932,7 +892,6 @@ let ledgerViewTests =
           needsReviewChipLabelTests
           historyLinesForDisplayTests
           moduleStartupTests
-          chipOrderingTests
           quickDateRangeTests
           amountFilterTextTests
           filtersTests

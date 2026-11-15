@@ -1327,9 +1327,6 @@ let detailDayText (today: DateTime) (date: DateTime) : string =
 let detailSubtitleFor (today: DateTime) (accountName: string) (entry: LedgerEntryView) : string =
     $"{detailDayText today entry.Date} · {accountName}"
 
-let detailSubtitle (accountName: string) (entry: LedgerEntryView) : string =
-    detailSubtitleFor (Client.BerlinDate.today ()) accountName entry
-
 /// Der Inhalt unter „Historie (n)“: Laden, Fehler mit „Erneut versuchen“, Leerzustand oder die Zeilen nach §7.11.
 let private historyView (dispatch: Msg -> unit) (entry: LedgerEntryView) (history: RemoteData<LedgerHistoryLine list>) =
     match history with
@@ -1369,8 +1366,8 @@ let amountEditMsg (model: Model) (entry: LedgerEntryView) : Msg option =
 
 /// Der Kopf des Details im Panel: Payee als Titel (oder „ohne Payee“ gedämpft), darunter „<Tag> · <Konto>“,
 /// rechts Schließen (ledger-zfj78). Im Sheet stellt `BottomSheet.view` Titel und Unterzeile.
-let private detailTitleHead (model: Model) (entry: LedgerEntryView) (onClose: (unit -> unit) option) =
-    Detail.titleHead (payeeLabel entry) entry.Payee.IsNone (detailSubtitle (accountNameOf model entry) entry) onClose
+let private detailTitleHead (today: DateTime) (model: Model) (entry: LedgerEntryView) (onClose: (unit -> unit) option) =
+    Detail.titleHead (payeeLabel entry) entry.Payee.IsNone (detailSubtitleFor today (accountNameOf model entry) entry) onClose
 
 /// Die Betragszeile: der Betrag als Knopf, der das Sheet "Betrag" öffnet; gesperrt steht er ohne Pfeil, mit dem
 /// Grund darunter (ADR 0092). Rechts der Prüfstand.
@@ -1389,6 +1386,7 @@ let private detailAmountRow (dispatch: Msg -> unit) (model: Model) (entry: Ledge
 /// Der Kopf über dem Split-Editor: der Gesamtbetrag des Editors ohne Knopf. Kommt der Editor aus
 /// dem Sheet "Betrag", steht dort schon der neue Betrag (ledger-m7mye).
 let private splitEditorHead
+    (today: DateTime)
     (model: Model)
     (entry: LedgerEntryView)
     (editor: SplitLogic.SplitEditorState)
@@ -1396,7 +1394,7 @@ let private splitEditorHead
     =
     Detail.head
         (Detail.amount editor.Total.Amount editor.Total.Currency (detailReadOnly entry))
-        (detailSubtitle (accountNameOf model entry) entry)
+        (detailSubtitleFor today (accountNameOf model entry) entry)
         onClose
 
 /// Wo der Kategorie-Picker aufgeht: am PC als Popover im Panel, am Handy und in der
@@ -2114,13 +2112,13 @@ let private amountDialog (dispatch: Msg -> unit) (model: Model) (entry: LedgerEn
               ]
               Modal.footer [ amountFooter dispatch model entry ] ]
 
-let private detailPanelView (dispatch: Msg -> unit) (model: Model) (entry: LedgerEntryView) : ReactElement =
+let private detailPanelView (today: DateTime) (dispatch: Msg -> unit) (model: Model) (entry: LedgerEntryView) : ReactElement =
     match splitEditorFor model entry with
     | Some editor ->
         let saving = isSavingSplit model editor
         Detail.panel
             $"Aufteilen {payeeLabel entry}"
-            [ splitEditorHead model entry editor (Some (fun () -> dispatch CloseDetail))
+            [ splitEditorHead today model entry editor (Some (fun () -> dispatch CloseDetail))
               // Die Fußleiste steht im scrollenden Bereich, am unteren Rand haftend: bei wenigen Zeilen
               // folgt sie dem Inhalt, bei vielen bleibt sie sichtbar. Als eigene Zeile unter dem
               // Panel läge sie bei einer kurzen Liste unterhalb des Fensters.
@@ -2139,7 +2137,7 @@ let private detailPanelView (dispatch: Msg -> unit) (model: Model) (entry: Ledge
         React.fragment [
             Detail.panel
                 $"Detail {payeeLabel entry}"
-                [ detailTitleHead model entry (Some (fun () -> dispatch CloseDetail))
+                [ detailTitleHead today model entry (Some (fun () -> dispatch CloseDetail))
                   Detail.scrollBody (detailContent dispatch model entry) ]
             amountDialog dispatch model entry
             payeeDialog dispatch model entry
@@ -2149,7 +2147,7 @@ let private detailPanelView (dispatch: Msg -> unit) (model: Model) (entry: Ledge
 /// Das Sheet bringt den Kopf mit: der Payee als Titel, „<Tag> · <Konto>“ darunter und Schließen
 /// (ledger-zfj78); der Betrag steht als erste Zeile im Inhalt. Mit offenem Editor heißt es "Aufteilen" mit Payee und Datum als Unterzeile, der
 /// Schließen-Knopf kehrt zum Detail zurück, und "Speichern" klebt unten (kein "Abbrechen").
-let private detailSheetView (dispatch: Msg -> unit) (model: Model) (open': bool) : ReactElement =
+let private detailSheetView (today: DateTime) (dispatch: Msg -> unit) (model: Model) (open': bool) : ReactElement =
     let entry = detailEntryOf model
     let editor = entry |> Option.bind (splitEditorFor model)
     // Das Sheet "Betrag" ersetzt den Inhalt des Detail-Sheets (kein zweites Sheet darüber, §7.15);
@@ -2200,7 +2198,7 @@ let private detailSheetView (dispatch: Msg -> unit) (model: Model) (open': bool)
              | Some e, _ when payeeEdit.IsSome -> Some (payeeLabel e)
              | Some e, _ when amountEdit.IsSome -> Some (payeeLabel e)
              | Some e, Some _ -> Some $"{payeeLabel e} · {formatDateFull e.Date}"
-             | Some e, None -> Some (detailSubtitle (accountNameOf model e) e)
+             | Some e, None -> Some (detailSubtitleFor today (accountNameOf model e) e)
              | _ -> None)
           Footer =
             (match entry, amountEdit, editor with
@@ -2245,17 +2243,17 @@ let private ruleFormDialog (form: EntryRuleForm) : ReactElement =
 
 /// Das Panel am PC, mit offenem Regel-Formular dieses statt des Details: es ersetzt den Inhalt und führt mit „Zurück“
 /// zur Buchung (ledger-hg5m5).
-let private detailPanelOrRuleForm (dispatch: Msg -> unit) (model: Model) (ruleForm: EntryRuleFormSlot) (entry: LedgerEntryView) : ReactElement =
+let private detailPanelOrRuleForm (today: DateTime) (dispatch: Msg -> unit) (model: Model) (ruleForm: EntryRuleFormSlot) (entry: LedgerEntryView) : ReactElement =
     match ruleForm false with
     | Some form -> Detail.panel form.Title [ ruleFormHead form; Detail.scrollBody form.Body ]
-    | None -> detailPanelView dispatch model entry
+    | None -> detailPanelView today dispatch model entry
 
 /// Das Sheet am Handy, mit offenem Regel-Formular dieses als Inhalt (§7.15): Schließen führt zur Buchung zurück
 /// (ledger-hg5m5).
-let private detailSheetOrRuleForm (dispatch: Msg -> unit) (model: Model) (ruleForm: EntryRuleFormSlot) (open': bool) : ReactElement =
+let private detailSheetOrRuleForm (today: DateTime) (dispatch: Msg -> unit) (model: Model) (ruleForm: EntryRuleFormSlot) (open': bool) : ReactElement =
     match ruleForm true with
     | Some form when open' && (detailEntryOf model).IsSome -> ruleFormSheet (Some form)
-    | _ -> detailSheetView dispatch model open'
+    | _ -> detailSheetView today dispatch model open'
 
 // ============================================
 // Nachladen beim Scrollen (AC5)
@@ -2380,7 +2378,7 @@ let private keyboardHint () : ReactElement =
     Html.div [
         prop.custom ("data-testid", "ledger-keys")
         prop.className (
-            $"hidden md:flex flex-wrap fixed bottom-0 left-0 {Tokens.NavWidths.fixedLeft} right-0 lg:right-[calc(420px+1.5rem)] z-30 items-center gap-x-4 gap-y-1.5 " +
+            $"hidden md:flex flex-wrap fixed bottom-0 left-0 {Tokens.NavWidths.fixedLeft} right-0 {Tokens.PanelWidths.fixedRight} z-30 items-center gap-x-4 gap-y-1.5 " +
             $"{Tokens.Backgrounds.surface} border-t {Tokens.Borders.subtle} px-5 py-2.5 {Tokens.FontSizes.xs} {Tokens.Colors.textMuted}"
         )
         prop.children [
@@ -2722,7 +2720,7 @@ let listInteractionTraits (interaction: ListInteraction) : ListInteractionTraits
 let detailPanelWidth : float = float Detail.panelWidthPx
 
 /// Was das Panel der Liste an Breite nimmt: das Panel und 4 px Abstand, damit die Filterleiste (`-mx-1`, Platz für
-/// den Fokus-Ring) nicht unter das Panel reicht (Layout-Sweep, Invariante 6). Die Spalte hält ihn als `md:pr-[424px]`.
+/// den Fokus-Ring) nicht unter das Panel reicht (Layout-Sweep, Invariante 6). Die Spalte hält ihn als `Tokens.PanelWidths.columnInset`.
 let panelColumnPadding : float = detailPanelWidth + 4.0
 
 /// Ab dieser Fensterbreite darf die Spalte Memo stehen (Roman, 2026-11-14, ledger-cnaz3).
@@ -3203,12 +3201,6 @@ let private chipOnClick (dispatch: Msg -> unit) (chip: ChipId) : unit -> unit =
     | WithoutCategoryChip -> fun () -> dispatch ToggleWithoutCategory
     | other -> fun () -> dispatch (OpenFilterPopover other)
 
-/// Die Namen der gewählten Kategorien in Listenreihenfolge der Kategorien (unbekannte entfallen).
-let private selectedCategoryNames (categories: YnabCategory list) (ids: Guid Set) : string list =
-    categories
-    |> List.filter (fun c -> let (YnabCategoryId g) = c.Id in ids.Contains g)
-    |> List.map (fun c -> c.Name)
-
 /// Der Text eines Chips der Filterleiste am PC (ledger-cnaz3, Prototyp Version 17): die Umschalter ohne Zahl (sie
 /// steht klein dahinter, `pcChipCount`), „Lena“ statt „Rückfrage Lena“, die Kategorie mit Namen.
 let pcChipLabel (model: Model) (categoryNames: string list) (chip: ChipId) : string =
@@ -3303,14 +3295,11 @@ let private filterChipBar
     (isAllAccounts: bool)
     (elementRef: (Browser.Types.Element -> unit) option)
     : ReactElement =
-    let isDesktop = Viewport.isDesktopViewport ()
-    let activity = chipActivityOf model.OnlyNeedsReview model.Filters
-    let order = orderChipsForDisplay (not isDesktop) activity
     // Prototyp Version 17 `ledgerDesk`: die Chips, „Filter löschen“ als Chip, sobald etwas gesetzt ist, und das
     // Suchfeld rechtsbündig am Ende (ledger-cnaz3). Die Leiste bricht um.
     ChipBar.bar
         elementRef
-        ((order |> List.map (filterChip dispatch model categories))
+        ((fixedChipOrder |> List.map (filterChip dispatch model categories))
          @ (if showSortChip then [ sortChip dispatch model isAllAccounts ] else [])
          @ (if clearFiltersChipVisible model.OnlyNeedsReview model.Filters then
                 [ ChipBar.chip { Label = "Filter löschen"; IsActive = false; OnClick = (fun () -> dispatch ClearAllFilters); OnRemove = None } ]
@@ -3912,6 +3901,7 @@ let selectionBars (dispatch: Msg -> unit) (model: Model) : ReactElement =
                 [ MeasuredBottomBar
                       (Badge.lenaFlagScope (lenaColorOf model.LenaFlagColor))
                       (MultiSelect.barDesktop
+                          Tokens.PanelWidths.fixedRight
                           countText
                           totals.Amount
                           selectionReviewedLabel
@@ -3930,6 +3920,7 @@ let selectionBars (dispatch: Msg -> unit) (model: Model) : ReactElement =
                 "selection-bar-compact",
                 [ MeasuredBottomBar [] (
                       MultiSelect.barDesktopCompact
+                          Tokens.PanelWidths.fixedRight
                           countText
                           totals.Amount
                           selectionClearLabel
@@ -4548,6 +4539,7 @@ let private assumedTableWidth = 1090.0
 /// Knoten, falls einer da ist.
 [<ReactComponent>]
 let private FilterBarColumn
+    (today: DateTime)
     (dispatch: Msg -> unit)
     (model: Model)
     (categories: YnabCategory list)
@@ -4621,18 +4613,18 @@ let private FilterBarColumn
         prop.style [ style.custom ("--ledger-filter-bar-height", sprintf "%.0fpx" barHeight) ]
         prop.children [
             // Das Sheet portalt nach `document.body`; es steht hier, weil die Form hier bekannt ist.
-            detailSheetOrRuleForm dispatch model ruleForm (model.DetailFor.IsSome && detailForm = DetailSheet)
+            detailSheetOrRuleForm today dispatch model ruleForm (model.DetailFor.IsSome && detailForm = DetailSheet)
             captureSheetView dispatch model model.Capture (detailForm = DetailSheet)
             if panelShown then
                 match panelContentFor model, model.Capture, detailEntryOf model with
                 | PanelCapture, Some capture, _ -> capturePanelView dispatch model capture
                 | PanelSelectionSummary, _, _ -> selectionSummaryPanel dispatch model
-                | PanelDetail, _, Some entry -> detailPanelOrRuleForm dispatch model ruleForm entry
+                | PanelDetail, _, Some entry -> detailPanelOrRuleForm today dispatch model ruleForm entry
                 | _ -> Detail.emptyPanel emptyPanelText
             Html.div [
                 // Neben dem Panel macht die Spalte Platz; die Mindesthöhe hält das haftende
                 // Panel auch bei kurzer Liste im Bild.
-                prop.className (if panelShown then "md:pr-[424px] md:min-h-[calc(100vh-7rem)]" else "")
+                prop.className (if panelShown then $"{Tokens.PanelWidths.columnInset} md:min-h-[calc(100vh-7rem)]" else "")
                 prop.children [
             Primitives.Stack.md [
                 // Der Lauf blockiert die Liste nicht: sie bleibt
@@ -4815,6 +4807,8 @@ let private tabsBar (tabs: LedgerTabs) (dispatch: Msg -> unit) =
     ]
 
 let view (model: Model) (dispatch: Msg -> unit) (tabs: LedgerTabs) (ruleForm: EntryRuleFormSlot) =
+    // Der Berliner Kalendertag einmal je Rendern der Seite, für die Unterzeile des Details (`detailSubtitleFor`).
+    let today = Client.BerlinDate.today ()
     let accounts = model.Accounts |> RemoteData.toOption |> Option.map (fun a -> a.Accounts) |> Option.defaultValue []
     let balances = model.Balances
     let isAllAccounts = model.SelectedFilter = Some AllAccounts
@@ -4946,7 +4940,7 @@ let view (model: Model) (dispatch: Msg -> unit) (tabs: LedgerTabs) (ruleForm: En
                 | _ -> ()
                 Html.div [
                     prop.className "flex flex-col"
-                    prop.children [ FilterBarColumn dispatch model categories accounts balances isAllAccounts ruleForm ]
+                    prop.children [ FilterBarColumn today dispatch model categories accounts balances isAllAccounts ruleForm ]
                 ]
                 BookingsScrollRestore model.BookingsScroll dispatch
 
@@ -5381,6 +5375,7 @@ let private reviewEnd (count: int) (onBack: unit -> unit) =
 [<ReactComponent>]
 let ReviewPage (model: Model) (dispatch: Msg -> unit) (onBack: unit -> unit) (ruleForm: EntryRuleFormSlot) =
     let desk = Viewport.isInspectorPanelViewport ()
+    let today = Client.BerlinDate.today ()
     // Das Regel-Formular aus der Buchung (ledger-hg5m5): mit Detail ersetzt es dessen Inhalt, sonst steht es über der
     // Karte, am PC als Dialog, am Handy als Sheet. Nach Anlegen oder Abbrechen steht dieselbe Karte da.
     let openRuleForm = ruleForm (not desk)
@@ -5419,7 +5414,7 @@ let ReviewPage (model: Model) (dispatch: Msg -> unit) (onBack: unit -> unit) (ru
         let detail =
             match card with
             | Some entry when review.DetailShown ->
-                if desk then detailPanelOrRuleForm dispatch model ruleForm entry else detailSheetOrRuleForm dispatch model ruleForm true
+                if desk then detailPanelOrRuleForm today dispatch model ruleForm entry else detailSheetOrRuleForm today dispatch model ruleForm true
             | Some _ when desk ->
                 match openRuleForm with
                 | Some f -> ruleFormDialog f

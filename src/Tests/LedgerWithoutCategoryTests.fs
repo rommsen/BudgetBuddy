@@ -397,10 +397,6 @@ let clientTests =
             let order = fixedChipOrder
             Expect.equal (List.findIndex ((=) WithoutCategoryChip) order + 1) (List.findIndex ((=) CategoryChip) order) "direkt vor Kategorie"
 
-        testCase "am Handy wandert der aktive Chip nach vorn" <| fun () ->
-            let activity = chipActivityOf false { noFilters with WithoutCategory = true }
-            Expect.equal (List.head (orderChipsForDisplay true activity)) WithoutCategoryChip "aktiv zuerst"
-
         // ledger-d9z3n: „Filter löschen“ nimmt auch „Ohne Kategorie“ zurück.
         testCase "WithoutCategory zählt nicht zu hasAnyFilter, ClearAllFilters setzt ihn zurück" <| fun () ->
             let filters = { noFilters with WithoutCategory = true }

@@ -290,10 +290,7 @@ let searchOfText (text: string) : string option =
 /// vom Standard abweicht.
 let activeFilters (model: Model) : (ActiveFilter * string) list =
     let categories = model.Categories |> RemoteData.toOption |> Option.defaultValue []
-    let names =
-        categories
-        |> List.filter (fun c -> let (YnabCategoryId g) = c.Id in model.Filters.CategoryIds.Contains g)
-        |> List.map (fun c -> c.Name)
+    let names = selectedCategoryNames categories model.Filters.CategoryIds
     let sort = effectiveSort model
     let sortLabel = if sort <> LedgerSort.defaultSort then Some (sortValueText sort) else None
     activeFilterChips model.OnlyNeedsReview model.IncludeDeleted sortLabel names model.Filters

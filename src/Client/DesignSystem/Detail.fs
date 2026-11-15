@@ -11,8 +11,8 @@ open Client.DesignSystem
 open Client.DesignSystem.Tokens
 
 /// Breite des Seitenpanels in Pixeln. Die Spaltenwahl der Tabelle rechnet damit
-/// (`Components.Ledger.View.detailPanelWidth`); die Klassen unten tragen den Wert als
-/// Literal, weil Tailwind nur ganze Klassennamen findet.
+/// (`Components.Ledger.View.detailPanelWidth`); die Klassen dazu stehen als Literal in
+/// `Tokens.PanelWidths`, weil Tailwind nur ganze Klassennamen findet.
 let panelWidthPx = 420
 
 // ============================================
@@ -21,16 +21,16 @@ let panelWidthPx = 420
 
 /// Das Seitenpanel rechts neben der Liste. Es haftet unter der Navbar, scrollt in sich
 /// und liegt rechts in der Spalte, die der Aufrufer `relative` hält und mit einem
-/// rechten Innenabstand von 420 Pixeln (`md:pr-[420px]`) freihält. Nur ab `md`; am Handy öffnet das Detail als BottomSheet.
+/// rechten Innenabstand freihält (`PanelWidths.columnInset`). Nur ab `md`; am Handy öffnet das Detail als BottomSheet.
 let panel (ariaLabel: string) (children: ReactElement list) : ReactElement =
     Html.div [
-        prop.className "hidden md:block absolute inset-y-0 right-0 w-[420px]"
+        prop.className $"hidden md:block absolute inset-y-0 right-0 {PanelWidths.panel}"
         prop.children [
             Html.aside [
                 prop.custom ("data-testid", "ledger-detail-panel")
                 prop.ariaLabel ariaLabel
                 prop.className (
-                    $"sticky top-16 flex h-[calc(100vh-7rem)] w-[420px] flex-col overflow-hidden " +
+                    $"sticky top-16 flex h-[calc(100vh-7rem)] {PanelWidths.panel} flex-col overflow-hidden " +
                     $"border-l {Borders.default'} {Backgrounds.dark}"
                 )
                 prop.children children

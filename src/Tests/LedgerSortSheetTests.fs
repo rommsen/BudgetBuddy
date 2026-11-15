@@ -78,11 +78,6 @@ let sortSheetTests =
             Expect.equal cleared.Sort LedgerSort.defaultSort "Standard-Sortierung"
         }
 
-        test "Der Sortier-Chip steht nicht in den Filter-Chips" {
-            let order = orderChipsForDisplay true (chipActivityOf false noFilters)
-            Expect.equal order.Length 6 "die sechs Filter-Chips, kein Sortier-Chip"
-        }
-
         test "SetSortExactly setzt die Sortierung genau, auch wenn sie gleich bleibt" {
             let before = { baseModel () with Sort = asc SortByAmount; SortSheetOpen = true }
             let after, msgs = step (SetSortExactly (asc SortByAmount)) before

@@ -291,6 +291,19 @@ module NavWidths =
     /// Linke Kante einer festen Leiste am unteren Rand.
     let fixedLeft = "md:left-[72px] lg:left-[232px]"
 
+/// Breite des Seitenpanels rechts neben einer Liste (§7.6, ab 1024 px) und was Spalte und feste Leisten daneben frei
+/// halten. Derselbe Wert wie `Detail.panelWidthPx` (420 px), als wörtliche Klassen, weil Tailwind nur Literale findet.
+/// Ändert sich die Breite, ändern sich `Detail.panelWidthPx` und alle drei.
+module PanelWidths =
+    /// Die Breite des Panels.
+    let panel = "w-[420px]"
+    /// Der rechte Rand einer festen Leiste unten, die ab 1024 px am Panel endet: Panel und der rechte Seitenrand
+    /// `px-6` (ledger-cnaz3, Prototyp `dselbar`).
+    let fixedRight = "lg:right-[calc(420px+1.5rem)]"
+    /// Der rechte Innenabstand der Spalte, in der das Panel liegt: Panel und 4 px, damit die Filterleiste mit Platz
+    /// für den Fokusring (`-mx-1`) nicht unter das Panel reicht (Layout-Sweep, Invariante 6).
+    let columnInset = "md:pr-[424px]"
+
 // ============================================
 // Z-Index Tokens
 // ============================================

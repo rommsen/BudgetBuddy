@@ -47,5 +47,10 @@
     "token": "{className}",
     "reason": "Truncate.props und Truncate.text nehmen die Klassen des gekürzten Texts als Funktionsparameter (className: string) vom Aufrufer und hängen `truncate min-w-0` an (infrastructure-nx14s). Die Werte stehen als Literale oder Tokens an den Aufrufstellen.",
     "locations": ["src/Client/DesignSystem/Truncate.fs"]
+  },
+  {
+    "token": "{rightInset}",
+    "reason": "MultiSelect.barDesktop und MultiSelect.barDesktopCompact nehmen den rechten Rand der festen Leiste als Funktionsparameter (rightInset: string) vom Aufrufer: neben dem Panel `Tokens.PanelWidths.fixedRight`, sonst leer (ledger-cnaz3). Der Baustein kennt so keine Seite.",
+    "locations": ["src/Client/DesignSystem/MultiSelect.fs"]
   }
 ]

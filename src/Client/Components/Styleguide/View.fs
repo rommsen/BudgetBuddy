@@ -2600,7 +2600,7 @@ let private demoBarMobile (sum: Money) (category: MultiSelect.CategoryAction) =
     MultiSelect.barMobile "3 ausgewählt" sum "Alle 34" false ignore "Geprüft" false false ignore category demoLena demoWithdraw "Auswahl aufheben" ignore
 
 let private demoBarDesktop (sum: Money) (category: MultiSelect.CategoryAction) =
-    MultiSelect.barDesktop "3 ausgewählt" sum "Geprüft" false false ignore category demoLena demoWithdraw "Auswahl aufheben" "Esc" ignore
+    MultiSelect.barDesktop Tokens.PanelWidths.fixedRight "3 ausgewählt" sum "Geprüft" false false ignore category demoLena demoWithdraw "Auswahl aufheben" "Esc" ignore
 
 let private multiSelectSection =
     let sum = { Amount = -143.49m; Currency = "EUR" }
@@ -2670,7 +2670,7 @@ let private multiSelectSection =
         ]
 
         card "components-multiselect-bar-desktop-compact" "Mehrfachauswahl: Leiste am PC ab zwei" "Nur Anzahl, Summe und Auswahl aufheben; die Aktionen stehen im Panel (ledger-cnaz3)" [
-            barFrame [ MultiSelect.barDesktopCompact "3 ausgewählt" sum "Auswahl aufheben" "Esc aufheben" ignore ]
+            barFrame [ MultiSelect.barDesktopCompact Tokens.PanelWidths.fixedRight "3 ausgewählt" sum "Auswahl aufheben" "Esc aufheben" ignore ]
         ]
 
         card "components-multiselect-summary-panel" "Mehrfachauswahl: Zusammenfassung im Panel" "Ab zwei gewählten Buchungen: Summe, Ausgaben, Einnahmen, Davon zu prüfen, nach Kategorie, Alle geprüft (§7.7, Prototyp selSummary)" [

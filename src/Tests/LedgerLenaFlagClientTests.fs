@@ -154,7 +154,6 @@ let lenaActionTests =
             Expect.isTrue (rowMatchesFilters on (lenaEntry 1)) "Lena passt"
             Expect.isFalse (rowMatchesFilters on (entryOf 1)) "ohne Flag passt nicht"
             Expect.isTrue (rowMatchesFilters noFilters (entryOf 1)) "ohne Chip passt alles"
-            Expect.isTrue (chipActivityOf false on).AskLena "Chip aktiv"
             Expect.isFalse (hasAnyFilter on) "zählt nicht zu den fünf Such-Filtern"
 
         testCase "Toast Rückgängig wird zur Nachricht StartUndoFlag" <| fun () ->

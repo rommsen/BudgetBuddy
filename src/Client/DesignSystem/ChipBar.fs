@@ -3,7 +3,7 @@
 /// echte Knöpfe in einem Rahmen, kein Knopf-im-Knopf: einer öffnet die Auswahl
 /// (oder kippt einen Ein/Aus-Filter wie "Zu prüfen"), der andere entfernt den
 /// Filter ("×", nur wenn aktiv und entfernbar). Reihenfolge und Aktivzustand
-/// entscheidet der Aufrufer (`Components.Ledger.Types.orderChipsForDisplay`):
+/// entscheidet der Aufrufer (`Components.Ledger.Types.fixedChipOrder`):
 /// diese Datei kennt nur die Darstellung eines einzelnen Chips.
 module Client.DesignSystem.ChipBar
 

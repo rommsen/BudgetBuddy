@@ -274,10 +274,10 @@ let barMobile
     ]
 
 /// Die Hülle der Leiste am PC: unten, rechts von Rail und Seitenleiste (design-system-k6kfw), eine Reihe, die bei
-/// Bedarf umbricht. Ab 1024 px endet sie am Panel des Kassenbuchs (420 px Panel und der Seitenrand `px-6`, ledger-cnaz3,
-/// Prototyp `dselbar`).
+/// Bedarf umbricht. Den rechten Rand (`rightInset`) setzt der Aufrufer: neben einem Panel endet sie dort (im
+/// Kassenbuch `PanelWidths.fixedRight`, ledger-cnaz3, Prototyp `dselbar`), ohne Panel ist es "".
 let private desktopBarClassName =
-    $"selection-bar hidden md:flex flex-wrap fixed bottom-0 left-0 {NavWidths.fixedLeft} right-0 lg:right-[calc(420px+1.5rem)] z-40 items-center gap-x-4 gap-y-2 {Backgrounds.surface} " +
+    $"selection-bar hidden md:flex flex-wrap fixed bottom-0 left-0 {NavWidths.fixedLeft} right-0 z-40 items-center gap-x-4 gap-y-2 {Backgrounds.surface} " +
     $"border-t {Borders.default'} px-5 py-3.5"
 
 /// „Esc aufheben“: die Taste zum Aufheben, gedämpft in Mono neben dem Knopf (ledger-w4vte).
@@ -292,6 +292,7 @@ let private clearKeyHintView (clearKeyHint: string) : ReactElement =
 /// Leiste), „Lena fragen“ mit Flag, „Rückfrage zurücknehmen“ und zuletzt „Auswahl aufheben“ mit der Taste daneben.
 /// Kein „Alle“, das Kopfzeilen-Kästchen erledigt es.
 let barDesktop
+    (rightInset: string)
     (countText: string)
     (amount: Shared.Domain.Money)
     (reviewedLabel: string)
@@ -306,7 +307,7 @@ let barDesktop
     (onClear: unit -> unit)
     : ReactElement =
     Html.div [
-        prop.className desktopBarClassName
+        prop.className $"{desktopBarClassName} {rightInset}"
         prop.children [
             yield! countAndSum countText amount
             Html.div [
@@ -334,6 +335,7 @@ let barDesktop
 /// Die Auswahl-Leiste am PC ab zwei gewählten Buchungen (ledger-cnaz3, §7.7): nur „n ausgewählt“, die Summe und
 /// „Auswahl aufheben“; die Sammelaktionen stehen dann in der Zusammenfassung im Panel (`summaryPanel`).
 let barDesktopCompact
+    (rightInset: string)
     (countText: string)
     (amount: Shared.Domain.Money)
     (clearLabel: string)
@@ -341,7 +343,7 @@ let barDesktopCompact
     (onClear: unit -> unit)
     : ReactElement =
     Html.div [
-        prop.className desktopBarClassName
+        prop.className $"{desktopBarClassName} {rightInset}"
         prop.children [
             yield! countAndSum countText amount
             Html.div [
@@ -387,6 +389,8 @@ type SummaryPanelProps = {
 /// Eine Zeile einer Karte der Zusammenfassung (Prototyp `.kv`): Wort links, Wert rechts in Mono.
 let private summaryRowView (labelClass: string) (label: string) (value: string) : ReactElement =
     Html.div [
+        // Die Wörter einer Karte sind eindeutig (Kategorien sind nach ihrem Namen zusammengefasst).
+        prop.key label
         prop.className $"flex min-h-10 items-center justify-between gap-2.5 border-b {Borders.subtle} last:border-b-0"
         prop.children [
             Html.span [ prop.className ($"{FontSizes.compact} min-w-0 truncate " + labelClass); prop.text label ]

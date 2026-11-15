@@ -172,6 +172,13 @@ let hasSearch (f: Filters) = f.Search.IsSome
 let hasAmountFilter (f: Filters) = f.AmountMin.IsSome || f.AmountMax.IsSome
 let hasDirectionFilter (f: Filters) = f.AmountDirection <> AllDirections
 
+/// Die Namen der gewählten Kategorien in Listenreihenfolge der Kategorien; unbekannte Ids entfallen. Eine Stelle
+/// für die Chips am Handy (`activeFilters`) und die Filterleiste am PC.
+let selectedCategoryNames (categories: YnabCategory list) (ids: Guid Set) : string list =
+    categories
+    |> List.filter (fun c -> let (YnabCategoryId g) = c.Id in ids.Contains g)
+    |> List.map (fun c -> c.Name)
+
 /// Ist mindestens einer der Such-Filter oder die Suche aktiv? Steuert, ob die Summenzeile
 /// über der Liste steht (AC „Summenzeile erscheint genau dann..."). Der Chip
 /// "Zu prüfen (n)" und der Schalter "Gelöschte zeigen" zählen bewusst nicht mit:
@@ -431,47 +438,6 @@ let categoryChipText (names: string list) : string =
     | [] -> "Kategorie"
     | [ name ] -> $"Kategorie: {name}"
     | first :: rest -> $"Kategorie: {first} +{List.length rest}"
-
-/// Ob jeder Chip gerade aktiv ist: reiner Datensatz statt eines Funktionswerts,
-/// damit `orderChipsForDisplay` unit-testbar bleibt, ohne ein Model zu bauen.
-type ChipActivity = {
-    NeedsReview: bool
-    AskLena: bool
-    Category: bool
-    WithoutCategory: bool
-    Date: bool
-    Amount: bool
-}
-
-let private isChipActive (activity: ChipActivity) (chip: ChipId) : bool =
-    match chip with
-    | NeedsReviewChip -> activity.NeedsReview
-    | AskLenaChip -> activity.AskLena
-    | CategoryChip -> activity.Category
-    | WithoutCategoryChip -> activity.WithoutCategory
-    | DateChip -> activity.Date
-    | AmountChip -> activity.Amount
-
-let chipActivityOf (onlyNeedsReview: bool) (filters: Filters) : ChipActivity = {
-    NeedsReview = onlyNeedsReview
-    AskLena = filters.OnlyAskLena
-    Category = hasCategoryFilter filters
-    WithoutCategory = filters.WithoutCategory
-    Date = hasDateFilter filters
-    // Der PC-Chip „Betrag“ trägt auch die Richtung (ADR 0095), sein „×“ nimmt beides zurück.
-    Amount = hasAmountFilter filters || hasDirectionFilter filters
-}
-
-/// Die Chip-Reihenfolge (AC „Am Handy wandern aktive Chips nach vorn"): am Handy
-/// aktive Chips zuerst (in ihrer bisherigen Reihenfolge), dann die inaktiven, auch
-/// in ihrer bisherigen Reihenfolge (stabile Partition). Am PC bleibt die feste
-/// Reihenfolge unabhängig vom Zustand, nur die Farbe wechselt (Handoff).
-let orderChipsForDisplay (isMobile: bool) (activity: ChipActivity) : ChipId list =
-    if not isMobile then
-        fixedChipOrder
-    else
-        let active, inactive = fixedChipOrder |> List.partition (isChipActive activity)
-        active @ inactive
 
 // ============================================
 // Prüfvermerk an der Zeile (ledger-r777c, ADR 0050)
