@@ -5,6 +5,23 @@ Newest entries on top.
 
 ---
 
+## 2026-11-15 16:36 -- Modeling / Promoted: ledger-pkrwd - "Payee einer Buchung leeren: im Detail den Payee entfernen, nach YNAB ohne Payee zurückschreiben"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
+## 2026-11-15 16:36 -- Modeling / Captured: ledger-pkrwd - "Payee einer Buchung leeren: im Detail den Payee entfernen, nach YNAB ohne Payee zurückschreiben"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Payee einer Buchung leeren (Roman, 2026-11-15)
+
+---
+
 ## 2026-11-15 15:12 -- Work session ended
 
 **Type:** Work / Session end
