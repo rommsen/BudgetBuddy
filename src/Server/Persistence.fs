@@ -118,6 +118,13 @@ let activeConnectionString () =
 let internal searchFold (s: string) : string =
     if isNull s then s else s.ToLowerInvariant()
 
+// Maskiert die LIKE-Platzhalter `%` und `_` sowie das Escape-Zeichen `\` selbst, damit ein
+// Suchtext sie als gewöhnliche Zeichen meint ("50% Rabatt", "PAYPAL_EUROPE"). Gilt nur
+// zusammen mit `ESCAPE '\'` am LIKE. Zuerst der Backslash, sonst würde er die eben
+// gesetzten Escapes noch einmal verdoppeln.
+let internal escapeLike (s: string) : string =
+    s.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_")
+
 // Registriert `bb_lower` als anwendungsdefinierte SQL-Skalarfunktion auf einer
 // noch nicht geöffneten Connection (ADR 0037 Decision 1). `isDeterministic = true`
 // ist das dritte Argument von `CreateFunction`. `null` läuft unverändert durch

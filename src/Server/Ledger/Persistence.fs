@@ -1446,16 +1446,18 @@ let private buildFilterClause (accountId: LedgerAccountId option) (filter: Entry
     // (eigene Kategorie oder Split-Zeile). Ohne Berücksichtigung der Groß-/Kleinschreibung, auch für
     // Umlaute: `bb_lower` (ADR 0037) statt der SQLite-Kollation, die nur ASCII A-Z faltet. Beide Seiten
     // des Vergleichs laufen durch dieselbe Funktion, sonst findet ein Suchtext mit Großbuchstaben nichts.
+    // `%` und `_` im Suchtext sind Zeichen, keine Platzhalter: `Core.escapeLike` maskiert sie, jedes
+    // LIKE trägt dazu `ESCAPE '\'`.
     match filter.Search with
     | Some search ->
         clause
-            .Append(" AND (bb_lower(payee) LIKE @search OR bb_lower(memo) LIKE @search")
-            .Append(" OR bb_lower(category_name) LIKE @search")
-            .Append(" OR category_id IN (SELECT ynab_category_id FROM ledger_categories WHERE bb_lower(name) LIKE @search)")
+            .Append(" AND (bb_lower(payee) LIKE @search ESCAPE '\\' OR bb_lower(memo) LIKE @search ESCAPE '\\'")
+            .Append(" OR bb_lower(category_name) LIKE @search ESCAPE '\\'")
+            .Append(" OR category_id IN (SELECT ynab_category_id FROM ledger_categories WHERE bb_lower(name) LIKE @search ESCAPE '\\')")
             .Append(" OR id IN (SELECT entry_id FROM ledger_entry_split_categories WHERE category_id IN")
-            .Append(" (SELECT ynab_category_id FROM ledger_categories WHERE bb_lower(name) LIKE @search)))")
+            .Append(" (SELECT ynab_category_id FROM ledger_categories WHERE bb_lower(name) LIKE @search ESCAPE '\\')))")
         |> ignore
-        ps.Add("search", $"%%{Core.searchFold search}%%")
+        ps.Add("search", $"%%{Core.escapeLike (Core.searchFold search)}%%")
     | None -> ()
 
     clause.ToString(), ps

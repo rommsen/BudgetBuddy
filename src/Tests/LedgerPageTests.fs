@@ -2508,6 +2508,34 @@ let ledgerPagingTests =
             Expect.isTrue ((idsOf (search "zitronella" true)).Contains (idOf 906)) "mit „Gelöschte zeigen“ ist die gelöschte Zeile dabei"
             Expect.equal (search "kuchen" false).TotalCount 1 "Teiltext im Memo"
 
+        // Verhindert den Review-Fund zu ledger-d9z3n: `%` und `_` aus dem Suchtext gingen ungeschützt in
+        // LIKE und wirkten als Platzhalter. „50% Rabatt“ fand auch „500 Rabatt“, „PAYPAL_EUROPE“ auch
+        // „PAYPALXEUROPE“, und ein Suchtext „%“ fand jede Zeile.
+        testCase "Suche: % und _ im Suchtext sind Zeichen, keine LIKE-Platzhalter" <| fun () ->
+            let account = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8000-000000000031")
+            saveAccount { Id = account; Name = "Konto Platzhalter"; Kind = BankAccount; Link = BbOwned; Closed = false }
+            |> Async.RunSynchronously
+            let day n = DateTime(2026, 6, n)
+            seedEntryFull account 920 -1m (day 1) (Some "50% Rabatt") None None |> Async.RunSynchronously
+            seedEntryFull account 921 -2m (day 2) (Some "500 Rabatt") None None |> Async.RunSynchronously
+            seedEntryFull account 922 -3m (day 3) (Some "PAYPAL_EUROPE") None None |> Async.RunSynchronously
+            seedEntryFull account 923 -4m (day 4) (Some "PAYPALXEUROPE") None None |> Async.RunSynchronously
+            seedEntryFull account 924 -5m (day 5) (Some "Pfad C:\\Ablage") None None |> Async.RunSynchronously
+            seedEntryFull account 925 -6m (day 6) (Some "Pfad C:Ablage") None None |> Async.RunSynchronously
+
+            let (LedgerAccountId raw) = account
+            let idOf n = let (EntryId g) = pageEntryId n in g
+            let found text =
+                (Ledger.QueryHandlers.getLedgerEntriesPage { baseQuery (Some raw) with Search = Some text }
+                 |> Async.RunSynchronously).Entries
+                |> List.map (fun e -> e.Id)
+                |> Set.ofList
+
+            Expect.equal (found "50% rabatt") (Set.ofList [ idOf 920 ]) "„50%“ trifft nicht „500“"
+            Expect.equal (found "paypal_europe") (Set.ofList [ idOf 922 ]) "„_“ trifft nicht „X“"
+            Expect.equal (found "%") (Set.ofList [ idOf 920 ]) "„%“ allein trifft nur die Zeile mit Prozentzeichen"
+            Expect.equal (found "c:\\ablage") (Set.ofList [ idOf 924 ]) "der Backslash ist ein Zeichen, kein Escape"
+
         testCase "AC-Umlaut: die Suche faltet Groß-/Kleinschreibung auch bei Umlauten, in Payee und Memo (ledger-k3wqn, ADR 0037)" <| fun () ->
             // Echte Produktionsschreibweisen, kein transliteriertes ASCII (anders als
             // AC6/AC7): Comdirect und YNAB liefern Payee/Memo häufig in
