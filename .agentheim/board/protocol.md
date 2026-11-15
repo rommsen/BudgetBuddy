@@ -5,6 +5,24 @@ Newest entries on top.
 
 ---
 
+## 2026-11-15 14:37 -- Modeling / Captured: ledger-zqst5 - "Kassenbuch am Handy: Suche, Filter-Knopf und Chips haften oben beim Scrollen"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Suche, Filter und Chips am Handy haften (Roman, Prüfliste q-sticky)
+
+---
+
+## 2026-11-15 14:37 -- Modeling / Captured: ledger-fp4wn - "Auswahl außerhalb des geladenen Fensters: Leiste und Panel zählen gewählte, nicht mehr geladene Buchungen mit"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Auswahl außerhalb des geladenen Fensters mitzählen (Roman, Prüfliste q-fenster)
+
+---
+
 ## 2026-11-15 14:01 -- Verification failed: design-system-gcpws - Liste mit Panel überall
 
 **Type:** Work / Verification failure

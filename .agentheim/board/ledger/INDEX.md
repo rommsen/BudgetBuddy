@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 7
+- **Backlog:** 9
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 143
@@ -73,6 +73,8 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **ledger-zqst5** — "Kassenbuch am Handy: Suche, Filter-Knopf und Chips haften oben beim Scrollen" (feature) — `backlog/ledger-zqst5-suche-und-filter-am-handy-haften.md`
+- **ledger-fp4wn** — "Auswahl außerhalb des geladenen Fensters: Leiste und Panel zählen gewählte, nicht mehr geladene Buchungen mit" (bug) — `backlog/ledger-fp4wn-auswahl-ausserhalb-des-fensters-mitzaehlen.md`
 - **ledger-yhemh** — "Neue Buchung am Handy: Memo steht neben dem Datum statt darunter" (bug) — `backlog/ledger-yhemh-memo-unter-datum-am-handy.md`
 - **ledger-h7de3** — "Fehlertexte in Ereignissen: fehlendes Token als „nicht eingerichtet“, YNAB-Rohtext nur ins Log, Token- und Budget-Zugriff an einer Stelle" (bug) — `backlog/ledger-h7de3-fehlertexte-in-ereignissen.md`
 - **ledger-t4rk8** — "Betrag eines Übertrags in BB ändern (Sperre nach Probelauf aufheben)" (feature) — `backlog/ledger-t4rk8-betrag-uebertrag-freigeben.md`
