@@ -85,3 +85,21 @@ mit Fundstellen in `.agentheim/knowledge/reviews/2026-11-15-gcpws-bestand.md` (S
 aufnehmen). Breiten neben dem Panel (Liste in px, heute gemessen → bei 30 %): 1024 px: Kassenbuch 320 → 360, Budget
 388 → 348; 1280: 576 → 612, 644 → 600; 1440: 736 → 724, 804 → 712, Targets prüfen 788 → 716 (braucht 720 für vier Spalten);
 1920: 1216 → 1116.
+
+## Verifier note (iteration 1)
+VERDICT: FAIL, ITERATION_HINT: task-under-specified. Gate im Worktree grün (dotnet 5118, node 344), README_DELTA geprüft, Esc nach ADR 0096, keine festen Panelbreiten mehr, Aufzählung gegen Orakel, Gegenbeweise vorhanden.
+
+REASONS:
+- Kriterium „Budget-Tabelle steht erst ab 1280 px“ nicht erfüllt: Schwelle `md:@min-[40rem]` in `MonthView.fs` ergibt rund 1340 px, `layout-states.mjs` (`budget-buchungen`) prüft das Gegenteil des Kriteriums. Grund des Workers: die Tabelle braucht rund 640 px, bei 1280 px ragte sie 40 px unter das Panel.
+- Kriterium „Abweichungen nur die genannten“ nicht erfüllt: (a) Budget-Tabelle ab 1340 px, (b) Kategorien-Gruppe als natives Select statt Auswahl wie im Prototyp, (c) Panel beginnt unter dem Seitenkopf mit rechtem Rand, Prototyp volle Höhe bis an den Rand. Zu (c): das Kriterium nennt selbst `Detail.panel` „volle Höhe“, das es nie war; Mehrdeutigkeit der Task, kein Fehler des Workers.
+- Nebenbei (ADR 0059): die Konventionen „neue Liste mit Panel bekommt Eintrag in `LISTS`“, „`Detail.panelWith` und `ListKeys.actionFor`“, „keine festen Panelbreiten“ sind nur teilweise erzwungen; Task ohne Vermerk „prose-only“ und ohne Wächter.
+
+SUGGESTED_FIX: Roman entscheidet (a) 1340 px hinnehmen oder Target-Spalte kürzen, damit die Tabelle bei 1280 px passt; (b) und (c) als genannte Abweichung mit Grund in die Task oder ablehnen. Dazu Vermerk „prose-only“ oder ein Wächter gegen `w-[NNNpx]`/`pr-[NNNpx]` als Panelbreite.
+
+Fragen an Roman in der BB Prüfliste: g11-budget-tabelle (a), g12-panel-hoehe (c), g13-kat-gruppe (b).
+
+## Salvage note
+Iteration 1 eskaliert (task-under-specified), Worktree bleibt: `/Users/romansachse/src/BudgetBuddy/.worktrees/design-system-gcpws` (Branch `aw/design-system-gcpws`, wip-Commit iter 1).
+Code-Diff gesichert: `/Users/romansachse/src/BudgetBuddy/.agentheim/salvage/design-system-gcpws-escalated-iter1.patch`.
+RESULT-Blöcke des Workers (README_DELTA, OUTCOME, BACKLOG_ITEMS design-system-m4e7q) gesichert: `/Users/romansachse/src/BudgetBuddy/.agentheim/salvage/design-system-gcpws-escalated-iter1.bookkeeping.md`.
+Prototyp- und BB-Screenshots: Scratchpad `prototyp/` (flüchtig).

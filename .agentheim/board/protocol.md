@@ -5,6 +5,17 @@ Newest entries on top.
 
 ---
 
+## 2026-11-15 14:01 -- Verification failed: design-system-gcpws - Liste mit Panel überall
+
+**Type:** Work / Verification failure
+**Task:** design-system-gcpws - Liste mit Panel überall
+**Iteration:** 1 of 3
+**Reasons:** Budget-Tabelle ab rund 1340 statt 1280 px gegen das Kriterium, ungenannte Abweichungen vom Prototyp (Kategorien-Gruppe als Select, Panel unter dem Seitenkopf), Konventionen ohne Wächter oder prose-only-Vermerk
+**Iteration hint:** task-under-specified
+**Next:** escalated to user
+
+---
+
 ## 2026-11-15 12:34 -- Batch started: [design-system-gcpws]
 
 **Type:** Work / Batch start
