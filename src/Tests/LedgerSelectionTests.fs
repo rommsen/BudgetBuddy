@@ -306,14 +306,22 @@ let viewTests =
 
         testCase "Der Anker trägt die Teal-Kante, andere gewählte Zeilen nicht" <| fun () ->
             let edge = "shadow-[inset_2px_0_0_0_var(--color-accent)]"
-            let anchor = Components.Ledger.View.selectableRowClassName true true
-            let picked = Components.Ledger.View.selectableRowClassName true false
-            let plain = Components.Ledger.View.selectableRowClassName false false
+            let anchor = Components.Ledger.View.selectableRowClassName true true false
+            let picked = Components.Ledger.View.selectableRowClassName true false false
+            let plain = Components.Ledger.View.selectableRowClassName false false false
             Expect.stringContains anchor edge "der Anker"
             Expect.isFalse (picked.Contains edge) "eine gewählte Zeile ohne Anker"
             Expect.isFalse (plain.Contains edge) "eine ungewählte Zeile"
             Expect.stringContains picked "bg-accent/[0.07]" "gewählt trägt blasses Teal"
             Expect.isFalse (plain.Contains "bg-accent") "ungewählt nicht"
+            // Anker und „zu prüfen“ zugleich: beide Kanten in einem Schatten, sonst verschwände die gelbe (ledger-cnaz3).
+            let anchorReview = Components.Ledger.View.selectableRowClassName true true true
+            Expect.stringContains anchorReview Client.DesignSystem.Tokens.ListRoles.statusEdgeWithAnchor "beide Kanten"
+            Expect.isFalse (anchorReview.Contains edge) "kein zweiter Schatten, der die gelbe Kante überschreibt"
+            Expect.stringContains
+                (Components.Ledger.View.selectableRowClassName false false true)
+                Client.DesignSystem.Tokens.ListRoles.statusEdge
+                "ohne Anker die gelbe Kante"
 
         testCase "Kästchen: drei Zustände in Teal, blassem Teal und ohne Teal" <| fun () ->
             // ledger-r8h19: die Größen (20 px Handy, 17 px PC) misst der Browser

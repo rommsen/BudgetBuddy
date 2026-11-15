@@ -380,6 +380,22 @@ let accountBalanceClass (isActive: bool) (amount: decimal) : string =
         else Colors.textSecondary
     $"font-mono font-semibold tabular-nums whitespace-nowrap text-sm md:text-base {color}"
 
+/// Die Farbe eines Kontostands im Fließtext (§2 „Kontostände negativ Rot“): negativ Rot, sonst gedämpft
+/// (`muted`, etwa neben dem Kontonamen im Feld „Konto“) oder die Farbe der umgebenden Zeile (Kopf am PC).
+let balanceTextColor (muted: bool) (amount: decimal) : string =
+    if amount < 0m then Colors.error
+    elif muted then Colors.textMuted
+    else ""
+
+/// Ein Kontostand im Fließtext (Kopf am PC, Feld „Konto“ am Handy, ledger-cnaz3): Mono, ohne `+`, in der Farbe aus
+/// `balanceTextColor`. Größe und Umbruch gibt der Aufrufer in `extraClass`.
+let balanceInline (testId: string) (muted: bool) (extraClass: string) (amount: decimal) (currency: string) =
+    Html.span [
+        prop.custom ("data-testid", testId)
+        prop.className $"{Fonts.mono} tabular-nums {balanceTextColor muted amount} {extraClass}"
+        prop.text (formatAmountText false true amount currency)
+    ]
+
 /// Kontostand für eine Zeile, die aktiv sein kann (`accountListRow`, ledger-x0yga).
 let accountBalanceFor (isActive: bool) (amount: decimal) (currency: string) =
     Html.span [
@@ -448,13 +464,14 @@ let accountChoiceRow (testId: string) (label: string) (value: ReactElement) (isA
     Html.button [
         prop.type' "button"
         prop.custom ("data-testid", testId)
-        prop.custom ("aria-pressed", (if isActive then "true" else "false"))
+        // Das gewählte Konto ist der aktuelle Eintrag einer Liste, kein Umschalter (`aria-current`, nicht `aria-pressed`).
+        if isActive then prop.custom ("aria-current", "true")
         prop.onClick (fun _ -> onClick ())
         prop.className (
             // Alle Zeilen in Primärtext mit Trennlinie (Prototyp `.row`: 56 px, 500); das gewählte Konto
             // markieren nur Haken und Akzentrahmen (ledger-d9z3n, Iteration 2).
             "w-full flex items-center gap-3 px-3 py-2 min-h-14 text-left transition-colors hover:bg-surface-hover "
-            + if isActive then "border rounded-xl border-accent" else "border border-transparent border-b-border-subtle last:border-b-transparent"
+            + if isActive then $"border rounded-xl {Tokens.Borders.accent}" else "border border-transparent border-b-border-subtle last:border-b-transparent"
         )
         prop.children [
             Html.span [

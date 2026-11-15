@@ -1566,6 +1566,7 @@ let private CategoryPickerSingleDemo () =
     let failedOpen, setFailedOpen = React.useState false
     let retryCount, setRetryCount = React.useState 0
     let aboveOpen, setAboveOpen = React.useState false
+    let inPanelOpen, setInPanelOpen = React.useState false
     let toBeBudgetedOpen, setToBeBudgetedOpen = React.useState false
     let selectionSheetOpen, setSelectionSheetOpen = React.useState false
     // Sheet einer Regel: die Auswahl der Kategorie ersetzt den Inhalt des Sheets (sheetContent, §7.15).
@@ -1714,6 +1715,19 @@ let private CategoryPickerSingleDemo () =
                         prop.children [ Button.secondary "Popover der Auswahl (PC, nach oben, ohne Haken)" (fun () -> setAboveOpen (not aboveOpen)) ]
                     ]
                     CategoryPicker.selectionPopover aboveOpen { pickerProps (fun () -> setAboveOpen false) with Current = None }
+                ]
+            ]
+            Html.div [
+                prop.className "relative"
+                prop.custom ("data-ds-demo", "category-picker-in-panel")
+                prop.children [
+                    Html.span [
+                        prop.custom ("data-ds-demo", "category-picker-in-panel-trigger")
+                        prop.children [
+                            Button.secondary "Popover der Auswahl im Panel (PC, nach unten, ohne Haken)" (fun () -> setInPanelOpen (not inPanelOpen))
+                        ]
+                    ]
+                    CategoryPicker.selectionPopoverInPanel inPanelOpen { pickerProps (fun () -> setInPanelOpen false) with Current = None }
                 ]
             ]
             Html.span [

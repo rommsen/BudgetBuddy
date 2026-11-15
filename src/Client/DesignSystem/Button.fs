@@ -118,7 +118,7 @@ let private variantToClass = function
     | Outline ->
         $"bg-transparent border {Borders.strong} text-text-primary hover:bg-surface-hover active:scale-[0.98]"
     | OutlineSelected ->
-        "bg-transparent border border-accent text-accent [&_svg]:text-accent hover:bg-surface-hover active:scale-[0.98]"
+        $"bg-transparent border {Borders.accent} {Colors.accent} [&_svg]:text-accent hover:bg-surface-hover active:scale-[0.98]"
 
 /// Setzt der Aufrufer in `ClassName` eine eigene Anzeige-Klasse ohne Breakpoint (z. B. `hidden` in `hidden md:inline-flex`)?
 /// Dann entfällt das feste `inline-flex`: Tailwind 4 ordnet Utilities im erzeugten CSS,

@@ -80,7 +80,7 @@ test("[flow:konto-wechseln] Handy: Feld zeigt Konto und Saldo, Sheet listet alle
     "Alle Konten steht nicht zuoberst"
   );
   assert.ok(/€/.test(text), "Salden stehen im Sheet");
-  const chosen = sheet.locator('[aria-pressed="true"]');
+  const chosen = sheet.locator('[aria-current="true"]');
   assert.equal(await chosen.count(), 1, "genau ein Konto ist gewählt");
   assert.match(await chosen.innerText(), new RegExp(accountsFixture.Accounts[0].Name));
   const before = requestedAccounts.length;

@@ -438,7 +438,7 @@ let summaryPanel (props: SummaryPanelProps) : ReactElement list =
                       Html.div [ prop.className $"{FontSizes.xs} {Colors.textMuted}"; prop.text props.SumLabel ]
                       Html.div [
                           prop.custom ("data-testid", "selection-summary-sum")
-                          prop.className $"{Fonts.mono} text-3xl font-semibold tabular-nums {Colors.textPrimary}"
+                          prop.className $"{Fonts.mono} {FontSizes.summary} font-semibold tabular-nums {Colors.textPrimary}"
                           prop.text (amountText props.Sum)
                       ]
                   ]

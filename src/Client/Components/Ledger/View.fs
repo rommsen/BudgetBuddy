@@ -729,13 +729,17 @@ let private tdMoney (entry: LedgerEntryView) =
         Table.amountCell entry.Amount.Amount entry.Amount.Currency
 
 /// Klassen einer PC-Zeile mit Auswahl: gewählt trägt blasser Akzent als Grund, der Anker der
-/// Spanne zusätzlich die Akzent-Kante links. Die Kante teilt sich den Schatten mit der
-/// Statuskante "zu prüfen": der Anker gewinnt (er ist die Zeile, auf die der Blick
-/// gerade zielt).
-let selectableRowClassName (selected: bool) (isAnchor: bool) : string =
+/// Spanne zusätzlich die Akzent-Kante links, eine Buchung "zu prüfen" die gelbe Statuskante. Beide
+/// Kanten sind ein Schatten; trifft beides zu, steht ein Schatten mit beiden Kanten da (Gelb außen,
+/// Akzent innen), sonst überschriebe der eine den anderen.
+let selectableRowClassName (selected: bool) (isAnchor: bool) (needsReview: bool) : string =
     [ Tokens.ListRoles.rowHeight
       if selected then "bg-accent/[0.07]"
-      if isAnchor then "shadow-[inset_2px_0_0_0_var(--color-accent)]" ]
+      match isAnchor, needsReview with
+      | true, true -> Tokens.ListRoles.statusEdgeWithAnchor
+      | true, false -> Tokens.ListRoles.selectedEdge
+      | false, true -> Tokens.ListRoles.statusEdge
+      | false, false -> () ]
     |> String.concat " "
 
 /// Die Kästchen-Zelle einer PC-Zeile: ein Klick schaltet die Auswahl (mit Shift die
@@ -833,6 +837,8 @@ let private payeeCell (accountAbbreviation: string option) (entry: LedgerEntryVi
             prop.children [
                 abbreviation
                 Truncate.text "min-w-0" payee
+                // Die gelbe Kante sagt „zu prüfen“ nur dem Auge (§2 Ruhige Listen).
+                if entry.NeedsReview then Html.span [ prop.className "sr-only"; prop.text "zu prüfen" ]
                 for mark in payeeMarks entry do
                     keepWidth (payeeMarkView mark)
             ]
@@ -851,16 +857,20 @@ let private entryTableRow
     (isFilteredOut: bool)
     (entry: LedgerEntryView)
     =
-    // "Zu prüfen" ist die Statuskante (`StatusEdge`, ADR 0049 Punkt 7), ohne Wort. `Table.trClickable` kennt weder
-    // Kante noch Zeilenhöhe, deshalb direkt `Table.row` mit denselben Klassen wie `Table.calmRow`. Eine
-    // Prüf-Schaltfläche hat die Zeile nicht mehr, auch nicht bei Hover oder Fokus (Roman, 2026-11-14).
+    // "Zu prüfen" ist die Statuskante (ADR 0049 Punkt 7), sichtbar ohne Wort, für Screenreader mit `sr-only`. Die Kante
+    // setzt `selectableRowClassName` zusammen mit dem Anker, nicht `StatusEdge`: zwei Schatten überschrieben sich.
+    // `Table.trClickable` kennt weder Kante noch Zeilenhöhe, deshalb direkt `Table.row`. Eine Prüf-Schaltfläche hat
+    // die Zeile nicht mehr, auch nicht bei Hover oder Fokus (Roman, 2026-11-14).
     Table.row
         { Table.defaultRowProps with
             OnClickWithKeys = Some (fun keys -> dispatch (rowClickMsg entry keys))
-            StatusEdge = entry.NeedsReview
             IsFocused = isFocused
             // Ausgegraut in `text-muted` bei voller Deckkraft (`.filtered-out-text`, ledger-dn4vy).
-            ClassName = Some ("group " + selectableRowClassName selected isAnchor + (if isFilteredOut then " filtered-out-text" else "")) }
+            ClassName =
+                Some (
+                    "group " + selectableRowClassName selected isAnchor entry.NeedsReview
+                    + (if isFilteredOut then " filtered-out-text" else "")
+                ) }
         [
             selectBoxCell dispatch selected entry
             Table.roleCell Table.DateCell [ Html.text (formatDate entry.Date) ]
@@ -1370,7 +1380,8 @@ let private detailTitleHead (today: DateTime) (model: Model) (entry: LedgerEntry
     Detail.titleHead (payeeLabel entry) entry.Payee.IsNone (detailSubtitleFor today (accountNameOf model entry) entry) onClose
 
 /// Die Betragszeile: der Betrag als Knopf, der das Sheet "Betrag" öffnet; gesperrt steht er ohne Pfeil, mit dem
-/// Grund darunter (ADR 0092). Rechts der Prüfstand.
+/// Grund darunter (ADR 0092). Rechts der Prüfstand, nicht bei einer in YNAB gelöschten Buchung: sie ist ein
+/// Lesezustand ohne Prüf-Knopf, ein „zu prüfen“ daneben verspräche eine Aktion, die es nicht gibt.
 let private detailAmountRow (dispatch: Msg -> unit) (model: Model) (entry: LedgerEntryView) =
     let amountElement =
         match amountLockFor entry with
@@ -1381,7 +1392,7 @@ let private detailAmountRow (dispatch: Msg -> unit) (model: Model) (entry: Ledge
                 entry.Amount.Currency
                 amountEditLabel
                 (amountEditMsg model entry |> Option.map (fun msg -> fun () -> dispatch msg))
-    Detail.amountRow amountElement (Detail.reviewStatus entry.NeedsReview)
+    Detail.amountRow amountElement (if detailReadOnly entry then Html.none else Detail.reviewStatus entry.NeedsReview)
 
 /// Der Kopf über dem Split-Editor: der Gesamtbetrag des Editors ohne Knopf. Kommt der Editor aus
 /// dem Sheet "Betrag", steht dort schon der neue Betrag (ledger-m7mye).
@@ -3310,18 +3321,12 @@ let private filterChipBar
 // Kassenbuch unter 1024 px: Kontowahl, Suche, Filter-Knopf, gesetzte Filter (ledger-d9z3n)
 // ============================================
 
-/// Der Saldo neben dem Kontonamen im Auswahlfeld: Mono, klein, gedämpft (Prototyp). Beim Laden und nach
+/// Der Saldo neben dem Kontonamen im Auswahlfeld: Mono, klein, gedämpft (Prototyp), negativ Rot (§2). Beim Laden und nach
 /// einem Fehler steht nichts (die Zeile „Kontostände konnten nicht geladen werden“ nennt den Fehler).
 let private accountFieldBalance (balance: CardBalance) : ReactElement option =
     match balance with
     | BalanceShown money ->
-        Some (
-            Html.span [
-                prop.custom ("data-testid", "ledger-account-field-balance")
-                prop.className $"{Tokens.FontSizes.xs} {Tokens.Fonts.mono} {Tokens.Colors.textMuted} tabular-nums whitespace-nowrap"
-                prop.text (Money.formatAmountText false true money.Amount money.Currency)
-            ]
-        )
+        Some (Money.balanceInline "ledger-account-field-balance" true $"{Tokens.FontSizes.xs} whitespace-nowrap" money.Amount money.Currency)
     | BalancePending
     | BalanceUnavailable -> None
 
@@ -4756,11 +4761,7 @@ let private ledgerHeaderLineView (line: LedgerHeaderLine) : ReactElement =
                     match line.Balance with
                     | Some money ->
                         Html.span [ prop.text " · " ]
-                        Html.span [
-                            prop.custom ("data-testid", "ledger-header-balance")
-                            prop.className $"{Tokens.Fonts.mono} tabular-nums"
-                            prop.text (Money.formatAmountText false true money.Amount money.Currency)
-                        ]
+                        Money.balanceInline "ledger-header-balance" false "" money.Amount money.Currency
                     | None -> ()
                     match line.Mirror with
                     | Some _ -> Html.span [ prop.text " · " ]

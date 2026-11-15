@@ -616,7 +616,8 @@ let selectField
         prop.custom ("data-testid", testId)
         prop.custom ("aria-haspopup", "dialog")
         prop.custom ("aria-expanded", (if isOpen then "true" else "false"))
-        prop.className "input-field w-full flex items-center gap-3 px-3 py-1.5 min-h-[48px] text-left touch-manipulation"
+        // `input-select` (styles.css) setzt Höhe und Innenabstand: `.input-field` setzt das Padding ohne Layer.
+        prop.className "input-field input-select w-full flex items-center gap-3 text-left touch-manipulation"
         prop.onClick (fun _ -> onClick ())
         prop.children [
             Html.span [
@@ -721,7 +722,7 @@ let valueRow (testId: string) (label: string) (value: string) (isSet: bool) (onC
             Html.span [
                 prop.className "flex min-w-0 items-center gap-1"
                 prop.children [
-                    Truncate.text $"text-sm {(if isSet then Colors.accent else Colors.textMuted)}" value
+                    Truncate.text $"{FontSizes.sm} {(if isSet then Colors.accent else Colors.textMuted)}" value
                     Icons.chevronRight Icons.SM Icons.Muted
                 ]
             ]
