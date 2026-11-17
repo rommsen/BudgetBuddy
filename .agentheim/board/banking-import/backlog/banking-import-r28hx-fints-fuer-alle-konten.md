@@ -28,3 +28,13 @@ Abruf der ING (und weiterer Konten) per FinTS in BB, Dedup wie beim Comdirect-Im
 
 ## Notes
 Captured raw, unrefined. Vision nennt FinTS als spätere Ausbaustufe; Einordnung in den Fahrplan beim Verfeinern.
+
+Produktregistrierung (2026-11-17): Formular 1.0.4 für „BudgetBuddy“ an registrierung@hbci-zka.de abgeschickt, Kategorie
+„Web-Server“, Hersteller Roman als Privatperson. Die DK nennt 10 bis 15 Werktage bis zur Nummer, also etwa bis 08.12.2026.
+- Die Nummer kommt aus `.env` in `AppSettings` und steht nie im Code, in Tests, in der Doku oder in `AppSettingsView`. Das
+  Repo ist öffentlich, und der DK wurde zugesagt, dass die Nummer nur für Romans eigene Installation gilt und nicht im
+  Quellcode veröffentlicht wird. Wer BB selbst betreibt, registriert eine eigene Nummer.
+- Sie geht bei jeder Dialoginitialisierung in das Element „Produktbezeichnung“. „Produktversion“ bleibt Pflicht, gehört aber
+  nicht zur Registrierung (fints.org, FAQ Produktregistrierung, Stand 28.06.2023).
+- Die Standardnummer von python-fints ist eine Bibliotheksnummer. Solche Nummern sind laut FAQ nur für interne Tests
+  erlaubt, im Betrieb nicht.
