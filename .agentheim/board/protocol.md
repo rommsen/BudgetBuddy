@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-18 21:42 -- Modeling / Promoted: ledger-npqcb - "Filter-Sheet am Handy: Kategorie, Zeitraum und Sortieren ersetzen den Inhalt des Sheets statt ein zweites Sheet zu öffnen"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-18 21:42 -- Modeling / Promoted: budgeting-yarty - "Budget-Historie: Feld „Zeigen“ statt Chipleiste, Zeilen nach §7.11 aus HistoryList, auch die Historie im Kategorie-Detail"
 
 **Type:** Modeling / Promote

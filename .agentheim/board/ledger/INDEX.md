@@ -10,14 +10,15 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 10
-- **Todo:** 0
+- **Backlog:** 9
+- **Todo:** 1
 - **Doing:** 0
 - **Done:** 144
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **ledger-npqcb** — "Filter-Sheet am Handy: Kategorie, Zeitraum und Sortieren ersetzen den Inhalt des Sheets statt ein zweites Sheet zu öffnen" (feature) — `todo/ledger-npqcb-filter-sheet-ersetzt-inhalt.md`
 <!-- todo-list:end -->
 
 ### Doing
@@ -74,7 +75,6 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
-- **ledger-npqcb** — "Filter-Sheet am Handy: Kategorie, Zeitraum und Sortieren ersetzen den Inhalt des Sheets statt ein zweites Sheet zu öffnen" (feature) — `backlog/ledger-npqcb-filter-sheet-ersetzt-inhalt.md`
 - **ledger-zqst5** — "Kassenbuch am Handy: Suche, Filter-Knopf und Chips haften oben beim Scrollen" (feature) — `backlog/ledger-zqst5-suche-und-filter-am-handy-haften.md`
 - **ledger-fp4wn** — "Auswahl außerhalb des geladenen Fensters: Leiste und Panel zählen gewählte, nicht mehr geladene Buchungen mit" (bug) — `backlog/ledger-fp4wn-auswahl-ausserhalb-des-fensters-mitzaehlen.md`
 - **ledger-yhemh** — "Neue Buchung am Handy: Memo steht neben dem Datum statt darunter" (bug) — `backlog/ledger-yhemh-memo-unter-datum-am-handy.md`
