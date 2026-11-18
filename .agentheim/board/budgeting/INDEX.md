@@ -12,8 +12,8 @@ Catalog of this bounded context's tasks by status.
 <!-- task-counts:start -->
 - **Backlog:** 3
 - **Todo:** 1
-- **Doing:** 2
-- **Done:** 66
+- **Doing:** 1
+- **Done:** 67
 <!-- task-counts:end -->
 
 ### Todo
@@ -24,11 +24,11 @@ Catalog of this bounded context's tasks by status.
 ### Doing
 <!-- doing-list:start -->
 - **budgeting-h2brj** — "Wochentag eines Targets als Auswahlfeld statt sieben Knöpfe, ohne Wahl „Wochentag wählen“ in Gelb" (feature) — `doing/budgeting-h2brj-wochentag-als-auswahlfeld.md`
-- **budgeting-ht88a** — "Targets prüfen: Gelb nur am Titel „Gibst du mehr aus?“ und an den Balken, Kopf als ein neutraler Satz wie im Prototyp" (feature) — `doing/budgeting-ht88a-targets-pruefen-gelb.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)
 <!-- done-list:start -->
+- **budgeting-ht88a** — "Targets prüfen: Gelb nur am Titel „Gibst du mehr aus?“ und an den Balken, Kopf als ein neutraler Satz wie im Prototyp" (feature) — `done/budgeting-ht88a-targets-pruefen-gelb.md`
 - **budgeting-w9yt4** — "Angepinnte Kategorien: Block „Angepinnt“ auf der Übersicht, Sheet zum Anpinnen, Lösen und Ordnen, Pin-Knopf im Kategorie-Detail, gespeichert als Zustand" (feature) — `done/budgeting-w9yt4-angepinnte-kategorien.md`
 - **budgeting-t7dka** — "Targets anwenden übergeht in BB deaktivierte Kategorien" (bug) — `done/budgeting-t7dka-targets-anwenden-bergeht-in-bb-deaktivierte-kategorien.md`
 - **budgeting-e2z7v** — "Targets beim Speichern direkt nach YNAB schreiben (Nachtrag ADR 0084), mit Hinweis bei nicht Darstellbarem und Erneut senden" (feature) — `done/budgeting-e2z7v-r-ckweg-aktion-targets-nach-ynab-zur-ckschreiben-bbs-targets.md`

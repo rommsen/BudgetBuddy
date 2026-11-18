@@ -380,74 +380,23 @@ let private sheet (model: Model) (dispatch: Msg -> unit) =
 let private backButton (dispatch: Msg -> unit) =
     PageHeader.backButtonFor (Some "Zurück zum Budget") (fun () -> dispatch LeaveTargetCheck)
 
-let private counter (hints: bool) (count: int) =
-    let testId, label = if hints then "target-check-hints", "Hinweise" else "target-check-fits", "Passt"
-    let toneClass = if hints then Colors.attention else Colors.success
+/// Der Kopf wie im Prototyp (`tcheck()`, budgeting-ht88a): Zurück und Titel in einer Zeile, darunter ein Satz 13 px in
+/// `text-secondary` mit Hinweisen und passenden Zeilen, am Handy und am PC gleich. Die Zahlen tragen keine eigene
+/// Farbe (Roman w02 a): Gelb steht nur an „Gibst du mehr aus?“ und an den Balken über dem Target.
+let private header (counts: CheckCounts option) (dispatch: Msg -> unit) =
     Html.div [
-        prop.custom ("data-testid", testId)
+        prop.custom ("data-testid", "target-check-head")
         prop.className "flex flex-col"
         prop.children [
-            Html.span [ prop.className ListRoles.groupHeader; prop.text label ]
-            Html.span [ prop.className $"font-mono text-2xl {FontWeights.semibold} tabular-nums {toneClass}"; prop.text (string count) ]
-        ]
-    ]
-
-/// Der Kopf: am PC eine Karte mit Zurück, Titel, Erklärung und den Zählern rechts, am Handy Zurück oben, darunter
-/// der Titel groß und eine Zeile mit Monat und Zählern.
-let private header (data: (TargetCheckData * CheckCounts) option) (dispatch: Msg -> unit) =
-    React.fragment [
-        Html.div [
-            prop.custom ("data-testid", "target-check-head")
-            prop.className $"hidden md:flex flex-wrap items-center justify-between gap-3 {cardClass} px-4 py-3"
-            prop.children [
-                Html.div [
-                    prop.className "flex min-w-0 flex-col gap-1"
-                    prop.children [
-                        Html.div [
-                            prop.className "flex items-baseline gap-3"
-                            prop.children [
-                                backButton dispatch
-                                Html.h1 [ prop.className $"text-xl {FontWeights.semibold} {Colors.textPrimary}"; prop.text "Targets prüfen" ]
-                            ]
-                        ]
-                        match data with
-                        | Some (d, _) -> Html.p [ prop.custom ("data-testid", "target-check-intro"); prop.className ListRoles.muted; prop.text (checkIntroText d.Month) ]
-                        | None -> ()
-                    ]
+            PageHeader.top (Some (backButton dispatch)) "Targets prüfen" None []
+            match counts with
+            | Some c ->
+                Html.p [
+                    prop.custom ("data-testid", "target-check-intro")
+                    prop.className $"{FontSizes.compact} {Colors.textSecondary}"
+                    prop.text (checkHeadText c)
                 ]
-                match data with
-                | Some (_, counts) ->
-                    Html.div [
-                        prop.className "flex gap-4"
-                        prop.children [
-                            counter true counts.Hints
-                            counter false counts.Fits
-                        ]
-                    ]
-                | None -> ()
-            ]
-        ]
-        Html.div [
-            prop.custom ("data-testid", "target-check-head-narrow")
-            prop.className "flex flex-col gap-0.5 md:hidden"
-            prop.children [
-                Html.div [ prop.className "self-start"; prop.children [ backButton dispatch ] ]
-                Html.h1 [ prop.className $"text-2xl {FontWeights.semibold} {Colors.textPrimary}"; prop.text "Targets prüfen" ]
-                match data with
-                | Some (d, counts) ->
-                    let hints, fits = checkCountsText counts
-                    Html.p [
-                        prop.custom ("data-testid", "target-check-intro-narrow")
-                        prop.className ListRoles.muted
-                        prop.children [
-                            Html.text $"{monthLabel d.Month} · "
-                            Html.span [ prop.className Colors.attention; prop.text hints ]
-                            Html.text " · "
-                            Html.span [ prop.className Colors.success; prop.text fits ]
-                        ]
-                    ]
-                | None -> ()
-            ]
+            | None -> ()
         ]
     ]
 
@@ -469,7 +418,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
             prop.custom ("data-testid", "target-check-page")
             prop.className "budget-page flex flex-col gap-3 py-2"
             prop.children [
-                header (loaded |> Option.map (fun (data, groups) -> data, checkCounts groups)) dispatch
+                header (loaded |> Option.map (snd >> checkCounts)) dispatch
                 // ADR 0043: zur Renderzeit genau eine Hülle. Ohne "Anpassen …" ist das Panel zu.
                 // Esc schließt am PC erst eine offene Rückfrage, dann „Anpassen …“ (F5, design-system-gcpws).
                 if isPanel then

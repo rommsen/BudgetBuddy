@@ -494,8 +494,10 @@ Navigation nennt die Seite, die `h1` bleibt für den Screenreader (`PageHeader.s
 die volle Breite mit dem üblichen Seitenrand, der Zuwachs geht an die Spalte Kategorie, das Panel ist so breit wie in §7.6. Am PC
 scrollen Leiste, Suche und Chips mit. Am Handy haften der Kopf und die Chips, die Suche scrollt mit.
 
-Die Seite Targets prüfen `#/budget/target-check` hat am PC als Kopf eine Karte mit Zurück, Titel, Erklärung und den Zählern "Hinweise" und
-"Passt", am Handy Zurück, den Titel groß und eine Zeile mit Monat und Zählern. Die Gruppen sind Karten, jede klappt
+Die Seite Targets prüfen `#/budget/target-check` hat am Handy und am PC denselben Kopf: `PageHeader.top` mit Zurück und Titel,
+darunter ein Satz 13 px in `text-secondary` („Vergleich mit dem Schnitt der letzten 12 Monate. 4 Hinweise · 9 passen“), die Zahlen
+ohne eigene Farbe. Gelb steht dort nur am Titel „Gibst du mehr aus?“, an den Balken über dem Target und in deren Legende
+(budgeting-ht88a). Die Gruppen sind Karten, jede klappt
 auf und zu (`Button.disclosureListRow` in einer `h2`), beim Betreten offen, "Passt" zu. Eine Zeile steht ab 720 px
 Breite der Liste (Container-Abfrage) in vier Spalten wie die Skizze (Name und Target, Mini-Balken 132 px, Ø und
 Monate, Knöpfe; Verhältnis 1,3 zu 1), schmaler wie am Handy untereinander. "<Betrag> übernehmen" und "Anpassen …"

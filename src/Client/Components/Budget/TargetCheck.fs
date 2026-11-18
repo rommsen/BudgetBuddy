@@ -127,7 +127,7 @@ let private rowOf (data: TargetCheckData) (categoryId: System.Guid) : TargetChec
     |> List.tryFind (fun c -> c.CategoryId = categoryId)
     |> Option.map (targetCheckRow data.Today)
 
-/// Die Zähler im Kopf: Zeilen außerhalb von "Passt" (Hinweise, Gelb) und in "Passt" (Grün).
+/// Die Zähler im Kopf: Zeilen außerhalb von "Passt" (Hinweise) und in "Passt".
 type CheckCounts = { Hints: int; Fits: int }
 
 let checkCounts (groups: (CheckGroup * TargetCheckRow list) list) : CheckCounts =
@@ -135,15 +135,12 @@ let checkCounts (groups: (CheckGroup * TargetCheckRow list) list) : CheckCounts 
         groups |> List.filter (fst >> predicate) |> List.sumBy (snd >> List.length)
     { Hints = count (fun g -> g <> Fits); Fits = count (fun g -> g = Fits) }
 
-/// Der Satz unter dem Titel: "November 2026. Verglichen mit dem Ø der vollen Monate aus dem Kassenbuch,
-/// höchstens 12, ab der ersten Buchung oder der letzten Änderung des Targets."
-let checkIntroText (month: string) : string =
-    $"{monthLabel month}. Verglichen mit dem Ø der vollen Monate aus dem Kassenbuch, höchstens 12, ab der ersten Buchung oder der letzten Änderung des Targets."
-
-/// Die Zähler am Handy: "7 Hinweise" und "2 passen", in der Einzahl "1 Hinweis" und "1 passt".
-let checkCountsText (counts: CheckCounts) : string * string =
-    (if counts.Hints = 1 then "1 Hinweis" else $"{counts.Hints} Hinweise"),
-    (if counts.Fits = 1 then "1 passt" else $"{counts.Fits} passen")
+/// Der Satz im Kopf, am Handy und am PC gleich (Prototyp `tcheck()`, budgeting-ht88a): "Vergleich mit dem Schnitt
+/// der letzten 12 Monate. 7 Hinweise · 2 passen", in der Einzahl "1 Hinweis" und "1 passt".
+let checkHeadText (counts: CheckCounts) : string =
+    let hints = if counts.Hints = 1 then "1 Hinweis" else $"{counts.Hints} Hinweise"
+    let fits = if counts.Fits = 1 then "1 passt" else $"{counts.Fits} passen"
+    $"Vergleich mit dem Schnitt der letzten 12 Monate. {hints} · {fits}"
 
 /// Der Regelsatz unter dem Titel einer Gruppe (ADR 0082 Punkt 8).
 let checkGroupRule (group: CheckGroup) : string =

@@ -657,11 +657,17 @@ let private sketchTests =
             let twoFits = { checkData with Categories = checkData.Categories @ [ source halfId "Telefon" (Some (monthly 40m)) 40m ] }
             Expect.equal (checkGroups twoFits |> List.map fst) checkGroupOrder "alle fünf Gruppen"
             Expect.equal (checkCounts (checkGroups twoFits)) { Hints = 4; Fits = 2 } "4 Hinweise, 2 passen"
-            Expect.equal (checkCountsText { Hints = 4; Fits = 2 }) ("4 Hinweise", "2 passen") "Mehrzahl"
-            Expect.equal (checkCountsText { Hints = 1; Fits = 1 }) ("1 Hinweis", "1 passt") "Einzahl"
-            Expect.equal (checkIntroText current)
-                "November 2026. Verglichen mit dem Ø der vollen Monate aus dem Kassenbuch, höchstens 12, ab der ersten Buchung oder der letzten Änderung des Targets."
-                "die Erklärung mit dem Monat"
+        }
+        // budgeting-ht88a: der Kopf ist ein neutraler Satz wie im Prototyp, am Handy und am PC gleich.
+        test "Der Satz im Kopf: Vergleich mit dem Schnitt, Hinweise und passen in Einzahl und Mehrzahl" {
+            Expect.equal (checkHeadText { Hints = 4; Fits = 2 })
+                "Vergleich mit dem Schnitt der letzten 12 Monate. 4 Hinweise · 2 passen" "Mehrzahl"
+            Expect.equal (checkHeadText { Hints = 1; Fits = 1 })
+                "Vergleich mit dem Schnitt der letzten 12 Monate. 1 Hinweis · 1 passt" "Einzahl"
+            Expect.equal (checkHeadText { Hints = 0; Fits = 9 })
+                "Vergleich mit dem Schnitt der letzten 12 Monate. 0 Hinweise · 9 passen" "null Hinweise"
+            Expect.equal (checkHeadText { Hints = 3; Fits = 0 })
+                "Vergleich mit dem Schnitt der letzten 12 Monate. 3 Hinweise · 0 passen" "nichts passt"
         }
         test "Die Texte einer Zeile breit: Target je Rhythmus mit Monatswert in Klammern, Ø im Monat, Monate über dem Target" {
             let text id = checkRowText Wide (rowOf moreData id)
