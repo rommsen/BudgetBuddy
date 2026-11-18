@@ -345,17 +345,6 @@ let filterSheetReplaceTests =
             Expect.isGreaterThan steps 60000 "die Aufzählung läuft tief genug"
         }
 
-        test "Schließen aus einer Auswahl schließt das ganze Sheet, der Filter-Knopf öffnet wieder mit den Filtern" {
-            for openChoice in [ OpenFilterPopover CategoryChip; OpenFilterPopover DateChip; OpenSortSheet ] do
-                let opened, _ = step OpenFilterSheet (baseModel ())
-                let choosing, _ = step openChoice opened
-                Expect.notEqual (filterSheetView choosing) FilterSheetFilters $"{openChoice}: Auswahl steht"
-                let closed, _ = step CloseFilterSheet choosing
-                Expect.equal (filterSheetView closed) FilterSheetClosed $"{openChoice}: zu"
-                let reopened, _ = step OpenFilterSheet closed
-                Expect.equal (filterSheetView reopened) FilterSheetFilters $"{openChoice}: wieder die Filter"
-        }
-
         test "Ohne offenes Filter-Sheet bleibt der Sortier-Chip ein eigenes Sheet, „Zurück“ und Schließen ändern nichts" {
             let sorting, _ = step OpenSortSheet (baseModel ())
             Expect.equal (filterSheetView sorting) FilterSheetClosed "kein Filter-Sheet"

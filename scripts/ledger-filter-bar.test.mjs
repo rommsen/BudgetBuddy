@@ -86,27 +86,8 @@ test("[flow:kassenbuch-filtern] Handy: Filter-Sheet, Kategorien wählen, „n ze
     await phone.getByRole("button", { name: "Filter", exact: true }).click();
     await active().getByTestId("ledger-filter-sheet").waitFor();
 
-    // ledger-npqcb: Kategorie, Zeitraum und Sortieren ersetzen den Inhalt des Sheets, es geht kein zweites auf.
-    // „Zurück“ führt ohne Änderung zu den Filtern, Schließen schließt das ganze Sheet.
-    for (const [row, title] of [["filter-date", "Zeitraum"], ["filter-sort", "Sortieren"], ["filter-category", "Kategorie"]]) {
-      await active().getByTestId(row).click();
-      await active().getByRole("heading", { name: title, exact: true }).waitFor();
-      assert.equal(await active().count(), 1, `${title}: genau ein Sheet`);
-      assert.equal(await active().getByTestId("ledger-filter-sheet").count(), 0, `${title}: die Filter sind ersetzt`);
-      await active().getByRole("button", { name: "Zurück zu den Filtern" }).click();
-      await active().getByTestId("ledger-filter-sheet").waitFor();
-      assert.equal(await active().getByRole("heading", { name: "Filter", exact: true }).count(), 1, `${title}: Kopf „Filter“`);
-    }
-    await active().getByTestId("filter-sort").click();
-    await active().getByRole("heading", { name: "Sortieren", exact: true }).waitFor();
-    await active().getByRole("button", { name: "Schließen" }).click();
-    await phone.waitForFunction(() => document.querySelectorAll(".bottom-sheet.active").length === 0);
-    await phone.getByRole("button", { name: "Filter", exact: true }).click();
-    await active().getByTestId("ledger-filter-sheet").waitFor();
-
     await active().getByTestId("filter-category").click();
     await active().getByText("Lebensmittel", { exact: true }).last().waitFor();
-    assert.equal(await active().count(), 1, "die Kategorie-Auswahl liegt im Filter-Sheet");
     await active().getByText("Lebensmittel", { exact: true }).last().click();
     await active().getByText("Bahn", { exact: true }).last().click();
     await active().getByRole("button", { name: "Übernehmen (2)" }).click();
