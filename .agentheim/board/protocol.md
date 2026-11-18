@@ -5,6 +5,52 @@ Newest entries on top.
 
 ---
 
+## 2026-11-18 21:41 -- Modeling / Refined: budgeting-wnkgj - Budget-Seite angleichen (Teil D)
+
+**Type:** Modeling / Refine
+**BC:** budgeting
+**Status after:** backlog
+**Summary:** Romans Antworten aus der Prüfliste (w01 bis w11 ohne w07) übernommen. Schnitt 10 in vier Tasks geteilt; wnkgj bleibt Teil D (Budget-Seite) und wartet auf w07. Aus q-sheet A neu ledger-npqcb (Filter-Sheet ersetzt den Inhalt).
+**Split into:** budgeting-ht88a, budgeting-h2brj, budgeting-yarty
+
+---
+
+## 2026-11-18 21:41 -- Modeling / Captured: ledger-npqcb - "Filter-Sheet am Handy: Kategorie, Zeitraum und Sortieren ersetzen den Inhalt des Sheets statt ein zweites Sheet zu öffnen"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Roman q-sheet A: Filter-Sheet am Handy ersetzt den Inhalt für Kategorie, Zeitraum und Sortieren.
+
+---
+
+## 2026-11-18 21:41 -- Modeling / Captured: budgeting-yarty - "Budget-Historie: Feld „Zeigen“ statt Chipleiste, Zeilen nach §7.11 aus HistoryList, auch die Historie im Kategorie-Detail"
+
+**Type:** Modeling / Capture
+**BC:** budgeting
+**Filed to:** backlog
+**Summary:** Teil C aus budgeting-wnkgj: Historie mit Feld Zeigen und Zeilen nach §7.11 aus HistoryList.
+
+---
+
+## 2026-11-18 21:41 -- Modeling / Captured: budgeting-h2brj - "Wochentag eines Targets als Auswahlfeld statt sieben Knöpfe, ohne Wahl „Wochentag wählen“ in Gelb"
+
+**Type:** Modeling / Capture
+**BC:** budgeting
+**Filed to:** backlog
+**Summary:** Teil B aus budgeting-wnkgj: Wochentag als Auswahlfeld mit kurzer Auswahl, ohne Wahl gelber Platzhalter.
+
+---
+
+## 2026-11-18 21:41 -- Modeling / Captured: budgeting-ht88a - "Targets prüfen: Gelb nur am Titel „Gibst du mehr aus?“ und an den Balken, Kopf als ein neutraler Satz wie im Prototyp"
+
+**Type:** Modeling / Capture
+**BC:** budgeting
+**Filed to:** backlog
+**Summary:** Teil A aus budgeting-wnkgj: Gelb in Targets prüfen nur am Titel mehr und an den Balken, Kopf als neutraler Satz.
+
+---
+
 ## 2026-11-15 19:08 -- Modeling / Refined: budgeting-wnkgj - Budget an die Bedeutungen angleichen
 
 **Type:** Modeling / Refine

@@ -1,6 +1,6 @@
 ---
 id: budgeting-wnkgj
-title: "Budget an die Bedeutungen angleichen: Targets prüfen mit weniger Orange, Wochentag als Auswahlfeld, Historie mit „Zeigen“, Leerflächen am PC"
+title: "Budget-Seite angleichen (Teil D): Kopf, Gruppensummen, Panel am PC, Kategorie-Detail, Dialog „Targets anwenden“, Leerflächen am PC"
 status: backlog
 type: feature
 context: budgeting
@@ -18,7 +18,9 @@ prior_art: []
 Das Budget weicht an einigen Stellen von der Bedeutungsschicht ab (ADR 0087).
 
 ## What
-Targets prüfen nutzt Orange nur nach §2. Wochentag eines Targets als Auswahlfeld statt sieben Knöpfe (§7.5). Budget-Historie mit Auswahlfeld „Zeigen“ statt `ChipBar` (§7.11). Große Leerflächen am PC nach §7.15.
+Teil D aus der Teilung (Roman, Prüfliste w01 A, 2026-11-18): die Budget-Seite selbst mit Kopf, Liste und Tabelle,
+Panel am PC, Kategorie-Detail und Dialog „Targets anwenden“, dazu die Leerflächen am PC (§7.15). Abgespalten:
+budgeting-ht88a (Teil A, Targets prüfen), budgeting-h2brj (Teil B, Wochentag), budgeting-yarty (Teil C, Historie).
 
 ## Acceptance criteria
 - [ ] To be defined during refinement.
@@ -73,3 +75,14 @@ Offene Fragen an Roman stehen in der Prüfliste, Gruppe „Fragen: Budget anglei
 Teilung in vier Tasks (A Targets prüfen, B Target-Formular, C Budget-Historie, D Budget-Seite), Gelb in Targets
 prüfen, Wochentag als Feld und ohne Wahl, Arten und Zeilenform der Historie, Leerflächen am PC, „Targets anwenden“ als
 Hauptaktion, „Zu verteilen“ grün oder neutral, Filter-Wort, „Fehlbetrag einsetzen“. Kriterien erst nach den Antworten.
+
+## Entscheidungen (Roman, Prüfliste, 2026-11-18)
+- w01 A: in vier Tasks geteilt (siehe What).
+- w08 B: „Targets anwenden“ bleibt eine Kachel im Monatserster; im Dialog wird „<Betrag> anwenden“ der Hauptknopf (§7.14),
+  je Zeile kommt „Target · zugewiesen“ dazu.
+- w09 A: „Zu verteilen“ bleibt grün (Styleguide §2, Betrag mit Gewicht), negativ rot.
+- w10 a: Filter in der Form des Prototyps, Wort „Überzogen“ bleibt; „Fehlt“ zählt nur fehlende Targets.
+- w11 a: ein Knopf „<Betrag> zuweisen“ bleibt, kein „Fehlbetrag einsetzen“.
+- Vorab (2026-11-15): „noch nicht in YNAB“ in Gelb, Budget-Tabelle ab rund 1340 px.
+- Offen: w07 (Höchstbreite von Historie, Targets prüfen und Kategorien am PC). Die gilt auch für Teil A und C, wird aber
+  hier gebaut. Kriterien für Teil D folgen nach w07.

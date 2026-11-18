@@ -10,7 +10,7 @@ Catalog of this bounded context's tasks by status.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 3
+- **Backlog:** 6
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 66
@@ -101,7 +101,10 @@ prior-art matcher additionally checks `done-archive/` when present.
 
 ### Backlog
 <!-- backlog-list:start -->
-- **budgeting-wnkgj** — "Budget an die Bedeutungen angleichen: Targets prüfen mit weniger Orange, Wochentag als Auswahlfeld, Historie mit „Zeigen“, Leerflächen am PC" (feature) — `backlog/budgeting-wnkgj-budget-angleichen.md`
+- **budgeting-yarty** — "Budget-Historie: Feld „Zeigen“ statt Chipleiste, Zeilen nach §7.11 aus HistoryList, auch die Historie im Kategorie-Detail" (feature) — `backlog/budgeting-yarty-budget-historie-zeigen.md`
+- **budgeting-h2brj** — "Wochentag eines Targets als Auswahlfeld statt sieben Knöpfe, ohne Wahl „Wochentag wählen“ in Gelb" (feature) — `backlog/budgeting-h2brj-wochentag-als-auswahlfeld.md`
+- **budgeting-ht88a** — "Targets prüfen: Gelb nur am Titel „Gibst du mehr aus?“ und an den Balken, Kopf als ein neutraler Satz wie im Prototyp" (feature) — `backlog/budgeting-ht88a-targets-pruefen-gelb.md`
+- **budgeting-wnkgj** — "Budget-Seite angleichen (Teil D): Kopf, Gruppensummen, Panel am PC, Kategorie-Detail, Dialog „Targets anwenden“, Leerflächen am PC" (feature) — `backlog/budgeting-wnkgj-budget-angleichen.md`
 - **budgeting-h9c3w** — "Kann-Sammlung budgeting" (chore) — `backlog/budgeting-h9c3w-review-befunde-sammlung.md`
 - **budgeting-bk6tq** — "Spike: Ausgaben am Monatswechsel. Wann kommen Buchungen bei Comdirect und ING an (vorgemerkt, gebucht, welches Datum), und was heißt das für Auffüllen auf einen festen Betrag am Monatsersten?" (spike) — `backlog/budgeting-bk6tq-vortrag-ab-dem-ersten-tag.md`
 <!-- backlog-list:end -->
