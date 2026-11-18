@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-18 21:42 -- Modeling / Promoted: budgeting-yarty - "Budget-Historie: Feld „Zeigen“ statt Chipleiste, Zeilen nach §7.11 aus HistoryList, auch die Historie im Kategorie-Detail"
+
+**Type:** Modeling / Promote
+**BC:** budgeting
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-18 21:42 -- Modeling / Promoted: budgeting-h2brj - "Wochentag eines Targets als Auswahlfeld statt sieben Knöpfe, ohne Wahl „Wochentag wählen“ in Gelb"
 
 **Type:** Modeling / Promote
