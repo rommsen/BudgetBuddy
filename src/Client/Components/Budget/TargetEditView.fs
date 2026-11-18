@@ -46,8 +46,38 @@ let noTarget (model: Model) (category: BudgetCategory) =
         monthHint (targetMonthHint model category)
     ]
 
-/// Laufender Monat: das Formular (`TargetFormView.view`), angebunden an Modell und Nachrichten der
-/// Budget-Seite. Die Sperrlage kommt aus `targetFormLocks`, Panel oder Sheet aus dem Viewport.
+/// Die Props des Formulars, angebunden an Modell und Nachrichten der Budget-Seite. Die Sperrlage kommt aus
+/// `targetFormLocks`, Panel oder Sheet aus dem Viewport.
+let formProps
+    (model: Model)
+    (category: BudgetCategory)
+    (shown: Target option)
+    (form: TargetForm)
+    (status: ReactElement)
+    (pause: ReactElement)
+    (dispatch: Msg -> unit)
+    : TargetFormProps =
+    { Shown = shown
+      Form = form
+      Locks = targetFormLocks model category.Id
+      IsPanel = Viewport.isInspectorPanelViewport ()
+      Status = status
+      Pause = pause
+      AmountNote = None
+      OnAmountChanged = TargetAmountChanged >> dispatch
+      OnDateChanged = TargetDateChanged >> dispatch
+      OnRhythmChanged = TargetRhythmChanged >> dispatch
+      OnWeekdayChanged = TargetWeekdayChanged >> dispatch
+      OnOpenWeekdayChoice = fun () -> dispatch OpenTargetWeekdayChoice
+      OnCloseWeekdayChoice = fun () -> dispatch CloseTargetWeekdayChoice
+      OnSave = fun () -> dispatch SaveTarget
+      OnConfirmChange = fun () -> dispatch ConfirmTargetChange
+      OnCancelChange = fun () -> dispatch CancelTargetChange
+      OnAskRemove = fun () -> dispatch AskRemoveTarget
+      OnConfirmRemove = fun () -> dispatch ConfirmRemoveTarget
+      OnCancelRemove = fun () -> dispatch CancelRemoveTarget }
+
+/// Laufender Monat: das Formular (`TargetFormView.view`).
 let editableTarget
     (model: Model)
     (category: BudgetCategory)
@@ -57,21 +87,17 @@ let editableTarget
     (pause: ReactElement)
     (dispatch: Msg -> unit)
     =
-    TargetFormView.view
-        { Shown = shown
-          Form = form
-          Locks = targetFormLocks model category.Id
-          IsPanel = Viewport.isInspectorPanelViewport ()
-          Status = status
-          Pause = pause
-          AmountNote = None
-          OnAmountChanged = TargetAmountChanged >> dispatch
-          OnDateChanged = TargetDateChanged >> dispatch
-          OnRhythmChanged = TargetRhythmChanged >> dispatch
-          OnWeekdayChanged = TargetWeekdayChanged >> dispatch
-          OnSave = fun () -> dispatch SaveTarget
-          OnConfirmChange = fun () -> dispatch ConfirmTargetChange
-          OnCancelChange = fun () -> dispatch CancelTargetChange
-          OnAskRemove = fun () -> dispatch AskRemoveTarget
-          OnConfirmRemove = fun () -> dispatch ConfirmRemoveTarget
-          OnCancelRemove = fun () -> dispatch CancelRemoveTarget }
+    TargetFormView.view (formProps model category shown form status pause dispatch)
+
+/// Die Auswahl des Wochentags, wenn sie am Handy offen steht (budgeting-h2brj): dann ersetzt sie den Inhalt des
+/// Sheets (§7.15). `None` sonst.
+let weekdayChoiceInSheet (model: Model) (category: BudgetCategory) (dispatch: Msg -> unit) : ReactElement option =
+    let props =
+        match targetTabMode model category with
+        | TargetEditable (target, form) -> Some (formProps model category (Some target) form Html.none Html.none dispatch)
+        | TargetCreatable form -> Some (formProps model category None form Html.none Html.none dispatch)
+        | NoTargetShown
+        | TargetReadOnly _ -> None
+    match props with
+    | Some p when model.Tab = TargetTab && TargetFormView.weekdayChoiceInSheet p -> Some (TargetFormView.weekdayChoice p true)
+    | _ -> None

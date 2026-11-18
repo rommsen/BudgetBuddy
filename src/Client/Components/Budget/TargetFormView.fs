@@ -33,6 +33,10 @@ type TargetFormProps = {
     OnRhythmChanged: TargetFrequency -> unit
     /// Wochentag gewählt, 0 Sonntag bis 6 Samstag (budgeting-eh8xe).
     OnWeekdayChanged: int -> unit
+    /// Tipp auf das Feld Wochentag: die kurze Auswahl öffnen (budgeting-h2brj).
+    OnOpenWeekdayChoice: unit -> unit
+    /// Esc, „Zurück“ oder Schließen in der Auswahl: zu, ohne Wahl.
+    OnCloseWeekdayChoice: unit -> unit
     OnSave: unit -> unit
     OnConfirmChange: unit -> unit
     OnCancelChange: unit -> unit
@@ -156,25 +160,88 @@ let private rhythmChoice (props: TargetFormProps) =
         ]
     )
 
-/// Der Wochentag eines wöchentlichen Targets als `Segmented`, Montag zuerst (budgeting-eh8xe). Steht nur, wenn
-/// das Target nach dem Speichern wöchentlich ist (`targetWeeklyAfter`), gesperrt wie der Rhythmus. Ein Pflichtfeld:
-/// ohne Wahl steht der Grund darunter (`targetWeekdayHint`) und Speichern ist gesperrt.
-let private weekdayChoice (props: TargetFormProps) =
-    let active = targetWeekdayValue props.Shown props.Form
-    let locked = formFieldsLocked props.Locks
-    let segment (label: string, day: int) : Segmented.Segment =
-        { Segmented.segment label (active = Some day) (fun () -> props.OnWeekdayChanged day) with
-            Disabled = locked }
-    Input.group
-        { Label = "Wochentag"
-          Required = true
-          Error = targetWeekdayHint props.Shown props.Form
-          HelpText = None
-          Children =
+/// Das Feld Wochentag, als Selektor für die Rückkehr des Fokus aus der Auswahl (§7.8 Punkt 6).
+let private weekdayFieldSelector = "[data-testid='target-weekday-field']"
+
+/// Der Wochentag eines wöchentlichen Targets als Auswahlfeld (budgeting-h2brj, §7.5: sieben feste Optionen sind
+/// ein Auswahlfeld). Was es zeigt, sagt `targetWeekdayField`: den Tag ausgeschrieben, ohne Tag „Wochentag wählen“
+/// in Gelb, gesperrt wie der Rhythmus. Ohne Tag ist Speichern gesperrt (`targetFormState`), vorbelegt wird nichts.
+let private weekdayField (props: TargetFormProps) (field: WeekdayField) =
+    Html.div [
+        prop.custom ("data-testid", "target-weekday-choice")
+        prop.children [
+            Input.requiredSelectField
+                field.Locked
+                "target-weekday-field"
+                "Wochentag"
+                field.Day
+                WeekdayPlaceholderText
+                field.Open
+                props.OnOpenWeekdayChoice
+        ]
+    ]
+
+/// Die kurze Auswahl des Wochentags (budgeting-h2brj, wie die Gruppe in „Kategorie bearbeiten“, G13): sieben Zeilen,
+/// Montag zuerst, die gewählte mit Haken. Am PC steht der Fokus beim Öffnen auf ihr, ↑↓ und Enter (§7.9); Esc schließt
+/// nur die Auswahl und verbraucht die Taste (§7.8 Punkt 4), der Fokus geht zurück aufs Feld. Am Handy steht sie im
+/// Sheet anstelle des Formulars (§7.15), oben „Zurück“; den Inhalt setzt der Nutzer der View ins Sheet.
+let weekdayChoice (props: TargetFormProps) (inSheet: bool) =
+    let chosen = targetWeekdayValue props.Shown props.Form
+    Html.div [
+        prop.custom ("data-testid", "target-weekday-choice-list")
+        prop.className "flex flex-col gap-2"
+        prop.onKeyDown (fun e ->
+            if e.key = "Escape" then
+                e.preventDefault ()
+                e.stopPropagation ()
+                props.OnCloseWeekdayChoice ())
+        prop.children [
+            if inSheet then
+                Html.div [
+                    prop.className "flex"
+                    prop.children [ PageHeader.backButtonFor (Some "Zurück zum Target") props.OnCloseWeekdayChoice ]
+                ]
             Html.div [
-                prop.custom ("data-testid", "target-weekday-choice")
-                prop.children [ Segmented.view "target-weekday-segment" "Wochentag des Targets" (weekdays |> List.map segment) ]
-            ] }
+                // Die Karte wie die Auswahl der Gruppe (`CategoriesView`, Prototyp `cegroup`).
+                prop.className "rounded-2xl border border-border-subtle bg-surface-card overflow-clip"
+                prop.children [
+                    PickerParts.ShortChoiceFor "target-weekday-options" (Some weekdayFieldSelector) [
+                        for _, day in weekdays ->
+                            React.keyedFragment (
+                                day,
+                                [ PickerParts.shortChoiceRow
+                                      (weekdayText day)
+                                      None
+                                      (chosen = Some day)
+                                      (fun () ->
+                                          // Im Sheet steht danach das Formular an derselben Stelle: ein später
+                                          // synthetischer Klick soll dort nichts treffen (ADR 0005).
+                                          if inSheet then Viewport.swallowNextClick 350
+                                          props.OnWeekdayChanged day) ]
+                            )
+                    ]
+                ]
+            ]
+        ]
+    ]
+
+/// Die Auswahl am PC: ein Dialog in der Mitte (§7.6, eine Auswahl ist ein Dialog), wie die Gruppe.
+let private weekdayChoiceDialog (props: TargetFormProps) =
+    match targetWeekdayField props.Shown props.Locks props.Form with
+    | Some field when field.Open && props.IsPanel ->
+        Modal.view
+            { Modal.defaultProps with
+                IsOpen = true
+                OnClose = props.OnCloseWeekdayChoice
+                Size = Modal.Small
+                Title = Some "Wochentag" }
+            [ Modal.body [ weekdayChoice props false ] ]
+    | _ -> Html.none
+
+/// Steht die Auswahl des Wochentags am Handy offen? Dann zeigt das Sheet sie anstelle des Formulars (§7.15).
+let weekdayChoiceInSheet (props: TargetFormProps) : bool =
+    not props.IsPanel
+    && targetWeekdayField props.Shown props.Locks props.Form |> Option.exists (fun f -> f.Open)
 
 let private amountField (props: TargetFormProps) =
     let target = props.Shown
@@ -229,7 +296,9 @@ let view (props: TargetFormProps) =
     let save = formSaveButton shown props.Locks form
     React.fragment [
         rhythmChoice props
-        if targetWeeklyAfter shown form then weekdayChoice props
+        match targetWeekdayField shown props.Locks form with
+        | Some field -> weekdayField props field
+        | None -> ()
         Html.div [
             // Im 340-px-Panel am PC steht das Datum in eigener Zeile, sonst schnitte das Feld den Platzhalter ab
             // (budgeting-g2ty9, X6). Am Handy bekommt das Datum mit dem 48-px-Kalenderknopf den größeren Teil
@@ -328,4 +397,5 @@ let view (props: TargetFormProps) =
                 ]
             ]
         removeConfirm props
+        weekdayChoiceDialog props
     ]

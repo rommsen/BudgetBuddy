@@ -36,6 +36,9 @@ type TargetForm = {
     /// Der gewählte Wochentag eines wöchentlichen Targets (0 Sonntag bis 6 Samstag, budgeting-eh8xe). `None`,
     /// solange nichts gewählt wurde: dann gilt der Wochentag des Targets.
     WeekdayInput: int option
+    /// Die kurze Auswahl des Wochentags steht offen (budgeting-h2brj): am PC ein Dialog, am Handy ersetzt sie den
+    /// Inhalt des Sheets (§7.15).
+    WeekdayChoiceOpen: bool
 }
 
 /// Was der laufende Aufruf des Formulars tut (budgeting-g2ty9, F1): der Spinner steht nur am Knopf, der
@@ -68,7 +71,8 @@ let emptyTargetForm (categoryId: System.Guid) (month: string) : TargetForm =
       Notice = None
       RhythmInput = None
       ConfirmingChange = false
-      WeekdayInput = None }
+      WeekdayInput = None
+      WeekdayChoiceOpen = false }
 
 /// Ein Formular, vorbelegt mit einem Betrag (budgeting-q4v8n, "Anpassen …" auf der Seite Targets prüfen): das
 /// Betragsfeld trägt `amount` im Format des Felds (`AmountMath.formatSignedAmount`), das Datum bleibt wie
@@ -147,10 +151,13 @@ let targetWeekdayValue (shown: Target option) (form: TargetForm) : int option =
 let targetWeekdayMissing (shown: Target option) (form: TargetForm) : bool =
     targetWeeklyAfter shown form && (targetWeekdayValue shown form).IsNone
 
-/// Der Hinweis unter dem Wochentag, wenn er fehlt (`targetWeekdayMissing`), sonst `None`. Der Satz
-/// (`TargetWeekdayMissingText`) steht in Shared, die API-Grenze meldet denselben.
-let targetWeekdayHint (shown: Target option) (form: TargetForm) : string option =
-    if targetWeekdayMissing shown form then Some TargetWeekdayMissingText else None
+/// Was das Feld ohne gewählten Tag zeigt, in Gelb (braucht dich, ADR 0087 Punkt 3). Den Grund nennt die
+/// API-Grenze weiter als `TargetWeekdayMissingText`; unter dem Feld steht kein Fehlertext (budgeting-h2brj).
+let WeekdayPlaceholderText = "Wochentag wählen"
+
+/// Das Feld Wochentag (budgeting-h2brj): der Tag ausgeschrieben, `None` ohne Tag (dann `WeekdayPlaceholderText`),
+/// gesperrt wie der Rhythmus, und ob die Auswahl offen steht.
+type WeekdayField = { Day: string option; Locked: bool; Open: bool }
 
 /// Steht das Datumsfeld im Formular (budgeting-d7r4k, ADR 0072 Nachtrag 2026-11-04)? Bei wöchentlich nicht:
 /// dort zählt der Wochentag, ein Datum hat keine belegte Wirkung. Nur ein gelesenes Datum eines
@@ -298,6 +305,16 @@ let formCanSave (shown: Target option) (locks: TargetFormLocks) (form: TargetFor
 /// zurück, eine nachgetippte Eingabe ginge sonst still verloren (budgeting-r3wq8).
 let formFieldsLocked (locks: TargetFormLocks) : bool = locks.Running.IsSome
 
+/// Das Feld Wochentag, wenn es steht (`targetWeeklyAfter`), sonst `None`. Ein Tag wird nie still vorbelegt.
+let targetWeekdayField (shown: Target option) (locks: TargetFormLocks) (form: TargetForm) : WeekdayField option =
+    if targetWeeklyAfter shown form then
+        Some
+            { Day = targetWeekdayValue shown form |> Option.map weekdayText
+              Locked = formFieldsLocked locks
+              Open = form.WeekdayChoiceOpen }
+    else
+        None
+
 /// Eine Eingabe im Formular, außer während des eigenen Aufrufs.
 let private typeIn (change: TargetForm -> TargetForm) (locks: TargetFormLocks) (form: TargetForm) : TargetForm =
     if formFieldsLocked locks then form else change form
@@ -326,9 +343,19 @@ let formChooseRhythm
         locks
         form
 
-/// Wochentag gewählt, wie `formTypeAmount` (budgeting-eh8xe).
+/// Wochentag gewählt, wie `formTypeAmount` (budgeting-eh8xe). Die Auswahl schließt (budgeting-h2brj).
 let formChooseWeekday (day: int) (locks: TargetFormLocks) (form: TargetForm) : TargetForm =
-    typeIn (fun f -> { f with WeekdayInput = Some day; Notice = None; ConfirmingChange = false }) locks form
+    let chosen = typeIn (fun f -> { f with WeekdayInput = Some day; Notice = None; ConfirmingChange = false }) locks form
+    { chosen with WeekdayChoiceOpen = false }
+
+/// Tipp auf das Feld Wochentag: die Auswahl öffnet, wenn das Feld steht und nicht gesperrt ist (budgeting-h2brj).
+let formOpenWeekdayChoice (shown: Target option) (locks: TargetFormLocks) (form: TargetForm) : TargetForm =
+    match targetWeekdayField shown locks form with
+    | Some field when not field.Locked -> { form with WeekdayChoiceOpen = true }
+    | _ -> form
+
+/// Esc, „Zurück“ oder Schließen in der Auswahl: zu, ohne Wahl.
+let formCloseWeekdayChoice (form: TargetForm) : TargetForm = { form with WeekdayChoiceOpen = false }
 
 /// Ein Aufruf, den ein Übergang auslöst: was er tut (dafür dreht der Knopf) und die Anfrage. Der Monat ist
 /// der des Formulars.

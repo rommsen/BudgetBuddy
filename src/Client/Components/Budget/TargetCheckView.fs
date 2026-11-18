@@ -271,6 +271,28 @@ let private skeleton () =
         ]
     ]
 
+/// Das gemeinsame Target-Formular im Panel oder Sheet, angebunden an die Nachrichten der Seite.
+let private formProps (model: Model) (row: TargetCheckRow) (form: TargetForm) (isPanel: bool) (dispatch: Msg -> unit) : TargetFormView.TargetFormProps =
+    { TargetFormView.TargetFormProps.Shown = row.Target
+      Form = form
+      Locks = panelLocks model form
+      IsPanel = isPanel
+      Status = Html.none
+      Pause = Html.none
+      AmountNote = checkSuggestionHint row
+      OnAmountChanged = CheckAmountChanged >> dispatch
+      OnDateChanged = CheckDateChanged >> dispatch
+      OnRhythmChanged = CheckRhythmChanged >> dispatch
+      OnWeekdayChanged = CheckWeekdayChanged >> dispatch
+      OnOpenWeekdayChoice = fun () -> dispatch OpenCheckWeekdayChoice
+      OnCloseWeekdayChoice = fun () -> dispatch CloseCheckWeekdayChoice
+      OnSave = fun () -> dispatch SaveCheckTarget
+      OnConfirmChange = fun () -> dispatch ConfirmCheckTargetChange
+      OnCancelChange = fun () -> dispatch CancelCheckTargetChange
+      OnAskRemove = fun () -> dispatch AskRemoveCheckTarget
+      OnConfirmRemove = fun () -> dispatch ConfirmRemoveCheckTarget
+      OnCancelRemove = fun () -> dispatch CancelRemoveCheckTarget }
+
 /// Satz, große Balken mit Legende (nur im Panel) und das gemeinsame Target-Formular mit Abbrechen am Ende.
 let private panelBody (model: Model) (row: TargetCheckRow) (form: TargetForm) (isPanel: bool) (dispatch: Msg -> unit) =
     Html.div [
@@ -290,24 +312,7 @@ let private panelBody (model: Model) (row: TargetCheckRow) (form: TargetForm) (i
                         Html.span "Linie: Target"
                     ]
                 ]
-            TargetFormView.view
-                { Shown = row.Target
-                  Form = form
-                  Locks = panelLocks model form
-                  IsPanel = isPanel
-                  Status = Html.none
-                  Pause = Html.none
-                  AmountNote = checkSuggestionHint row
-                  OnAmountChanged = CheckAmountChanged >> dispatch
-                  OnDateChanged = CheckDateChanged >> dispatch
-                  OnRhythmChanged = CheckRhythmChanged >> dispatch
-                  OnWeekdayChanged = CheckWeekdayChanged >> dispatch
-                  OnSave = fun () -> dispatch SaveCheckTarget
-                  OnConfirmChange = fun () -> dispatch ConfirmCheckTargetChange
-                  OnCancelChange = fun () -> dispatch CancelCheckTargetChange
-                  OnAskRemove = fun () -> dispatch AskRemoveCheckTarget
-                  OnConfirmRemove = fun () -> dispatch ConfirmRemoveCheckTarget
-                  OnCancelRemove = fun () -> dispatch CancelRemoveCheckTarget }
+            TargetFormView.view (formProps model row form isPanel dispatch)
             Html.div [
                 prop.custom ("data-testid", "target-check-cancel")
                 prop.children [
@@ -364,6 +369,21 @@ let private sheet (model: Model) (dispatch: Msg -> unit) =
           Subtitle = None
           Footer = None }
     match panelRow model with
+    // Die Auswahl des Wochentags ersetzt den Inhalt des Sheets (§7.15, budgeting-h2brj); Wahl, „Zurück“ oder
+    // Schließen führen zum Formular zurück, die Eingaben stehen im Modell und bleiben.
+    | Some (row, form) when TargetFormView.weekdayChoiceInSheet (formProps model row form false dispatch) ->
+        BottomSheet.inspector
+            { IsOpen = true
+              OnClose = fun () -> dispatch CloseCheckWeekdayChoice
+              Title = "Wochentag"
+              Subtitle = Some row.Name
+              Footer = None }
+            []
+            []
+            [ Html.div [
+                  prop.className "py-4"
+                  prop.children [ TargetFormView.weekdayChoice (formProps model row form false dispatch) true ]
+              ] ]
     | Some (row, form) ->
         BottomSheet.inspector
             (props row.Name true)

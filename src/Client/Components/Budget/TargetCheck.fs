@@ -371,6 +371,7 @@ let targetCheckKeyMsg (model: Model) (focus: ListKeys.Focus) (command: bool) (sh
     match panel with
     | Some (_, form) when action = ListKeys.ClosePanel ->
         if (panelLocks model form).Running.IsSome then None
+        elif form.WeekdayChoiceOpen then Some CloseCheckWeekdayChoice
         elif form.ConfirmingChange then Some CancelCheckTargetChange
         elif form.ConfirmingRemove then Some CancelRemoveCheckTarget
         else Some CloseCheckPanel
@@ -392,6 +393,12 @@ let chooseCheckRhythm (frequency: TargetFrequency) (model: Model) : Model =
 
 let chooseCheckWeekday (day: int) (model: Model) : Model =
     changePanel (fun _ -> formChooseWeekday day) model
+
+let openCheckWeekdayChoice (model: Model) : Model =
+    changePanel formOpenWeekdayChoice model
+
+let closeCheckWeekdayChoice (model: Model) : Model =
+    changePanel (fun _ _ -> formCloseWeekdayChoice) model
 
 let cancelCheckChange (model: Model) : Model =
     changePanel (fun _ _ -> formCancelChange) model

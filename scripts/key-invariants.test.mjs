@@ -200,6 +200,25 @@ const DIALOGS = [
     chosen: (page) => page.locator('[data-testid="categories-panel"] [data-testid="categories-group-field"]').innerText(),
     closes: true,
   },
+  {
+    // budgeting-h2brj: der Wochentag im Tab Target, kurze Auswahl ohne Suche im Dialog. Erst ein Tag gewählt, damit beim
+    // Öffnen eine Option `aria-current` trägt.
+    name: "Wochentag im Tab Target",
+    state: "budget-target",
+    width: 1440,
+    short: true,
+    open: async (page) => {
+      const panel = page.locator('aside[data-testid="budget-inspector"]');
+      const field = panel.locator('[data-testid="target-weekday-field"]');
+      await panel.getByRole("button", { name: "Woche", exact: true }).click();
+      await field.click();
+      await page.locator('[data-testid="target-weekday-options"]').getByRole("button", { name: "Mittwoch" }).click();
+      await field.click();
+      await page.locator('[data-testid="target-weekday-options"] button').first().waitFor();
+    },
+    chosen: (page) => page.locator('aside[data-testid="budget-inspector"] [data-testid="target-weekday-field"]').innerText(),
+    closes: true,
+  },
 ];
 
 /// P1 bis P3 für einen Dialog; liefert die Befunde als Text.

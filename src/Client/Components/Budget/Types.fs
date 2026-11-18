@@ -527,6 +527,10 @@ type Msg =
     | TargetRhythmChanged of TargetFrequency
     /// Wochentag eines wöchentlichen Targets gewählt, 0 Sonntag bis 6 Samstag (budgeting-eh8xe).
     | TargetWeekdayChanged of int
+    /// Tipp auf das Feld Wochentag: die kurze Auswahl öffnen (budgeting-h2brj).
+    | OpenTargetWeekdayChoice
+    /// Esc, „Zurück“ oder Schließen in der Auswahl des Wochentags: zu, ohne Wahl.
+    | CloseTargetWeekdayChoice
     /// Die Warnung vor dem Wechsel der Art bestätigt: jetzt senden.
     | ConfirmTargetChange
     /// Die Warnung abgebrochen: nichts gesendet, die Eingabe bleibt.
@@ -571,6 +575,8 @@ type Msg =
     | CheckDateChanged of DateField.DateEntry
     | CheckRhythmChanged of TargetFrequency
     | CheckWeekdayChanged of int
+    | OpenCheckWeekdayChoice
+    | CloseCheckWeekdayChoice
     | SaveCheckTarget
     | ConfirmCheckTargetChange
     | CancelCheckTargetChange

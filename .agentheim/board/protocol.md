@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-11-18 23:17 -- Task verified and completed: budgeting-h2brj - "Wochentag eines Targets als Auswahlfeld statt sieben Knöpfe, ohne Wahl „Wochentag wählen“ in Gelb"
+
+**Type:** Work / Task completion
+**Task:** budgeting-h2brj - "Wochentag eines Targets als Auswahlfeld statt sieben Knöpfe, ohne Wahl „Wochentag wählen“ in Gelb"
+**Summary:** Wochentag eines Targets als Auswahlfeld mit gelbem „Wochentag wählen“
+**Duration:** 1h05m
+**Verification:** PASS (iteration 2)
+**Files changed:** 20
+**Tests added:** 5
+**ADRs written:** none
+
+---
+
+## 2026-11-18 23:08 -- Verification failed: budgeting-h2brj - Wochentag eines Targets als Auswahlfeld
+
+**Type:** Work / Verification failure
+**Task:** budgeting-h2brj - Wochentag eines Targets als Auswahlfeld
+**Iteration:** 1 of 3
+**Reasons:** README_DELTA lässt die Bullets Target-Änderung (Segmented) und Target (Satz im Formular) veraltet stehen
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-11-18 23:05 -- Task verified and completed: budgeting-ht88a - "Targets prüfen: Gelb nur am Titel „Gibst du mehr aus?“ und an den Balken, Kopf als ein neutraler Satz wie im Prototyp"
 
 **Type:** Work / Task completion

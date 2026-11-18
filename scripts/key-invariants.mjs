@@ -170,6 +170,22 @@ export const LISTS = [
         // (`CloseOnEscape` ohne Wirkung) und führt den Fokus nicht zurück, Follow-up design-system-m4e7q.
         escape: false,
       },
+      {
+        // budgeting-h2brj: die kurze Auswahl des Wochentags im Tab Target, ein Dialog über dem Panel. Esc schließt nur sie,
+        // der Fokus geht zurück aufs Feld.
+        name: "Wochentag",
+        open: async (page) => {
+          const panel = page.locator('aside[data-testid="budget-inspector"]');
+          await panel.locator('[data-testid="inspector-tabs"]').getByRole("tab", { name: "Target" }).click();
+          await panel.getByRole("button", { name: "Woche", exact: true }).click();
+          const trigger = panel.locator('[data-testid="target-weekday-field"]');
+          await trigger.focus();
+          await page.keyboard.press("Enter");
+          await page.locator('[data-testid="target-weekday-options"] button').first().waitFor();
+          return trigger;
+        },
+        isOpen: (page) => page.locator('[data-testid="target-weekday-options"]').filter({ visible: true }).count().then((n) => n > 0),
+      },
     ],
     layer: {
       open: async (page) => {

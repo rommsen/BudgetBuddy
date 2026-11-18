@@ -1205,6 +1205,11 @@ let private InputDemo () =
                     (Some (Html.span [ prop.className $"{Tokens.FontSizes.xs} {Tokens.Fonts.mono} {Tokens.Colors.textMuted}"; prop.text "4.300,00 €" ]))
                     false
                     ignore
+                // requiredSelectField: Pflicht-Auswahlfeld (budgeting-h2brj, Wochentag eines Targets): ohne Wert der
+                // Platzhalter in Gelb, mit Wert wie selectField, gesperrt gedämpft.
+                Input.requiredSelectField false "styleguide-required-select-empty" "Wochentag" None "Wochentag wählen" false ignore
+                Input.requiredSelectField false "styleguide-required-select-value" "Wochentag" (Some "Montag") "Wochentag wählen" false ignore
+                Input.requiredSelectField true "styleguide-required-select-locked" "Wochentag" (Some "Montag") "Wochentag wählen" false ignore
                 // searchField: Suche mit Lupe (Kassenbuch, ledger-d9z3n).
                 Input.searchField "styleguide-search-field" "Buchungen durchsuchen" "Suchen…" "" ignore
                 // countSwitchRow und valueRow: Zeilen des Filter-Sheets im Kassenbuch (ledger-d9z3n).
@@ -2139,23 +2144,6 @@ let private SegmentedDemo () =
                     [ for label in [ "Dieser Monat"; "Letzter Monat"; "Dieses Jahr"; "12 Monate" ] do
                           Segmented.segment label (label = "Dieser Monat") ignore ]
                 caption "viewColumns TwoColumns: vier Optionen in zwei Reihen, wenn sie nebeneinander bei 320 px nicht sicher passen (Schnellwahl Zeitraum im Filter des Kassenbuchs)"
-                Segmented.view
-                    "demo-segmented-weekday"
-                    "Wochentag"
-                    [ for label, _ in Shared.Budgeting.weekdays do
-                          Segmented.segment label (label = "Fr") ignore ]
-                caption "Wochentag im Tab Target: sieben Segmente, Montag zuerst"
-                Html.div [
-                    prop.className "w-[340px] max-w-full"
-                    prop.children [
-                        Segmented.view
-                            "demo-segmented-weekday-panel"
-                            "Wochentag im Panel"
-                            [ for label, _ in Shared.Budgeting.weekdays do
-                                  Segmented.segment label (label = "Mo") ignore ]
-                    ]
-                ]
-                caption "Dieselbe Leiste in 340 px, der Breite des Panels am PC"
                 Segmented.view
                     "demo-segmented-keeps-focus"
                     "Ausgabe oder Einnahme"

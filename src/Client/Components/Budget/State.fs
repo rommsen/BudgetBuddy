@@ -566,6 +566,8 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
     | TargetDateChanged entry -> typeTargetDate entry model, Cmd.none, NoOp
     | TargetRhythmChanged frequency -> chooseTargetRhythm frequency model, Cmd.none, NoOp
     | TargetWeekdayChanged day -> chooseTargetWeekday day model, Cmd.none, NoOp
+    | OpenTargetWeekdayChoice -> openTargetWeekdayChoice model, Cmd.none, NoOp
+    | CloseTargetWeekdayChoice -> closeTargetWeekdayChoice model, Cmd.none, NoOp
     | SaveTarget -> sendTargetChange (startTargetSave model)
     | ConfirmTargetChange -> sendTargetChange (confirmTargetChange model)
     | CancelTargetChange -> cancelTargetChange model, Cmd.none, NoOp
@@ -624,6 +626,8 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
     | CheckDateChanged entry -> typeCheckDate entry model, Cmd.none, NoOp
     | CheckRhythmChanged frequency -> chooseCheckRhythm frequency model, Cmd.none, NoOp
     | CheckWeekdayChanged day -> chooseCheckWeekday day model, Cmd.none, NoOp
+    | OpenCheckWeekdayChoice -> openCheckWeekdayChoice model, Cmd.none, NoOp
+    | CloseCheckWeekdayChoice -> closeCheckWeekdayChoice model, Cmd.none, NoOp
     | SaveCheckTarget -> sendTargetChange (startCheckSave model)
     | ConfirmCheckTargetChange -> sendTargetChange (confirmCheckChange model)
     | CancelCheckTargetChange -> cancelCheckChange model, Cmd.none, NoOp
@@ -752,6 +756,8 @@ let private routeOf (msg: Msg) (model: Model) : MsgRoute =
     | TargetDateChanged _
     | TargetRhythmChanged _
     | TargetWeekdayChanged _
+    | OpenTargetWeekdayChoice
+    | CloseTargetWeekdayChoice
     | ConfirmTargetChange
     | CancelTargetChange
     | SaveTarget
@@ -775,6 +781,8 @@ let private routeOf (msg: Msg) (model: Model) : MsgRoute =
     | CheckDateChanged _
     | CheckRhythmChanged _
     | CheckWeekdayChanged _
+    | OpenCheckWeekdayChoice
+    | CloseCheckWeekdayChoice
     | SaveCheckTarget
     | ConfirmCheckTargetChange
     | CancelCheckTargetChange

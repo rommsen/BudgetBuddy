@@ -19,13 +19,8 @@ export const MIN_PX = 300;
 export const MAX_PX = 600;
 
 /// Erlaubte Treffer: `file` relativ zu `src/Client/`, `cls` die ganze Klasse, `reason` warum es keine Panelbreite ist.
-export const EXCEPTIONS = [
-  {
-    file: "Components/Styleguide/View.fs",
-    cls: "w-[340px]",
-    reason: "Vorschau im Styleguide: zeigt die sieben Wochentag-Segmente in einer schmalen Spalte, keine Spalte der App",
-  },
-];
+/// Die Vorschau der sieben Wochentag-Segmente im Styleguide (`w-[340px]`) entfiel mit dem Feld Wochentag (budgeting-h2brj).
+export const EXCEPTIONS = [];
 
 // Eine Klasse beginnt am Anfang, nach Leerzeichen, Anführungszeichen, `{`, `(` oder `$"`; davor stehen höchstens
 // Varianten wie `md:` oder `lg:`. So zählt `max-w-[400px]` nicht als `w-[400px]`.

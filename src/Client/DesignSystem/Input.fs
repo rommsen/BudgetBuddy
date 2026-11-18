@@ -616,6 +616,41 @@ let pickerField
     : ReactElement =
     pickerFieldWith false testId label value placeholder extra isOpen onClick
 
+/// Der Knopf eines Auswahlfelds mit Pfeil nach unten (`selectField`, `requiredSelectField`): die Bezeichnung klein
+/// oben, darunter `value` (Wert oder Platzhalter, fertig gestaltet), rechts der Pfeil. `locked`: gesperrt wie
+/// `pickerFieldWith` (`aria-disabled`, gedämpft, ohne Zeiger), ein Klick wirkt nicht.
+let private selectFieldButton
+    (locked: bool)
+    (testId: string)
+    (label: string)
+    (value: ReactElement)
+    (isOpen: bool)
+    (onClick: unit -> unit)
+    : ReactElement =
+    Html.button [
+        prop.type' "button"
+        prop.custom ("data-testid", testId)
+        prop.custom ("aria-haspopup", "dialog")
+        prop.custom ("aria-expanded", (if isOpen then "true" else "false"))
+        if locked then prop.custom ("aria-disabled", "true")
+        // `input-select` (styles.css) setzt Höhe und Innenabstand: `.input-field` setzt das Padding ohne Layer.
+        prop.className (
+            "input-field input-select w-full flex items-center gap-3 text-left touch-manipulation"
+            + (if locked then " opacity-60 cursor-default" else "")
+        )
+        prop.onClick (fun _ -> if not locked then onClick ())
+        prop.children [
+            Html.span [
+                prop.className "flex min-w-0 flex-1 flex-col"
+                prop.children [
+                    Html.span [ prop.className $"{FontSizes.xs} {Colors.textMuted}"; prop.text label ]
+                    value
+                ]
+            ]
+            Icons.chevronDown Icons.SM Icons.Muted
+        ]
+    ]
+
 /// Ein Auswahlfeld mit Pfeil nach unten (ledger-d9z3n, Prototyp `.field`, Kontowahl im Kassenbuch am Handy):
 /// die Bezeichnung klein oben, darunter der Wert mittelstark und gleich daneben ein Zusatz (etwa der Saldo,
 /// Mono, klein, gedämpft), rechts der Pfeil nach unten. Anders als `pickerField` steht der Zusatz neben dem
@@ -628,33 +663,44 @@ let selectField
     (isOpen: bool)
     (onClick: unit -> unit)
     : ReactElement =
-    Html.button [
-        prop.type' "button"
-        prop.custom ("data-testid", testId)
-        prop.custom ("aria-haspopup", "dialog")
-        prop.custom ("aria-expanded", (if isOpen then "true" else "false"))
-        // `input-select` (styles.css) setzt Höhe und Innenabstand: `.input-field` setzt das Padding ohne Layer.
-        prop.className "input-field input-select w-full flex items-center gap-3 text-left touch-manipulation"
-        prop.onClick (fun _ -> onClick ())
-        prop.children [
-            Html.span [
-                prop.className "flex min-w-0 flex-1 flex-col"
-                prop.children [
-                    Html.span [ prop.className $"{FontSizes.xs} {Colors.textMuted}"; prop.text label ]
-                    Html.span [
-                        prop.className "flex min-w-0 items-baseline gap-1.5"
-                        prop.children [
-                            Truncate.text $"text-base md:text-sm {FontWeights.medium} {Colors.textPrimary}" value
-                            match extra with
-                            | Some e -> Html.span [ prop.className "shrink-0"; prop.children [ e ] ]
-                            | None -> ()
-                        ]
-                    ]
-                ]
+    selectFieldButton
+        false
+        testId
+        label
+        (Html.span [
+            prop.className "flex min-w-0 items-baseline gap-1.5"
+            prop.children [
+                Truncate.text $"text-base md:text-sm {FontWeights.medium} {Colors.textPrimary}" value
+                match extra with
+                | Some e -> Html.span [ prop.className "shrink-0"; prop.children [ e ] ]
+                | None -> ()
             ]
-            Icons.chevronDown Icons.SM Icons.Muted
-        ]
-    ]
+        ])
+        isOpen
+        onClick
+
+/// Ein Pflicht-Auswahlfeld (budgeting-h2brj, Wochentag eines Targets): wie `selectField`, ohne Wert steht der
+/// Platzhalter in Gelb (`Colors.attention`, braucht dich, ADR 0087 Punkt 3) statt eines roten Fehlertexts unter dem
+/// Feld; der Platzhalter ist das Wort daneben. `locked`: gesperrt, etwa solange das Formular speichert.
+let requiredSelectField
+    (locked: bool)
+    (testId: string)
+    (label: string)
+    (value: string option)
+    (placeholder: string)
+    (isOpen: bool)
+    (onClick: unit -> unit)
+    : ReactElement =
+    let text =
+        match value with
+        | Some v -> Truncate.text $"text-base md:text-sm {FontWeights.medium} {Colors.textPrimary}" v
+        | None ->
+            Html.span [
+                prop.custom ("data-testid", $"{testId}-missing")
+                prop.className $"text-base md:text-sm {FontWeights.medium} {Colors.attention}"
+                prop.text placeholder
+            ]
+    selectFieldButton locked testId label text isOpen onClick
 
 let private searchFieldWith (size: InputSize) (widthClass: string) (testId: string) (ariaLabel: string) (placeholder: string) (value: string) (onChange: string -> unit) : ReactElement =
     Html.label [

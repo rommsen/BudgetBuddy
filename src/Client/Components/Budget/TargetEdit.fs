@@ -184,13 +184,16 @@ let syncTargetForm (model: Model) : Model =
         let away = model.Tab <> TargetTab
         let warnStale = form.ConfirmingChange && (away || List.isEmpty (targetFormLosses shown form))
         let removeStale = form.ConfirmingRemove && (away || shown.IsNone)
-        if warnStale || removeStale then
+        // Die Auswahl des Wochentags gilt nur im Tab Target und nur, solange das Feld steht (budgeting-h2brj).
+        let choiceStale = form.WeekdayChoiceOpen && (away || not (targetWeeklyAfter shown form))
+        if warnStale || removeStale || choiceStale then
             { model with
                 TargetForm =
                     Some
                         { form with
                             ConfirmingChange = form.ConfirmingChange && not warnStale
-                            ConfirmingRemove = form.ConfirmingRemove && not removeStale } }
+                            ConfirmingRemove = form.ConfirmingRemove && not removeStale
+                            WeekdayChoiceOpen = form.WeekdayChoiceOpen && not choiceStale } }
         else
             model
     | _, Some (c, m) -> { model with TargetForm = Some (emptyTargetForm c m) }
@@ -203,6 +206,14 @@ let chooseTargetRhythm (frequency: TargetFrequency) (model: Model) : Model =
 /// Wochentag gewählt (`formChooseWeekday`, budgeting-eh8xe).
 let chooseTargetWeekday (day: int) (model: Model) : Model =
     changeForm (fun locks f -> formChooseWeekday day locks f) model
+
+/// Tipp auf das Feld Wochentag (`formOpenWeekdayChoice`, budgeting-h2brj).
+let openTargetWeekdayChoice (model: Model) : Model =
+    changeForm (fun locks f -> formOpenWeekdayChoice (shownTarget model f.CategoryId) locks f) model
+
+/// Die Auswahl des Wochentags ohne Wahl zu (`formCloseWeekdayChoice`).
+let closeTargetWeekdayChoice (model: Model) : Model =
+    updateForm formCloseWeekdayChoice model
 
 /// "Target speichern" oder "Target anlegen" (`formPlanSave`).
 let startTargetSave (model: Model) : Model * (string * TargetChangeRequest) option =

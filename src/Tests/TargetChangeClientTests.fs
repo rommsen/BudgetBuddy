@@ -499,13 +499,13 @@ let private changeTests =
             let chosen = onTrip |> step (TargetRhythmChanged Weekly)
             let shown, locks, form = tabForm chosen (categoryOf chosen tripId)
             Expect.isFalse (formCanSave shown locks form) "gesperrt"
-            Expect.equal (targetWeekdayHint shown form) (Some TargetWeekdayMissingText) "Grund"
+            Expect.equal (targetWeekdayField shown locks form |> Option.map (fun f -> f.Day)) (Some None) "Feld ohne Tag, Platzhalter"
             Expect.isFalse (sends SaveTarget chosen) "nichts gesendet"
             Expect.isFalse (formOf (step SaveTarget chosen)).ConfirmingChange "keine Warnung"
             let picked = chosen |> step (TargetWeekdayChanged 2)
             let shown, locks, form = tabForm picked (categoryOf picked tripId)
             Expect.isTrue (formCanSave shown locks form) "mit Wochentag"
-            Expect.isNone (targetWeekdayHint shown form) "kein Grund mehr"
+            Expect.equal (targetWeekdayField shown locks form |> Option.map (fun f -> f.Day)) (Some (Some "Dienstag")) "Dienstag im Feld"
         }
         test "GIVEN Anlegen wöchentlich ohne Wochentag THEN nichts gesendet, mit Wochentag schon" {
             let typed = onHolidayWithout current |> step (TargetAmountChanged "25") |> step (TargetRhythmChanged Weekly)
@@ -515,8 +515,37 @@ let private changeTests =
         test "Ein wöchentliches Target mit Wochentag braucht keine neue Wahl, ein Betrag allein geht" {
             let weekly = { targetOf 25m with Rhythm = Weeks 1; Day = Some 4; NeedsWholeAmount = None }
             let typed = onTrip |> withTarget tripId current (Some weekly) |> step (TargetAmountChanged "30")
-            Expect.isNone (targetWeekdayHint (Some weekly) (formOf typed)) "kein Grund"
+            Expect.isFalse (targetWeekdayMissing (Some weekly) (formOf typed)) "Tag steht"
             Expect.equal ((requestOf typed).Wanted |> Option.bind (fun d -> d.NewDay)) (Some 4) "Donnerstag geht mit"
+        }
+        // budgeting-h2brj: der Wochentag als Feld, das eine kurze Auswahl öffnet.
+        test "Das Feld Wochentag öffnet die Auswahl, die Wahl setzt den Tag und schließt sie, Schließen lässt die Eingabe" {
+            let isOpen (model: Model) = (formOf model).WeekdayChoiceOpen
+            let weekly = onTrip |> step (TargetRhythmChanged Weekly) |> step (TargetAmountChanged "30")
+            let opened = weekly |> step OpenTargetWeekdayChoice
+            Expect.isTrue (isOpen opened) "offen"
+            Expect.equal
+                (Components.Budget.Inspector.pageListAction opened "ArrowDown" OtherFocus false false false)
+                Client.DesignSystem.ListKeys.Leave
+                "die Liste ruht unter der Auswahl"
+            Expect.equal
+                (Components.Budget.Inspector.pageListAction opened "Escape" OtherFocus false false false)
+                Client.DesignSystem.ListKeys.Leave
+                "Esc schließt nicht das Panel"
+            let picked = opened |> step (TargetWeekdayChanged 3)
+            Expect.equal ((formOf picked).WeekdayInput, isOpen picked) (Some 3, false) "Mittwoch, zu"
+            Expect.equal (formOf picked).AmountInput (Some "30") "Betrag bleibt"
+            let closed = picked |> step OpenTargetWeekdayChoice |> step CloseTargetWeekdayChoice
+            Expect.equal ((formOf closed).WeekdayInput, isOpen closed) (Some 3, false) "ohne Wahl zu, Mittwoch bleibt"
+            Expect.isFalse (isOpen (onTrip |> step OpenTargetWeekdayChoice)) "monatlich: kein Feld, keine Auswahl"
+            Expect.isFalse (isOpen (opened |> step (SelectInspectorTab MoneyTab) |> step (SelectInspectorTab TargetTab))) "Tabwechsel schließt sie"
+        }
+        test "Solange das Speichern läuft, öffnet das Feld Wochentag nichts" {
+            let weekly = { targetOf 25m with Rhythm = Weeks 1; Day = Some 1; NeedsWholeAmount = None }
+            let saving = onTrip |> withTarget tripId current (Some weekly) |> step (TargetAmountChanged "30") |> step SaveTarget
+            let shown, locks, form = tabForm saving (categoryOf saving tripId)
+            Expect.equal (targetWeekdayField shown locks form |> Option.map (fun f -> f.Locked)) (Some true) "gesperrt"
+            Expect.isFalse (formOf (saving |> step OpenTargetWeekdayChoice)).WeekdayChoiceOpen "nicht antippbar"
         }
     ]
 

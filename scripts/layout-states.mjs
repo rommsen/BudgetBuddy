@@ -867,6 +867,20 @@ export const STATES = [
       reach: (page) => page.locator('.bottom-sheet.active [data-testid="target-amount"] input'),
     },
   },
+  // budgeting-h2brj: die kurze Auswahl des Wochentags, am PC ein Dialog über dem Panel, am Handy anstelle des Tabs im
+  // Sheet mit „Zurück“ oben.
+  {
+    name: "budget-target-wochentag-auswahl",
+    route: "/budget",
+    widths: [412, 1440],
+    mock: mockBudget,
+    open: async (page, { mobile }) => {
+      const scope = await openInspector(page, mobile, "Essen", "Target");
+      await scope.getByRole("button", { name: "Woche", exact: true }).click();
+      await scope.locator('[data-testid="target-weekday-field"]').click();
+      await page.locator('[data-testid="target-weekday-options"]:visible button').first().waitFor();
+    },
+  },
   // budgeting-xp46a: die Warnung vor dem Wechsel der Art im Sheet ohne Scrollen.
   {
     name: "budget-target-warnung",

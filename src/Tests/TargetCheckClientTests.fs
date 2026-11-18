@@ -830,6 +830,22 @@ let private keyTests =
             Expect.equal (targetCheckKeyMsg removing Client.DesignSystem.ListKeys.Elsewhere true false false "Escape") None "mit Zusatztaste nichts"
         }
 
+        // budgeting-h2brj: die Auswahl des Wochentags in „Anpassen …“ ist die oberste Stufe.
+        test "Im Panel öffnet das Feld Wochentag die Auswahl, Esc schließt nur sie, die Wahl setzt den Tag" {
+            let esc model = targetCheckKeyMsg model Client.DesignSystem.ListKeys.Elsewhere false false false "Escape"
+            let opened = loaded () |> step (AdjustTarget lessId) |> step OpenCheckWeekdayChoice
+            Expect.isTrue (panelOf opened).WeekdayChoiceOpen "offen"
+            Expect.equal (esc opened) (Some CloseCheckWeekdayChoice) "Esc: nur die Auswahl"
+            let closed = opened |> step CloseCheckWeekdayChoice
+            Expect.isFalse (panelOf closed).WeekdayChoiceOpen "zu"
+            Expect.isSome (panelRow closed) "Panel bleibt"
+            Expect.equal (esc closed) (Some CloseCheckPanel) "danach das Panel"
+            let picked = opened |> step (CheckWeekdayChanged 5)
+            Expect.equal ((panelOf picked).WeekdayInput, (panelOf picked).WeekdayChoiceOpen) (Some 5, false) "Freitag, zu"
+            let monthly = loaded () |> step (AdjustTarget moreId) |> step OpenCheckWeekdayChoice
+            Expect.isFalse (panelOf monthly).WeekdayChoiceOpen "monatlich: kein Feld"
+        }
+
         // Bug (Review nach design-system-gcpws): Esc schloss das Panel, während sein Aufruf lief.
         test "Esc während das Panel speichert schließt nichts, ein Aufruf aus der Zeile sperrt Esc nicht" {
             let esc model = targetCheckKeyMsg model Client.DesignSystem.ListKeys.Elsewhere false false false "Escape"

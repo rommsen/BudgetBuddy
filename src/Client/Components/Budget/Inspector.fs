@@ -82,6 +82,11 @@ let private listFocus (focus: KeyFocus) : ListKeys.Focus =
     | SearchField -> ListKeys.InSearch
     | OtherFocus -> ListKeys.Elsewhere
 
+/// Steht die Auswahl des Wochentags im Tab Target offen (budgeting-h2brj)? Dann ist sie die oberste Ebene (§7.8):
+/// die Liste ruht, Esc schließt nur sie.
+let targetWeekdayChoiceOpen (model: Model) : bool =
+    model.Tab = TargetTab && model.TargetForm |> Option.exists (fun f -> f.WeekdayChoiceOpen)
+
 /// Die gemeinsame Tastenregel (`ListKeys.actionFor`, design-system-gcpws) im Zustand der Seite: Targets anwenden,
 /// Targets nach YNAB, das Menü ⋮ und der offene Picker der Gegenseite liegen als Ebene darüber und behalten die
 /// Tasten für sich; die gewählte Kategorie ist die gewählte Zeile und das, was im Panel offen ist. Ein druckbares
@@ -99,6 +104,7 @@ let pageListAction (model: Model) (key: string) (focus: KeyFocus) (shift: bool) 
               || model.TargetsToYnab <> TargetsToYnabClosed
               || model.MenuOpen
               || pickerOpen model
+              || targetWeekdayChoiceOpen model
           RowSelected = model.Selected.IsSome
           PanelOpen = model.Selected.IsSome
           SelectionActive = false }

@@ -414,6 +414,9 @@ let inspectorSheet (pin: InspectorPin option) (model: Model) (shown: BudgetGroup
           Title = title
           Subtitle = subtitle
           Footer = None }
+    let weekdayChoice =
+        sheetCategory model
+        |> Option.bind (fun (_, _, (category, _)) -> Components.Budget.TargetEditView.weekdayChoiceInSheet model category dispatch)
     match sheetCategory model, model.TabMoney with
     // Die Gegenseite beim Verschieben: die Auswahl ersetzt den Inhalt des Sheets (§7.15, ledger-ea70s), Wahl oder
     // Schließen führen zurück. Betrag und Modus stehen im Modell und bleiben.
@@ -429,6 +432,21 @@ let inspectorSheet (pin: InspectorPin option) (model: Model) (shown: BudgetGroup
             []
             []
             [ CategoryPicker.sheetContent picker ]
+    | Some (_, month, (category, _)), _ when weekdayChoice.IsSome ->
+        // Die Auswahl des Wochentags ersetzt den Inhalt des Sheets wie die Gegenseite (§7.15, budgeting-h2brj); Wahl,
+        // „Zurück“ oder Schließen führen zum Tab Target zurück, die Eingaben stehen im Modell und bleiben.
+        BottomSheet.inspector
+            { IsOpen = true
+              OnClose = fun () -> dispatch CloseTargetWeekdayChoice
+              Title = "Wochentag"
+              Subtitle = Some $"{category.Name} · {monthLabel month.Month}"
+              Footer = None }
+            []
+            []
+            [ Html.div [
+                  prop.className "py-2"
+                  prop.children [ weekdayChoice |> Option.defaultValue Html.none ]
+              ] ]
     | Some (selected, month, (category, groupName)), _ ->
         BottomSheet.inspector
             (props category.Name (Some $"{groupName} · {monthLabel month.Month}") true)
