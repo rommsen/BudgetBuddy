@@ -369,9 +369,12 @@ let targetCheckKeyMsg (model: Model) (focus: ListKeys.Focus) (command: bool) (sh
               PanelOpen = panel.IsSome
               SelectionActive = false }
     match panel with
-    | Some (_, form) when action = ListKeys.ClosePanel ->
-        if (panelLocks model form).Running.IsSome then None
-        elif form.WeekdayChoiceOpen then Some CloseCheckWeekdayChoice
+    | Some (row, form) when action = ListKeys.ClosePanel ->
+        let locks = panelLocks model form
+        // Offen ist die Auswahl nur, solange ihr Feld steht: macht ein Neuladen das Target nicht wöchentlich,
+        // bleibt das Flag stehen, die Auswahl ist aber weg (dasselbe Feld wie in `TargetFormView`).
+        if locks.Running.IsSome then None
+        elif targetWeekdayField row.Target locks form |> Option.exists (fun f -> f.Open) then Some CloseCheckWeekdayChoice
         elif form.ConfirmingChange then Some CancelCheckTargetChange
         elif form.ConfirmingRemove then Some CancelRemoveCheckTarget
         else Some CloseCheckPanel

@@ -846,6 +846,22 @@ let private keyTests =
             Expect.isFalse (panelOf monthly).WeekdayChoiceOpen "monatlich: kein Feld"
         }
 
+        // Bug (Review nach budgeting-h2brj): Machte ein Neuladen das gezeigte Target unter offener Wochentag-Auswahl
+        // monatlich, verschwand die Auswahl, das Flag blieb stehen und Esc schickte `CloseCheckWeekdayChoice` statt
+        // „Anpassen …“ zu schließen.
+        test "Macht ein Neuladen das Target unter offener Wochentag-Auswahl monatlich, schließt Esc das Panel" {
+            let esc model = targetCheckKeyMsg model Client.DesignSystem.ListKeys.Elsewhere false false false "Escape"
+            let opened = loaded () |> step (AdjustTarget lessId) |> step OpenCheckWeekdayChoice
+            let nowMonthly =
+                { checkData with
+                    Categories =
+                        checkData.Categories
+                        |> List.map (fun c -> if c.CategoryId = lessId then { c with Target = Some (monthly 50m) } else c) }
+            let reloaded = opened |> answer (Ok nowMonthly)
+            Expect.isSome (panelRow reloaded) "Panel bleibt offen"
+            Expect.equal (esc reloaded) (Some CloseCheckPanel) "Esc schließt das Panel"
+        }
+
         // Bug (Review nach design-system-gcpws): Esc schloss das Panel, während sein Aufruf lief.
         test "Esc während das Panel speichert schließt nichts, ein Aufruf aus der Zeile sperrt Esc nicht" {
             let esc model = targetCheckKeyMsg model Client.DesignSystem.ListKeys.Elsewhere false false false "Escape"
