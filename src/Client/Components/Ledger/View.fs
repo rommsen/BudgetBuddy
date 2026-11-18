@@ -2997,10 +2997,10 @@ let private entryList
 // ============================================
 // Chips, Kategorienauswahl mit Mehrfachauswahl (Click-Commit, ADR 0005/Styleguide
 // 7.1), Zeitraum-Schnellwahl, Payee-Vorschläge, Memo-/Betrags-Suchfelder und die
-// Summenzeile über der Liste. Beide Geräte teilen sich denselben Popover-Inhalt
-// (`*PickerBody`); nur die Chrome darum unterscheidet sich (`filterChrome`):
-// BottomSheet am Handy, `FilterPopover` am PC. Welche Chrome gerendert wird,
-// entscheidet `Viewport.isDesktopViewport()` zur Renderzeit, NICHT der übliche
+// Summenzeile über der Liste. Beide Geräte teilen sich denselben Auswahl-Inhalt
+// (`*PickerBody`); nur die Chrome darum unterscheidet sich: `FilterPopover` am PC
+// (`filterChrome`), das Filter-Sheet am Handy (`filterSheet`). Welche Form gerendert
+// wird, entscheidet `Viewport.isInspectorPanelViewport()` zur Renderzeit, NICHT der übliche
 // CSS-Doppel-Render-Trick (`Primitives.Responsive.mobileOnly`/`desktopOnly`): ein
 // `BottomSheet` portalt immer nach `document.body`, unabhängig von einem
 // versteckten Wrapper um die Aufrufstelle, ein doppelter Render würde also zwei
@@ -3161,19 +3161,13 @@ let private popoverBody (dispatch: Msg -> unit) (model: Model) (categories: Ynab
     | DateChip -> datePickerBody dispatch model
     | AmountChip -> amountPickerBody dispatch model
 
-/// Die Chrome um einen Popover-Inhalt: BottomSheet am Handy, `FilterPopover` am
-/// PC. Siehe Modul-Kommentar oben, warum das zur Renderzeit entschieden wird,
-/// statt beide Varianten gleichzeitig (versteckt) zu montieren.
+/// Die Chrome um einen Popover-Inhalt am PC: `FilterPopover`. Die Chipleiste steht nur
+/// ab 1024 px (`filterChipBar`), darunter stehen Kategorie und Zeitraum im Filter-Sheet
+/// an Stelle der Filter (ledger-npqcb, `filterSheet`).
 let private filterChrome (dispatch: Msg -> unit) (chip: ChipId) (isOpen: bool) (body: ReactElement) : ReactElement =
-    // Unter 1024 px stehen Kategorie und Zeitraum im Filter-Sheet an Stelle der Filter (ledger-npqcb, `filterSheet`).
-    if Viewport.isInspectorPanelViewport () then
-        FilterPopover.view
-            { IsOpen = isOpen; OnClose = (fun () -> dispatch CloseFilterPopover); WidthClassName = popoverWidth chip }
-            [ body ]
-    else
-        BottomSheet.view
-            { IsOpen = isOpen; OnClose = (fun () -> dispatch CloseFilterPopover); Title = chipTitle chip; Subtitle = None; Footer = None }
-            [ body ]
+    FilterPopover.view
+        { IsOpen = isOpen; OnClose = (fun () -> dispatch CloseFilterPopover); WidthClassName = popoverWidth chip }
+        [ body ]
 
 let private categoryChipLabel (filters: Filters) : string = $"Kategorie: {Set.count filters.CategoryIds}"
 
