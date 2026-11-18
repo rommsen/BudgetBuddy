@@ -1,7 +1,7 @@
 ---
 id: ledger-npqcb
 title: "Filter-Sheet am Handy: Kategorie, Zeitraum und Sortieren ersetzen den Inhalt des Sheets statt ein zweites Sheet zu öffnen"
-status: todo
+status: doing
 type: feature
 context: ledger
 created: 2026-11-18

@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-18 22:26 -- Batch started: [budgeting-ht88a, budgeting-h2brj, ledger-npqcb]
+
+**Type:** Work / Batch start
+**Tasks:** budgeting-ht88a - "Targets prüfen: Gelb nur am Titel „Gibst du mehr aus?“ und an den Balken, Kopf als ein neutraler Satz wie im Prototyp", budgeting-h2brj - "Wochentag eines Targets als Auswahlfeld statt sieben Knöpfe, ohne Wahl „Wochentag wählen“ in Gelb", ledger-npqcb - "Filter-Sheet am Handy: Kategorie, Zeitraum und Sortieren ersetzen den Inhalt des Sheets statt ein zweites Sheet zu öffnen"
+**Parallel:** yes (3 workers, cap 3) — budgeting-yarty held to next wave: overlaps budgeting-h2brj at PickerParts.ShortChoiceFor/Input.selectField and the layout sweep
+
+---
+
 ## 2026-11-18 21:42 -- Modeling / Promoted: ledger-npqcb - "Filter-Sheet am Handy: Kategorie, Zeitraum und Sortieren ersetzen den Inhalt des Sheets statt ein zweites Sheet zu öffnen"
 
 **Type:** Modeling / Promote

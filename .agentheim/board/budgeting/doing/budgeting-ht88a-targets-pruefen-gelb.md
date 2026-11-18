@@ -1,7 +1,7 @@
 ---
 id: budgeting-ht88a
 title: "Targets prüfen: Gelb nur am Titel „Gibst du mehr aus?“ und an den Balken, Kopf als ein neutraler Satz wie im Prototyp"
-status: todo
+status: doing
 type: feature
 context: budgeting
 created: 2026-11-18
