@@ -184,7 +184,7 @@ let private weekdayField (props: TargetFormProps) (field: WeekdayField) =
 /// Die kurze Auswahl des Wochentags (budgeting-h2brj, wie die Gruppe in „Kategorie bearbeiten“, G13): sieben Zeilen,
 /// Montag zuerst, die gewählte mit Haken. Am PC steht der Fokus beim Öffnen auf ihr, ↑↓ und Enter (§7.9); Esc schließt
 /// nur die Auswahl und verbraucht die Taste (§7.8 Punkt 4), der Fokus geht zurück aufs Feld. Am Handy steht sie im
-/// Sheet anstelle des Formulars (§7.15), oben „Zurück“; den Inhalt setzt der Nutzer der View ins Sheet.
+/// Sheet anstelle des Formulars (§7.15), oben „Zurück“; die Hülle dafür baut `weekdayChoiceInSheet`.
 let weekdayChoice (props: TargetFormProps) (inSheet: bool) =
     let chosen = targetWeekdayValue props.Shown props.Form
     Html.div [
@@ -238,10 +238,13 @@ let private weekdayChoiceDialog (props: TargetFormProps) =
             [ Modal.body [ weekdayChoice props false ] ]
     | _ -> Html.none
 
-/// Steht die Auswahl des Wochentags am Handy offen? Dann zeigt das Sheet sie anstelle des Formulars (§7.15).
-let weekdayChoiceInSheet (props: TargetFormProps) : bool =
-    not props.IsPanel
-    && targetWeekdayField props.Shown props.Locks props.Form |> Option.exists (fun f -> f.Open)
+/// Die Auswahl des Wochentags samt Hülle, wenn sie am Handy offen steht: dann zeigt das Sheet sie anstelle des
+/// Formulars (§7.15). Beide Sheets (Inspector, Targets prüfen) setzen sie so ein. `None` sonst.
+let weekdayChoiceInSheet (props: TargetFormProps) : ReactElement option =
+    if not props.IsPanel && targetWeekdayField props.Shown props.Locks props.Form |> Option.exists (fun f -> f.Open) then
+        Some (Html.div [ prop.className "py-2"; prop.children [ weekdayChoice props true ] ])
+    else
+        None
 
 let private amountField (props: TargetFormProps) =
     let target = props.Shown

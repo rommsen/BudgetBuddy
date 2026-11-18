@@ -388,10 +388,10 @@ let inspectorSheet (pin: InspectorPin option) (model: Model) (shown: BudgetGroup
     let weekdayChoice =
         sheetCategory model
         |> Option.bind (fun (_, _, (category, _)) -> Components.Budget.TargetEditView.weekdayChoiceInSheet model category dispatch)
-    match sheetCategory model, model.TabMoney with
+    match sheetCategory model, model.TabMoney, weekdayChoice with
     // Die Gegenseite beim Verschieben: die Auswahl ersetzt den Inhalt des Sheets (§7.15, ledger-ea70s), Wahl oder
     // Schließen führen zurück. Betrag und Modus stehen im Modell und bleiben.
-    | Some (_, month, (category, _)), Some tab when model.Tab = MoneyTab && tab.Transfer.PickerOpen ->
+    | Some (_, month, (category, _)), Some tab, _ when model.Tab = MoneyTab && tab.Transfer.PickerOpen ->
         let picker = counterpartPickerProps model month tab dispatch
         BottomSheet.inspector
             { IsOpen = true
@@ -403,7 +403,7 @@ let inspectorSheet (pin: InspectorPin option) (model: Model) (shown: BudgetGroup
             []
             []
             [ CategoryPicker.sheetContent picker ]
-    | Some (_, month, (category, _)), _ when weekdayChoice.IsSome ->
+    | Some (_, month, (category, _)), _, Some choice ->
         // Die Auswahl des Wochentags ersetzt den Inhalt des Sheets wie die Gegenseite (§7.15, budgeting-h2brj); Wahl,
         // „Zurück“ oder Schließen führen zum Tab Target zurück, die Eingaben stehen im Modell und bleiben.
         BottomSheet.inspector
@@ -414,11 +414,8 @@ let inspectorSheet (pin: InspectorPin option) (model: Model) (shown: BudgetGroup
               Footer = None }
             []
             []
-            [ Html.div [
-                  prop.className "py-2"
-                  prop.children [ weekdayChoice |> Option.defaultValue Html.none ]
-              ] ]
-    | Some (selected, month, (category, groupName)), _ ->
+            [ choice ]
+    | Some (selected, month, (category, groupName)), _, _ ->
         BottomSheet.inspector
             (props category.Name (Some $"{groupName} · {monthLabel month.Month}") true)
             (sheetStepper model shown dispatch @ [ pinButton pin category ])
@@ -430,7 +427,7 @@ let inspectorSheet (pin: InspectorPin option) (model: Model) (shown: BudgetGroup
                   prop.className "-mx-5"
                   prop.children [ inspectorContent model month selected category dispatch ]
               ] ]
-    | None, _ -> BottomSheet.inspector (props "" None false) [] [] []
+    | None, _, _ -> BottomSheet.inspector (props "" None false) [] [] []
 
 /// Das Panel ab 1024 px. Der Hinweis steht ohne Auswahl da, die Höhe bleibt gleich. Beim Blättern
 /// bleibt der Inhalt stehen. Lädt der Monat bei bestehender Auswahl, steht ein Skeleton da. Scheitert

@@ -368,10 +368,13 @@ let private sheet (model: Model) (dispatch: Msg -> unit) =
           Title = title
           Subtitle = None
           Footer = None }
-    match panelRow model with
+    let panel = panelRow model
+    let weekdayChoice =
+        panel |> Option.bind (fun (row, form) -> TargetFormView.weekdayChoiceInSheet (formProps model row form false dispatch))
+    match panel, weekdayChoice with
     // Die Auswahl des Wochentags ersetzt den Inhalt des Sheets (§7.15, budgeting-h2brj); Wahl, „Zurück“ oder
     // Schließen führen zum Formular zurück, die Eingaben stehen im Modell und bleiben.
-    | Some (row, form) when TargetFormView.weekdayChoiceInSheet (formProps model row form false dispatch) ->
+    | Some (row, _), Some choice ->
         BottomSheet.inspector
             { IsOpen = true
               OnClose = fun () -> dispatch CloseCheckWeekdayChoice
@@ -380,11 +383,8 @@ let private sheet (model: Model) (dispatch: Msg -> unit) =
               Footer = None }
             []
             []
-            [ Html.div [
-                  prop.className "py-4"
-                  prop.children [ TargetFormView.weekdayChoice (formProps model row form false dispatch) true ]
-              ] ]
-    | Some (row, form) ->
+            [ choice ]
+    | Some (row, form), None ->
         BottomSheet.inspector
             (props row.Name true)
             []
@@ -394,7 +394,7 @@ let private sheet (model: Model) (dispatch: Msg -> unit) =
                   prop.className "py-4"
                   prop.children [ panelBody model row form false dispatch ]
               ] ]
-    | None -> BottomSheet.inspector (props "" false) [] [] []
+    | None, _ -> BottomSheet.inspector (props "" false) [] [] []
 
 /// „Zurück“ mit Pfeil (Prototyp `.back`, design-system-k6kfw).
 let private backButton (dispatch: Msg -> unit) =

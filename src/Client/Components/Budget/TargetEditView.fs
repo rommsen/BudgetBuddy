@@ -99,5 +99,5 @@ let weekdayChoiceInSheet (model: Model) (category: BudgetCategory) (dispatch: Ms
         | NoTargetShown
         | TargetReadOnly _ -> None
     match props with
-    | Some p when model.Tab = TargetTab && TargetFormView.weekdayChoiceInSheet p -> Some (TargetFormView.weekdayChoice p true)
+    | Some p when model.Tab = TargetTab -> TargetFormView.weekdayChoiceInSheet p
     | _ -> None
