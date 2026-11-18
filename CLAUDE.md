@@ -106,6 +106,10 @@ beheben, nicht umgehen.
   drei, ohne Memo, statt fünf aus YNAB mit Memo). Eingaben prüft er mit Touch bei 412 px (Romans Galaxy S25 Ultra):
   Betragsfelder ohne Vorzeichen, weil die Zifferntastatur zu `inputmode="decimal"` je nach Tastatur-App kein Minus hat (die Richtung kommt aus
   Ausgabe/Einnahme oder der Buchung). Der Wechsel zwischen zwei Feldern darf die Tastatur nicht schließen.
+- Ein Artifact (claude.ai-Seite) gibt es nur, wenn Roman etwas entscheiden oder selbst ernsthaft prüfen muss
+  (Skizze zur Freigabe, Abwägung mit Optionen, Review eines Ergebnisses). Statusmeldungen, nächste Schritte und
+  Hinweise wie „Styleguide-Editor starten“ oder „Review-Agents laufen lassen“ stehen kurz in der Antwort, nie
+  in einem Artifact.
 - Worker und Verifier können claude.ai-Artifacts nicht öffnen. Der Conductor liest die Skizze (`Artifact`
   read), legt ihre Dateien und einen Screenshot je Ansicht in den Scratchpad und gibt Worker, Verifier und
   `review-design` die Pfade mit. Die Task trägt ein Kriterium „Seite neben der Skizze verglichen, Abweichungen
