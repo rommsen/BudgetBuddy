@@ -1,7 +1,7 @@
 ---
 id: budgeting-h2brj
 title: "Wochentag eines Targets als Auswahlfeld statt sieben Knöpfe, ohne Wahl „Wochentag wählen“ in Gelb"
-status: backlog
+status: todo
 type: feature
 context: budgeting
 created: 2026-11-18

@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-18 21:42 -- Modeling / Promoted: budgeting-h2brj - "Wochentag eines Targets als Auswahlfeld statt sieben Knöpfe, ohne Wahl „Wochentag wählen“ in Gelb"
+
+**Type:** Modeling / Promote
+**BC:** budgeting
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-18 21:42 -- Modeling / Promoted: budgeting-ht88a - "Targets prüfen: Gelb nur am Titel „Gibst du mehr aus?“ und an den Balken, Kopf als ein neutraler Satz wie im Prototyp"
 
 **Type:** Modeling / Promote
