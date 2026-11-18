@@ -953,9 +953,20 @@ export const STATES = [
     ],
     mock: mockBudget,
     open: async (page) => {
-      const run = page.locator('[data-testid="general-history-run"]').first();
-      await run.waitFor();
-      await page.locator('[data-testid="general-history-toggle"]:visible, [data-testid="general-history-run"] button[aria-expanded]:visible').first().click();
+      await page.locator('[data-testid="general-history-rows"] [data-testid="history-row"]').first().waitFor();
+      await page.locator('[data-testid="general-history-rows"] [data-testid="history-toggle"]:visible').first().click();
+    },
+  },
+  // budgeting-yarty: die offene Auswahl „Historie zeigen“ hinter dem Feld „Zeigen“, am Handy im Sheet, am PC als Dialog.
+  {
+    name: "budget-historie-zeigen",
+    route: "/budget/history",
+    widths: [412, 1440],
+    mock: mockBudget,
+    open: async (page) => {
+      await page.locator('[data-testid="general-history-rows"] [data-testid="history-row"]').first().waitFor();
+      await page.locator('[data-testid="general-history-filter-field"]').click();
+      await page.locator('[data-testid="general-history-filter-options"]:visible button').first().waitFor();
     },
   },
   // budgeting-q4v8n, budgeting-c4ve4: die Seite Targets prüfen mit langen Namen, Knöpfen je Zeile und Mini-Balken.

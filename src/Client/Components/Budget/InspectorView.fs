@@ -138,57 +138,28 @@ let private availableBuildupView (category: BudgetCategory) =
         ]
     ]
 
-/// Eine Bewegung. In der zweiten Zeile bleiben Datum und Badge ganz, ein langer Fehlgrund kürzt mit
-/// Ellipse und steht ganz im `title`. Eine Pause hat keinen Stand, nur die Uhrzeit.
-let private historyLineView (line: HistoryLine) =
-    let time = historyTimeText line.OccurredAt
-    Html.div [
-        prop.key (string line.EntryId)
-        prop.custom ("data-testid", "history-movement")
-        prop.className ListRoles.mobileRowPadding
-        prop.children [
-            Html.div [
-                prop.className ListRoles.mobileLine1
-                prop.children [
-                    Truncate.text ListRoles.primary line.Text
-                    match line.Change with
-                    | Some change -> historyChangeView change
-                    | None -> ()
-                ]
-            ]
-            Html.div [
-                prop.className ListRoles.mobileLine2
-                prop.children [
-                    Html.span [
-                        prop.custom ("data-testid", "history-time")
-                        prop.className $"{ListRoles.date} shrink-0 whitespace-nowrap"
-                        prop.text time
-                    ]
-                    match line.Status with
-                    | Some status ->
-                        Html.span [ prop.className "shrink-0"; prop.children [ historyStatusView status ] ]
-                        historyFailureView status
-                    | None -> ()
-                ]
-            ]
-        ]
-    ]
+/// Ein Eintrag nach §7.11 (`HistoryList`, budgeting-yarty): Zeit, Kürzel, Text, Betrag; der Stand mit dem Grund eines
+/// Fehlschlags steht als Zusatz darunter. Eine Pause und eine Änderung nur in BB haben keinen Stand.
+let private historyEntryView (entry: HistoryEntry) =
+    HistoryList.rowWithNote
+        (entryItem entry)
+        [ match entryStatus entry with
+          | Some status ->
+              Html.span [ prop.className "shrink-0"; prop.children [ historyStatusView status ] ]
+              historyFailureWrapped status
+          | None -> () ]
 
 /// Der Verlauf der Kategorie im Monat: Bewegungen, Pause-Ereignisse und Target-Änderungen, neueste
-/// zuerst, und der Hinweis auf YNAB (ADR 0065, Negative). Der Leertext steht nur bei leerer Liste.
+/// zuerst. Der Leertext steht nur bei leerer Liste.
 let private historyMovements (history: CategoryHistory) =
     Html.div [
-        prop.className "flex flex-col"
+        prop.className "flex flex-col px-4"
         prop.children [
-            Html.span [ prop.className $"{ListRoles.groupHeader} px-4"; prop.text "Verlauf" ]
+            Html.span [ prop.className ListRoles.groupHeader; prop.text "Verlauf" ]
             if List.isEmpty history.Entries then
-                Html.p [
-                    prop.custom ("data-testid", "history-empty")
-                    prop.className $"{ListRoles.muted} px-4 py-4"
-                    prop.text "Nichts festgehalten in diesem Monat"
-                ]
+                HistoryList.empty "Nichts festgehalten in diesem Monat"
             else
-                Html.div [ prop.children (history.Entries |> List.map (historyEntryLine >> historyLineView)) ]
+                HistoryList.listOf "history-list" (history.Entries |> List.map historyEntryView)
         ]
     ]
 

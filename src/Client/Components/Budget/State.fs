@@ -442,6 +442,8 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
         let retried = retryGeneralHistory model
         retried, generalHistoryCmd retried.GeneralHistory.Generation, NoOp
     | GeneralHistoryLoaded (generation, result) -> applyGeneralHistoryLoaded generation result model, Cmd.none, NoOp
+    | OpenRunFilterChoice -> openRunFilterChoice model, Cmd.none, NoOp
+    | CloseRunFilterChoice -> closeRunFilterChoice model, Cmd.none, NoOp
     | SelectRunFilter filter -> selectRunFilter filter model, Cmd.none, NoOp
     | ToggleRun runId -> toggleRun runId model, Cmd.none, NoOp
     | LeaveGeneralHistory -> model, Cmd.none, leaveGeneralHistory model
@@ -707,6 +709,8 @@ let private routeOf (msg: Msg) (model: Model) : MsgRoute =
     | GeneralHistoryEntered
     | RetryGeneralHistory
     | GeneralHistoryLoaded _
+    | OpenRunFilterChoice
+    | CloseRunFilterChoice
     | SelectRunFilter _
     | ToggleRun _
     | LeaveGeneralHistory

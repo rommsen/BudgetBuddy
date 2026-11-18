@@ -1,5 +1,5 @@
 /// Bausteine der Bewegungszeilen, geteilt vom Tab Historie (`InspectorView`) und der allgemeinen Historie
-/// (`HistoryView`, budgeting-c6vn4 A9): Stand, Betrag, Fehlgrund und der Satz zu YNAB.
+/// (`HistoryView`, budgeting-c6vn4 A9): Stand, Betrag und Fehlgrund als Zusatz einer Zeile aus `HistoryList`.
 module Components.Budget.HistoryRowsView
 
 open Feliz
@@ -23,32 +23,14 @@ let historyStatusView (status: HistoryStatus) =
     | HistoryReplacedInBb
     | HistoryWithdrawnInBb -> Badge.neutralSmall text
 
-/// Der Betrag einer Bewegungszeile, wie `historyChangeAmount` ihn liefert.
-let historyChangeView (change: Money) =
-    let text, amountClass = historyChangeAmount change
-    Html.span [ prop.className amountClass; prop.text text ]
-
-/// Der Grund eines Fehlschlags neben dem Badge. Er kürzt mit Ellipse und steht ganz im `title`.
-let historyFailureView (status: HistoryStatus) =
+/// Der Grund eines Fehlschlags als Teil des Zusatzes einer Zeile (`HistoryList`, budgeting-yarty): neben dem Badge,
+/// passt er nicht daneben, in eigener Zeile, auf bis zu zwei Zeilen umbrochen (budgeting-c6vn4, A6), ganz im `title`.
+let historyFailureWrapped (status: HistoryStatus) =
     match historyFailureReason status with
     | Some reason ->
         Html.span [
             prop.custom ("data-testid", "history-failure-reason")
-            prop.className $"{ListRoles.secondary} truncate min-w-0"
-            prop.title reason
-            prop.text reason
-        ]
-    | None -> Html.none
-
-/// Der Grund eines Fehlschlags in einer eigenen Zeile, auf bis zu zwei Zeilen umbrochen
-/// (budgeting-c6vn4, A6): in den aufgeklappten Einzelzeilen der allgemeinen Historie, wo der Grund
-/// sonst am Handy auf wenige Zeichen schrumpft.
-let historyFailureWrapped (status: HistoryStatus) =
-    match historyFailureReason status with
-    | Some reason ->
-        Html.p [
-            prop.custom ("data-testid", "history-failure-reason")
-            prop.className $"{ListRoles.secondary} line-clamp-2 mt-0.5"
+            prop.className $"{ListRoles.secondary} line-clamp-2 min-w-0"
             prop.title reason
             prop.text reason
         ]

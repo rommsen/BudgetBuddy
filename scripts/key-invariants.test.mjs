@@ -219,6 +219,20 @@ const DIALOGS = [
     chosen: (page) => page.locator('aside[data-testid="budget-inspector"] [data-testid="target-weekday-field"]').innerText(),
     closes: true,
   },
+  {
+    // budgeting-yarty: „Historie zeigen“ hinter dem Feld „Zeigen“ der Budget-Historie, kurze Auswahl ohne Suche im
+    // Dialog. „Alle“ ist beim Öffnen gewählt und trägt `aria-current`.
+    name: "Historie zeigen",
+    state: "budget-historie",
+    width: 1440,
+    short: true,
+    open: async (page) => {
+      await page.locator('[data-testid="general-history-filter-field"]').click();
+      await page.locator('[data-testid="general-history-filter-options"] button').first().waitFor();
+    },
+    chosen: (page) => page.locator('[data-testid="general-history-filter-field"]').innerText(),
+    closes: true,
+  },
 ];
 
 /// P1 bis P3 für einen Dialog; liefert die Befunde als Text.

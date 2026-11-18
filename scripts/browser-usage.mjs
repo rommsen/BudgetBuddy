@@ -101,7 +101,7 @@ export const FLOWS = {
   "targets-anwenden": "Am Handy über das Feld Targets anwenden der Leiste Monatserster die Vorschau öffnen, eine Zeile abwählen und anwenden.",
   "target-aendern": "Am Handy im Tab Target den Betrag eines Targets ändern und speichern.",
   "target-anlegen": "Am Handy für eine Kategorie ohne Target ein Monats-Target anlegen.",
-  "budget-historie": "Am Handy über den Knopf Historie die allgemeine Historie öffnen, nach Art filtern, einen Targets-Durchlauf aufklappen und zurück zur Budget-Seite.",
+  "budget-historie": "Am Handy über den Knopf Historie die allgemeine Historie öffnen, über das Feld Zeigen nach Art filtern, einen Targets-Durchlauf aufklappen und zurück zur Budget-Seite.",
   "targets-pruefen": "Am Handy über das Feld Targets prüfen der Leiste Monatserster die Seite öffnen, bei Gibst du mehr aus einen Vorschlag übernehmen und zurück zur Budget-Seite.",
   "budget-zur-buchung": "Aus einer Kategorie im Budget in eine Buchung im Kassenbuch springen und zurück.",
   "kategorien-neu-laden": "Nach einem Ladefehler im Kategorie-Picker die Kategorien erneut laden.",

@@ -209,6 +209,8 @@ type GeneralHistory = {
     /// Pausen und Target-Änderungen (budgeting-r5h2n).
     Rows: RemoteData<GeneralHistoryRow list>
     Filter: RunFilter
+    /// Die kurze Auswahl „Historie zeigen“ hinter dem Feld „Zeigen“ steht offen (budgeting-yarty).
+    FilterChoiceOpen: bool
     /// Die aufgeklappten Durchläufe Targets anwenden.
     Expanded: Set<System.Guid>
     /// Über den Knopf Historie geöffnet: die Rückkehr zur Budget-Seite behält Monat und Auswahl.
@@ -494,6 +496,11 @@ type Msg =
     | RetryGeneralHistory
     /// Die Antwort, mit der Generation beim Start des Ladens.
     | GeneralHistoryLoaded of generation: int * Result<HistoryEntry list, string>
+    /// Das Feld „Zeigen“ öffnet die Auswahl „Historie zeigen“ (budgeting-yarty).
+    | OpenRunFilterChoice
+    /// Die Auswahl schließt ohne Wahl (Schließen, Esc, Tipp daneben).
+    | CloseRunFilterChoice
+    /// Eine Art in der Auswahl gewählt: sie schließt und filtert.
     | SelectRunFilter of RunFilter
     /// Tipp auf einen Durchlauf Targets anwenden: auf- oder zuklappen.
     | ToggleRun of System.Guid
@@ -643,7 +650,7 @@ let init () : Model =
       TargetsToYnab = TargetsToYnabClosed
       Selected = None
       Tab = MoneyTab
-      GeneralHistory = { Rows = NotAsked; Filter = AllRuns; Expanded = Set.empty; ReturnPending = false; Generation = 0 }
+      GeneralHistory = { Rows = NotAsked; Filter = AllRuns; FilterChoiceOpen = false; Expanded = Set.empty; ReturnPending = false; Generation = 0 }
       TargetCheck = { Data = NotAsked; OpenGroups = Set.empty; Panel = None; ReturnPending = false; Generation = 0; LoadPending = false }
       EntriesGeneration = 0
       HistoryGeneration = 0

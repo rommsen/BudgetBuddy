@@ -332,6 +332,37 @@ let historyChangeAmount (change: Money) : string * string =
         else Money.signedListAmountText change.Amount change.Currency
     text, Money.signedListAmountClass
 
+/// Das Kürzel der Herkunft einer Historie-Zeile (§7.11, budgeting-yarty): „BB“ für eine Entscheidung in BB,
+/// „YNAB“ für Beobachtetes und Übernommenes.
+[<Literal>]
+let WhoBb = "BB"
+
+[<Literal>]
+let WhoYnab = "YNAB"
+
+let originWho (origin: HistoryOrigin) : string =
+    if isFromYnab origin then WhoYnab else WhoBb
+
+/// Das Kürzel eines Eintrags im Tab Historie. Pausen und Target-Änderungen entstehen in BB.
+let entryWho (entry: HistoryEntry) : string =
+    match entry with
+    | Movement m -> originWho m.Origin
+    | TargetPaused _
+    | PauseLifted _
+    | TargetChanged _ -> WhoBb
+
+/// Der Stand eines Eintrags als Zusatz unter dem Text: `None` bei allem, was nie nach YNAB geht.
+let entryStatus (entry: HistoryEntry) : HistoryStatus option = (historyEntryLine entry).Status
+
+/// Ein Eintrag im Tab Historie als Zeile nach §7.11: Zeit, Kürzel, Text, Betrag mit Vorzeichen.
+let entryItem (entry: HistoryEntry) : HistoryList.Item =
+    let line = historyEntryLine entry
+    { Key = string line.EntryId
+      When = historyTimeText line.OccurredAt
+      Who = entryWho entry
+      Text = line.Text
+      Amount = line.Change |> Option.map (historyChangeAmount >> fst) }
+
 /// Tipp auf eine Buchung: die Auswahl bleibt stehen und wartet auf die Rückkehr.
 let leaveForEntry (model: Model) : Model =
     { model with Selected = model.Selected |> Option.map (fun s -> { s with ReturnPending = true }) }

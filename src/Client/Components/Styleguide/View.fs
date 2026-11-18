@@ -2488,6 +2488,32 @@ let private DetailDemo () =
             Html.div [ prop.className "px-4"; prop.children [ HistoryList.empty "Noch keine Einträge" ] ]
         ]
 
+        // budgeting-yarty: die Budget-Historie und der Tab Historie im Kategorie-Detail zeigen über §7.11 hinaus Monat
+        // und Stand als Zusatz und klappen einen Durchlauf Targets anwenden zu seinen Kategorien auf.
+        card "components-history-note" "HistoryList: Zusatz und Aufklappen" "rowWithNote (Zusatz unter dem Text: Monat, Stand, Grund), disclosureRow (die ganze Zeile klappt auf, Chevron am Ende des Zusatzes) mit subRow je Kategorie" [
+            Html.div [
+                prop.className "px-3"
+                prop.children [
+                    HistoryList.listOf "styleguide-history-note" [
+                        HistoryList.rowWithNote
+                            { Key = "3"; When = "05.11. 12:02"; Who = "BB"; Text = "Target 120,00 € → 150,00 €, Restaurant"; Amount = None }
+                            [ Html.span [ prop.text "November 2026" ] ]
+                        HistoryList.rowWithNote
+                            { Key = "2"; When = "04.11. 07:55"; Who = "YNAB"; Text = "In YNAB zugewiesen, Auto"; Amount = Some "+20,00 €" }
+                            [ Html.span [ prop.text "November 2026" ] ]
+                        HistoryList.disclosureRow
+                            { Key = "1"; When = "01.11. 08:12"; Who = "BB"; Text = "Targets anwenden, 2 Kategorien"; Amount = Some "+860,00 €" }
+                            [ Html.span [ prop.text "November 2026" ]; Badge.errorSmall "1 von 2 fehlgeschlagen" ]
+                            "styleguide-history-note-lines"
+                            true
+                            ignore
+                            [ HistoryList.subRow "1a" "01.11. 08:12" "Miete" "+800,00 €" [ Html.span [ prop.text "geschrieben" ] ]
+                              HistoryList.subRow "1b" "01.11. 08:12" "Strom" "+60,00 €" [ Badge.errorSmall "fehlgeschlagen"; Html.span [ prop.text "Rate-Limit" ] ] ]
+                    ]
+                ]
+            ]
+        ]
+
         // Betrag im Kopf (ledger-m7mye): als Knopf mit Pfeil, vorübergehend gesperrt (ein Aufruf läuft)
         // und gesperrt mit Grund darunter.
         card "components-detail-amount" "Detail: Betrag im Kopf" "Betrag, Betrag als Knopf mit Pfeil (öffnet „Betrag“), Knopf während eines Aufrufs, gesperrt mit Grund" [

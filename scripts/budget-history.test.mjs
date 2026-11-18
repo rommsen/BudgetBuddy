@@ -56,33 +56,7 @@ const movements = [
   movement(3, 12, "TargetsApplied", "Miete h7q4v", 0, 800, "Written"),
 ];
 
-/// Genug Durchläufe, dass die Seite scrollt.
-/// Eine Verschiebung mit langer Quelle (budgeting-a3k7m): am Handy stand nur "Verschieben, Essen/Einkaufen → ...".
-const longMove = [
-  movement(4, 13, "MoneyMoved", "Essen/Einkaufen", 1500, 265.44, "Written", "Urlaub"),
-  movement(5, 13, "MoneyMoved", "Urlaub", 0, 1234.56, "Written", "Essen/Einkaufen"),
-];
-const manyMovements = [
-  ...longMove,
-  ...movements,
-  ...Array.from({ length: 30 }, (_, i) => movement(10 + i, 20 + i, "MoneyAssigned", `Kategorie c6vn4 ${i}`, 0, 10 + i, "Written")),
-];
-
 const json = (route, body) => route.fulfill({ contentType: "application/json", body: JSON.stringify(body) });
-
-/// Öffnet `#/budget/history` direkt mit gemockter BudgetApi.
-const openHistory = async (width, height, history) => {
-  const context = await browser.newContext({ viewport: { width, height }, hasTouch: true });
-  const page = await context.newPage();
-  page.setDefaultTimeout(30000);
-  await page.route("**/api/**", (route) =>
-    route.fulfill({ status: 500, contentType: "application/json", body: '{"error":"not mocked in this test"}' })
-  );
-  await page.route("**/api/BudgetApi/getBudgetHistory", (route) => json(route, { Ok: history }));
-  await page.goto(`http://127.0.0.1:${frontendPort}/#/budget/history`, { waitUntil: "load" });
-  await page.locator('[data-testid="general-history-run"]').first().waitFor();
-  return { context, page };
-};
 
 before(async () => {
   frontendPort = await getFreePort();
@@ -95,8 +69,9 @@ after(async () => {
   await stopServer(frontend, frontendPort);
 });
 
-test("[flow:budget-historie] Handy: Historie öffnen, Targets anwenden filtern, den Durchlauf aufklappen und zurück zur Budget-Seite", async () => {
-  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true });
+// budgeting-yarty: die Seite nach §7.11, der Filter über das Feld „Zeigen“ statt der Chipleiste.
+test("[flow:budget-historie] Handy: Historie öffnen, über Zeigen Targets anwenden wählen, den Durchlauf aufklappen und zurück zur Budget-Seite", async () => {
+  const context = await browser.newContext({ viewport: { width: 412, height: 915 }, hasTouch: true });
   const page = await context.newPage();
   page.setDefaultTimeout(30000);
   await page.route("**/api/**", (route) =>
@@ -115,25 +90,32 @@ test("[flow:budget-historie] Handy: Historie öffnen, Targets anwenden filtern, 
     await waitForPageLoaded(page, "/budget");
     await page.locator('[data-testid="budget-history-button"]:visible button').click();
     await page.waitForURL(/#\/budget\/history$/);
-    const runs = page.locator('[data-testid="general-history-run"]');
-    await runs.first().waitFor();
-    assert.equal(await runs.count(), 2, "zwei Durchläufe");
+    const rows = page.locator('[data-testid="general-history-rows"] > [data-testid="history-row"]');
+    await rows.first().waitFor();
+    assert.equal(await rows.count(), 2, "zwei Durchläufe");
 
-    await page.locator('[data-testid="general-history-filter"]').getByRole("button", { name: "Targets anwenden" }).click();
-    await page.waitForFunction(() => document.querySelectorAll('[data-testid="general-history-run"]').length === 1);
-    const run = runs.first();
-    assert.equal(await run.locator('[data-testid="general-history-text"]').textContent(), "Targets anwenden, 2 Kategorien");
-    assert.equal(await run.locator('[data-testid="general-history-amount"]').textContent(), "+860,00 €");
-    assert.match(await run.textContent(), /1 von 2 fehlgeschlagen/);
+    const field = page.locator('[data-testid="general-history-filter-field"]');
+    assert.match(await field.innerText(), /Zeigen\s+Alle/);
+    await field.click();
+    const options = page.locator('[data-testid="general-history-filter-options"]');
+    await options.getByRole("button", { name: "Targets anwenden" }).click();
+    await options.waitFor({ state: "detached" });
+    await page.waitForFunction(() => document.querySelectorAll('[data-testid="general-history-rows"] > [data-testid="history-row"]').length === 1);
+    assert.match(await field.innerText(), /Zeigen\s+Targets anwenden/);
+    const run = rows.first();
+    const toggle = run.locator('[data-testid="history-toggle"]');
+    assert.equal(await toggle.locator('[data-testid="history-who"]').textContent(), "BB");
+    assert.equal(await toggle.locator('[data-testid="history-text"]').textContent(), "Targets anwenden, 2 Kategorien");
+    assert.equal(await toggle.locator('[data-testid="history-amount"]').textContent(), "+860,00 €");
+    assert.match(await toggle.textContent(), /1 von 2 fehlgeschlagen/);
 
-    const toggle = run.locator('[data-testid="general-history-toggle"]');
     assert.equal(await toggle.getAttribute("aria-expanded"), "false", "zu");
     await toggle.click();
     assert.equal(await toggle.getAttribute("aria-expanded"), "true", "offen");
-    const lines = run.locator('[data-testid="general-history-line"]');
+    const lines = run.locator('[data-testid="history-subrow"]');
     await lines.first().waitFor();
     assert.equal(await lines.count(), 2, "die Einzelzeilen");
-    assert.match(await lines.nth(1).textContent(), /Strom h7q4v.*\+60,00 €.*Rate-Limit/);
+    assert.match(await lines.nth(1).textContent(), /Strom h7q4v.*Rate-Limit.*\+60,00 €/);
 
     await page.getByRole("button", { name: "Zurück" }).click();
     await page.waitForURL(/#\/budget$/);

@@ -1,4 +1,5 @@
-/// Die allgemeine Budget-Historie `#/budget/history` (budgeting-h7q4v): reine Übergänge. Die Zeilen (Durchläufe,
+/// Die allgemeine Budget-Historie `#/budget/history` (budgeting-h7q4v): reine Übergänge und die Zeilen nach §7.11
+/// (budgeting-yarty). Die Zeilen (Durchläufe,
 /// Pausen, Target-Änderungen) bildet `generalHistoryRows` in `Shared.Budgeting`, hier liegen Filter, Aufklappen
 /// und die Rückkehr.
 module Components.Budget.History
@@ -104,6 +105,40 @@ let shortMonthYearLabel (month: string) : string =
         | _ -> month
     | _ -> month
 
+/// Ein Eintrag der Seite als Zeile nach §7.11 (budgeting-yarty): Zeit, Kürzel, Text, Betrag. Eine Pause oder
+/// Target-Änderung hat keinen Betrag.
+let rowItem (row: GeneralHistoryRow) : HistoryList.Item =
+    match row with
+    | RunRow run ->
+        { Key = string run.RunId
+          When = historyTimeText run.OccurredAt
+          Who = originWho run.Origin
+          Text = run.Text
+          Amount = Some (fst (runAmount run)) }
+    | TargetRow target ->
+        { Key = string target.EntryId
+          When = historyTimeText target.OccurredAt
+          Who = WhoBb
+          Text = target.Text
+          Amount = None }
+
+/// Der Zusatz unter dem Text einer Zeile (budgeting-yarty): was BB über §7.11 hinaus zeigt.
+type RowNote = {
+    /// Der Monat der Buchung am PC: „November 2026“.
+    Month: string
+    /// Derselbe Monat am Handy: „Nov. 2026“.
+    ShortMonth: string
+    /// Der Stand: geschrieben, fehlgeschlagen mit Grund, teilweise, oder keiner.
+    Badge: RunBadge
+}
+
+let rowNote (row: GeneralHistoryRow) : RowNote =
+    let month, badge =
+        match row with
+        | RunRow run -> run.Month, runBadge run.Status
+        | TargetRow target -> target.Month, (target.Status |> Option.map StatusBadge |> Option.defaultValue NoBadge)
+    { Month = monthLabel month; ShortMonth = shortMonthYearLabel month; Badge = badge }
+
 let private withHistory (model: Model) (change: GeneralHistory -> GeneralHistory) : Model =
     { model with GeneralHistory = change model.GeneralHistory }
 
@@ -114,7 +149,12 @@ let openGeneralHistory (model: Model) : Model =
 /// Die Seite wird betreten: die Einträge kommen neu, Filter und Aufklappen beginnen von vorn.
 let enterGeneralHistory (model: Model) : Model =
     withHistory model (fun h ->
-        { h with Rows = Loading; Filter = AllRuns; Expanded = Set.empty; Generation = h.Generation + 1 })
+        { h with
+            Rows = Loading
+            Filter = AllRuns
+            FilterChoiceOpen = false
+            Expanded = Set.empty
+            Generation = h.Generation + 1 })
 
 /// "Wiederholen": nur neu laden, Filter und Aufklappen bleiben stehen.
 let retryGeneralHistory (model: Model) : Model =
@@ -129,8 +169,17 @@ let applyGeneralHistoryLoaded (generation: int) (result: Result<HistoryEntry lis
             | Ok entries -> { h with Rows = Success (generalHistoryRows entries) }
             | Error message -> { h with Rows = Failure message })
 
+/// Das Feld „Zeigen“ öffnet die Auswahl „Historie zeigen“.
+let openRunFilterChoice (model: Model) : Model =
+    withHistory model (fun h -> { h with FilterChoiceOpen = true })
+
+/// Die Auswahl schließt ohne Wahl, der Filter bleibt.
+let closeRunFilterChoice (model: Model) : Model =
+    withHistory model (fun h -> { h with FilterChoiceOpen = false })
+
+/// Eine Wahl in der Auswahl: sie schließt und filtert.
 let selectRunFilter (filter: RunFilter) (model: Model) : Model =
-    withHistory model (fun h -> { h with Filter = filter })
+    withHistory model (fun h -> { h with Filter = filter; FilterChoiceOpen = false })
 
 /// Ein Tipp klappt auf, ein zweiter zu.
 let toggleRun (runId: System.Guid) (model: Model) : Model =

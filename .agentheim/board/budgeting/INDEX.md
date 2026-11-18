@@ -12,8 +12,8 @@ Catalog of this bounded context's tasks by status.
 <!-- task-counts:start -->
 - **Backlog:** 3
 - **Todo:** 0
-- **Doing:** 1
-- **Done:** 68
+- **Doing:** 0
+- **Done:** 69
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,11 +22,11 @@ Catalog of this bounded context's tasks by status.
 
 ### Doing
 <!-- doing-list:start -->
-- **budgeting-yarty** — "Budget-Historie: Feld „Zeigen“ statt Chipleiste, Zeilen nach §7.11 aus HistoryList, auch die Historie im Kategorie-Detail" (feature) — `doing/budgeting-yarty-budget-historie-zeigen.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)
 <!-- done-list:start -->
+- **budgeting-yarty** — "Budget-Historie: Feld „Zeigen“ statt Chipleiste, Zeilen nach §7.11 aus HistoryList, auch die Historie im Kategorie-Detail" (feature) — `done/budgeting-yarty-budget-historie-zeigen.md`
 - **budgeting-h2brj** — "Wochentag eines Targets als Auswahlfeld statt sieben Knöpfe, ohne Wahl „Wochentag wählen“ in Gelb" (feature) — `done/budgeting-h2brj-wochentag-als-auswahlfeld.md`
 - **budgeting-ht88a** — "Targets prüfen: Gelb nur am Titel „Gibst du mehr aus?“ und an den Balken, Kopf als ein neutraler Satz wie im Prototyp" (feature) — `done/budgeting-ht88a-targets-pruefen-gelb.md`
 - **budgeting-w9yt4** — "Angepinnte Kategorien: Block „Angepinnt“ auf der Übersicht, Sheet zum Anpinnen, Lösen und Ordnen, Pin-Knopf im Kategorie-Detail, gespeichert als Zustand" (feature) — `done/budgeting-w9yt4-angepinnte-kategorien.md`

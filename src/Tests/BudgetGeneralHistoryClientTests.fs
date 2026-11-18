@@ -221,6 +221,22 @@ let tests =
                 [ Choice1Of2 (Decision MovementOrigin.MoneyAssigned) ]
                 "Zuweisen ohne Target-Zeile"
         }
+        // budgeting-yarty: das Feld „Zeigen“ ersetzt die Chipleiste. Es öffnet die Auswahl „Historie zeigen“, eine Wahl
+        // schließt sie und filtert, Schließen ohne Wahl lässt den Filter stehen.
+        test "Zeigen öffnet die Auswahl, eine Wahl schließt sie und filtert, Schließen lässt den Filter" {
+            let opened = loaded () |> step OpenRunFilterChoice
+            Expect.isTrue opened.GeneralHistory.FilterChoiceOpen "offen"
+            let chosen = opened |> step (SelectRunFilter (RunsOf (Decision MovementOrigin.TargetsApplied)))
+            Expect.isFalse chosen.GeneralHistory.FilterChoiceOpen "die Wahl schließt"
+            Expect.equal (shownOrigins chosen) [ Decision MovementOrigin.TargetsApplied ] "gefiltert"
+            let closed = chosen |> step OpenRunFilterChoice |> step CloseRunFilterChoice
+            Expect.isFalse closed.GeneralHistory.FilterChoiceOpen "zu"
+            Expect.equal closed.GeneralHistory.Filter (RunsOf (Decision MovementOrigin.TargetsApplied)) "Filter bleibt"
+        }
+        test "Erneutes Betreten schließt eine offene Auswahl" {
+            let again = loaded () |> step OpenRunFilterChoice |> step GeneralHistoryEntered
+            Expect.isFalse again.GeneralHistory.FilterChoiceOpen "zu"
+        }
         test "Ein Tipp auf einen Targets-Durchlauf klappt seine Einzelzeilen auf, ein zweiter klappt zu" {
             let targetsRun (model: Model) = runsOf model |> List.find (fun r -> r.RunId = targetsGroup)
             let opened = loaded () |> step (ToggleRun targetsGroup)
@@ -300,12 +316,13 @@ let tests =
             Expect.equal (emptyText (RunsOf HistoryOrigin.ObservedInYnab)) "Keine Zuweisungen in YNAB" "Beobachtung"
             Expect.equal (emptyText (RunsOf HistoryOrigin.TakenOverFromYnab)) "Keine Übernahme aus YNAB" "Übernahme"
         }
-        // budgeting-dgrp7, Review-Fund: Beobachtung und Übernahme fehlten in der Filterleiste.
-        test "Die Filterleiste führt auch, was aus YNAB kam, mit den Worten der Zeilen" {
+        // budgeting-dgrp7, Review-Fund: Beobachtung und Übernahme fehlten in der Filterleiste. Seit budgeting-yarty die
+        // Arten der Auswahl „Historie zeigen“.
+        test "Die Auswahl führt auch, was aus YNAB kam, mit den Worten der Zeilen" {
             Expect.equal
                 (runFilters |> List.map runFilterLabel)
                 [ "Alle"; "Targets anwenden"; "Verschieben"; "Zuweisen"; "Targets"; "In YNAB zugewiesen"; "Aus YNAB übernommen" ]
-                "Chips"
+                "Arten"
             let run origin : HistoryRun =
                 { RunId = Guid.NewGuid(); OccurredAt = DateTime.UtcNow; Origin = origin; Month = "2026-10-01"
                   Text = ""; Amount = eur 1m; Status = RunFromYnab; Lines = [] }

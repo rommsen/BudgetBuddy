@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-11-19 00:00 -- Task verified and completed: budgeting-yarty - "Budget-Historie: Feld „Zeigen“ statt Chipleiste, Zeilen nach §7.11 aus HistoryList, auch die Historie im Kategorie-Detail"
+
+**Type:** Work / Task completion
+**Task:** budgeting-yarty - "Budget-Historie: Feld „Zeigen“ statt Chipleiste, Zeilen nach §7.11 aus HistoryList, auch die Historie im Kategorie-Detail"
+**Summary:** Budget-Historie: Feld „Zeigen“ statt Chipleiste, Zeilen nach §7.11 aus HistoryList
+**Duration:** 58m
+**Verification:** PASS (iteration 2)
+**Files changed:** 18
+**Tests added:** 6
+**ADRs written:** none
+
+---
+
+## 2026-11-18 23:55 -- Verification failed: budgeting-yarty - Budget-Historie: Feld „Zeigen“ statt Chipleiste
+
+**Type:** Work / Verification failure
+**Task:** budgeting-yarty - Budget-Historie: Feld „Zeigen“ statt Chipleiste
+**Iteration:** 1 of 3
+**Reasons:** README_DELTA lässt die Bullets Pause in der Historie (ohne Kürzel) und Ruhige Bewegungsliste (Klassen aus historyChangeAmount) veraltet stehen
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-11-18 23:21 -- Task verified and completed: ledger-npqcb - "Filter-Sheet am Handy: Kategorie, Zeitraum und Sortieren ersetzen den Inhalt des Sheets statt ein zweites Sheet zu öffnen"
 
 **Type:** Work / Task completion
