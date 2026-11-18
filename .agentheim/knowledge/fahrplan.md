@@ -230,9 +230,10 @@ Zuletzt aktualisiert: 2026-11-15 abends, nach work-Lauf und Review von ledger-pk
   V2-Codec verlangt `newPayee` (ein fehlendes Feld war still „Payee entfernt“), „Rückgängig“ auch nach dem ersten Payee,
   „ohne Payee“ überall gleich gedämpft (Liste, Detail, Karte, Übersicht, Rolle `ListRoles.primaryMissing`). Gate: VERIFY:
   PASS (dotnet 5148, node 348). Sichtpunkte pk1 bis pk4 in der Prüfliste.
-- **Nächster Schritt:** Schnitt 10 budgeting-wnkgj verfeinern (Bestandsaufnahme, Prototyp-Abgleich Version 17, Fragen
-  in die Prüfliste; Vorab-Entscheidungen in den Notes: Gelb für „noch nicht in YNAB“, Budget-Tabelle ab rund 1340 px).
-  Offen in der Prüfliste: q-sheet, die Sichtpunkte „Ansehen“ (g20 bis g22, pk1 bis pk4). Verfeinern bei Gelegenheit:
+- **Verfeinerung Schnitt 10 (2026-11-18):** Bestandsaufnahme gegen Prototyp Version 17 in budgeting-wnkgj, Romans Antworten
+  w01 bis w11 (ohne w07) übernommen, Teilung in A bis D. Aus q-sheet A neu ledger-npqcb (Filter-Sheet ersetzt den Inhalt).
+- **Nächster Schritt:** `/agentheim:work` für budgeting-ht88a, budgeting-h2brj, budgeting-yarty und ledger-npqcb (alle in
+  todo). Danach Teil D budgeting-wnkgj fertig verfeinern, sobald Roman w07 beantwortet hat. Offen in der Prüfliste: w07, die Sichtpunkte „Ansehen“ (g20 bis g22, pk1 bis pk4). Verfeinern bei Gelegenheit:
   ledger-fp4wn (berührt Sammelaktionen), ledger-zqst5, design-system-m4e7q, ledger-h7de3, design-system-vf94m, ledger-t4rk8
   (Geld, Roman entscheidet). ledger-ayjzq (Sicht „Für mich“) nach Gespräch mit Roman. Vorschlag: `/architecture-review
   ledger` (mehr als 20 erledigte Tasks seit dem letzten Bestandsreview).
@@ -298,7 +299,8 @@ Baut ein Schnitt eine Seite um, gilt die Zeile „Browser-Tests beim Umbau“ al
 8. ✓ Kassenbuch ordnen (2026-11-15): `ledger-d9z3n` (Handy, unter 1024 px), `ledger-cnaz3` (PC) und
    `ledger-zfj78` (Detail); `ledger-ayjzq` (Sicht „Für mich“) bleibt eigene Task
 9. ✓ `design-system-gcpws` Liste mit Panel überall, generischer Tastentest (86ceeb32, 2026-11-15)
-10. `budgeting-wnkgj` Budget angleichen
+10. Budget angleichen, geteilt (Roman, 2026-11-18): `budgeting-ht88a` Targets prüfen (Gelb), `budgeting-h2brj` Wochentag als
+    Auswahlfeld, `budgeting-yarty` Budget-Historie, alle drei in todo; `budgeting-wnkgj` Budget-Seite (Teil D) wartet auf w07
 11. `design-system-x1abn` Logo und Icon
 
 Eigenständig bleiben `banking-import-q7vd2` (confirmTan-Fehlerzweig) und `ledger-nb4tv` (ETF-Konto).
