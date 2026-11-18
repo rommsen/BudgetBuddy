@@ -5,6 +5,18 @@ Newest entries on top.
 
 ---
 
+## 2026-11-19 00:25 -- Review-Lauf: cae73bff..649d0799
+
+**Type:** Review / Review-Lauf
+**Bereich:** cae73bff..649d0799 (budgeting-ht88a, budgeting-h2brj, ledger-npqcb, budgeting-yarty)
+**Agents:** review-frontend, review-design, review-tests
+**Funde:** behoben 13, verworfen 4, Rückfrage 4, Ticket 0, Kann-Sammlung 3
+**Commits:** c4e4ed42, a852d04a, 7ae9b13d, a3828cbb, aa8aba83
+**Verworfen:** kein Click-Swallow im Filter-Sheet nötig (Wahl auf echtem click, Geisterklick nur bei Schließen aus Touch-Handler); Hover nur ab md unnötig (Tailwind 4 setzt hover in @media (hover: hover)); doppelte Berechnung von historyEntryLine (vernachlässigbar); unterschiedliche Dialoggröße als Frontend-Fund (an Roman, siehe Rückfrage)
+**Verifikation:** VERIFY: PASS (dotnet 5163 grün, node 348 grün, dotnet build, npm run build, guard:classes, guard:tokens grün)
+
+---
+
 ## 2026-11-19 00:07 -- Work session ended
 
 **Type:** Work / Session end

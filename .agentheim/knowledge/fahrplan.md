@@ -3,7 +3,7 @@
 Stand 2026-11-07. Grundlage: ADR 0086, `vision.md` Abschnitt „What success looks like“.
 
 ## Stand
-Zuletzt aktualisiert: 2026-11-15 abends, nach work-Lauf und Review von ledger-pkrwd (Payee entfernen), Verfeinerung budgeting-wnkgj läuft.
+Zuletzt aktualisiert: 2026-11-19 nachts, nach work-Lauf und Review von Schnitt 10 A bis C und ledger-npqcb (Roman offline).
 
 - **Etappe 1 · Bedeutungen:** erledigt, 5 von 5 (Skizze und Prototyp, Layout-Sweep, Muster im
   Styleguide, Designwert-Tests aufgeräumt, Palette 2 im Token-Layer). Romans Blick auf dak16 neben
@@ -232,11 +232,26 @@ Zuletzt aktualisiert: 2026-11-15 abends, nach work-Lauf und Review von ledger-pk
   PASS (dotnet 5148, node 348). Sichtpunkte pk1 bis pk4 in der Prüfliste.
 - **Verfeinerung Schnitt 10 (2026-11-18):** Bestandsaufnahme gegen Prototyp Version 17 in budgeting-wnkgj, Romans Antworten
   w01 bis w11 (ohne w07) übernommen, Teilung in A bis D. Aus q-sheet A neu ledger-npqcb (Filter-Sheet ersetzt den Inhalt).
-- **Nächster Schritt:** `/agentheim:work` für budgeting-ht88a, budgeting-h2brj, budgeting-yarty und ledger-npqcb (alle in
-  todo). Danach Teil D budgeting-wnkgj fertig verfeinern, sobald Roman w07 beantwortet hat. Offen in der Prüfliste: w07, die Sichtpunkte „Ansehen“ (g20 bis g22, pk1 bis pk4). Verfeinern bei Gelegenheit:
-  ledger-fp4wn (berührt Sammelaktionen), ledger-zqst5, design-system-m4e7q, ledger-h7de3, design-system-vf94m, ledger-t4rk8
-  (Geld, Roman entscheidet). ledger-ayjzq (Sicht „Für mich“) nach Gespräch mit Roman. Vorschlag: `/architecture-review
-  ledger` (mehr als 20 erledigte Tasks seit dem letzten Bestandsreview).
+- **Work-Lauf 2026-11-18/19 (Roman offline):** erledigt budgeting-ht88a (Targets prüfen: neutraler Kopfsatz, Gelb nur an
+  „Gibst du mehr aus?“ und den Balken, 84d00032), budgeting-h2brj (Wochentag als Auswahlfeld, DS `Input.requiredSelectField`,
+  2614ff75), ledger-npqcb (Filter-Sheet am Handy ersetzt den Inhalt, 67a5e637), budgeting-yarty (Budget-Historie: Feld „Zeigen“,
+  Zeilen nach §7.11 über `HistoryList`, auch im Tab Historie, 0aeae9ee). Verifier: ht88a und npqcb in Iteration 1, h2brj und
+  yarty in Iteration 2, beide Male nur, weil das README-Delta veraltete Nachbar-Bullets stehen ließ (Kandidat für `learn`).
+  Review-Lauf cae73bff..649d0799 (review-frontend, review-design, review-tests): behoben in c4e4ed42..aa8aba83, darunter Esc in
+  Targets prüfen nach Neuladen unter offener Wochentag-Auswahl (Regressionstest). Gate: VERIFY: PASS (dotnet 5163, node 348).
+  Nicht gepusht, nicht deployt.
+- **Für Roman (offen nach dem Lauf):** [human-eye] je Task neben der Skizze (Screenshots im Scratchpad der Sitzung, Pfade im
+  Outcome der Tasks). Entscheidungen: (a) × in einer ersetzten Auswahl mit „Zurück“: im Filter-Sheet schließt × alles, beim
+  Wochentag führt × zurück zum Formular; eine Regel für §7.15? (b) Größe kurzer Auswahl-Dialoge am PC: Wochentag `Modal.Small`,
+  „Historie zeigen“ und Gruppe `Modal.Large`; eine Größe für §7.9? (c) Wochentag-Auswahl am Handy: „Sonntag“ liegt bei 412 px
+  unter dem Rand, reicht Scrollen? (d) gelbe Mini-Balken in „Gibst du weniger/nie aus?“ als „braucht dich“ lesbar? (e) gewählte
+  Zeile der kurzen Auswahl: Skizze mit Akzentrahmen und Fläche, BB nur Haken.
+- **Nächster Schritt:** Romans Blick auf die vier Tasks und die Antworten (a) bis (e), danach Deploy auf Anweisung. Dann Teil D
+  budgeting-wnkgj fertig verfeinern, sobald Roman w07 beantwortet hat. Offen in der Prüfliste: w07, die Sichtpunkte „Ansehen“
+  (g20 bis g22, pk1 bis pk4). Verfeinern bei Gelegenheit: ledger-fp4wn (berührt Sammelaktionen), ledger-zqst5,
+  design-system-m4e7q, ledger-h7de3, design-system-vf94m, ledger-t4rk8 (Geld, Roman entscheidet). ledger-ayjzq (Sicht „Für mich“)
+  nach Gespräch mit Roman. Vorschlag: `/architecture-review ledger` (mehr als 20 erledigte Tasks seit dem letzten
+  Bestandsreview).
 - Verfeinert wird nur die nächste Etappe. Spätere Etappen haben Zeilen, keine Tickets.
 - Neue Ideen für spätere Etappen kommen hier als Zeile dazu.
 - Bestehende Tasks tragen einen Tag: `etappe-1`, `etappe-2`, `etappe-3`, `laufend`, `danach`.
