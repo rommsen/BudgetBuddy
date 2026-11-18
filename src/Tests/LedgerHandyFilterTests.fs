@@ -254,3 +254,115 @@ let handyFilterTests =
                 "auf „Regeln“ kein „Abrufen“"
         }
     ]
+
+// ledger-npqcb: Kategorie, Zeitraum und Sortieren ersetzen den Inhalt des Filter-Sheets. Welche Ansicht das Sheet
+// zeigt, folgt aus dem Modell (`filterSheetView`); die Übergänge laufen als Aufzählung aller Reihenfolgen durch das
+// echte `update` (Doktrin Punkt 20, Vorbild `moveWays` in MoveMoneyClientTests.fs). Das Orakel ist eine eigene kleine
+// Zustandsmaschine nach den Kriterien der Task, es liest nichts aus dem getesteten Code.
+
+/// Was das Orakel erwartet: die Ansicht, die geltenden Werte und die Entwürfe der offenen Auswahl.
+type private SheetOracle =
+    { View: FilterSheetView
+      Categories: Set<Guid>
+      CategoryDraft: Set<Guid>
+      Quick: DateQuick option
+      QuickDraft: DateQuick option
+      Sort: LedgerSort }
+
+let private amountAsc : LedgerSort = { Field = SortByAmount; Direction = SortAsc }
+
+let private toggled (id: Guid) (set: Set<Guid>) = if set.Contains id then Set.remove id set else Set.add id set
+
+/// Was in dieser Ansicht zu tippen ist, mit der Nachricht der Oberfläche und dem erwarteten Zustand danach.
+let private sheetEvents (o: SheetOracle) : (string * Msg * SheetOracle) list =
+    let toFilters = { o with View = FilterSheetFilters }
+    let closed = { o with View = FilterSheetClosed }
+    let leaving =
+        [ "Zurück", BackToFilterSheet, toFilters
+          "Schließen", CloseFilterSheet, closed
+          "Esc", EscapePressed, toFilters ]
+    match o.View with
+    | FilterSheetClosed -> [ "Filter-Knopf", OpenFilterSheet, toFilters ]
+    | FilterSheetFilters ->
+        [ "Kategorie", OpenFilterPopover CategoryChip, { o with View = FilterSheetCategory; CategoryDraft = o.Categories }
+          "Zeitraum", OpenFilterPopover DateChip, { o with View = FilterSheetDate; QuickDraft = o.Quick }
+          "Sortieren", OpenSortSheet, { o with View = FilterSheetSort }
+          "Schließen", CloseFilterSheet, closed
+          "Esc", EscapePressed, closed ]
+    | FilterSheetCategory ->
+        // „Übernehmen“ ohne Änderung ist gesperrt: das Sheet bleibt in der Auswahl.
+        let applied =
+            if o.CategoryDraft = o.Categories then o
+            else { o with View = FilterSheetFilters; Categories = o.CategoryDraft }
+        [ "Haken Lebensmittel", ToggleCategoryDraft food, { o with CategoryDraft = toggled food o.CategoryDraft }
+          "Übernehmen", ApplyCategoryFilter, applied ]
+        @ leaving
+    | FilterSheetDate ->
+        [ "Letzter Monat", SetDateQuick LastMonth, { o with QuickDraft = Some LastMonth }
+          "Übernehmen", ApplyDateFilter, { o with View = FilterSheetFilters; Quick = o.QuickDraft } ]
+        @ leaving
+    | FilterSheetSort -> [ "Betrag aufsteigend", SetSortExactly amountAsc, { o with View = FilterSheetFilters; Sort = amountAsc } ] @ leaving
+
+let private checkSheet (path: string list) (o: SheetOracle) (model: Model) =
+    let where = String.Join(" → ", List.rev path)
+    Expect.equal (filterSheetView model) o.View $"{where}: Ansicht"
+    Expect.equal model.Filters.CategoryIds o.Categories $"{where}: Kategorien"
+    Expect.equal (model.Filters.DateRange |> Option.bind (fun r -> r.Quick)) o.Quick $"{where}: Zeitraum"
+    Expect.equal model.Sort o.Sort $"{where}: Sortierung"
+    // Die Sortierung im Filter-Sheet ist kein eigenes Sheet darüber, und offen ist höchstens eine Auswahl.
+    Expect.isFalse (model.SortSheetOpen && model.OpenPopover.IsSome) $"{where}: zwei Auswahlen zugleich"
+    if o.View = FilterSheetClosed then
+        Expect.isFalse model.SortSheetOpen $"{where}: Sortier-Sheet bleibt nach dem Schließen nicht stehen"
+        Expect.isNone model.OpenPopover $"{where}: Auswahl bleibt nach dem Schließen nicht stehen"
+
+/// Geht alle Reihenfolgen bis `depth` Schritte ab; liefert die Zahl der Schritte und die erreichten Ansichten.
+let rec private walkSheet (depth: int) (path: string list) (o: SheetOracle) (model: Model) (seen: Set<string>) : int * Set<string> =
+    checkSheet path o model
+    let seen = Set.add (sprintf "%A" o.View) seen
+    if depth = 0 then 0, seen
+    else
+        sheetEvents o
+        |> List.fold
+            (fun (count, seen) (name, msg, expected) ->
+                let next, _, _ = update msg model
+                let below, seen = walkSheet (depth - 1) (name :: path) expected next seen
+                count + 1 + below, seen)
+            (0, seen)
+
+[<Tests>]
+let filterSheetReplaceTests =
+    testList "Filter-Sheet unter 1024 px: Auswahl ersetzt den Inhalt (ledger-npqcb)" [
+        test "Alle Reihenfolgen aus Öffnen, Auswahl, Wählen, Zurück, Esc und Schließen folgen dem Orakel" {
+            let start =
+                { View = FilterSheetClosed
+                  Categories = Set.empty
+                  CategoryDraft = Set.empty
+                  Quick = None
+                  QuickDraft = None
+                  Sort = LedgerSort.defaultSort }
+            let steps, seen = walkSheet 9 [] start (baseModel ()) Set.empty
+            Expect.equal seen.Count 5 "alle fünf Ansichten erreicht"
+            Expect.isGreaterThan steps 60000 "die Aufzählung läuft tief genug"
+        }
+
+        test "Schließen aus einer Auswahl schließt das ganze Sheet, der Filter-Knopf öffnet wieder mit den Filtern" {
+            for openChoice in [ OpenFilterPopover CategoryChip; OpenFilterPopover DateChip; OpenSortSheet ] do
+                let opened, _ = step OpenFilterSheet (baseModel ())
+                let choosing, _ = step openChoice opened
+                Expect.notEqual (filterSheetView choosing) FilterSheetFilters $"{openChoice}: Auswahl steht"
+                let closed, _ = step CloseFilterSheet choosing
+                Expect.equal (filterSheetView closed) FilterSheetClosed $"{openChoice}: zu"
+                let reopened, _ = step OpenFilterSheet closed
+                Expect.equal (filterSheetView reopened) FilterSheetFilters $"{openChoice}: wieder die Filter"
+        }
+
+        test "Ohne offenes Filter-Sheet bleibt der Sortier-Chip ein eigenes Sheet, „Zurück“ und Schließen ändern nichts" {
+            let sorting, _ = step OpenSortSheet (baseModel ())
+            Expect.equal (filterSheetView sorting) FilterSheetClosed "kein Filter-Sheet"
+            Expect.isTrue sorting.SortSheetOpen "Sortier-Sheet offen"
+            let back, _ = step BackToFilterSheet sorting
+            Expect.equal back sorting "„Zurück“ ohne Filter-Sheet"
+            let closed, _ = step CloseFilterSheet sorting
+            Expect.equal closed sorting "Schließen ohne Filter-Sheet"
+        }
+    ]

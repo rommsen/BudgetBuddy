@@ -1221,6 +1221,17 @@ let private applyFlagBatch
         | _ -> withCount
     updatedById |> Map.toList |> List.fold (fun m (_, e) -> applyFilterEffect e m) withRows
 
+/// Was das Filter-Sheet unter 1024 px zeigt (ledger-npqcb): bei offenem Sheet die Sortierung, die Kategorie- oder die
+/// Zeitraum-Auswahl an Stelle der Filter, sonst die Filter.
+let filterSheetView (model: Model) : FilterSheetView =
+    if not model.FilterSheetOpen then FilterSheetClosed
+    elif model.SortSheetOpen then FilterSheetSort
+    else
+        match model.OpenPopover with
+        | Some CategoryChip -> FilterSheetCategory
+        | Some DateChip -> FilterSheetDate
+        | _ -> FilterSheetFilters
+
 /// Sind die Tasten der Liste gerade aus? Ein offenes Filter-Popover und ein offenes Sheet
 /// gehören der Tastatur; ein offenes Seitenpanel nicht, es folgt der Markierung
 /// (ledger-q1hw2, ADR 0053 Punkt 5).
@@ -2160,15 +2171,30 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
     // -------- Filter-Sheet unter 1024 px (ledger-d9z3n) --------
 
     | OpenFilterSheet ->
-        // Die Betragsfelder zeigen den geltenden Filter, wie beim Öffnen des Betrags-Popovers.
+        // Die Betragsfelder zeigen den geltenden Filter, wie beim Öffnen des Betrags-Popovers. Das Sheet beginnt mit
+        // den Filtern, nie in einer Auswahl (ledger-npqcb).
         { model with
             FilterSheetOpen = true
+            OpenPopover = None
+            SortSheetOpen = false
             AmountMinDraft = model.Filters.AmountMin |> Option.map formatAmountDraft |> Option.defaultValue ""
             AmountMaxDraft = model.Filters.AmountMax |> Option.map formatAmountDraft |> Option.defaultValue "" },
         Cmd.none,
         NoOp
 
-    | CloseFilterSheet -> { model with FilterSheetOpen = false }, Cmd.none, NoOp
+    | CloseFilterSheet ->
+        // Schließen schließt das ganze Sheet, auch aus einer Auswahl heraus (ledger-npqcb); ihr Entwurf verfällt.
+        if model.FilterSheetOpen then
+            { model with FilterSheetOpen = false; OpenPopover = None; SortSheetOpen = false }, Cmd.none, NoOp
+        else
+            model, Cmd.none, NoOp
+
+    | BackToFilterSheet ->
+        // „Zurück“ aus Kategorie, Zeitraum oder Sortieren: die Filter stehen wieder, der Entwurf verfällt.
+        if model.FilterSheetOpen then
+            { model with OpenPopover = None; SortSheetOpen = false }, Cmd.none, NoOp
+        else
+            model, Cmd.none, NoOp
 
     // -------- Betrag (Suchfeld mit Verzögerung, Von/Bis) --------
 
@@ -4663,6 +4689,9 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         // nicht; liegt er auf dem Chip, schließt diese Stufe es.
         if model.OpenPopover.IsSome then
             { model with OpenPopover = None }, Cmd.none, NoOp
+        elif model.FilterSheetOpen && model.SortSheetOpen then
+            // Die Sortierung im Filter-Sheet: Esc führt wie „Zurück“ zu den Filtern (ledger-npqcb).
+            { model with SortSheetOpen = false }, Cmd.none, NoOp
         elif model.FilterSheetOpen then
             { model with FilterSheetOpen = false }, Cmd.none, NoOp
         elif model.BatchCategoryPickerOpen then

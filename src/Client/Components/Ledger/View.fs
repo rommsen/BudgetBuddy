@@ -3165,7 +3165,7 @@ let private popoverBody (dispatch: Msg -> unit) (model: Model) (categories: Ynab
 /// PC. Siehe Modul-Kommentar oben, warum das zur Renderzeit entschieden wird,
 /// statt beide Varianten gleichzeitig (versteckt) zu montieren.
 let private filterChrome (dispatch: Msg -> unit) (chip: ChipId) (isOpen: bool) (body: ReactElement) : ReactElement =
-    // Unter 1024 px öffnen Kategorie und Zeitraum aus dem Filter-Sheet, als Sheet (ledger-d9z3n).
+    // Unter 1024 px stehen Kategorie und Zeitraum im Filter-Sheet an Stelle der Filter (ledger-npqcb, `filterSheet`).
     if Viewport.isInspectorPanelViewport () then
         FilterPopover.view
             { IsOpen = isOpen; OnClose = (fun () -> dispatch CloseFilterPopover); WidthClassName = popoverWidth chip }
@@ -3262,25 +3262,31 @@ let sortChipVisible (layout: TableLayout) : bool = layout = CompactList
 /// wenn die Liste als Handy-Liste gerendert wird (`visibleColumns` liefert `CompactList`);
 /// dann ist er die einzige Chrome dieser Art (ADR 0043). Aktiv gefärbt, wenn die wirksame
 /// Sortierung von der Standardsortierung abweicht. Ohne "×", kein Teil von `hasAnyFilter`.
-let private sortSheet (dispatch: Msg -> unit) (model: Model) (isAllAccounts: bool) : ReactElement =
+/// Die Optionen der Sortierung, nach Feld gruppiert: Inhalt des Sortier-Sheets am Sortier-Chip und der Auswahl
+/// „Sortieren“ im Filter-Sheet (ledger-npqcb).
+let private sortOptionRows (dispatch: Msg -> unit) (model: Model) (isAllAccounts: bool) : ReactElement list =
     let sort = Components.Ledger.State.effectiveSort model
     let options = Components.Ledger.State.sortOptions isAllAccounts
+    [ for (field, group) in options |> List.groupBy (fun ((s: LedgerSort), _) -> s.Field) do
+          React.keyedFragment (
+              Components.Ledger.State.sortFieldName field,
+              [ BottomSheet.sectionTitle (Components.Ledger.State.sortFieldName field)
+                for (optionSort, label) in group do
+                    React.keyedFragment (
+                        label,
+                        [ BottomSheet.optionRow label (optionSort = sort) (fun () -> dispatch (SetSortExactly optionSort)) ]
+                    ) ]
+          ) ]
+
+let private sortSheet (dispatch: Msg -> unit) (model: Model) (isAllAccounts: bool) : ReactElement =
+    // Aus dem Filter-Sheet heraus steht die Sortierung in diesem (ledger-npqcb); hier nur der Sortier-Chip.
     BottomSheet.view
-            { IsOpen = model.SortSheetOpen
+            { IsOpen = model.SortSheetOpen && not model.FilterSheetOpen
               OnClose = (fun () -> dispatch CloseSortSheet)
               Title = "Sortieren"
               Subtitle = None
               Footer = None }
-            [ for (field, group) in options |> List.groupBy (fun ((s: LedgerSort), _) -> s.Field) do
-                  React.keyedFragment (
-                      Components.Ledger.State.sortFieldName field,
-                      [ BottomSheet.sectionTitle (Components.Ledger.State.sortFieldName field)
-                        for (optionSort, label) in group do
-                            React.keyedFragment (
-                                label,
-                                [ BottomSheet.optionRow label (optionSort = sort) (fun () -> dispatch (SetSortExactly optionSort)) ]
-                            ) ]
-                  ) ]
+            (sortOptionRows dispatch model isAllAccounts)
 
 let private sortChip (dispatch: Msg -> unit) (model: Model) (isAllAccounts: bool) : ReactElement =
     let sort = Components.Ledger.State.effectiveSort model
@@ -3399,14 +3405,25 @@ let filterSheetShowLabel (entries: RemoteData<LedgerEntryView list>) (totalCount
     | _ -> "Zeigen"
 
 /// Das Filter-Sheet (ledger-d9z3n, Prototyp `sheetHtml` Zweig `filter`): Schalter „Zu prüfen“, „Lena gefragt“,
-/// „Ohne Kategorie“ mit Anzahl, Zeilen „Kategorie“ und „Zeitraum“ (öffnen die Auswahl darüber), „Betrag von“ und
-/// „bis“, Zeile „Sortieren“ und „Gelöschte zeigen“, wenn es gelöschte Buchungen gibt. Jede Änderung wirkt sofort.
-/// Es ist verdeckt, solange Kategorie-, Zeitraum- oder Sortier-Auswahl darüber stehen.
+/// „Ohne Kategorie“ mit Anzahl, Zeilen „Kategorie“ und „Zeitraum“, „Betrag von“ und „bis“, Zeile „Sortieren“ und
+/// „Gelöschte zeigen“, wenn es gelöschte Buchungen gibt. Jede Änderung wirkt sofort. Kategorie, Zeitraum und
+/// Sortieren ersetzen den Inhalt des Sheets, mit „Zurück“ oben (ledger-npqcb, §7.15, `filterSheetView`).
 /// Der Knopf unten links im Filter-Sheet heißt wie der Chip „Filter löschen“, ein Wort für dieselbe Wirkung
 /// (Roman, 2026-11-15).
 let filterSheetClearLabel = "Filter löschen"
 
-let private filterSheet (dispatch: Msg -> unit) (model: Model) (categories: YnabCategory list) : ReactElement =
+/// „Zurück“ oben in einer Auswahl des Filter-Sheets (ledger-npqcb): zu den Filtern, ohne Änderung.
+let private filterSheetBack (dispatch: Msg -> unit) : ReactElement =
+    Html.div [
+        prop.custom ("data-testid", "filter-sheet-back")
+        prop.className "mb-2"
+        prop.children [ PageHeader.backButtonFor (Some "Zurück zu den Filtern") (fun () -> dispatch BackToFilterSheet) ]
+    ]
+
+let private filterSheet (dispatch: Msg -> unit) (model: Model) (categories: YnabCategory list) (isAllAccounts: bool) : ReactElement =
+    // Die Auswahlen wählen auf dem echten `click` (Übernehmen, `optionRow`), danach folgt kein synthetischer Klick
+    // mehr, der die Filter an derselben Stelle treffen könnte.
+    let view = Components.Ledger.State.filterSheetView model
     let names = selectedCategoryNames categories model.Filters.CategoryIds
     let sort = Components.Ledger.State.effectiveSort model
     let footer =
@@ -3427,62 +3444,73 @@ let private filterSheet (dispatch: Msg -> unit) (model: Model) (categories: Ynab
                         OnClick = fun () -> dispatch CloseFilterSheet }
             ]
         ]
+    let choice (testId: string) (body: ReactElement) =
+        Html.div [
+            prop.custom ("data-testid", testId)
+            prop.children [ filterSheetBack dispatch; body ]
+        ]
     BottomSheet.view
-        { IsOpen = model.FilterSheetOpen && model.OpenPopover.IsNone && not model.SortSheetOpen
+        { IsOpen = view <> FilterSheetClosed
           OnClose = (fun () -> dispatch CloseFilterSheet)
-          Title = "Filter"
+          Title =
+            (match view with
+             | FilterSheetCategory -> chipTitle CategoryChip
+             | FilterSheetDate -> chipTitle DateChip
+             | FilterSheetSort -> "Sortieren"
+             | FilterSheetClosed
+             | FilterSheetFilters -> "Filter")
           Subtitle = None
-          Footer = Some [ footer ] }
-        [ Html.div [
-            prop.custom ("data-testid", "ledger-filter-sheet")
-            prop.className "flex flex-col"
-            prop.children [
-                Input.countSwitchRow "filter-needs-review" "Zu prüfen" (Some model.NeedsReviewCount) model.OnlyNeedsReview (fun _ -> dispatch ToggleOnlyNeedsReview)
-                Input.countSwitchRow "filter-ask-lena" "Lena gefragt" (Some model.AskLenaCount) model.Filters.OnlyAskLena (fun _ -> dispatch ToggleOnlyAskLena)
-                Input.countSwitchRow "filter-without-category" "Ohne Kategorie" (Some model.WithoutCategoryCount) model.Filters.WithoutCategory (fun _ -> dispatch ToggleWithoutCategory)
-                Input.valueRow
-                    "filter-category"
-                    "Kategorie"
-                    (filterSheetCategoryValue names (Set.count model.Filters.CategoryIds))
-                    (hasCategoryFilter model.Filters)
-                    (fun () -> dispatch (OpenFilterPopover CategoryChip))
-                Input.valueRow
-                    "filter-date"
-                    "Zeitraum"
-                    (filterSheetDateValue model.Filters)
-                    (hasDateFilter model.Filters)
-                    (fun () -> dispatch (OpenFilterPopover DateChip))
-                Html.div [
-                    prop.className "space-y-3 py-3 border-b border-border-subtle"
-                    prop.children [
-                        Html.div [
-                            prop.className "grid grid-cols-2 gap-3"
-                            prop.children [
-                                fieldLabel "Betrag von" (amountField "Betrag von" model.AmountMinDraft (fun text -> dispatch (SetAmountMinDraft text)) "0,00")
-                                fieldLabel "bis" (amountField "Betrag bis" model.AmountMaxDraft (fun text -> dispatch (SetAmountMaxDraft text)) "0,00")
+          Footer = (if view = FilterSheetFilters then Some [ footer ] else None) }
+        [ match view with
+          | FilterSheetCategory -> choice "filter-sheet-category" (categoryPickerBody dispatch model categories)
+          | FilterSheetDate -> choice "filter-sheet-date" (datePickerBody dispatch model)
+          | FilterSheetSort ->
+              choice "filter-sheet-sort" (Html.div [ prop.children (sortOptionRows dispatch model isAllAccounts) ])
+          | FilterSheetClosed
+          | FilterSheetFilters ->
+              Html.div [
+                prop.custom ("data-testid", "ledger-filter-sheet")
+                prop.className "flex flex-col"
+                prop.children [
+                    Input.countSwitchRow "filter-needs-review" "Zu prüfen" (Some model.NeedsReviewCount) model.OnlyNeedsReview (fun _ -> dispatch ToggleOnlyNeedsReview)
+                    Input.countSwitchRow "filter-ask-lena" "Lena gefragt" (Some model.AskLenaCount) model.Filters.OnlyAskLena (fun _ -> dispatch ToggleOnlyAskLena)
+                    Input.countSwitchRow "filter-without-category" "Ohne Kategorie" (Some model.WithoutCategoryCount) model.Filters.WithoutCategory (fun _ -> dispatch ToggleWithoutCategory)
+                    Input.valueRow
+                        "filter-category"
+                        "Kategorie"
+                        (filterSheetCategoryValue names (Set.count model.Filters.CategoryIds))
+                        (hasCategoryFilter model.Filters)
+                        (fun () -> dispatch (OpenFilterPopover CategoryChip))
+                    Input.valueRow
+                        "filter-date"
+                        "Zeitraum"
+                        (filterSheetDateValue model.Filters)
+                        (hasDateFilter model.Filters)
+                        (fun () -> dispatch (OpenFilterPopover DateChip))
+                    Html.div [
+                        prop.className "space-y-3 py-3 border-b border-border-subtle"
+                        prop.children [
+                            Html.div [
+                                prop.className "grid grid-cols-2 gap-3"
+                                prop.children [
+                                    fieldLabel "Betrag von" (amountField "Betrag von" model.AmountMinDraft (fun text -> dispatch (SetAmountMinDraft text)) "0,00")
+                                    fieldLabel "bis" (amountField "Betrag bis" model.AmountMaxDraft (fun text -> dispatch (SetAmountMaxDraft text)) "0,00")
+                                ]
                             ]
+                            amountDirectionSegments "filter-sheet-direction" model.Filters.AmountDirection dispatch
                         ]
-                        amountDirectionSegments "filter-sheet-direction" model.Filters.AmountDirection dispatch
                     ]
+                    Input.valueRow
+                        "filter-sort"
+                        "Sortieren"
+                        (Components.Ledger.State.sortValueText sort)
+                        (sort <> LedgerSort.defaultSort)
+                        (fun () -> dispatch OpenSortSheet)
+                    if model.DeletedCount > 0 || model.IncludeDeleted then
+                        Input.countSwitchRow "filter-deleted" "Gelöschte zeigen" (Some model.DeletedCount) model.IncludeDeleted (fun _ -> dispatch ToggleIncludeDeleted)
                 ]
-                Input.valueRow
-                    "filter-sort"
-                    "Sortieren"
-                    (Components.Ledger.State.sortValueText sort)
-                    (sort <> LedgerSort.defaultSort)
-                    (fun () -> dispatch OpenSortSheet)
-                if model.DeletedCount > 0 || model.IncludeDeleted then
-                    Input.countSwitchRow "filter-deleted" "Gelöschte zeigen" (Some model.DeletedCount) model.IncludeDeleted (fun _ -> dispatch ToggleIncludeDeleted)
-            ]
-          ] ]
-
-/// Die Kategorie- und die Zeitraum-Auswahl unter 1024 px: dieselben Inhalte wie die Popover am PC, als Sheet über
-/// dem Filter-Sheet (das sich verdeckt und nach dem Schließen wieder zeigt).
-let private handyFilterPickers (dispatch: Msg -> unit) (model: Model) (categories: YnabCategory list) : ReactElement =
-    React.fragment [
-        filterChrome dispatch CategoryChip (model.OpenPopover = Some CategoryChip) (categoryPickerBody dispatch model categories)
-        filterChrome dispatch DateChip (model.OpenPopover = Some DateChip) (datePickerBody dispatch model)
-    ]
+              ]
+        ]
 
 /// Der Knopf „Filter“ neben der Suche: mit gesetzten Filtern „Filter (n)“ in Akzentrahmen und Akzentschrift.
 let private filterButton (dispatch: Msg -> unit) (model: Model) (count: int) : ReactElement =
@@ -3540,8 +3568,7 @@ let private handyControls
                 ]
             ]
             activeFilterChipRow dispatch chips
-            filterSheet dispatch model categories
-            handyFilterPickers dispatch model categories
+            filterSheet dispatch model categories isAllAccounts
             sortSheet dispatch model isAllAccounts
         ]
     ]

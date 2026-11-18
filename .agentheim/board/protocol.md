@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-18 23:21 -- Task verified and completed: ledger-npqcb - "Filter-Sheet am Handy: Kategorie, Zeitraum und Sortieren ersetzen den Inhalt des Sheets statt ein zweites Sheet zu öffnen"
+
+**Type:** Work / Task completion
+**Task:** ledger-npqcb - "Filter-Sheet am Handy: Kategorie, Zeitraum und Sortieren ersetzen den Inhalt des Sheets statt ein zweites Sheet zu öffnen"
+**Summary:** Filter-Sheet am Handy: Kategorie, Zeitraum und Sortieren ersetzen den Inhalt
+**Duration:** 1h20m
+**Verification:** PASS (iteration 1)
+**Files changed:** 6
+**Tests added:** 3
+**ADRs written:** none
+
+---
+
 ## 2026-11-18 23:18 -- Batch started: [budgeting-yarty]
 
 **Type:** Work / Batch start

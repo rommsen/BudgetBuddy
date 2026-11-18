@@ -425,6 +425,17 @@ type ChipId =
     | DateChip
     | AmountChip
 
+/// Was das Filter-Sheet unter 1024 px zeigt (ledger-npqcb, Styleguide §7.15): die Filter oder an ihrer Stelle eine
+/// Auswahl. Sheets werden nicht gestapelt; Kategorie, Zeitraum und Sortieren ersetzen den Inhalt und führen nach der
+/// Wahl oder mit „Zurück“ zu den Filtern. Abgeleitet aus `FilterSheetOpen`, `OpenPopover` und `SortSheetOpen`
+/// (`Components.Ledger.State.filterSheetView`), die auch die Entwürfe der Auswahl tragen.
+type FilterSheetView =
+    | FilterSheetClosed
+    | FilterSheetFilters
+    | FilterSheetCategory
+    | FilterSheetDate
+    | FilterSheetSort
+
 let fixedChipOrder : ChipId list =
     [ NeedsReviewChip; AskLenaChip; WithoutCategoryChip; CategoryChip; DateChip; AmountChip ]
 
@@ -1541,9 +1552,9 @@ type Model = {
     SearchDraft: string
     SearchVersion: int
 
-    /// Ist das Filter-Sheet unter 1024 px offen (ledger-d9z3n)? Es bleibt offen, während die
-    /// Kategorie-, Zeitraum- oder Sortier-Auswahl aus ihm heraus darüber steht, und zeigt sich
-    /// wieder, wenn sie schließt.
+    /// Ist das Filter-Sheet unter 1024 px offen (ledger-d9z3n)? Ist dazu die Kategorie- oder Zeitraum-Auswahl
+    /// (`OpenPopover`) oder die Sortierung (`SortSheetOpen`) offen, steht sie im Sheet an Stelle der Filter
+    /// (ledger-npqcb, `filterSheetView`).
     FilterSheetOpen: bool
 
     /// Der Entwurf des Betrags-Suchfelds (Von/Bis), mit derselben
@@ -2438,8 +2449,11 @@ type Msg =
 
     /// Der Knopf „Filter“ unter 1024 px öffnet das Filter-Sheet (ledger-d9z3n).
     | OpenFilterSheet
-    /// „n zeigen“, Esc, „×“ oder Tipp daneben: das Sheet schließt, die Filter bleiben stehen.
+    /// „n zeigen“, Esc, „×“ oder Tipp daneben: das Sheet schließt samt einer offenen Auswahl darin, die Filter bleiben
+    /// stehen; ein Entwurf der Auswahl wird verworfen (ledger-npqcb).
     | CloseFilterSheet
+    /// „Zurück“ in einer Auswahl im Filter-Sheet (ledger-npqcb): zeigt wieder die Filter, ohne etwas zu ändern.
+    | BackToFilterSheet
 
     | SetAmountMinDraft of string
     | SetAmountMaxDraft of string

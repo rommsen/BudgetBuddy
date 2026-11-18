@@ -431,11 +431,17 @@ const openHandyFilterSheet = async (page) => {
   return sheet;
 };
 
-/// Unter 1024 px eine Zeile des Filter-Sheets antippen (Kategorie, Zeitraum, Sortieren): die Auswahl öffnet darüber.
+/// Unter 1024 px eine Zeile des Filter-Sheets antippen (Kategorie, Zeitraum, Sortieren): die Auswahl ersetzt den Inhalt
+/// des Sheets, oben steht „Zurück“ (ledger-npqcb). Ein zweites Sheet darüber bricht den Zustand ab.
 const openHandyFilterRow = async (page, testId, waitForText) => {
   await openHandyFilterSheet(page);
   await page.locator(`.bottom-sheet.active [data-testid="${testId}"]`).click();
   await page.locator(".bottom-sheet.active").getByText(waitForText, { exact: true }).first().waitFor();
+  await page.locator('.bottom-sheet.active [data-testid="filter-sheet-back"]').waitFor();
+  const layers = await page.locator(".bottom-sheet.active").count();
+  if (layers !== 1) throw new Error(`Auswahl im Filter-Sheet: ${layers} Sheets offen statt einem`);
+  if ((await page.locator('.bottom-sheet.active [data-testid="ledger-filter-sheet"]').count()) !== 0)
+    throw new Error("Auswahl im Filter-Sheet: die Filter stehen noch darunter");
 };
 
 /// Kategorie-Filter „Lebensmittel“, dann Bauhaus im Detail auf „Nebenkosten“: die Zeile passt nicht mehr zum
@@ -1046,7 +1052,10 @@ export const STATES = [
       await page.addStyleTag({ content: "html { font-size: 20px; }" });
     },
   },
-  // design-system-btwhg: Datumsfeld und Kategorie-Suche am Handy mit 16 px; seit ledger-d9z3n aus dem Filter-Sheet.
+  // design-system-btwhg: Datumsfeld und Kategorie-Suche am Handy mit 16 px; seit ledger-d9z3n aus dem Filter-Sheet, seit
+  // ledger-npqcb an Stelle der Filter im selben Sheet. Beim Tippen in der Suche bleibt der Fokus im Feld (die Tastatur
+  // bleibt offen); mit offener Tastatur steht der erste Treffer im Bild. „Übernehmen“ liegt dann bei 320 und 390 px
+  // unter der Tastatur (wie vorher im zweiten Sheet), Kann-Sammlung ledger.
   {
     name: "kassenbuch-filter-kategorie",
     route: "/ledger",
@@ -1055,6 +1064,18 @@ export const STATES = [
     open: async (page) => {
       await openLedger(page);
       await openHandyFilterRow(page, "filter-category", "Lebensmittel");
+      const search = page.locator('.bottom-sheet.active input[placeholder="Kategorie suchen…"]');
+      await search.focus();
+      await search.pressSequentially("leb");
+      await page.locator(".bottom-sheet.active").getByText("Lebensmittel", { exact: true }).first().waitFor();
+      if (!(await search.evaluate((el) => el === document.activeElement)))
+        throw new Error("Kategorie-Suche im Filter-Sheet verlor beim Tippen den Fokus");
+      await search.fill("");
+      await search.evaluate((el) => el.blur());
+    },
+    keyboard: {
+      focus: (page) => page.locator('.bottom-sheet.active input[placeholder="Kategorie suchen…"]'),
+      reach: (page) => page.locator('.bottom-sheet.active [role="option"]').first(),
     },
   },
   {
