@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-18 23:18 -- Batch started: [budgeting-yarty]
+
+**Type:** Work / Batch start
+**Tasks:** budgeting-yarty - "Budget-Historie: Feld „Zeigen“ statt Chipleiste, Zeilen nach §7.11 aus HistoryList, auch die Historie im Kategorie-Detail"
+**Parallel:** no (1 worker) — second wave, held back for overlap with budgeting-h2brj (now integrated, reuses Input.requiredSelectField)
+
+---
+
 ## 2026-11-18 23:17 -- Task verified and completed: budgeting-h2brj - "Wochentag eines Targets als Auswahlfeld statt sieben Knöpfe, ohne Wahl „Wochentag wählen“ in Gelb"
 
 **Type:** Work / Task completion

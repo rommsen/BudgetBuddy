@@ -1,7 +1,7 @@
 ---
 id: budgeting-yarty
 title: "Budget-Historie: Feld „Zeigen“ statt Chipleiste, Zeilen nach §7.11 aus HistoryList, auch die Historie im Kategorie-Detail"
-status: todo
+status: doing
 type: feature
 context: budgeting
 created: 2026-11-18
