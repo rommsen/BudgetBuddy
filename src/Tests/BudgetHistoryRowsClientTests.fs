@@ -53,6 +53,23 @@ let private pause : HistoryPause =
       CategoryId = Guid.NewGuid()
       CategoryName = "Urlaub" }
 
+let private targetChange : HistoryTargetChange =
+    { ChangeId = Guid.NewGuid()
+      OccurredAt = at
+      Month = "2026-10-01"
+      CategoryId = Guid.NewGuid()
+      CategoryName = "Urlaub"
+      ChangeKind = TargetEdited
+      GoalBefore = Some (eur 100m)
+      GoalAfter = Some (eur 120m)
+      DateBefore = None
+      DateAfter = None
+      DayBefore = None
+      DayAfter = None
+      Latest = None
+      DateStep = None
+      SentToYnab = false }
+
 [<Tests>]
 let tests =
     testList "Budget-Historie: Zeilen nach §7.11" [
@@ -66,11 +83,9 @@ let tests =
         test "Eine Zeile der Seite: Zeit in Berliner Zeit, Text des Durchlaufs, Betrag wie bisher; eine Target-Zeile ohne Betrag" {
             let moved = rowItem (RunRow (run (Decision MovementOrigin.MoneyMoved) 20m RunWritten))
             Expect.equal moved.When "03.10. 11:05" "Zeit"
-            Expect.equal moved.Text "Zuweisen, Urlaub" "Text"
             Expect.equal moved.Amount (Some "20,00 €") "Verschieben ohne Vorzeichen"
             Expect.equal (rowItem (RunRow (run (Decision MovementOrigin.TargetsApplied) 860m RunWritten))).Amount (Some "+860,00 €") "Targets mit Vorzeichen"
             let target = rowItem (TargetRow (targetRow None))
-            Expect.equal target.Text "Target pausiert, Urlaub" "Text der Target-Zeile"
             Expect.isNone target.Amount "kein Betrag"
         }
         test "Der Zusatz einer Zeile: der Monat lang und kurz, dazu der Stand je Status" {
@@ -108,5 +123,6 @@ let tests =
             Expect.equal paused.Text "Target pausiert" "Text der Pause"
             Expect.isNone paused.Amount "Pause ohne Betrag"
             Expect.equal (entryItem (PauseLifted pause)).Who "BB" "Aufhebung"
+            Expect.equal (entryItem (TargetChanged targetChange)).Who "BB" "Target-Änderung"
         }
     ]

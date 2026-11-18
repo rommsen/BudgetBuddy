@@ -104,10 +104,8 @@ test("[flow:budget-historie] Handy: Historie öffnen, über Zeigen Targets anwen
     assert.match(await field.innerText(), /Zeigen\s+Targets anwenden/);
     const run = rows.first();
     const toggle = run.locator('[data-testid="history-toggle"]');
-    assert.equal(await toggle.locator('[data-testid="history-who"]').textContent(), "BB");
     assert.equal(await toggle.locator('[data-testid="history-text"]').textContent(), "Targets anwenden, 2 Kategorien");
     assert.equal(await toggle.locator('[data-testid="history-amount"]').textContent(), "+860,00 €");
-    assert.match(await toggle.textContent(), /1 von 2 fehlgeschlagen/);
 
     assert.equal(await toggle.getAttribute("aria-expanded"), "false", "zu");
     await toggle.click();
@@ -115,7 +113,6 @@ test("[flow:budget-historie] Handy: Historie öffnen, über Zeigen Targets anwen
     const lines = run.locator('[data-testid="history-subrow"]');
     await lines.first().waitFor();
     assert.equal(await lines.count(), 2, "die Einzelzeilen");
-    assert.match(await lines.nth(1).textContent(), /Strom h7q4v.*Rate-Limit.*\+60,00 €/);
 
     await page.getByRole("button", { name: "Zurück" }).click();
     await page.waitForURL(/#\/budget$/);

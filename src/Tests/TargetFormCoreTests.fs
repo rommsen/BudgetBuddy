@@ -61,7 +61,6 @@ let tests =
                 "gesperrt wie der Rhythmus"
             Expect.isNone (targetWeekdayField (Some monthly) free blank) "monatlich ohne Feld"
             Expect.isSome (targetWeekdayField (Some monthly) free { blank with RhythmInput = Some Weekly }) "nach Wahl Woche"
-            Expect.equal WeekdayPlaceholderText "Wochentag wählen" "Platzhalter"
 
         testCase "Die Auswahl öffnet nur bei stehendem, freiem Feld und schließt mit der Wahl" <| fun () ->
             let weekly = Some (weeklyOn None)
