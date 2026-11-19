@@ -5,6 +5,21 @@ Newest entries on top.
 
 ---
 
+## 2026-11-19 15:24 -- Review-Lauf: eb03979d^..7c10d418
+
+**Type:** Review / Review-Lauf
+**Bereich:** eb03979d^..7c10d418 (ledger-b7k2q, ledger-hme9k, ledger-y8xrr, ledger-awf5b, ledger-ef068, ledger-gy77x, ledger-pfhdq, ledger-rb3xw, ledger-zf6zg, ledger-pz028)
+**Agents:** review-backend, review-frontend, review-design, review-tests
+**Funde:** behoben 17, verworfen 4, Rückfrage 2 (beide entschieden und behoben), Ticket 0, Kann-Sammlung 4
+**Commits:** 8f76aee0, 126ac49f, fdba2875, 2b15dc25, 719c2794, 67b31d53, 01ebcf1a
+**Entschieden (Roman):** Abrufen bekommt das eigene Symbol Icons.fetch; Lena-Marke in der Handy-Zeile zeigt „Lena“
+**Verworfen:** Helfer für die 200-Zeichen-Grenze (zwei Stellen, kein klarer Nutzen); Test der toten Kategorien-Zweige bleibt (Task verlangt ihn); gelockertes Orakel in der Reihenfolgen-Aufzählung (begründet, gefährliche Richtung gedeckt); Spiegel-Status bei laufendem Lauf (schon gedeckt durch „Ein bereits laufender Spiegel …“)
+**Kann-Sammlung:** ledger-k4n2s 151 (Scrollposition beim Wechsel der Buchung), 152 (englischer Toast Lena-Farbe), Nachtrag 150 (§5 Choice drei Zeilen); design-system-k8s2m (17 px in der Doku gegen 16/18 px)
+**Hinweis:** der View-Teil der Lena-Marke liegt in 67b31d53
+**Verifikation:** VERIFY: PASS (dotnet 5214 grün, node 351 grün, dotnet build, npm run build, guard:classes, guard:tokens grün)
+
+---
+
 ## 2026-11-19 10:58 -- Work session ended
 
 **Type:** Work / Session end
