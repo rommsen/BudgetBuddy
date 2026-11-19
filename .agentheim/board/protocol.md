@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-20 00:17 -- Batch started: [design-system-gkded]
+
+**Type:** Work / Batch start
+**Tasks:** design-system-gkded - "Rückmeldung am Handy ohne Toast (Regel R3), Teil 2: ein Meldungsplatz in der App statt Toast-Liste, Leiste unter 1024 px mit „+ Buchung“, Toast am PC höchstens einer, gleiche Wische zusammengefasst, alte Toasts übergangsweise in der Leiste, Sweep-Invariante mit Gegenbeweis"
+**Parallel:** yes (neben ledger-wg42w)
+
+---
+
 ## 2026-11-20 00:17 -- Modeling / Promoted: design-system-gkded - "Rückmeldung am Handy ohne Toast (Regel R3), Teil 2: ein Meldungsplatz in der App statt Toast-Liste, Leiste unter 1024 px mit „+ Buchung“, Toast am PC höchstens einer, gleiche Wische zusammengefasst, alte Toasts übergangsweise in der Leiste, Sweep-Invariante mit Gegenbeweis"
 
 **Type:** Modeling / Promote

@@ -11,18 +11,18 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 5
-- **Todo:** 1
-- **Doing:** 0
+- **Todo:** 0
+- **Doing:** 1
 - **Done:** 50
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **design-system-gkded** — "Rückmeldung am Handy ohne Toast (Regel R3), Teil 2: ein Meldungsplatz in der App statt Toast-Liste, Leiste unter 1024 px mit „+ Buchung“, Toast am PC höchstens einer, gleiche Wische zusammengefasst, alte Toasts übergangsweise in der Leiste, Sweep-Invariante mit Gegenbeweis" (feature) — `todo/design-system-gkded-rueckmeldung-ein-platz-in-der-app.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **design-system-gkded** — "Rückmeldung am Handy ohne Toast (Regel R3), Teil 2: ein Meldungsplatz in der App statt Toast-Liste, Leiste unter 1024 px mit „+ Buchung“, Toast am PC höchstens einer, gleiche Wische zusammengefasst, alte Toasts übergangsweise in der Leiste, Sweep-Invariante mit Gegenbeweis" (feature) — `doing/design-system-gkded-rueckmeldung-ein-platz-in-der-app.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)
