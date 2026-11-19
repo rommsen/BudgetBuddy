@@ -3,7 +3,7 @@
 Stand 2026-11-07. Grundlage: ADR 0086, `vision.md` Abschnitt „What success looks like“.
 
 ## Stand
-Zuletzt aktualisiert: 2026-11-19 abends, nach Design-Exploration Durchgehen am Handy (ledger-vf5h6).
+Zuletzt aktualisiert: 2026-11-19 nachts, nach der Verfeinerung der Bau-Tasks aus ledger-vf5h6.
 
 - **Etappe 1 · Bedeutungen:** erledigt, 5 von 5 (Skizze und Prototyp, Layout-Sweep, Muster im
   Styleguide, Designwert-Tests aufgeräumt, Palette 2 im Token-Layer). Romans Blick auf dak16 neben
@@ -265,15 +265,24 @@ Zuletzt aktualisiert: 2026-11-19 abends, nach Design-Exploration Durchgehen am H
   bis (e).
 - **Design-Exploration Durchgehen am Handy (ledger-vf5h6, 2026-11-19 abends):** Skizze
   https://claude.ai/artifact/GESk5E9GWEHhSTXbQTpRqL Version 9 freigegeben: Wischen A1, letzte Aktion unter dem Knopf B3,
-  am Handy kein Toast (R3, ein fester Meldungsplatz je Seite), Memo auf der Karte nur lesen (C3), Karte füllt den Platz,
-  Rückgängig nach Verschiebung im Budget. Neun Bau-Tasks im Backlog (Reihenfolge: design-system-ytgnc und -x045q zuerst,
-  dann ledger-s2cg3, -pz5wv, -do0mz, -gwr9j, budgeting-gtrgk, categorization-t6j00, banking-import-vwhfm); design-system-vf94m
-  darin abgelöst. Alle noch zu verfeinern.
-- **Nächster Schritt:** Romans Blick auf beide Läufe, danach Deploy auf Anweisung. Dann die Bau-Tasks aus ledger-vf5h6
-  verfeinern (Skizze lesen, Dateien und Screenshots in den Scratchpad). Teil D budgeting-wnkgj fertig
-  verfeinern, sobald Roman w07 beantwortet hat. Offen in der Prüfliste: w07, die Sichtpunkte „Ansehen“ (g20 bis g22, pk1 bis
-  pk4). Verfeinern bei Gelegenheit: ledger-fp4wn (berührt Sammelaktionen), ledger-zqst5, design-system-m4e7q, ledger-h7de3,
-  ledger-t4rk8 (Geld, Roman entscheidet). ledger-ayjzq (Sicht „Für mich“) nach Gespräch mit Roman.
+  am Handy kein Toast (R3, ADR 0098), Memo auf der Karte nur lesen (C3), Karte füllt den Platz, Rückgängig nach
+  Verschiebung im Budget (ADR 0099). design-system-vf94m darin abgelöst.
+- **Verfeinerung der Bau-Tasks (2026-11-19 nachts):** 18 Tasks, alle verfeinert (9 alte, 9 neue Kind-Tasks). Romans
+  Antworten auf 15 Fragen nach Empfehlung, unter anderem: am PC Rückmeldung am Ort ohne Toast, der eine PC-Toast nur für
+  Meldungen ohne Ort (5 s und ✕), Rückgängig am Feld bis zur nächsten Aktion und beim Schließen in die Leiste, auch im
+  Panel am PC; Rückgängig nach Verschiebung relativ, als zwei normale Bewegungen.
+  In todo: design-system-ytgnc (DS-Baustein `Feedback`), design-system-x045q (Memo als Block im Detail), ledger-s2cg3
+  (Wischen mit Fläche). Reihenfolge danach: design-system-gkded (ein Meldungsplatz, Leiste mit „+ Buchung“), dann
+  ledger-gwr9j (Kassenbuch-Texte) vor ledger-p5y9s, -k68sd, -enjex und ledger-pz5wv (nach s2cg3), danach -mf2bg;
+  ledger-wg42w nach s2cg3 und x045q; budgeting-gtrgk vor -y1kkr, dazu -sx9v5, -p3sk0, categorization-t6j00,
+  banking-import-vwhfm, -ns4re, alle nach gkded. Hochgestuft wird jeweils, sobald die Vorgänger in done/ liegen.
+  Skizze und Screenshots für Worker im Scratchpad dieser Sitzung (`scratchpad/vf5h6/`); fehlt er, vor dem work-Lauf neu ablegen.
+- **Nächster Schritt:** Romans Blick auf die Läufe vom 2026-11-19 (Prüfliste
+  https://claude.ai/artifact/L6YCruuxKW9SjWJf7hsJjW, Gruppen 14 und 15), Deploy auf Anweisung. Dann `/agentheim:work` mit
+  ytgnc, x045q und s2cg3. Teil D budgeting-wnkgj fertig verfeinern, sobald Roman w07 beantwortet hat. Offen in der
+  Prüfliste: w07, die Sichtpunkte „Ansehen“ (g20 bis g22, pk1 bis pk4). Verfeinern bei Gelegenheit: ledger-fp4wn (berührt
+  Sammelaktionen), ledger-zqst5, design-system-m4e7q, ledger-h7de3, ledger-t4rk8 (Geld, Roman entscheidet). ledger-ayjzq
+  (Sicht „Für mich“) nach Gespräch mit Roman.
 - Verfeinert wird nur die nächste Etappe. Spätere Etappen haben Zeilen, keine Tickets.
 - Neue Ideen für spätere Etappen kommen hier als Zeile dazu.
 - Bestehende Tasks tragen einen Tag: `etappe-1`, `etappe-2`, `etappe-3`, `laufend`, `danach`.
