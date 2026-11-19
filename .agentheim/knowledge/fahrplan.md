@@ -3,7 +3,7 @@
 Stand 2026-11-07. Grundlage: ADR 0086, `vision.md` Abschnitt „What success looks like“.
 
 ## Stand
-Zuletzt aktualisiert: 2026-11-19 nachts, nach work-Lauf und Review von Schnitt 10 A bis C und ledger-npqcb (Roman offline).
+Zuletzt aktualisiert: 2026-11-19 mittags, nach Bestandsreview ledger, work-Lauf über G1, G2, G3, G5 und Review-Lauf.
 
 - **Etappe 1 · Bedeutungen:** erledigt, 5 von 5 (Skizze und Prototyp, Layout-Sweep, Muster im
   Styleguide, Designwert-Tests aufgeräumt, Palette 2 im Token-Layer). Romans Blick auf dak16 neben
@@ -246,12 +246,27 @@ Zuletzt aktualisiert: 2026-11-19 nachts, nach work-Lauf und Review von Schnitt 1
   „Historie zeigen“ und Gruppe `Modal.Large`; eine Größe für §7.9? (c) Wochentag-Auswahl am Handy: „Sonntag“ liegt bei 412 px
   unter dem Rand, reicht Scrollen? (d) gelbe Mini-Balken in „Gibst du weniger/nie aus?“ als „braucht dich“ lesbar? (e) gewählte
   Zeile der kurzen Auswahl: Skizze mit Akzentrahmen und Fläche, BB nur Haken.
-- **Nächster Schritt:** Romans Blick auf die vier Tasks und die Antworten (a) bis (e), danach Deploy auf Anweisung. Dann Teil D
-  budgeting-wnkgj fertig verfeinern, sobald Roman w07 beantwortet hat. Offen in der Prüfliste: w07, die Sichtpunkte „Ansehen“
-  (g20 bis g22, pk1 bis pk4). Verfeinern bei Gelegenheit: ledger-fp4wn (berührt Sammelaktionen), ledger-zqst5,
-  design-system-m4e7q, ledger-h7de3, design-system-vf94m, ledger-t4rk8 (Geld, Roman entscheidet). ledger-ayjzq (Sicht „Für mich“)
-  nach Gespräch mit Roman. Vorschlag: `/architecture-review ledger` (mehr als 20 erledigte Tasks seit dem letzten
-  Bestandsreview).
+- **Bestandsreview ledger (2026-11-19):** 79 Befunde, Bericht `.agentheim/knowledge/reviews/2026-11-19-ledger.md`. G1, G2,
+  G3, G5 verfeinert und in 10 Tasks gebaut (Roman, 2026-11-19: Bob-Commit nach Mitternacht abgelehnt, alte Kontostände
+  bleiben mit rotem Hinweis, Lena-Filter heißt „Lena“, leerer Zustand mit „Abrufen“, „Abbrechen“ im Formular-Fuß als Outline,
+  DS-Optik übernommen). G6 und G7 in der Kann-Sammlung. Erledigt: ledger-b7k2q (Bob-Grenzen, ADR 0097, 796769a7),
+  ledger-hme9k (eine Ebene in Durchgehen und Detail, 4c0981a6), ledger-y8xrr (Liste behält Stand nach eigenen Aktionen,
+  79064eff), ledger-awf5b (Betragsfilter mit Komma, afe65c28), ledger-ef068 (Liste nach DS, 84ac0575), ledger-gy77x (Knöpfe nach
+  DS, 33fc7ad5), ledger-pfhdq (Lade-Nummern, alte Kontostände mit Hinweis, 0013587d), ledger-rb3xw (Begriffe und leerer
+  Zustand, efc5e826), ledger-zf6zg („Neue Buchung“ nach DS, dc2a1f38), ledger-pz028 (State aufgeräumt, c43782cb). Verifier:
+  b7k2q in Iteration 2 (fehlendes ADR), alle anderen in Iteration 1. Review-Lauf eb03979d^..7c10d418 (alle vier Agents): 17 Funde
+  behoben in 8f76aee0..01ebcf1a, darunter Rumpfgrenze mit Umlauten belegt; entschieden (Roman): „Abrufen“ mit eigenem Symbol
+  `Icons.fetch`, Lena-Marke am Handy „Lena“. Gate: VERIFY: PASS (dotnet 5214, node 351). Nicht gepusht, nicht deployt.
+- **Für Roman (offen nach dem Lauf):** [human-eye] am Galaxy (412 px, Touch) und PC für ledger-hme9k, -ef068, -gy77x, -pfhdq,
+  -rb3xw, -zf6zg und die Review-Fixes (Bilder im Scratchpad der Sitzung unter `shots/<task>/` und `shots/review-fixes/`,
+  gemockt). Dabei ansehen: Fuß von „Neue Buchung“ im Panel bei offener Kontowahl (1440 × 900, angeschnitten?), Silbentrennung
+  „zurück-nehmen“ auf der Karte im Durchgehen in Chrome auf Android, der Hinweis „Kontostände konnten nicht aktualisiert
+  werden“ mit dem neuen Kopf. Aus dem Lauf davor weiter offen: Blick auf Schnitt 10 A bis C und ledger-npqcb, Antworten (a)
+  bis (e).
+- **Nächster Schritt:** Romans Blick auf beide Läufe, danach Deploy auf Anweisung. Dann Teil D budgeting-wnkgj fertig
+  verfeinern, sobald Roman w07 beantwortet hat. Offen in der Prüfliste: w07, die Sichtpunkte „Ansehen“ (g20 bis g22, pk1 bis
+  pk4). Verfeinern bei Gelegenheit: ledger-fp4wn (berührt Sammelaktionen), ledger-zqst5, design-system-m4e7q, ledger-h7de3,
+  design-system-vf94m, ledger-t4rk8 (Geld, Roman entscheidet). ledger-ayjzq (Sicht „Für mich“) nach Gespräch mit Roman.
 - Verfeinert wird nur die nächste Etappe. Spätere Etappen haben Zeilen, keine Tickets.
 - Neue Ideen für spätere Etappen kommen hier als Zeile dazu.
 - Bestehende Tasks tragen einen Tag: `etappe-1`, `etappe-2`, `etappe-3`, `laufend`, `danach`.
