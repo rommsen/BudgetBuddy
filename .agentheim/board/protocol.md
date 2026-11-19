@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-11-19 07:48 -- Capture / Captured: ledger-ef068 - "Kassenbuch weicht von DS-Bausteinen ab: Knöpfe, Köpfe, Kontowahl, Kanten"
+
+**Type:** Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Bestandsreview ledger 2026-11-19, Gruppe G5
+
+---
+
 ## 2026-11-19 07:48 -- Capture / Captured: ledger-y8xrr - "Nachladen: Liste verliert ihren Stand, alte Zahlen stehen ohne Hinweis"
 
 **Type:** Capture

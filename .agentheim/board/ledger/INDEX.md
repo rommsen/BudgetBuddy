@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 11
+- **Backlog:** 12
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 145
@@ -75,6 +75,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **ledger-ef068** — "Kassenbuch weicht von DS-Bausteinen ab: Knöpfe, Köpfe, Kontowahl, Kanten" (refactor) — `backlog/ledger-ef068-kassenbuch-ds-abweichungen.md`
 - **ledger-y8xrr** — "Nachladen: Liste verliert ihren Stand, alte Zahlen stehen ohne Hinweis" (refactor) — `backlog/ledger-y8xrr-nachladen-stand-und-alte-zahlen.md`
 - **ledger-hme9k** — "Durchgehen und Detail: gestapelte Sheets und Rücksprünge" (refactor) — `backlog/ledger-hme9k-durchgehen-detail-gestapelte-sheets.md`
 - **ledger-zqst5** — "Kassenbuch am Handy: Suche, Filter-Knopf und Chips haften oben beim Scrollen" (feature) — `backlog/ledger-zqst5-suche-und-filter-am-handy-haften.md`
