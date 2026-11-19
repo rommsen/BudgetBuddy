@@ -1,8 +1,9 @@
 // scripts/ledger-review-state.test.mjs
 //
 // Gerenderter Beleg für `ledger-v9rq3`: "Zuletzt verwendet" im Kategorie-Filter übersteht ein
-// Neuladen (localStorage gibt es nur im Browser), "Übernehmen" erst mit Änderung, die Karte "Alles
-// geprüft" steht ohne "Jetzt spiegeln". Summenzeile, Klartext und den Text der Karte prüft `src/Tests/LedgerReviewStateTests.fs` (infrastructure-t5m2b).
+// Neuladen (localStorage gibt es nur im Browser), "Übernehmen" erst mit Änderung, nach dem letzten Prüfen
+// erscheint "Alles geprüft". Summenzeile, Klartext, den Text der Karte und die Aktion je leerem Zustand
+// (`emptyListAction`, ledger-rb3xw) prüft `src/Tests/LedgerReviewStateTests.fs` (infrastructure-t5m2b).
 // Echter Fable-Client gegen gemockte Ledger-Antworten mit erfundenen Werten.
 //
 // Ausführen: node --test scripts/ledger-review-state.test.mjs
@@ -69,9 +70,9 @@ async function openLedger(viewport) {
   return { page, context };
 }
 
-// Die Karte selbst ist View: ihr Text kommt aus `allReviewedText` (.NET), dass sie ohne "Jetzt
-// spiegeln" steht, nur hier.
-test("[flow:pruefliste-abarbeiten] PC: nach dem letzten Prüfen unter Zu prüfen steht Alles geprüft ohne Jetzt spiegeln", async () => {
+// Der Flow prüft nur, dass „Alles geprüft“ erscheint: Text der Karte aus `allReviewedText`, dass sie keine Aktion
+// hat aus `emptyListAction` (beides .NET, ledger-rb3xw).
+test("[flow:pruefliste-abarbeiten] PC: nach dem letzten Prüfen unter Zu prüfen steht Alles geprüft", async () => {
   const { page, context } = await openLedger({ width: 1440, height: 900 });
   try {
     await page.getByRole("button", { name: /^Zu prüfen/ }).first().click();
@@ -83,9 +84,6 @@ test("[flow:pruefliste-abarbeiten] PC: nach dem letzten Prüfen unter Zu prüfen
     // Der Kopf des Kassenbuchs hat eigene Spiegel-Knöpfe; geprüft wird nur die Karte `Card.allDone` (ledger-ef068).
     const emptyCard = page.getByTestId("ledger-all-reviewed");
     await emptyCard.getByText("Alles geprüft", { exact: true }).waitFor();
-    assert.ok((await emptyCard.innerText()).includes("steht nichts mehr zu prüfen"), "Text der Karte");
-    assert.equal(await emptyCard.getByRole("button", { name: "Jetzt spiegeln" }).count(), 0, "kein Jetzt spiegeln");
-    assert.equal(await page.getByText("Keine Buchungen", { exact: true }).count(), 0, "kein Leerzustand ohne Daten");
   } finally {
     await context.close();
   }

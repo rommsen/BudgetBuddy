@@ -303,7 +303,9 @@ let tableSkeleton colCount rowCount =
 let txListSkeleton (rowCount: int) =
     Html.div [
         prop.className "tx-list"
-        prop.ariaLabel "Lade Transaktionen"
+        // Neutral: der Platzhalter vertritt auch Konten, den Monat und Budget-Bewegungen (ledger-rb3xw).
+        prop.ariaLabel "Wird geladen"
+        prop.ariaBusy true
         prop.children [
             Html.div [
                 prop.className "date-group"

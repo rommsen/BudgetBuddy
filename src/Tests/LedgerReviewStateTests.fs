@@ -40,6 +40,12 @@ let tests =
             Expect.equal (emptyListKind true { noFilters with WithoutCategory = true }) EmptyListKind.NoMatch "beide Chips"
             Expect.equal (emptyListKind false { noFilters with Search = Some "x" }) EmptyListKind.NoMatch "nur Suche"
 
+        testCase "Leerzustand: Aktion je Fall, ohne Filter Abrufen statt Jetzt spiegeln (ledger-rb3xw)" <| fun () ->
+            Expect.equal (emptyListAction EmptyListKind.NoEntries) (Some EmptyListAction.Fetch) "kein Filter: Abrufen"
+            Expect.equal (emptyListAction EmptyListKind.NoMatch) (Some EmptyListAction.ClearFilters) "kein Treffer: Filter löschen"
+            Expect.equal (emptyListAction EmptyListKind.AllReviewed) None "Alles geprüft: keine Aktion"
+            Expect.equal (emptyListAction EmptyListKind.AllCategorized) None "Alles kategorisiert: keine Aktion"
+
         testCase "Klartext: Konto allein und Gesamtsicht" <| fun () ->
             Expect.equal (filterPlainText "ING Extra" false [] noFilters) "ING Extra" "Konto"
             Expect.equal (filterPlainText "alle Konten" false [] noFilters) "alle Konten" "Gesamtsicht"

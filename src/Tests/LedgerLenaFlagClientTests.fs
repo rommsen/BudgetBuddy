@@ -147,8 +147,7 @@ let lenaActionTests =
                 (Components.Ledger.View.lenaActionMsg { model with FlagRows = Map.ofList [ idOf 1, FlagSending ] } (entryOf 1))
                 "während der Aufruf läuft"
 
-        testCase "Chip-Beschriftung, Reihenfolge und Zeilentreffer" <| fun () ->
-            Expect.equal (Components.Ledger.View.askLenaChipLabel 3) "Rückfrage Lena (3)" "Beschriftung"
+        testCase "Chip-Reihenfolge und Zeilentreffer" <| fun () ->
             Expect.equal (List.item 1 fixedChipOrder) AskLenaChip "der Chip steht hinter Zu prüfen"
             let on = { noFilters with OnlyAskLena = true }
             Expect.isTrue (rowMatchesFilters on (lenaEntry 1)) "Lena passt"

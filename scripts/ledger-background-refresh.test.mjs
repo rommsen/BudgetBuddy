@@ -152,7 +152,7 @@ async function expectStandHeld(page, mobile, releaseMirror) {
   await page.evaluate(() => {
     window.__skeletonSeen = false;
     new MutationObserver(() => {
-      if (document.querySelector('[aria-label="Lade Transaktionen"], .animate-pulse')) window.__skeletonSeen = true;
+      if (document.querySelector('[aria-busy="true"], .animate-pulse')) window.__skeletonSeen = true;
     }).observe(document.body, { childList: true, subtree: true });
   });
   releaseMirror();

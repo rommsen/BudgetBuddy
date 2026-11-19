@@ -1,7 +1,7 @@
 ---
 id: ledger-rb3xw
 title: "Begriffe und Texte im Kassenbuch: ein Name für den Lena-Filter, leerer Zustand „Keine Buchungen“ nach §7.12 mit „Abrufen“, Listen-Platzhalter ohne „Transaktionen“"
-status: doing
+status: done
 type: refactor
 context: ledger
 created: 2026-11-19
@@ -109,3 +109,24 @@ Kann-Sammlung ledger-k4n2s: Punkt 135 („prüfen, ob `chipLabel` für Zu prüfe
 Filter-Sheet eine Klasse drei Zeilen tiefer, daher erst Teil 1.
 
 Bereit für todo erst nach Romans Wahl zu beiden Fragen.
+
+## Outcome
+
+Begriffe und leerer Zustand im Kassenbuch nach Romans Wahl (A/A).
+
+- **Lena-Filter**: `askLenaFilterLabel = "Lena"` in `src/Client/Components/Ledger/Types.fs` (neben `activeFilterChips`), genutzt vom aktiven Chip (`activeFilterChips`), vom PC-Chip (`pcChipLabel`), vom Schalter im Filter-Sheet (`Input.countSwitchRow "filter-ask-lena"`) und vom Zweig `AskLenaChip` in `chipLabel` (`src/Client/Components/Ledger/View.fs`). `askLenaChipLabel` samt Testzeile in `src/Tests/LedgerLenaFlagClientTests.fs` entfernt (der Testfall heißt jetzt „Chip-Reihenfolge und Zeilentreffer“). `grep -n '"Lena gefragt"' src/Client/Components/Ledger/View.fs` findet nichts. Marke „Rückfrage Lena“ und Toast/Historie „Lena gefragt“ unverändert. Kein Test auf die Konstante.
+- **emptyListAction**: `EmptyListAction` (`ClearFilters`, `Fetch`) und `emptyListAction : EmptyListKind -> EmptyListAction option` in `Types.fs` neben `emptyListKind`. Expecto-Fall „Leerzustand: Aktion je Fall, ohne Filter Abrufen statt Jetzt spiegeln (ledger-rb3xw)“ in `src/Tests/LedgerReviewStateTests.fs` über alle vier Fälle; vor dem Fix rot belegt (Mutant `NoEntries -> None`: „expected Some Fetch, actual null“).
+- **Leerer Zustand ohne Filter**: „Keine Buchungen“, „Buchungen erscheinen hier nach dem nächsten Import.“, `Button.secondary "Abrufen"`. Die View rendert nur (`emptyListButton` bildet die Aktion auf den Knopf ab, auch für „Kein Treffer“). „Abrufen“ ruft `tabs.Fetch`, durchgereicht `view` → `FilterBarColumn` (neuer letzter Parameter `fetch`) → `entryList`; dieselbe Funktion wie `FetchIcon`/`FetchButton` im Kopf. Kommentar am Zweig „Kein Treffer“ nachgezogen.
+- **Flow `[flow:pruefliste-abarbeiten]`** (`scripts/ledger-review-state.test.mjs`): wartet nur noch auf „Alles geprüft“ in der Karte; die Prüfungen „kein Jetzt spiegeln“, Kartentext und „kein Leerzustand“ entfallen (Kartentext über `allReviewedText`, Aktion über `emptyListAction`, beides .NET). Kopfkommentar und Testname angepasst.
+- **Listen-Platzhalter**: `Loading.txListSkeleton` trägt `aria-label "Wird geladen"` und `aria-busy true` (`src/Client/DesignSystem/Loading.fs`); Selektor in `scripts/ledger-background-refresh.test.mjs` auf `[aria-busy="true"]` umgestellt. Sonst keine Änderung am Baustein, die zehn Aufrufer bleiben unberührt.
+- **README-Delta**: „Rückfrage Lena (Chip)“ wird „Lena-Filter (Chip)“; dazu in „Kassenbuch unter 1024 px“ der Schalter „Lena gefragt“ → „Lena“ und ein Satz zum leeren Zustand (`emptyListAction`), und in „Lena fragen für die Auswahl“ „Bei aktivem Chip "Rückfrage Lena"“ → „Bei aktivem Lena-Filter (Chip „Lena“)“. `npm run check:readme-delta -- --bc ledger --delta …` Exit 0, kein `--keep`. Ganz nachlesen: `## Key commands` LenaFragenFürAuswahl (Zeile 400): passt; `## Ereignisse` EntryFlagWriteBackFailed (Zeile 540): passt (beide betreffen den Schreibweg des Flags, nicht den Filter).
+- **Gate**: `./verify.sh` → `VERIFY: PASS (dotnet 5187 grün, node 351 grün, dotnet build, npm run build, guard:classes, guard:tokens grün)`, inklusive Layout-Sweep `kassenbuch-filter-sheet` und Weg über `filter-ask-lena`.
+- **Bilder für Romans Blick** (nachher, gebauter Client mit gemockter API; der rote Toast „Failed to load Lena flag colour“ kommt aus dem im Aufnahmeskript nicht gemockten `getLenaFlagSettings`, nicht aus der Änderung):
+  - /private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/4b5cf62e-3174-40e3-90f3-4b5312280eb9/scratchpad/shots/ledger-rb3xw/412-filter-sheet-lena.png und /private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/4b5cf62e-3174-40e3-90f3-4b5312280eb9/scratchpad/shots/ledger-rb3xw/412-filter-sheet-lena-an.png (Schalter „Lena“)
+  - /private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/4b5cf62e-3174-40e3-90f3-4b5312280eb9/scratchpad/shots/ledger-rb3xw/412-aktiver-chip-lena.png
+  - /private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/4b5cf62e-3174-40e3-90f3-4b5312280eb9/scratchpad/shots/ledger-rb3xw/412-leer-keine-buchungen.png
+  - /private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/4b5cf62e-3174-40e3-90f3-4b5312280eb9/scratchpad/shots/ledger-rb3xw/1280-filterleiste-chip-lena.png und /private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/4b5cf62e-3174-40e3-90f3-4b5312280eb9/scratchpad/shots/ledger-rb3xw/1440-filterleiste-chip-lena.png
+  - /private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/4b5cf62e-3174-40e3-90f3-4b5312280eb9/scratchpad/shots/ledger-rb3xw/1280-leer-keine-buchungen.png und /private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/4b5cf62e-3174-40e3-90f3-4b5312280eb9/scratchpad/shots/ledger-rb3xw/1440-leer-keine-buchungen.png
+  Vorher-Bilder fehlen: ein Bau des alten Stands hätte einen zweiten Checkout gebraucht. Die sichtbaren Abweichungen zum alten Stand sind genau die Texte im Diff (Schalter „Lena gefragt“ → „Lena“; leerer Zustand „Für diesen Filter steht noch nichts im Kassenbuch.“ und „Jetzt spiegeln“ → „Buchungen erscheinen hier nach dem nächsten Import.“ und „Abrufen“). Das Antippen von „Abrufen“ per Touch am Handy bleibt `[human-eye]` für Roman.
+
+Integration (Conductor): Die Op zu **Kassenbuch unter 1024 px** wurde auf den Stand nach ledger-gy77x gesetzt (gleicher Bullet, beide Änderungen erhalten: Schalter „Lena“ und Satz **Leerer Zustand**), Gate Exit 0.

@@ -299,6 +299,10 @@ let categoryFilterChipText (selectedCount: int) (categoryNames: string list) : s
     | [ name ] when selectedCount = 1 -> $"Kategorie: {name}"
     | _ -> $"Kategorie: {selectedCount}"
 
+/// Der Name des Lena-Filters (ADR 0056, ledger-rb3xw): gleich im Filter-Sheet, am Chip am PC und am aktiven Chip.
+/// Die Marke in der Zeile („Rückfrage Lena“) und Toast und Historie („Lena gefragt“) nennen den Zustand der Buchung.
+let askLenaFilterLabel = "Lena"
+
 /// Die gesetzten Filter als Chips (ledger-d9z3n), in fester Reihenfolge: „Zu prüfen“, „Lena“,
 /// „Ohne Kategorie“, Kategorie, Zeitraum, Betrag, Richtung, Sortierung, „mit Gelöschten“. `sortLabel` ist der
 /// Text einer anderen Sortierung als der Standard, sonst `None`. Die Suche steht im Feld, nicht hier.
@@ -310,7 +314,7 @@ let activeFilterChips
     (f: Filters)
     : (ActiveFilter * string) list =
     [ if onlyNeedsReview then ActiveFilter.NeedsReview, "Zu prüfen"
-      if f.OnlyAskLena then ActiveFilter.AskLena, "Lena"
+      if f.OnlyAskLena then ActiveFilter.AskLena, askLenaFilterLabel
       if f.WithoutCategory then ActiveFilter.WithoutCategory, "Ohne Kategorie"
       if hasCategoryFilter f then ActiveFilter.Category, categoryFilterChipText (Set.count f.CategoryIds) categoryNames
       match f.DateRange with
@@ -350,6 +354,21 @@ let emptyListKind (onlyNeedsReview: bool) (f: Filters) : EmptyListKind =
     elif onlyNeedsReview then EmptyListKind.AllReviewed
     elif f.WithoutCategory then EmptyListKind.AllCategorized
     else EmptyListKind.NoEntries
+
+/// Die Aktion im leeren Zustand (ledger-rb3xw, styleguide §7.12): „Filter löschen“ bei einem Filter ohne Treffer,
+/// „Abrufen“ ohne jeden Filter (Import direkt ins Kassenbuch, ADR 0093).
+[<RequireQualifiedAccess>]
+type EmptyListAction =
+    | ClearFilters
+    | Fetch
+
+/// Welche Aktion ein leerer Zustand anbietet. „Alles geprüft“ und „Alles kategorisiert“ sind erledigt, ohne Aktion.
+let emptyListAction (kind: EmptyListKind) : EmptyListAction option =
+    match kind with
+    | EmptyListKind.NoMatch -> Some EmptyListAction.ClearFilters
+    | EmptyListKind.NoEntries -> Some EmptyListAction.Fetch
+    | EmptyListKind.AllReviewed
+    | EmptyListKind.AllCategorized -> None
 
 /// Gründe, aus denen die Kategorien mit diesen Settings gar nicht geladen werden (ledger-vq2g8).
 /// `Client.State` legt sie in `Categories = Failure`, der Picker zeigt sie statt des

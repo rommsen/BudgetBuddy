@@ -157,9 +157,6 @@ let deletedCountText (totalCount: int) (deletedCount: int) (includeDeleted: bool
 /// Fable/Badge-Kontext.
 let needsReviewChipLabel (count: int) : string = $"Zu prüfen ({count})"
 
-/// Der Text des Chips "Rückfrage Lena (n)" (ADR 0056, Punkt 6), im Muster von "Zu prüfen (n)".
-let askLenaChipLabel (count: int) : string = $"Rückfrage Lena ({count})"
-
 /// Was eine Karte der Kontostände-Leiste an der Stelle des Betrags zeigt (ledger-vq2g8):
 /// den geladenen Stand, einen Platzhalter, solange die Stände laden, oder einen Strich,
 /// wenn der Abruf scheiterte. Ein erfundener Nullwert war vorher von einem echten Stand
@@ -2913,8 +2910,16 @@ let allReviewedText (scope: string) : string =
 /// Satz im leeren Zustand „Kein Treffer“ (ledger-d9z3n, §7.12).
 let noMatchText = "Keine Buchung passt zu Suche und Filtern."
 
+/// Der Knopf eines leeren Zustands; welche Aktion gilt, entscheidet `emptyListAction` (ledger-rb3xw).
+let private emptyListButton (dispatch: Msg -> unit) (fetch: unit -> unit) (kind: EmptyListKind) : ReactElement option =
+    emptyListAction kind
+    |> Option.map (function
+        | EmptyListAction.ClearFilters -> Button.secondary "Filter löschen" (fun () -> dispatch ClearAllFilters)
+        | EmptyListAction.Fetch -> Button.secondary "Abrufen" fetch)
+
 let private entryList
     (dispatch: Msg -> unit)
+    (fetch: unit -> unit)
     (accounts: LedgerAccountView list)
     (isAllAccounts: bool)
     (handyForm: bool)
@@ -2968,21 +2973,22 @@ let private entryList
 
     | Success [] when emptyListKind model.OnlyNeedsReview model.Filters = EmptyListKind.NoMatch ->
         // AC "Leerzustand ohne Treffer": nennt eine nächste Handlung, statt nur
-        // Leere zu melden, anders als der Fall ohne jeden Filter (Zweig darunter),
-        // der auf den fehlenden Spiegel-Lauf hinweist.
-        // „Filter löschen“ nimmt alle Filter und die Suche zurück, das Konto bleibt (ledger-d9z3n, §7.12).
+        // Leere zu melden. „Filter löschen“ nimmt alle Filter und die Suche zurück, das Konto bleibt
+        // (ledger-d9z3n, §7.12). Ohne jeden Filter (Zweig darunter) bietet der Zustand den Abruf an.
         Card.emptyState
             (Icons.banknotes Icons.XL Icons.Default)
             "Kein Treffer"
             noMatchText
-            (Some (Button.secondary "Filter löschen" (fun () -> dispatch ClearAllFilters)))
+            (emptyListButton dispatch fetch EmptyListKind.NoMatch)
 
     | Success [] ->
+        // Kein Filter, das Konto hat keine Buchungen: §7.12 wörtlich, „Abrufen“ ist derselbe Abruf wie im Kopf
+        // (`LedgerTabs.Fetch`, ADR 0093, ledger-rb3xw).
         Card.emptyState
             (Icons.banknotes Icons.XL Icons.Default)
             "Keine Buchungen"
-            "Für diesen Filter steht noch nichts im Kassenbuch."
-            (Some (Button.secondary "Jetzt spiegeln" (fun () -> dispatch StartMirror)))
+            "Buchungen erscheinen hier nach dem nächsten Import."
+            (emptyListButton dispatch fetch EmptyListKind.NoEntries)
 
     | Success entries ->
         // Die Spalten wählt der Aufrufer (`FilterBarColumn`): am PC neben dem Panel, das immer steht (ledger-cnaz3).
@@ -3222,7 +3228,7 @@ let private dateChipLabel (filters: Filters) : string =
 let chipLabel (model: Model) (chip: ChipId) : string =
     match chip with
     | NeedsReviewChip -> needsReviewChipLabel model.NeedsReviewCount
-    | AskLenaChip -> askLenaChipLabel model.AskLenaCount
+    | AskLenaChip -> askLenaFilterLabel
     | CategoryChip -> if hasCategoryFilter model.Filters then categoryChipLabel model.Filters else "Kategorie"
     | WithoutCategoryChip -> "Ohne Kategorie"
     | DateChip -> if hasDateFilter model.Filters then dateChipLabel model.Filters else "Zeitraum"
@@ -3254,11 +3260,11 @@ let private chipOnClick (dispatch: Msg -> unit) (chip: ChipId) : unit -> unit =
     | other -> fun () -> dispatch (OpenFilterPopover other)
 
 /// Der Text eines Chips der Filterleiste am PC (ledger-cnaz3, Prototyp Version 17): die Umschalter ohne Zahl (sie
-/// steht klein dahinter, `pcChipCount`), „Lena“ statt „Rückfrage Lena“, die Kategorie mit Namen.
+/// steht klein dahinter, `pcChipCount`), `askLenaFilterLabel` für den Lena-Filter, die Kategorie mit Namen.
 let pcChipLabel (model: Model) (categoryNames: string list) (chip: ChipId) : string =
     match chip with
     | NeedsReviewChip -> "Zu prüfen"
-    | AskLenaChip -> "Lena"
+    | AskLenaChip -> askLenaFilterLabel
     | WithoutCategoryChip -> "Ohne Kategorie"
     | CategoryChip -> categoryChipText categoryNames
     | DateChip
@@ -3440,7 +3446,7 @@ let filterSheetShowLabel (entries: RemoteData<LedgerEntryView list>) (totalCount
     | Success _ -> $"{Money.formatCount totalCount} zeigen"
     | _ -> "Zeigen"
 
-/// Das Filter-Sheet (ledger-d9z3n, Prototyp `sheetHtml` Zweig `filter`): Schalter „Zu prüfen“, „Lena gefragt“,
+/// Das Filter-Sheet (ledger-d9z3n, Prototyp `sheetHtml` Zweig `filter`): Schalter „Zu prüfen“, „Lena“,
 /// „Ohne Kategorie“ mit Anzahl, Zeilen „Kategorie“ und „Zeitraum“, „Betrag von“ und „bis“, Zeile „Sortieren“ und
 /// „Gelöschte zeigen“, wenn es gelöschte Buchungen gibt. Jede Änderung wirkt sofort. Kategorie, Zeitraum und
 /// Sortieren ersetzen den Inhalt des Sheets, mit „Zurück“ oben (ledger-npqcb, §7.15, `filterSheetView`).
@@ -3509,7 +3515,7 @@ let private filterSheet (dispatch: Msg -> unit) (model: Model) (categories: Ynab
                 prop.className "flex flex-col"
                 prop.children [
                     Input.countSwitchRow "filter-needs-review" "Zu prüfen" (Some model.NeedsReviewCount) model.OnlyNeedsReview (fun _ -> dispatch ToggleOnlyNeedsReview)
-                    Input.countSwitchRow "filter-ask-lena" "Lena gefragt" (Some model.AskLenaCount) model.Filters.OnlyAskLena (fun _ -> dispatch ToggleOnlyAskLena)
+                    Input.countSwitchRow "filter-ask-lena" askLenaFilterLabel (Some model.AskLenaCount) model.Filters.OnlyAskLena (fun _ -> dispatch ToggleOnlyAskLena)
                     Input.countSwitchRow "filter-without-category" "Ohne Kategorie" (Some model.WithoutCategoryCount) model.Filters.WithoutCategory (fun _ -> dispatch ToggleWithoutCategory)
                     Input.valueRow
                         "filter-category"
@@ -4615,6 +4621,7 @@ let private FilterBarColumn
     (balances: RemoteData<LedgerAccountBalanceView list>)
     (isAllAccounts: bool)
     (ruleForm: EntryRuleFormSlot)
+    (fetch: unit -> unit)
     =
     let barHeight, setBarHeight = React.useState 0.0
     // 0 = noch nicht gemessen, dann gilt `assumedTableWidth`.
@@ -4714,7 +4721,7 @@ let private FilterBarColumn
                 // Unter 1024 px steht „Gelöschte zeigen“ im Filter-Sheet.
                 if handyForm then Html.none else deletedToggleRow dispatch model
                 orderStaleBar dispatch model
-                entryList dispatch accounts isAllAccounts handyForm tableLayout model
+                entryList dispatch fetch accounts isAllAccounts handyForm tableLayout model
                 selectionBarSpacers model
                 captureFabSpacer model
             ]
@@ -4998,7 +5005,7 @@ let view (model: Model) (dispatch: Msg -> unit) (tabs: LedgerTabs) (ruleForm: En
                 | _ -> ()
                 Html.div [
                     prop.className "flex flex-col"
-                    prop.children [ FilterBarColumn today dispatch model categories accounts balances isAllAccounts ruleForm ]
+                    prop.children [ FilterBarColumn today dispatch model categories accounts balances isAllAccounts ruleForm tabs.Fetch ]
                 ]
                 BookingsScrollRestore model.BookingsScroll dispatch
 
