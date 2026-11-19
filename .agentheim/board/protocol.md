@@ -5,6 +5,71 @@ Newest entries on top.
 
 ---
 
+## 2026-11-19 08:18 -- Modeling / Refined: Bestandsreview ledger 2026-11-19, Gruppen G1, G2, G3, G5
+
+**Type:** Modeling / Refine
+**BC:** ledger
+**Status after:** todo
+**Summary:** Alle 37 Befunde am Code geprüft (HEAD f98a8ce6), keiner entfällt außer MirrorRunning (Doppeldruck-Sperre, kein Ladezustand). ledger-b7k2q und ledger-hme9k ungeteilt, ledger-y8xrr in 4, ledger-ef068 in 4 Teile. Entschieden (Roman): Bob-Commit nach Mitternacht prüft das Datumsfenster neu, alte Kontostände bleiben mit rotem Hinweis, Lena-Filter heißt „Lena“, leerer Zustand mit „Abrufen“, „Abbrechen“ im Formular-Fuß als Outline (§5 wird eingeschränkt), DS-Optik übernehmen, Kann-Sammlung Punkt 117 in ledger-hme9k. Kann-Sammlung ledger-k4n2s: 47, 76, 117 gehen auf, 26, 82, 135 teilweise.
+**Split into:** ledger-pfhdq, ledger-pz028, ledger-awf5b (aus ledger-y8xrr); ledger-gy77x, ledger-zf6zg, ledger-rb3xw (aus ledger-ef068)
+**ADRs written:** keine
+
+---
+
+## 2026-11-19 08:18 -- Modeling / Captured: ledger-rb3xw - "Begriffe und Texte im Kassenbuch: ein Name für den Lena-Filter, leerer Zustand „Keine Buchungen“ nach §7.12 mit „Abrufen“, Listen-Platzhalter ohne „Transaktionen“"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Teil-Task aus dem Refinement der Bestandsreview-Gruppen G3/G5 (ledger 2026-11-19).
+
+---
+
+## 2026-11-19 08:18 -- Modeling / Captured: ledger-zf6zg - "„Neue Buchung“ nach DS: Kontowahl als Money.accountChoiceRow wie im Sheet „Konto“, Kopf des Panels wie der Kopf des Details, „Abbrechen“ ohne Füllung, Payee-Feld sagt „optional“"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Teil-Task aus dem Refinement der Bestandsreview-Gruppen G3/G5 (ledger 2026-11-19).
+
+---
+
+## 2026-11-19 08:18 -- Modeling / Captured: ledger-gy77x - "Knöpfe im Kassenbuch nach DS: „+ Buchung“ als Button.fab, „Abrufen“ und „Jetzt spiegeln“ als Symbolknopf im Kopf, „Lena fragen“ auf der Karte wie im Detail, „Abbrechen“ ohne Füllung in „Betrag“ und im Split-Editor"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Teil-Task aus dem Refinement der Bestandsreview-Gruppen G3/G5 (ledger 2026-11-19).
+
+---
+
+## 2026-11-19 08:18 -- Modeling / Captured: ledger-awf5b - "Ein übernommener Betragsfilter mit Komma („12,50“) gilt nicht mehr als laufende Eingabe: isInputActive vergleicht die Betragsentwürfe als Wert statt als Text, der Update-Neustart beim Öffnen wird nicht mehr zurückgehalten (src/Client/State.fs isInputActive)"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Teil-Task aus dem Refinement der Bestandsreview-Gruppen G3/G5 (ledger 2026-11-19).
+
+---
+
+## 2026-11-19 08:18 -- Modeling / Captured: ledger-pz028 - "Kassenbuch-State aufräumen: drei Antworten tragen Result, das Quick-Add-Konto kommt aus den Settings des Root statt aus einem eigenen Abruf, die toten Kategorien-Zweige fallen weg, „Weitere laden“ und Nachladen teilen einen Zustand statt LoadingMore (Components/Ledger/State.fs, Types.fs)"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Teil-Task aus dem Refinement der Bestandsreview-Gruppen G3/G5 (ledger 2026-11-19).
+
+---
+
+## 2026-11-19 08:18 -- Modeling / Captured: ledger-pfhdq - "Späte und gescheiterte Antworten im Kassenbuch: Available, Kontostände und Spiegel-Status tragen eine Lade-Nummer, ältere Antworten fallen weg, ein gescheitertes Nachladen der Kontostände bleibt mit Hinweis sichtbar (Components/Ledger/State.fs CategoriesLoaded, BalancesLoaded, MirrorStatusLoaded)"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Teil-Task aus dem Refinement der Bestandsreview-Gruppen G3/G5 (ledger 2026-11-19).
+
+---
+
 ## 2026-11-19 07:49 -- Capture / Captured: ledger-b7k2q - "Bob: kein Flag nicht belegt, Grenzen am Commit und am Rumpf lückenhaft"
 
 **Type:** Capture

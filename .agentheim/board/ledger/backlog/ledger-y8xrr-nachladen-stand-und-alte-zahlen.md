@@ -1,46 +1,92 @@
 ---
 id: ledger-y8xrr
-title: "Nachladen: Liste verliert ihren Stand, alte Zahlen stehen ohne Hinweis"
+title: "Kassenbuch-Liste behält Seiten, Scrollstand und Auswahl auch nach eigenen Aktionen: Anlegen, Rückgängig nach dem Anlegen, Löschen, Wiederherstellen und „Geprüft“ für die Auswahl laden im Hintergrund nach statt neu aufzubauen (Components/Ledger/State.fs, LoadEntries an fünf Stellen)"
 status: backlog
-type: refactor
+type: bug
 context: ledger
 created: 2026-11-19
 completed:
-depends_on: []
-blocks: []
-tags: [captured, bestandsreview]
-related_adrs: []
+depends_on: [design-system-001-styleguide]
+blocks: [ledger-pz028]
+tags: [bestandsreview, frontend, tests]
+related_adrs: [0014, 0092]
 related_research: []
-prior_art: []
+prior_art: [ledger-ct3cx]
 ---
 
 ## Why
-Bestandsreview ledger 2026-11-19, Gruppe G3, von Roman zur Task gewählt. Daten im Alltag falsch oder veraltet angezeigt (Available, Kontostände), Auswahl und Scrollstand gehen verloren; höchste Schwere mittel. Verweis: ledger-k4n2s Zeile 76.
+Bestandsreview ledger 2026-11-19, Gruppe G3 (Bericht `.agentheim/knowledge/reviews/2026-11-19-ledger.md`), Teil 1 von 4.
+Teil 2 ist ledger-pfhdq (späte und gescheiterte Antworten bei Available, Kontoständen, Spiegel-Status), Teil 3
+ledger-pz028 (Aufräumen: Antworten mit `Result`, eine Quelle fürs Quick-Add-Konto, tote Zweige, Ladezustand der
+Liste), Teil 4 ledger-awf5b (Betragsfilter hält den Update-Neustart zurück).
+
+ledger-ct3cx hat das Nachladen im Hintergrund (`RefreshEntries`) für Spiegel-Lauf, Abruf und „Rückgängig“ auf ein
+Verwerfen eingeführt. Fünf Wege nach Romans eigenen Aktionen bauen die Liste weiter neu auf (`LoadEntries` →
+`rebuildEntries`): Skeleton, Sprung nach oben, nachgeladene Seiten weg, Auswahl weg. Wer auf Seite 3 eine Buchung
+löscht oder wiederherstellt, landet wieder oben. Das widerspricht dem Kommentar an `rebuildEntries` (State.fs:199:
+Neuaufbau „nur bei geänderter Abfrage … ohne geladene Liste und beim Betreten der Seite“) und dem README-Bullet
+**Nachladen im Hintergrund**. Kann-Sammlung ledger-k4n2s Punkt 76 (dritter Teil) nennt dieselben Aufrufer.
 
 ## What
-Alle Befunde der Gruppe in Befundform, wörtlich aus dem Bericht `.agentheim/knowledge/reviews/2026-11-19-ledger.md`:
+Die fünf Stellen schicken `RefreshEntries` statt `LoadEntries`; `LoadBalances` bleibt daneben, wie es ist:
+- `CaptureSubmitted (Ok _)` (State.fs:3510), „Buchung anlegen“; das Öffnen des Details am PC (`openDetail`) bleibt.
+- `CapturedDiscarded (_, Ok ())` (3542), „Rückgängig“ im Toast nach dem Anlegen.
+- `EntryDeleteFinished (_, Ok ())` (3574), „Buchung löschen“ im Detail.
+- `EntryRestoreFinished (_, Ok ())` (3601), „Rückgängig“ nach dem Löschen.
+- `ReviewMarkBatchDone (Ok _)` mit `reload = true` (3992), „Geprüft“ für die Auswahl bei aktivem Chip „Zu prüfen“
+  unter „alle“. Die Auswahl endet dort weiter (`applyReviewMarkBatch`), es bleiben Seiten und Scrollstand.
 
-### G3 Nachladen: Liste verliert ihren Stand, alte Zahlen stehen ohne Hinweis
+Unverändert bleiben die Knöpfe „Erneut laden“ bzw. „Erneut versuchen“ nach einem gescheiterten Laden der Liste
+(`View.fs:2906`, `4015`): sie bauen neu auf, es gibt keine Liste zu halten. `LoadEntries` bleibt als Nachricht dafür.
 
-**Kern:** Mehrere Lade- und Nachladewege verwerfen Auswahl und Scrollstand, überschreiben frische Werte mit alten (Available) oder verschlucken ein Scheitern, sodass veraltete Kontostände ohne Hinweis stehen.
-
-**Höchste Schwere:** mittel · **Befunde:** 10 · **BCs:** ledger
-
-**Verweis:** Teilweise schon in der Kann-Sammlung ledger-k4n2s Zeile 76 (ledger-ct3cx).
-
-- src/Client/Components/Ledger/State.fs:3510 | README „Nachladen im Hintergrund“ (ledger-ct3cx), Kommentar `rebuildEntries` State.fs:199 | mittel | Nach Buchung anlegen, Verwerfen (3542), Löschen (3574), Wiederherstellen (3601) und „Geprüft“ für die Auswahl (3992) baut `LoadEntries` neu auf (Auswahl, Seiten, Scrollstand weg); einheitlich `RefreshEntries`.
-- src/Client/Components/Ledger/State.fs:1997 | standards/frontend/overview.md „Späte Antworten“; README „Available frisch halten“ | mittel | `CategoriesLoaded` ohne Lade-Nummer; ein älterer Abruf überschreibt die Fortschreibung aus `shiftAvailable` mit altem Available. `CategoriesGeneration` einführen.
-- src/Client/Components/Ledger/State.fs:1650 | ledger/README.md „Kontostand“ | mittel | `LoadBalances` lässt `Success` stehen, `lateFailure` schluckt jedes spätere Scheitern; nach gescheitertem Nachladen zeigt die Leiste alte Stände ohne Hinweis. Scheitern sichtbar machen, Annahme in `RemoteData.lateFailure` (Types.fs:48) stimmt nicht mehr.
-- src/Client/Components/Ledger/State.fs:1923 | overview.md „Späte Antworten“ | niedrig | `LoadMirrorStatus` setzt `Loading`, „Gespiegelt …“ verschwindet kurz; `Error` überschreibt vorhandenen Stand. `Success` stehen lassen.
-- src/Client/State.fs:403 | standards/frontend/overview.md „Späte Antworten“/Entwürfe; ADR 0095 | mittel | `isInputActive` vergleicht `AmountMinDraft`/`AmountMaxDraft` als Text mit `formatAmountDraft`; ein getipptes „12,50“ bleibt nach dem Commit „ungleich 12.5“ und hält den Update-Neustart (ADR 0057) zurück. Werte über `parseAmountFilterText` vergleichen.
-- src/Client/Components/Ledger/State.fs:3632 | .claude/rules/elmish-state.md, doppelte Wege | mittel | `QuickAddAccountId` über eigenen `getSettings`-Aufruf, obwohl Root `Settings` und `LedgerBookingDefaults.QuickAddAccountId` denselben Wert liefern; Fehler wird geschluckt (3643). Eine Quelle, als `RemoteData`.
-- src/Client/Components/Ledger/Types.fs:2564 | elmish-state.md (Antworten tragen `Result`) | mittel | `CapturePayeeCategoryLoaded`, `ReviewSuggestionsLoaded` (2775), `ReviewMatchLoaded` (2778) ohne `Result`, Fehler wird im `Cmd` geschluckt; an `CategorySuggestionsLoaded` angleichen.
-- src/Client/Components/Ledger/State.fs:2005 | Types.fs `RemoteData.lateFailure` | niedrig | `CategoriesLoaded (Error)` baut `lateFailure` inline nach; Helfer nehmen.
-- src/Client/Components/Ledger/State.fs:1991 | keine toten Pfade | niedrig | Zweige `LoadCategories`, `EnsureCategoriesFresh` (2014) unerreichbar (Root fängt ab, State.fs:813, 819); entfernen.
-- src/Client/Components/Ledger/Types.fs:1432 | elmish-state.md „Kein IsLoading: bool“ | niedrig | `LoadingMore`, `CategoriesRefreshing` (1516), `MirrorRunning` (1491) neben `RemoteData` desselben Abrufs.
+Entscheidungen Conductor 2026-11-19, nach Empfehlung:
+- `RefreshEntries` bei `Entries = Loading` baut weiter neu auf (Kann-Sammlung Punkt 76, zweiter Teil). Nach einer
+  eigenen Aktion ist das sogar nötig: die laufende Abfrage kann vor der Aktion gestartet sein und den alten Stand
+  liefern. Kein Umbau.
+- Die gelöschte Buchung bleibt bis zur Antwort des Nachladens in der Liste stehen (heute steht so lange ein
+  Skeleton). Das Detail schließt wie heute; der Toast mit „Rückgängig“ kommt wie heute.
 
 ## Acceptance criteria
-- [ ] To be defined during refinement.
+- [ ] Regressionstest, vor dem Fix rot (Expecto über das echte `update`, Liste „Kassenbuch: Nachladen nach eigenen
+  Aktionen“ in `src/Tests/LedgerBackgroundRefreshTests.fs`), je für die fünf Antworten oben: GIVEN geladene Liste mit
+  zwei Seiten (`NextPage = 2`), Fokus auf einer Zeile der zweiten Seite, WHEN die Antwort mit `Ok`, THEN `Entries`
+  bleibt `Success` mit denselben Zeilen, `NextPage` bleibt 2, im Cmd steht `RefreshEntries` und `LoadBalances`, weder
+  `LoadEntries` noch `RunLoadEntriesPage 0`. Für Anlegen, Rückgängig nach dem Anlegen, Löschen und Wiederherstellen
+  zusätzlich: Auswahl-Modus an und zwei Zeilen gewählt bleiben `Selection` und `SelectionMode` unverändert.
+- [ ] Intakt, Expecto über `update`: nach `ReviewMarkBatchDone (Ok _)` mit `reload = true` ist die Auswahl leer und
+  der Auswahl-Modus aus (wie heute); mit `reload = false` steht kein Nachladen im Cmd. Die Antworten mit `Error`
+  schicken weder `RefreshEntries` noch `LoadEntries`.
+- [ ] Nach dem Nachladen ist eine gelöschte Buchung aus der Liste verschwunden und eine angelegte steht an ihrem Platz
+  (Expecto über `update`: die Antwort des Nachladens ohne die gelöschte bzw. mit der neuen Buchung, gebaut mit der
+  Antwort-Funktion aus ledger-ct3cx). Unter „Gelöschte zeigen“ steht die gelöschte als gelöschte Zeile.
+- [ ] Läuft beim Anlegen oder Löschen gerade „Weitere laden“, wartet das Nachladen auf dessen Antwort
+  (`RefreshAfterPage`). Beleg: die Aufzählung „Reihenfolgen beim Nachladen im Hintergrund“ in
+  `LedgerBackgroundRefreshTests.fs` (Doktrin Punkt 20) nimmt `EntryDeleteFinished (_, Ok ())` als weiteren
+  Nachladen-Start auf; das Orakel bleibt das aus ledger-ct3cx.
+- [ ] Die Tests, die heute `LoadEntries` nach diesen Antworten erwarten, ziehen um (`src/Tests/LedgerCaptureClientTests.fs:399`
+  und `:434` „Liste neu“, dazu jeder Fund von `grep -n "LoadEntries" src/Tests/*.fs` an diesen fünf Antworten).
+- [ ] Kein Browser-Test: dass eine `Success`-Liste ohne Skeleton den Scrollstand hält, belegt schon der `[scroll]`-Test
+  aus ledger-ct3cx (Doktrin Punkt 2).
+- [ ] README ledger, Bullet **Nachladen im Hintergrund**: die Auslöser um Anlegen, Rückgängig nach dem Anlegen, Löschen,
+  Wiederherstellen und „Geprüft“ für die Auswahl bei aktivem Chip ergänzen; Bullet **Auswahl** entsprechend
+  (Anlegen, Löschen und Wiederherstellen behalten die Auswahl). Delta vor der Integration durch
+  `npm run check:readme-delta`.
+- [ ] `./verify.sh` zeigt `VERIFY: PASS`.
 
 ## Notes
-Captured via `quick-capture` on 2026-11-19, raw, unrefined. Bewusst groß; kleiner geschnitten wird im Refinement (`agentheim:modeling`).
+Urteile (geprüft an HEAD f98a8ce6):
+- Befund 1 (State.fs:3510, 3542, 3574, 3601, 3992 schicken `LoadEntries`): bestätigt, Zeilen stimmen. `LoadEntries`
+  (1700) ruft `rebuildEntries` (202), das `resetEntries` setzt (Auswahl, Seiten, Generation). Weitere Sender von
+  `LoadEntries` im Client sind nur die zwei Fehlerknöpfe in `View.fs` (2906, 4015).
+- Kann-Sammlung ledger-k4n2s Punkt 76: erster Teil (`presetQuickFilter` leert die Entwürfe) ist im Code erledigt
+  (`presetQuickFilter` leert `SearchDraft`, `AmountMinDraft`, `AmountMaxDraft`), zweiter Teil bleibt bewusst (siehe
+  Entscheidungen), dritter Teil ist diese Task. Den Punkt bei der Integration durchstreichen mit „geht auf in
+  ledger-y8xrr“.
+
+Hinweise für den Worker:
+- `ReviewMarkBatchDone` setzt vor dem Nachladen Zeilen lokal (`NeedsReview = false`, `ReviewMarkWriteBackFailure`,
+  `LocallyRemoved`). Das Nachladen startet danach, die Basis in `RefreshRunning` ist also schon der lokale Stand; die
+  Prüfung „Einzelbefehl seit dem Start“ greift nicht fälschlich. Prüfen, dass der Server `ReviewMarkWriteBackFailure`
+  in der Antwort liefert, sonst verschwände der Hinweis nach dem Nachladen.
+- Löschen und Wiederherstellen setzen `DeletingEntries`/`RestoringEntries` als Zeilen-Sperre; das Nachladen ändert sie
+  nicht (`src/Tests/LedgerRowLockWaysTests.fs` braucht nichts Neues).

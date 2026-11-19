@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 13
+- **Backlog:** 19
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 145
@@ -75,6 +75,12 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **ledger-rb3xw** — "Begriffe und Texte im Kassenbuch: ein Name für den Lena-Filter, leerer Zustand „Keine Buchungen“ nach §7.12 mit „Abrufen“, Listen-Platzhalter ohne „Transaktionen“" (refactor) — `backlog/ledger-rb3xw-kassenbuch-begriffe-und-leerer-zustand.md`
+- **ledger-zf6zg** — "„Neue Buchung“ nach DS: Kontowahl als Money.accountChoiceRow wie im Sheet „Konto“, Kopf des Panels wie der Kopf des Details, „Abbrechen“ ohne Füllung, Payee-Feld sagt „optional“" (refactor) — `backlog/ledger-zf6zg-neue-buchung-nach-ds.md`
+- **ledger-gy77x** — "Knöpfe im Kassenbuch nach DS: „+ Buchung“ als Button.fab, „Abrufen“ und „Jetzt spiegeln“ als Symbolknopf im Kopf, „Lena fragen“ auf der Karte wie im Detail, „Abbrechen“ ohne Füllung in „Betrag“ und im Split-Editor" (refactor) — `backlog/ledger-gy77x-kassenbuch-knoepfe-nach-ds.md`
+- **ledger-awf5b** — "Ein übernommener Betragsfilter mit Komma („12,50“) gilt nicht mehr als laufende Eingabe: isInputActive vergleicht die Betragsentwürfe als Wert statt als Text, der Update-Neustart beim Öffnen wird nicht mehr zurückgehalten (src/Client/State.fs isInputActive)" (bug) — `backlog/ledger-awf5b-betragsfilter-haelt-update-zurueck.md`
+- **ledger-pz028** — "Kassenbuch-State aufräumen: drei Antworten tragen Result, das Quick-Add-Konto kommt aus den Settings des Root statt aus einem eigenen Abruf, die toten Kategorien-Zweige fallen weg, „Weitere laden“ und Nachladen teilen einen Zustand statt LoadingMore (Components/Ledger/State.fs, Types.fs)" (refactor) — `backlog/ledger-pz028-aufraeumen-antworten-quickadd-ladezustand.md`
+- **ledger-pfhdq** — "Späte und gescheiterte Antworten im Kassenbuch: Available, Kontostände und Spiegel-Status tragen eine Lade-Nummer, ältere Antworten fallen weg, ein gescheitertes Nachladen der Kontostände bleibt mit Hinweis sichtbar (Components/Ledger/State.fs CategoriesLoaded, BalancesLoaded, MirrorStatusLoaded)" (bug) — `backlog/ledger-pfhdq-spaete-antworten-available-kontostaende-spiegel.md`
 - **ledger-b7k2q** — "Bob: kein Flag nicht belegt, Grenzen am Commit und am Rumpf lückenhaft" (refactor) — `backlog/ledger-b7k2q-bob-grenzen-flag-commit-rumpf.md`
 - **ledger-ef068** — "Kassenbuch weicht von DS-Bausteinen ab: Knöpfe, Köpfe, Kontowahl, Kanten" (refactor) — `backlog/ledger-ef068-kassenbuch-ds-abweichungen.md`
 - **ledger-y8xrr** — "Nachladen: Liste verliert ihren Stand, alte Zahlen stehen ohne Hinweis" (refactor) — `backlog/ledger-y8xrr-nachladen-stand-und-alte-zahlen.md`
