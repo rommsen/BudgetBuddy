@@ -1,7 +1,7 @@
 ---
 id: ledger-pz028
 title: "Kassenbuch-State aufräumen: drei Antworten tragen Result, das Quick-Add-Konto kommt aus den Settings des Root statt aus einem eigenen Abruf, die toten Kategorien-Zweige fallen weg, „Weitere laden“ und Nachladen teilen einen Zustand statt LoadingMore (Components/Ledger/State.fs, Types.fs)"
-status: backlog
+status: todo
 type: refactor
 context: ledger
 created: 2026-11-19
