@@ -1,7 +1,7 @@
 ---
 id: ledger-wg42w
 title: "Durchgehen: Memo auf der Karte nur lesen (C3), „Memo“ über dem Text, so lang, wie Platz ist (gemessen); Bearbeiten nur in „Details“, Memo-Sheet und -Dialog der Karte entfallen"
-status: backlog
+status: todo
 type: feature
 context: ledger
 created: 2026-11-19

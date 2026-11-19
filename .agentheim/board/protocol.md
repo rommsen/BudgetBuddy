@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-20 00:11 -- Modeling / Promoted: ledger-wg42w - "Durchgehen: Memo auf der Karte nur lesen (C3), „Memo“ über dem Text, so lang, wie Platz ist (gemessen); Bearbeiten nur in „Details“, Memo-Sheet und -Dialog der Karte entfallen"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-20 00:11 -- Task verified and completed: design-system-x045q - "Detail: Memo als Block mit Bezeichnung darüber und ganzem Text, Memo-Editor mehrzeilig und am Handy als Inhalt des Detail-Sheets"
 
 **Type:** Work / Task completion
