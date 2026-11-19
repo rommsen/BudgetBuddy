@@ -5,6 +5,26 @@ Newest entries on top.
 
 ---
 
+## 2026-11-19 10:58 -- Work session ended
+
+**Type:** Work / Session end
+**Duration:** 3h05m
+**Completed:** 10 (first-try PASS: 9, re-dispatched: 1, skipped: 0)
+**Bounced:** 0
+**Failed:** 0
+**Escalated after verification:** 0
+**Lost-result re-dispatches:** 0
+**Lost-result escalations:** 0
+**Dispatches:** b7k2q: 2, hme9k: 1, y8xrr: 1, awf5b: 1, ef068: 1, gy77x: 1, pfhdq: 1, rb3xw: 1, zf6zg: 1, pz028: 1
+**Commits:** 21
+**Vision-conformance:** none — batch aligns with vision
+**Batch mix:** 100% product-facing / 0% harness / 0% bookkeeping (10 tasks)
+**Carry-over:** none — working tree clean
+**Gate auf main:** VERIFY: PASS (dotnet 5212, node 352) auf c43782cb; Browser-Tests unter paralleler Last gelegentlich rot ([flow:bank-trennen], [layout] Sweep regeln-panel), einzeln grün
+**Kann-Sammlung:** ledger-k4n2s Punkt 150 (Durchgehen 320 px), design-system-k8s2m (accountListRow ohne Nutzer)
+
+---
+
 ## 2026-11-19 10:51 -- Task verified and completed: ledger-pz028 - "Kassenbuch-State aufräumen: drei Antworten tragen Result, das Quick-Add-Konto kommt aus den Settings des Root statt aus einem eigenen Abruf, die toten Kategorien-Zweige fallen weg, „Weitere laden“ und Nachladen teilen einen Zustand statt LoadingMore (Components/Ledger/State.fs, Types.fs)"
 
 **Type:** Work / Task completion
