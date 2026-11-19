@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-11-19 22:33 -- Modeling / Promoted: ledger-s2cg3 - "Durchgehen am Handy: Wischen mit Fläche darunter (A1), Karte füllt den Platz bis zu den Knöpfen, Seite ohne Scrollen"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
+## 2026-11-19 22:33 -- Modeling / Promoted: design-system-x045q - "Detail: Memo als Block mit Bezeichnung darüber und ganzem Text, Memo-Editor mehrzeilig und am Handy als Inhalt des Detail-Sheets"
+
+**Type:** Modeling / Promote
+**BC:** design-system
+**From → To:** backlog → todo
+
+---
+
+## 2026-11-19 22:33 -- Modeling / Promoted: design-system-ytgnc - "Rückmeldung am Handy ohne Toast (Regel R3), Teil 1: DS-Baustein `Feedback` (Meldungsleiste mit „+ Buchung“, Zeile im Sheet, Rückgängig am Feld, Zeile „gelöscht“) auf `/styleguide`, Styleguide §7.13, §5 und §6 neu, ADR 0098"
+
+**Type:** Modeling / Promote
+**BC:** design-system
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-19 22:33 -- Modeling / Refined: ledger-wg42w - Durchgehen: Memo auf der Karte nur lesen (C3), „Memo“ über dem Text, so lang, wie Platz ist (gemessen); Bearbeiten nur in „Details“, Memo-Sheet und -Dialog der Karte entfallen
 
 Verfeinert aus der Skizze ledger-vf5h6 (Version 9): Kriterien je sichtbarem Element, Abgleich mit der heutigen Seite, Code-Anker, Kriterium „Seite neben der Skizze verglichen“. depends_on: [design-system-x045q, ledger-s2cg3].

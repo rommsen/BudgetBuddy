@@ -10,14 +10,16 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 8
-- **Todo:** 0
+- **Backlog:** 6
+- **Todo:** 2
 - **Doing:** 0
 - **Done:** 48
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **design-system-x045q** — "Detail: Memo als Block mit Bezeichnung darüber und ganzem Text, Memo-Editor mehrzeilig und am Handy als Inhalt des Detail-Sheets" (feature) — `todo/design-system-x045q-detail-memo-als-block-editor-mehrzeilig.md`
+- **design-system-ytgnc** — "Rückmeldung am Handy ohne Toast (Regel R3), Teil 1: DS-Baustein `Feedback` (Meldungsleiste mit „+ Buchung“, Zeile im Sheet, Rückgängig am Feld, Zeile „gelöscht“) auf `/styleguide`, Styleguide §7.13, §5 und §6 neu, ADR 0098" (feature) — `todo/design-system-ytgnc-rueckmeldung-am-handy-ohne-toast.md`
 <!-- todo-list:end -->
 
 ### Doing
@@ -39,8 +41,6 @@ research touching this BC, and concept synthesis pages.
 ### Backlog
 <!-- backlog-list:start -->
 - **design-system-gkded** — "Rückmeldung am Handy ohne Toast (Regel R3), Teil 2: ein Meldungsplatz in der App statt Toast-Liste, Leiste unter 1024 px mit „+ Buchung“, Toast am PC höchstens einer, gleiche Wische zusammengefasst, alte Toasts übergangsweise in der Leiste, Sweep-Invariante mit Gegenbeweis" (feature) — `backlog/design-system-gkded-rueckmeldung-ein-platz-in-der-app.md`
-- **design-system-ytgnc** — "Rückmeldung am Handy ohne Toast (Regel R3): ein fester Meldungsplatz je Seite, Leiste über der Navigation mit „+ Buchung“, Zeile im Sheet, Rückgängig am Feld; Styleguide §7.13 und ADR" (feature) — `backlog/design-system-ytgnc-rueckmeldung-am-handy-ohne-toast.md`
-- **design-system-x045q** — "Detail: Memo als Block mit Bezeichnung darüber und ganzem Text, Memo-Editor mehrzeilig" (feature) — `backlog/design-system-x045q-detail-memo-als-block-editor-mehrzeilig.md`
 - **design-system-m4e7q** — "Modal: Esc schließt den Dialog auch ohne Fokus darin, der Fokus kehrt zum Auslöser zurück" (bug) — `backlog/design-system-m4e7q-modal-esc-und-fokus.md`
 - **design-system-vf94m** — "Toast am Handy oben statt unten: der Toast mit Rückgängig verdeckt heute den Knopf „+ Buchung“ (Styleguide §7.13)" (bug) — `backlog/design-system-vf94m-toast-am-handy-verdeckt-fab.md`
 - **design-system-x1abn** — "Logo und Icon: Buddy aus standards/frontend/brand/ als Marke und PWA-Icon" (feature) — `backlog/design-system-x1abn-logo-und-icon.md`
