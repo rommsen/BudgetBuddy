@@ -398,6 +398,14 @@ type BotFieldError = { BotField: string; BotProblem: string }
 /// Felder, die auf ein anderes Konto zielen würden. Wer eins mitschickt, bekommt 400.
 let private botForbiddenAccountFields = [ "account"; "account_id"; "accountId"; "account_name" ]
 
+/// Größter Rumpf der Vorschau in Bytes (ledger-b7k2q). Die längste gültige Anfrage (Payee 200,
+/// Kategorie 200, Memo 500 Zeichen, jedes Zeichen als `\uXXXX` maskiert) braucht rund 5,5 KB.
+/// Fest im Code, nicht konfigurierbar (ADR 0068).
+let botMaxBodyBytes = 8192
+
+/// Der Feldfehler zu einem Rumpf über `botMaxBodyBytes`.
+let botBodyTooLarge = { BotField = "body"; BotProblem = $"Der Rumpf darf höchstens {botMaxBodyBytes} Bytes haben" }
+
 /// Prüft den JSON-Rumpf der Vorschau. Sammelt alle Feldfehler, statt beim ersten aufzuhören.
 /// `checkDate` ist die Fachregel für ein lesbares Datum (in der App
 /// `Ledger.Bot.Domain.checkBotBookingDate` mit dem Berliner Kalendertag); ihr Fehler wird zum
@@ -483,7 +491,10 @@ let parseBotPreviewRequest (checkDate: DateTime -> Result<unit, string>) (json: 
                 else None)
 
         let errorOf r = match r with Error e -> Some e | Ok _ -> None
-        let category = requiredString "category"
+        let category =
+            match requiredString "category" with
+            | Ok c when c.Length > 200 -> Error (fail "category" "Höchstens 200 Zeichen")
+            | other -> other
         let errors =
             [ amount |> errorOf; direction |> errorOf; payee |> errorOf
               category |> errorOf; date |> errorOf; memo |> errorOf ]

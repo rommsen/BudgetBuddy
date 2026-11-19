@@ -1,7 +1,7 @@
 ---
 id: ledger-b7k2q
 title: "Bob-Grenzen vollständig: Commit prüft das Datumsfenster am Berliner Tag des Commits neu, Vorschau begrenzt Rumpf auf 8192 Bytes und Kategorie auf 200 Zeichen, „kein Flag“ im gesendeten Rumpf belegt, API-Test des Datumsfensters auf einen Fall gekürzt (BotApi.fs bookWithinLimit, readBody, Validation.fs parseBotPreviewRequest)"
-status: doing
+status: done
 type: bug
 context: ledger
 created: 2026-11-19
@@ -9,7 +9,7 @@ completed:
 depends_on: []
 blocks: []
 tags: [bestandsreview, backend, tests, bot]
-related_adrs: [0066, 0068]
+related_adrs: [0066, 0068, 0097]
 related_research: []
 prior_art: [ledger-ssmp3, ledger-ay81j, ledger-z71ka]
 ---
@@ -140,3 +140,39 @@ Entscheidungen Conductor 2026-11-19, nach Empfehlung:
   der Tag des Commits; die Alternative (Fenster am Tag der Vorschau messen) ließe 32 Tage zu. Bob legt in dem seltenen
   Fall eine neue Vorschau an. Die Task ist nach dieser Empfehlung geschrieben; entscheidet Roman anders, entfallen die
   ersten drei Kriterien und die Notes-Zeile zu `BotApi.fs:444` wird ein „entfällt“.
+
+## Verifier note (iteration 1)
+
+**REASONS:**
+- Check 6 (ADRs for decisions): die neue harte Grenze der Bot-Schnittstelle (`botMaxBodyBytes = 8192`, Lesen mit Limit in `readBody`, 400 `invalid_request` mit Feld `body`) steht in keinem ADR. ADR 0068 zählt Bobs Grenzen auf (nur strenger, nie konfigurierbar), die Rumpfgrenze fehlt dort. Die Gründe (8192 statt etwa 4 KB, eigenes Lesen statt `KestrelServerOptions.Limits.MaxRequestBodySize`/`IHttpMaxRequestBodySizeFeature`, 400 statt 413) stehen nur im Task-Block „Entscheidungen Conductor“.
+- Dasselbe gilt für das Datumsfenster beim Commit (422 `date_not_allowed` statt 400, Prüfung nach `bookedFromLedger`, Romans Entscheidung 2026-11-19) und die Kategorie-Grenze von 200 Zeichen.
+- Sonst alles in Ordnung: Kriterien belegt, `./verify.sh` im Worktree `VERIFY: PASS` (dotnet 5170, node 348), README_DELTA passt.
+
+**SUGGESTED_FIX:** Ein ADR im ADRS-Block, etwa „Bob-Grenzen: Rumpfgrenze der Vorschau und Datumsfenster beim Commit“, das ADR 0068 erweitert: 8192 Bytes beim Lesen gezählt (warum 8192, warum nicht Kestrel, warum 400 Feld `body`), Kategorie 200 Zeichen, Datumsfenster am Berliner Tag des Commits (422 nach dem Blick ins Kassenbuch, Roman 2026-11-19). Festhalten, dass diese Grenzen wie die aus ADR 0068 fest im Code stehen und nur strenger werden dürfen. Optional ein Satz im Kommentar von `readBody`, warum nicht Kestrels Grenze. Sonst kein Code nötig.
+
+**ITERATION_HINT:** likely-fixable
+
+## Outcome
+
+Die Grenzen der Bot-Schnittstelle sind jetzt an allen vier Stellen gehalten und belegt. Gate: `./verify.sh` endet mit `VERIFY: PASS` (dotnet 5170 grün, node 348 grün).
+
+- **Datumsfenster beim Commit** (`src/Server/BotApi.fs`, `bookWithinLimit`): ein `now` je Aufruf. Zuerst `checkBotBookingDate (berlinDayOf deps.BerlinZone now) p.Date`, danach die Tagesgrenze, dann `addCashBookingWith` mit demselben `now`. Neuer Fall `BotDateNotAllowed of message` in `BotCommitOutcome`, im `commitHandler` 422 `date_not_allowed` mit dem Satz der Domäne. Die Prüfung steht hinter `bookedFromLedger` (in `bookPreview`).
+- **Rumpfgrenze** (`readBody`): liest höchstens `botMaxBodyBytes + 1` Bytes und zählt dabei Bytes, nicht `Content-Length`. Als UTF-8 (über `StreamReader`, BOM-Verhalten wie vorher) wird erst nach der Prüfung gelesen. Bei Überlauf `None`, die Vorschau antwortet 400 `invalid_request` mit genau dem Feld `body`. `botMaxBodyBytes = 8192` und `botBodyTooLarge` stehen im Bot-Abschnitt von `src/Server/Validation.fs`, fest im Code. Die 400-Antwort mit Feldfehlern läuft über den neuen Helfer `fieldErrorsResponse`.
+- **Kategorie-Grenze** (`parseBotPreviewRequest`): `category` hat nach `Trim` höchstens 200 Zeichen, sonst den Feldfehler „Höchstens 200 Zeichen“, gesammelt mit den übrigen.
+- **Doc-Kommentare** nachgezogen: `BotCommitOutcome`, `bookWithinLimit`, `bookPreview`, `readBody`. Der Kommentar von `readBody` nennt, warum Kestrels Grenze nicht genutzt wird, und verweist auf ADR 0097.
+- **ADR 0097** (`0097-bob-grenzen-rumpf-kategorie-und-datumsfenster-beim-commit.md`, im ADRS-Block, Nummer vorläufig) erweitert ADR 0068 um Rumpfgrenze, Kategorie-Grenze und Datumsfenster beim Commit, mit Begründung (8192, eigenes Lesen statt Kestrel, 400 Feld `body`, 422 beim Commit, Entscheidung Roman 2026-11-19). Die Grenzen stehen fest im Code, dürfen nur strenger werden und sind nicht konfigurierbar.
+
+Tests:
+- `src/Tests/BotApiTests.fs`, Liste „Bot-Schnittstelle (Routen)“: vier Commit-Tests um Berliner Mitternacht (Uhr über `berlinDayBoundsUtc` 5 Minuten vor bzw. nach dem Ende von Tag D, Helfer `beforeBerlinMidnight` und `afterBerlinMidnight`, `previewFor`). Die Fälle: D minus 31 Tage ergibt 422 ohne Push und ohne Buchung, D minus 30 Tage ergibt 200 mit einem Push, `AfterWrite` ergibt 200 mit derselben `entry_id` ohne zweiten Push, `BeforeWrite` ergibt 422 ohne Buchung. Dazu zwei Rumpf-Tests: 8193 Bytes ergeben 400 mit `fields` genau `[body]`, `CategoryLoads = 0`, `Store.Count = 0`, 8192 Bytes ergeben 200, und ohne Token ergibt der übergroße Rumpf 401.
+- Der Test „Datumsfenster: heute minus 32 Tage ergibt 400 mit Feld date“ ist auf den einen Fall gekürzt. Die gestrichenen Fälle (heute, heute minus 31 Tage, morgen) stehen in `src/Tests/BotDomainTests.fs`, Liste „Bot Datumsfenster“, die Sammlung mit anderen Feldfehlern in `BotValidationTests.fs`.
+- `src/Tests/BotValidationTests.fs`: 201 Zeichen Kategorie plus 201 Zeichen Payee ergeben `[ "category"; "payee" ]` mit dem Satz zur Kategorie. 200 Zeichen mit Leerraum am Rand gehen.
+- `src/Tests/LedgerCashBookingTests.fs`, „Bobs Commit pusht den Request der Barbuchung …“: `transactionKeys handler.Bodies[0]` enthält kein `flag_color`.
+
+Rot vor dem Fix: die Tests D minus 31, `BeforeWrite`, Rumpf 8193 und Kategorie 201 waren vor der Produktionsänderung rot (4 von 92 in den Bot-Listen). D minus 30, `AfterWrite` und 401 ohne Token sind Intakt- und Reihenfolge-Fälle, die schon vorher grün waren.
+
+Gegenproben (jeweils danach zurückgesetzt):
+- Datumsprüfung aus `bookWithinLimit` entfernt: die Tests D minus 31 Tage und `BeforeWrite` sind rot.
+- Datumsprüfung in `bookPreview` vor `bookedFromLedger` gezogen: der `AfterWrite`-Test ist rot.
+- In `botPushOn` das zweite `None` durch `Some "red"` ersetzt: ein Test ist rot (die flag_color-Prüfung in „Bot Barbuchung (Commit)“).
+
+README_DELTA (beide Bullets nennen ADR 0097) geprüft mit `npm run check:readme-delta -- --bc ledger --delta -`: Exit 0, „Ganz nachlesen: keine Einträge“. `./verify.sh` in Iteration 2 erneut: `VERIFY: PASS` (dotnet 5170 grün, node 348 grün).

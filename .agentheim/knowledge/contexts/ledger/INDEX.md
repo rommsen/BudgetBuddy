@@ -1,6 +1,7 @@
 ## ADRs scoped to this BC
 
 <!-- adr-local:start -->
+- **0097**: Bob-Grenzen ergänzt: Rumpf der Vorschau höchstens 8192 Bytes beim Lesen gezählt (400 Feld body), Kategorie höchstens 200 Zeichen, Datumsfenster beim Commit am Berliner Tag des Commits neu geprüft (422 date_not_allowed); fest im Code, nur strenger, erweitert ADR 0068 · 2026-11-19 · `../../decisions/0097-bob-grenzen-rumpf-kategorie-und-datumsfenster-beim-commit.md`
 - **0096**: Am PC steht das Panel immer und folgt der Auswahl (eine Buchung: Detail, ab zwei: Zusammenfassung mit Sammelaktionen), keine Zeile trägt mehr eine Prüf-Schaltfläche; ändert ADR 0053 Punkt 2 und 4 für den PC · 2026-11-14 · `../../decisions/0096-panel-am-pc-zeigt-die-auswahl.md`
 - **0095**: Betragsfilter als Höhe ohne Vorzeichen, die Richtung „Alle | Ausgaben | Einnahmen“ als eigener Umschalter, wirkt auf alle Zählwege · 2026-11-14 · `../../decisions/0095-betragsfilter-als-hoehe-richtung-getrennt.md`
 - **0092**: Buchung löschen und Betrag ändern in BB: YNAB zuerst, Rückgängig per Neuanlage mit Ersatz-import_id; abgeglichene gesperrt, Betrag auch bei Importen, bei Überträgen vorerst gesperrt, Splits über den Split-Editor · 2026-11-09 · `../../decisions/0092-buchung-loeschen-und-betrag-aendern-in-bb.md`

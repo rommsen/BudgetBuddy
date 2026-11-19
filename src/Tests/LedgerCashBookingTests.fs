@@ -640,6 +640,9 @@ let botCashBookingTests =
             // Regression ledger-ay81j: Bob pushte mit der import_id `BB:<EntryId>`, YNAB glich die Buchung
             // gegen eine ältere Handbuchung ab und verbarg sie. Jetzt ohne import_id.
             Expect.equal (handler.Bodies |> Seq.map hasImportId |> List.ofSeq) [ false ] "ein Post ohne import_id"
+            // ADR 0068 Punkt 5: Bob-Buchungen bekommen kein Flag (ledger-b7k2q). Gäbe `botPushOn` die
+            // Lena-Farbe weiter, landete Bobs Buchung in YNAB als „Lena fragen“.
+            Expect.isFalse (transactionKeys handler.Bodies[0] |> List.contains "flag_color") "kein flag_color im gesendeten Rumpf"
             Expect.stringContains handler.Urls[0] "/budgets/budget-bot/transactions" "Budget aus dem Kontext"
             Expect.equal handler.Authorizations[0] "Bearer bot-token-kuenstlich" "Token aus dem Kontext"
             Expect.isTrue (json.GetProperty("pushed_to_ynab").GetBoolean()) "pushed_to_ynab"

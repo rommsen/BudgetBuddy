@@ -96,6 +96,23 @@ let botParseTests =
             let long n = String('a', n)
             let json = $"""{{"amount": 1, "direction": "outflow", "payee": "{long 201}", "category": "c", "date": "2026-10-01", "memo": "{long 501}"}}"""
             Expect.equal (fieldsOf (parseAt json)) [ "memo"; "payee" ] "beide"
+
+        // Regression ledger-b7k2q: `category` war ohne Längengrenze, und die 422-Meldung
+        // (`category_not_found`, `category_ambiguous`) gibt sie zurück.
+        testCase "zu lange Kategorie wird abgelehnt, gesammelt mit einem zu langen Payee; 200 Zeichen gehen, Leerraum am Rand zählt nicht" <| fun () ->
+            let long n = String('k', n)
+            let withCategory category payee =
+                $"""{{"amount": 1, "direction": "outflow", "payee": "{payee}", "category": "{category}", "date": "2026-10-01"}}"""
+            let result = parseAt (withCategory (long 201) (String('a', 201)))
+            Expect.equal (fieldsOf result) [ "category"; "payee" ] "beide Felder"
+            match result with
+            | Error errors ->
+                let category = errors |> List.find (fun e -> e.BotField = "category")
+                Expect.equal category.BotProblem "Höchstens 200 Zeichen" "Satz zur Kategorie"
+            | Ok _ -> failtest "sollte abgelehnt werden"
+            match parseAt (withCategory ("  " + long 200 + "  ") "Anastasia") with
+            | Ok input -> Expect.equal input.Category (long 200) "200 Zeichen nach Trim"
+            | Error errors -> failtest $"200 Zeichen sollten gehen: {errors}"
     ]
 
 [<Tests>]

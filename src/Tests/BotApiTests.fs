@@ -159,6 +159,25 @@ let private previewOn (deps: BotDeps) (date: string) (amount: string) (direction
         $"""{{"amount": {amount}, "direction": "{direction}", "payee": "{uniquePayeeText ()}", "category": "Haushaltshilfe", "date": "{date}"}}"""
     call deps "POST" "/bot/transactions/preview" bearer body
 
+/// Vorschau mit Payee und Buchungsdatum; liefert die `preview_id`.
+let private previewFor (deps: BotDeps) (payee: string) (date: string) : Guid =
+    let body =
+        $"""{{"amount": 5, "direction": "outflow", "payee": "{payee}", "category": "Haushaltshilfe", "date": "{date}"}}"""
+    match call deps "POST" "/bot/transactions/preview" bearer body with
+    | 200, Some json -> Guid.Parse(json.GetProperty("preview_id").GetString())
+    | status, json -> failtest $"Vorschau sollte 200 liefern, war {status} {json}"
+
+/// 5 Minuten vor dem Ende des Berliner Tags D der Umgebung. Über `berlinDayBoundsUtc`, weil die
+/// Testtage über Sommer- und Winterzeit verteilt sind.
+let private beforeBerlinMidnight (env: Env) =
+    let _, endUtc = Ledger.Bot.Domain.berlinDayBoundsUtc env.Deps.BerlinZone (env.Day.AddHours 10.0)
+    endUtc.AddMinutes -5.0
+
+/// 5 Minuten nach dem Ende des Berliner Tags D, in Berlin schon D+1.
+let private afterBerlinMidnight (env: Env) =
+    let _, endUtc = Ledger.Bot.Domain.berlinDayBoundsUtc env.Deps.BerlinZone (env.Day.AddHours 10.0)
+    endUtc.AddMinutes 5.0
+
 let private commit (deps: BotDeps) (id: Guid) = call deps "POST" $"/bot/transactions/{id}/commit" bearer ""
 
 let private entriesFor (payee: string) : Ledger.Domain.Entry list =
@@ -770,14 +789,94 @@ let botApiTests =
             Expect.equal (str second "entry_id") (str first "entry_id") "dasselbe Ergebnis"
             Expect.equal env.Pushes 1 "ein Push"
 
-        testCase "Datumsfenster: heute und heute minus 31 Tage gehen, minus 32 Tage und morgen ergeben 400 mit Feld date" <| fun () ->
+        // Die Grenzfälle (heute, heute minus 31 Tage, morgen) stehen in BotDomainTests.fs
+        // („Bot Datumsfenster“), die Sammlung mit anderen Feldfehlern in BotValidationTests.fs.
+        testCase "Datumsfenster: heute minus 32 Tage ergibt 400 mit Feld date" <| fun () ->
             let env = Env()
-            Expect.equal (fst (previewOn env.Deps (env.DateText 0) "1" "outflow")) 200 "heute"
-            Expect.equal (fst (previewOn env.Deps (env.DateText -31) "1" "outflow")) 200 "heute minus 31 Tage"
-            for date in [ env.DateText -32; env.DateText 1 ] do
-                let status, json = previewOn env.Deps date "1" "outflow"
-                Expect.equal status 400 $"{date} abgelehnt"
-                Expect.equal (json.Value.GetProperty("fields").[0].GetProperty("field").GetString()) "date" "Feld date"
+            let status, json = previewOn env.Deps (env.DateText -32) "1" "outflow"
+            Expect.equal status 400 "abgelehnt"
+            Expect.equal (json.Value.GetProperty("fields").[0].GetProperty("field").GetString()) "date" "Feld date"
+
+        // ---- Datumsfenster beim Commit (ledger-b7k2q) ----
+        // Vorher prüfte nur die Vorschau das Fenster: eine Vorschau um 23:55 Berliner Zeit mit
+        // Datum heute minus 31 Tage, committet um 00:05, buchte 32 Tage zurück (ADR 0068 Punkt 3).
+
+        testCase "Commit nach Berliner Mitternacht: Datum D minus 31 Tage ergibt 422 date_not_allowed, ohne Push und ohne Buchung" <| fun () ->
+            let env = Env()
+            let payee = uniquePayee ()
+            env.Now <- beforeBerlinMidnight env
+            let id = previewFor env.Deps payee (env.DateText -31)
+            env.Now <- afterBerlinMidnight env
+            let status, json = commit env.Deps id
+            Expect.equal status 422 "abgelehnt"
+            Expect.equal (str json "error") "date_not_allowed" "Code"
+            Expect.equal (str json "message") "Das Datum darf höchstens 31 Tage zurückliegen" "Satz der Domäne"
+            Expect.equal env.Pushes 0 "kein Push"
+            Expect.isEmpty (entriesFor payee) "keine Buchung"
+
+        testCase "Commit nach Berliner Mitternacht: Datum D minus 30 Tage bucht mit einem Push" <| fun () ->
+            let env = Env()
+            let payee = uniquePayee ()
+            env.Now <- beforeBerlinMidnight env
+            let id = previewFor env.Deps payee (env.DateText -30)
+            env.Now <- afterBerlinMidnight env
+            let status, json = commit env.Deps id
+            Expect.equal status 200 "gebucht"
+            Expect.equal (str json "status") "booked" "Status"
+            Expect.equal env.Pushes 1 "genau ein Push"
+            Expect.equal (entriesFor payee).Length 1 "eine Buchung"
+
+        testCase "Commit nach Berliner Mitternacht: eine vor Mitternacht schon gespeicherte Buchung bleibt 200, ohne zweiten Push" <| fun () ->
+            let env = Env(addCashExpense = failingOnce AfterWrite)
+            let payee = uniquePayee ()
+            env.Now <- beforeBerlinMidnight env
+            let id = previewFor env.Deps payee (env.DateText -31)
+            Expect.equal (fst (commit env.Deps id)) 500 "erster Aufruf scheitert nach dem Schreiben"
+            env.Now <- afterBerlinMidnight env
+            let status, json = commit env.Deps id
+            Expect.equal status 200 "gespeicherte Buchung gilt"
+            let entry = entriesFor payee |> List.exactlyOne
+            let (EntryId bookedId) = entry.Id
+            Expect.equal (str json "entry_id") (bookedId.ToString()) "dieselbe entry_id"
+            Expect.equal env.Pushes 1 "kein zweiter Push"
+
+        testCase "Commit nach Berliner Mitternacht: ohne gespeicherte Buchung vor Mitternacht ergibt der erneute Commit 422" <| fun () ->
+            let env = Env(addCashExpense = failingOnce BeforeWrite)
+            let payee = uniquePayee ()
+            env.Now <- beforeBerlinMidnight env
+            let id = previewFor env.Deps payee (env.DateText -31)
+            Expect.equal (fst (commit env.Deps id)) 500 "erster Aufruf scheitert vor dem Schreiben"
+            env.Now <- afterBerlinMidnight env
+            let status, json = commit env.Deps id
+            Expect.equal status 422 "abgelehnt"
+            Expect.equal (str json "error") "date_not_allowed" "Code"
+            Expect.isEmpty (entriesFor payee) "keine Buchung"
+            Expect.equal env.Pushes 0 "kein Push"
+
+        // ---- Rumpfgrenze der Vorschau (ledger-b7k2q) ----
+        // Vorher las die Vorschau den Rumpf ohne eigene Obergrenze (Kestrel-Vorgabe rund 30 MB).
+
+        testCase "Vorschau mit Rumpf über 8192 Bytes ergibt 400 mit Feld body, ohne YNAB-Aufruf und ohne Vorschau; 8192 Bytes gehen" <| fun () ->
+            let env = Env()
+            let body = bodyOf env.Deps (uniquePayee ()) "5" "outflow"
+            let padded (size: int) = body + String(' ', size - Text.Encoding.UTF8.GetByteCount body)
+            let status, json = call env.Deps "POST" "/bot/transactions/preview" bearer (padded 8193)
+            Expect.equal status 400 "abgelehnt"
+            Expect.equal (str json "error") "invalid_request" "Code"
+            let fields =
+                json.Value.GetProperty("fields").EnumerateArray()
+                |> Seq.map (fun f -> f.GetProperty("field").GetString(), f.GetProperty("message").GetString())
+                |> Seq.toList
+            Expect.equal fields [ "body", "Der Rumpf darf höchstens 8192 Bytes haben" ] "nur Feld body"
+            Expect.equal env.CategoryLoads 0 "kein YNAB-Aufruf"
+            Expect.equal env.Deps.Store.Count 0 "keine Vorschau gespeichert"
+            Expect.equal (fst (call env.Deps "POST" "/bot/transactions/preview" bearer (padded 8192))) 200 "genau 8192 Bytes gehen"
+
+        testCase "Vorschau mit Rumpf über 8192 Bytes ohne Token ergibt 401" <| fun () ->
+            let env = Env()
+            let body = bodyOf env.Deps (uniquePayee ()) "5" "outflow"
+            let oversized = body + String(' ', 8193 - Text.Encoding.UTF8.GetByteCount body)
+            Expect.equal (fst (call env.Deps "POST" "/bot/transactions/preview" None oversized)) 401 "Anmeldung zuerst"
 
         testCase "Berliner Tag: kurz nach Mitternacht in Berlin gilt schon der neue Tag, obwohl UTC noch beim Vortag liegt" <| fun () ->
             let env = Env()

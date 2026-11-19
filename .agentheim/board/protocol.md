@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-11-19 09:12 -- Task verified and completed: ledger-b7k2q - "Bob-Grenzen vollständig: Commit prüft das Datumsfenster am Berliner Tag des Commits neu, Vorschau begrenzt Rumpf auf 8192 Bytes und Kategorie auf 200 Zeichen, „kein Flag“ im gesendeten Rumpf belegt, API-Test des Datumsfensters auf einen Fall gekürzt (BotApi.fs bookWithinLimit, readBody, Validation.fs parseBotPreviewRequest)"
+
+**Type:** Work / Task completion
+**Task:** ledger-b7k2q - "Bob-Grenzen vollständig: Commit prüft das Datumsfenster am Berliner Tag des Commits neu, Vorschau begrenzt Rumpf auf 8192 Bytes und Kategorie auf 200 Zeichen, „kein Flag“ im gesendeten Rumpf belegt, API-Test des Datumsfensters auf einen Fall gekürzt (BotApi.fs bookWithinLimit, readBody, Validation.fs parseBotPreviewRequest)"
+**Summary:** Bob-Grenzen vollständig: Datumsfenster beim Commit, Rumpf 8192 Bytes, Kategorie 200 Zeichen, kein Flag belegt
+**Duration:** 58m
+**Verification:** PASS (iteration 2)
+**Files changed:** 5
+**Tests added:** 7
+**ADRs written:** 0097
+
+---
+
+## 2026-11-19 09:01 -- Verification failed: ledger-b7k2q - Bob-Grenzen vollständig
+
+**Type:** Work / Verification failure
+**Task:** ledger-b7k2q - Bob-Grenzen vollständig
+**Iteration:** 1 of 3
+**Reasons:** Rumpfgrenze 8192 Bytes, Kategorie 200 Zeichen und Datumsfenster beim Commit ohne ADR (Check 6); Rest PASS, verify.sh grün
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-11-19 08:38 -- Batch started: [ledger-b7k2q, ledger-hme9k, ledger-y8xrr]
 
 **Type:** Work / Batch start

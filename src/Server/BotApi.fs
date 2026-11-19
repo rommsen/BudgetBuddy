@@ -55,10 +55,12 @@ type BotCommitResult = {
 /// Push-Fehlschlag trägt: der Push lief nicht zu Ende (ledger-z71ka, Review).
 let unknownPushStateText = "Ob der Push zu YNAB gelang, ist unbekannt; der Spiegel gleicht ab"
 
-/// Ausgang eines Commits: gebucht oder wegen der Tagesgrenze abgelehnt (ADR 0068).
+/// Ausgang eines Commits: gebucht, wegen der Tagesgrenze oder wegen des Datumsfensters am
+/// Berliner Tag des Commits abgelehnt (ADR 0068), oder die Vorschau ist weg.
 type BotCommitOutcome =
     | BotBooked of BotCommitResult
     | BotDailyLimitReached of message: string
+    | BotDateNotAllowed of message: string
     | BotPreviewGone
 
 /// Der Commit einer Vorschau: die beim ersten Aufruf festgelegte `EntryId` und der laufende
@@ -293,26 +295,42 @@ let private tokenMatches (expected: string) (header: string) : bool =
 // Handler
 // ============================================
 
-let private readBody (ctx: HttpContext) : Task<string> =
+/// Liest den Rumpf der Vorschau, höchstens `botMaxBodyBytes + 1` Bytes (ledger-b7k2q). `None`,
+/// wenn er größer als `botMaxBodyBytes` ist. Gezählt werden die gelesenen Bytes, nicht
+/// `Content-Length` (kann fehlen oder lügen); als UTF-8 gelesen wird erst nach der Prüfung.
+/// Kestrels `MaxRequestBodySize` gälte für den ganzen Host samt `/api`, und
+/// `IHttpMaxRequestBodySizeFeature` wirft außerhalb des JSON-Fehlerformats (ADR 0097).
+let private readBody (ctx: HttpContext) : Task<string option> =
     task {
-        use reader = new IO.StreamReader(ctx.Request.Body, Text.Encoding.UTF8)
-        return! reader.ReadToEndAsync()
+        let buffer = Array.zeroCreate<byte> (botMaxBodyBytes + 1)
+        let mutable total = 0
+        let mutable finished = false
+        while not finished && total < buffer.Length do
+            let! read = ctx.Request.Body.ReadAsync(buffer, total, buffer.Length - total)
+            if read = 0 then finished <- true else total <- total + read
+        if total > botMaxBodyBytes then
+            return None
+        else
+            use reader = new IO.StreamReader(new IO.MemoryStream(buffer, 0, total), Text.Encoding.UTF8)
+            let! text = reader.ReadToEndAsync()
+            return Some text
     }
+
+let private fieldErrorsResponse (errors: BotFieldError list) : HttpHandler =
+    let fields =
+        errors
+        |> List.map (fun e -> Encode.object [ "field", Encode.string e.BotField; "message", Encode.string e.BotProblem ])
+    respond 400 (errorBody "invalid_request" "Die Anfrage ist ungültig" [ "fields", Encode.list fields ])
 
 let private previewHandler (deps: BotDeps) (maxAmountEur: decimal) : HttpHandler =
     fun _ ctx ->
         task {
             let now = deps.Now()
             let! body = readBody ctx
-            match parseBotPreviewRequest (checkBotBookingDate (berlinDayOf deps.BerlinZone now)) body with
-            | Error errors ->
-                let fields =
-                    errors
-                    |> List.map (fun e ->
-                        Encode.object [ "field", Encode.string e.BotField; "message", Encode.string e.BotProblem ])
-                return!
-                    respond 400 (errorBody "invalid_request" "Die Anfrage ist ungültig" [ "fields", Encode.list fields ]) earlyReturn ctx
-            | Ok input ->
+            match body |> Option.map (parseBotPreviewRequest (checkBotBookingDate (berlinDayOf deps.BerlinZone now))) with
+            | None -> return! fieldErrorsResponse [ botBodyTooLarge ] earlyReturn ctx
+            | Some (Error errors) -> return! fieldErrorsResponse errors earlyReturn ctx
+            | Some (Ok input) ->
                 match checkBotAmount maxAmountEur input.AmountEur with
                 | Error reason ->
                     return! respond 422 (errorBody "amount_not_allowed" reason []) earlyReturn ctx
@@ -378,48 +396,56 @@ let private bookedFromLedger (entryId: Ledger.Events.EntryId) : Async<BotCommitR
                     { EntryId = id; PushedToYnab = false; PushError = Some unknownPushStateText })
     }
 
+/// Prüft Datumsfenster und Tagesgrenze am Zeitpunkt des Commits und bucht. Das Fenster wird neu
+/// geprüft, weil der Commit nach Berliner Mitternacht an einem anderen Tag liegen kann als die
+/// Vorschau (ledger-b7k2q, ADR 0068 Punkt 3). Ein `now` für Prüfung, Zählung und Buchung.
 let private bookWithinLimit (deps: BotDeps) (p: BotPreview) (entryId: Ledger.Events.EntryId) : Async<BotCommitOutcome> =
     async {
-        let! usedSum, usedCount = loadDailyUsage deps.BerlinZone (deps.Now())
-        match checkBotDailyLimit usedSum usedCount p.AmountEur with
-        | Error reason -> return BotDailyLimitReached reason
+        let now = deps.Now()
+        match checkBotBookingDate (berlinDayOf deps.BerlinZone now) p.Date with
+        | Error reason -> return BotDateNotAllowed reason
         | Ok () ->
-            let (Ledger.Events.EntryId id) = entryId
-            // Die gemeinsame Barbuchung (ledger-bk3q8): Vorzeichen, Request und
-            // Kassenbuch-Eingabe entstehen an einer Stelle.
-            let booking : Ledger.CommandHandlers.CashBooking = {
-                AccountId = p.Target.LedgerAccountId
-                Date = p.Date
-                Amount = p.AmountEur
-                IsOutflow = (p.Direction = BotOutflow)
-                Payee = p.Payee
-                Memo = p.Memo
-                Category = Some ({ CategoryId = p.Category.Id; CategoryName = p.Category.Name } : Ledger.Events.CategoryRef)
-            }
-            match!
-                Ledger.CommandHandlers.addCashBookingWith
-                    deps.AddCashExpense
-                    Ledger.Events.Bob
-                    (deps.Now())
-                    entryId
-                    (fun request -> deps.Push (p.Target.YnabAccountId, request))
-                    deps.TriggerMirror
-                    booking
-            with
-            | Ok _ -> return BotBooked { EntryId = id; PushedToYnab = true; PushError = None }
-            | Error err ->
-                return
-                    BotBooked
-                        { EntryId = id
-                          PushedToYnab = false
-                          PushError = Some (ynabErrorText err) }
+            let! usedSum, usedCount = loadDailyUsage deps.BerlinZone now
+            match checkBotDailyLimit usedSum usedCount p.AmountEur with
+            | Error reason -> return BotDailyLimitReached reason
+            | Ok () ->
+                let (Ledger.Events.EntryId id) = entryId
+                // Die gemeinsame Barbuchung (ledger-bk3q8): Vorzeichen, Request und
+                // Kassenbuch-Eingabe entstehen an einer Stelle.
+                let booking : Ledger.CommandHandlers.CashBooking = {
+                    AccountId = p.Target.LedgerAccountId
+                    Date = p.Date
+                    Amount = p.AmountEur
+                    IsOutflow = (p.Direction = BotOutflow)
+                    Payee = p.Payee
+                    Memo = p.Memo
+                    Category = Some ({ CategoryId = p.Category.Id; CategoryName = p.Category.Name } : Ledger.Events.CategoryRef)
+                }
+                match!
+                    Ledger.CommandHandlers.addCashBookingWith
+                        deps.AddCashExpense
+                        Ledger.Events.Bob
+                        now
+                        entryId
+                        (fun request -> deps.Push (p.Target.YnabAccountId, request))
+                        deps.TriggerMirror
+                        booking
+                with
+                | Ok _ -> return BotBooked { EntryId = id; PushedToYnab = true; PushError = None }
+                | Error err ->
+                    return
+                        BotBooked
+                            { EntryId = id
+                              PushedToYnab = false
+                              PushError = Some (ynabErrorText err) }
     }
 
-/// Prüfung der Tagesgrenze und Buchung unter einer Sperre (siehe `bookingGate`). Steht
-/// unter `entryId` schon eine Buchung (ein früherer Versuch warf danach), gilt sie als das
-/// Ergebnis, ohne neue Buchung und ohne neuen Push (ADR 0021: Erneut senden und Spiegel
-/// sind dafür zuständig). Sonst bucht der Versuch mit derselben `entryId`, wieder unter
-/// Prüfung der Tagesgrenze (ADR 0068).
+/// Prüfung von Datumsfenster und Tagesgrenze und Buchung unter einer Sperre (siehe
+/// `bookingGate`). Steht unter `entryId` schon eine Buchung (ein früherer Versuch warf danach),
+/// gilt sie als das Ergebnis, ohne neue Buchung und ohne neuen Push (ADR 0021: Erneut senden und
+/// Spiegel sind dafür zuständig), auch wenn der Commit inzwischen am nächsten Berliner Tag liegt.
+/// Sonst bucht der Versuch mit derselben `entryId`, wieder unter Prüfung von Datumsfenster und
+/// Tagesgrenze am Zeitpunkt des Commits (ADR 0068).
 let private bookPreview (deps: BotDeps) (p: BotPreview) (entryId: Ledger.Events.EntryId) : Async<BotCommitOutcome> =
     async {
         do! bookingGate.WaitAsync() |> Async.AwaitTask
@@ -451,6 +477,8 @@ let private commitHandler (deps: BotDeps) (idText: string) : HttpHandler =
                         | BotBooked result -> return! respond 200 (commitJson id result) earlyReturn ctx
                         | BotDailyLimitReached message ->
                             return! respond 422 (errorBody "daily_limit_reached" message []) earlyReturn ctx
+                        | BotDateNotAllowed message ->
+                            return! respond 422 (errorBody "date_not_allowed" message []) earlyReturn ctx
                         | BotPreviewGone ->
                             return! respond 404 (errorBody "preview_not_found" "Unbekannte Vorschau" []) earlyReturn ctx
                     with ex ->
