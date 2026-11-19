@@ -33,6 +33,6 @@ Captured raw, unrefined. Verfeinern mit `/agentheim:modeling`. Regressionstest a
 Verknüpft 2026-11-19: hängt an der Toast-Regel aus der Design-Exploration ledger-vf5h6 (Durchgehen am Handy).
 
 ## Outcome
-Abgelöst 2026-11-19 durch design-system-2k7uw (Rückmeldung am Handy ohne Toast, Regel R3 aus ledger-vf5h6): am Handy gibt
+Abgelöst 2026-11-19 durch design-system-ytgnc (Rückmeldung am Handy ohne Toast, Regel R3 aus ledger-vf5h6): am Handy gibt
 es keinen Toast mehr, „+ Buchung“ sitzt in der Meldungsleiste. Der Regressionstest (Sweep-Invariante „keine Rückmeldung
 verdeckt ein Bedienelement“, mit Gegenbeweis) ist dort Kriterium. Kein Code in dieser Task.

@@ -1,12 +1,12 @@
 ---
-id: ledger-do0mz
+id: ledger-wg42w
 title: "Durchgehen: Memo auf der Karte nur lesen (C3), so lang, wie Platz ist; Bearbeiten nur in „Details“"
 status: backlog
 type: feature
 context: ledger
 created: 2026-11-19
 completed:
-depends_on: [design-system-x045q, ledger-3pq7c]
+depends_on: [design-system-x045q, ledger-s2cg3]
 blocks: []
 tags: [design-exploration, durchgehen, memo, frontend]
 related_adrs: [0087]

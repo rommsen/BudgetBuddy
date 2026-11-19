@@ -6,7 +6,7 @@ type: feature
 context: ledger
 created: 2026-11-19
 completed:
-depends_on: [design-system-2k7uw]
+depends_on: [design-system-ytgnc]
 blocks: []
 tags: [design-exploration, toast, frontend]
 related_adrs: [0087]
@@ -16,7 +16,7 @@ prior_art: [ledger-vf5h6]
 
 ## Why
 Romans Screenshots vom 2026-11-19 aus dem echten Kassenbuch: Spiegel-Toast oben und Wisch-Toast unten gleichzeitig, nach
-mehreren Wischen drei Toasts übereinander über Liste und „+ Buchung“. Regel R3 (design-system-2k7uw).
+mehreren Wischen drei Toasts übereinander über Liste und „+ Buchung“. Regel R3 (design-system-ytgnc).
 
 ## What
 Vorlage ist die Skizze aus ledger-vf5h6 (https://claude.ai/artifact/GESk5E9GWEHhSTXbQTpRqL, Version 9, von Roman am 2026-11-19 freigegeben). Worker können sie

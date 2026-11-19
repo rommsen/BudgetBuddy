@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 5
+- **Backlog:** 7
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 48
@@ -38,6 +38,8 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **design-system-ytgnc** — "Rückmeldung am Handy ohne Toast (Regel R3): ein fester Meldungsplatz je Seite, Leiste über der Navigation mit „+ Buchung“, Zeile im Sheet, Rückgängig am Feld; Styleguide §7.13 und ADR" (feature) — `backlog/design-system-ytgnc-rueckmeldung-am-handy-ohne-toast.md`
+- **design-system-x045q** — "Detail: Memo als Block mit Bezeichnung darüber und ganzem Text, Memo-Editor mehrzeilig" (feature) — `backlog/design-system-x045q-detail-memo-als-block-editor-mehrzeilig.md`
 - **design-system-m4e7q** — "Modal: Esc schließt den Dialog auch ohne Fokus darin, der Fokus kehrt zum Auslöser zurück" (bug) — `backlog/design-system-m4e7q-modal-esc-und-fokus.md`
 - **design-system-vf94m** — "Toast am Handy oben statt unten: der Toast mit Rückgängig verdeckt heute den Knopf „+ Buchung“ (Styleguide §7.13)" (bug) — `backlog/design-system-vf94m-toast-am-handy-verdeckt-fab.md`
 - **design-system-x1abn** — "Logo und Icon: Buddy aus standards/frontend/brand/ als Marke und PWA-Icon" (feature) — `backlog/design-system-x1abn-logo-und-icon.md`

@@ -1,5 +1,5 @@
 ---
-id: design-system-2k7uw
+id: design-system-ytgnc
 title: "Rückmeldung am Handy ohne Toast (Regel R3): ein fester Meldungsplatz je Seite, Leiste über der Navigation mit „+ Buchung“, Zeile im Sheet, Rückgängig am Feld; Styleguide §7.13 und ADR"
 status: backlog
 type: feature
@@ -7,7 +7,7 @@ context: design-system
 created: 2026-11-19
 completed:
 depends_on: [design-system-001-styleguide]
-blocks: [ledger-pz5wv, ledger-gwr9j, budgeting-xleop, categorization-dsuaq, banking-import-eibi8]
+blocks: [ledger-pz5wv, ledger-gwr9j, budgeting-gtrgk, categorization-t6j00, banking-import-vwhfm]
 tags: [design-exploration, toast, frontend]
 related_adrs: [0087]
 related_research: []

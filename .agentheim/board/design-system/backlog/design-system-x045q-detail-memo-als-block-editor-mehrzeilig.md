@@ -7,7 +7,7 @@ context: design-system
 created: 2026-11-19
 completed:
 depends_on: [design-system-001-styleguide]
-blocks: [ledger-do0mz]
+blocks: [ledger-wg42w]
 tags: [design-exploration, memo, frontend]
 related_adrs: [0087]
 related_research: []

@@ -78,8 +78,8 @@ Verworfen: A2, B1, B2, C1, C2, R1, R2 (Version 7 der Skizze zeigt sie).
 
 ## Outcome
 Spike abgeschlossen. Bau-Tasks im Backlog, alle mit Kriterium „Seite neben der Skizze verglichen“:
-- design-system-2k7uw (Regel R3, Meldungsleiste, §7.13, ADR; löst design-system-vf94m ab). Die ADR zur Toast-Regel entsteht dort.
+- design-system-ytgnc (Regel R3, Meldungsleiste, §7.13, ADR; löst design-system-vf94m ab). Die ADR zur Toast-Regel entsteht dort.
 - design-system-x045q (Memo im Detail als Block, Editor mehrzeilig).
-- ledger-3pq7c (Wischen A1, Karte füllt den Platz), ledger-pz5wv (B3), ledger-do0mz (Memo C3), ledger-gwr9j (Kassenbuch ohne Toast).
-- budgeting-xleop (Budget und Übersicht ohne Toast, Rückgängig nach Verschiebung), categorization-dsuaq (Regeln), banking-import-eibi8 (Einstellungen, Abrufen).
+- ledger-s2cg3 (Wischen A1, Karte füllt den Platz), ledger-pz5wv (B3), ledger-wg42w (Memo C3), ledger-gwr9j (Kassenbuch ohne Toast).
+- budgeting-gtrgk (Budget und Übersicht ohne Toast, Rückgängig nach Verschiebung), categorization-t6j00 (Regeln), banking-import-vwhfm (Einstellungen, Abrufen).
 Screenshots von heute und Prüfskripte lagen im Scratchpad dieser Sitzung (`scratchpad/vf5h6/`, `shots/vf5h6/`); die Skizze selbst ist die Quelle.

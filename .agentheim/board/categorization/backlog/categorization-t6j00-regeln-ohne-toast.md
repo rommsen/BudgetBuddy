@@ -1,12 +1,12 @@
 ---
-id: categorization-dsuaq
+id: categorization-t6j00
 title: "Regeln am Handy ohne Toast (R3): gelöschte Regel als Zeile am Platz mit Rückgängig, gespeichert am Ort"
 status: backlog
 type: feature
 context: categorization
 created: 2026-11-19
 completed:
-depends_on: [design-system-2k7uw]
+depends_on: [design-system-ytgnc]
 blocks: []
 tags: [design-exploration, toast, frontend]
 related_adrs: [0087]
@@ -15,7 +15,7 @@ prior_art: [ledger-vf5h6]
 ---
 
 ## Why
-Regel R3 (design-system-2k7uw), Skizze Abschnitt 3 „Regeln“.
+Regel R3 (design-system-ytgnc), Skizze Abschnitt 3 „Regeln“.
 
 ## What
 Vorlage ist die Skizze aus ledger-vf5h6 (https://claude.ai/artifact/GESk5E9GWEHhSTXbQTpRqL, Version 9, von Roman am 2026-11-19 freigegeben). Worker können sie

@@ -1,12 +1,12 @@
 ---
-id: banking-import-eibi8
+id: banking-import-vwhfm
 title: "Einstellungen und Abrufen am Handy ohne Toast (R3), englische Toasts entfallen"
 status: backlog
 type: feature
 context: banking-import
 created: 2026-11-19
 completed:
-depends_on: [design-system-2k7uw]
+depends_on: [design-system-ytgnc]
 blocks: []
 tags: [design-exploration, toast, frontend]
 related_adrs: [0087]
@@ -15,7 +15,7 @@ prior_art: [ledger-vf5h6]
 ---
 
 ## Why
-Regel R3 (design-system-2k7uw), Skizze Abschnitt 3 „Einstellungen“. Mehrere Toasts in `Settings/State.fs` sind noch
+Regel R3 (design-system-ytgnc), Skizze Abschnitt 3 „Einstellungen“. Mehrere Toasts in `Settings/State.fs` sind noch
 englisch („Default budget set“, „Failed to load Lena flag colour“, Kann-Sammlung ledger Punkt 152).
 
 ## What

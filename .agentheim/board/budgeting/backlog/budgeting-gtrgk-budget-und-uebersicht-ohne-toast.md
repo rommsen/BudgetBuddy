@@ -1,12 +1,12 @@
 ---
-id: budgeting-xleop
+id: budgeting-gtrgk
 title: "Budget und Übersicht am Handy ohne Toast (R3), dazu „Rückgängig“ nach einer Verschiebung"
 status: backlog
 type: feature
 context: budgeting
 created: 2026-11-19
 completed:
-depends_on: [design-system-2k7uw]
+depends_on: [design-system-ytgnc]
 blocks: []
 tags: [design-exploration, toast, frontend]
 related_adrs: [0087]
@@ -15,7 +15,7 @@ prior_art: [ledger-vf5h6]
 ---
 
 ## Why
-Regel R3 (design-system-2k7uw), Skizze Abschnitt 3. Roman am 2026-11-19: nach einer Verschiebung soll es „Rückgängig“ geben.
+Regel R3 (design-system-ytgnc), Skizze Abschnitt 3. Roman am 2026-11-19: nach einer Verschiebung soll es „Rückgängig“ geben.
 
 ## What
 Vorlage ist die Skizze aus ledger-vf5h6 (https://claude.ai/artifact/GESk5E9GWEHhSTXbQTpRqL, Version 9, von Roman am 2026-11-19 freigegeben). Worker können sie

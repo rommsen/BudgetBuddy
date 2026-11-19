@@ -5,6 +5,87 @@ Newest entries on top.
 
 ---
 
+## 2026-11-19 22:18 -- Modeling / Captured: banking-import-vwhfm - "Einstellungen und Abrufen am Handy ohne Toast (R3), englische Toasts entfallen"
+
+**Type:** Modeling / Capture
+**BC:** banking-import
+**Filed to:** backlog
+**Summary:** Bau-Task aus der freigegebenen Skizze ledger-vf5h6 (Durchgehen am Handy, Regel R3 ohne Toast am Handy).
+
+---
+
+## 2026-11-19 22:18 -- Modeling / Captured: categorization-t6j00 - "Regeln am Handy ohne Toast (R3): gelöschte Regel als Zeile am Platz mit Rückgängig, gespeichert am Ort"
+
+**Type:** Modeling / Capture
+**BC:** categorization
+**Filed to:** backlog
+**Summary:** Bau-Task aus der freigegebenen Skizze ledger-vf5h6 (Durchgehen am Handy, Regel R3 ohne Toast am Handy).
+
+---
+
+## 2026-11-19 22:18 -- Modeling / Captured: budgeting-gtrgk - "Budget und Übersicht am Handy ohne Toast (R3), dazu „Rückgängig“ nach einer Verschiebung"
+
+**Type:** Modeling / Capture
+**BC:** budgeting
+**Filed to:** backlog
+**Summary:** Bau-Task aus der freigegebenen Skizze ledger-vf5h6 (Durchgehen am Handy, Regel R3 ohne Toast am Handy).
+
+---
+
+## 2026-11-19 22:18 -- Modeling / Captured: ledger-wg42w - "Durchgehen: Memo auf der Karte nur lesen (C3), so lang, wie Platz ist; Bearbeiten nur in „Details“"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Bau-Task aus der freigegebenen Skizze ledger-vf5h6 (Durchgehen am Handy, Regel R3 ohne Toast am Handy).
+
+---
+
+## 2026-11-19 22:18 -- Modeling / Captured: ledger-s2cg3 - "Durchgehen am Handy: Wischen mit Fläche darunter (A1), Karte füllt den Platz bis zu den Knöpfen, Seite ohne Scrollen"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Bau-Task aus der freigegebenen Skizze ledger-vf5h6 (Durchgehen am Handy, Regel R3 ohne Toast am Handy).
+
+---
+
+## 2026-11-19 22:18 -- Modeling / Captured: design-system-ytgnc - "Rückmeldung am Handy ohne Toast (Regel R3): ein fester Meldungsplatz je Seite, Leiste über der Navigation mit „+ Buchung“, Zeile im Sheet, Rückgängig am Feld; Styleguide §7.13 und ADR"
+
+**Type:** Modeling / Capture
+**BC:** design-system
+**Filed to:** backlog
+**Summary:** Bau-Task aus der freigegebenen Skizze ledger-vf5h6 (Durchgehen am Handy, Regel R3 ohne Toast am Handy).
+
+---
+
+## 2026-11-19 22:17 -- Modeling / Captured: ledger-gwr9j - "Kassenbuch am Handy ohne Toast (R3): Meldungsleiste mit „+ Buchung“, Wische zusammengefasst, Rückgängig am Feld im Detail, Gelöschtes als Zeile am Platz"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Bau-Task aus der freigegebenen Skizze ledger-vf5h6 (Durchgehen am Handy, Regel R3 ohne Toast am Handy).
+
+---
+
+## 2026-11-19 22:17 -- Modeling / Captured: ledger-pz5wv - "Durchgehen ohne Toast (B3): letzte Aktion unter „Passt, weiter“ mit Rückgängig für jede Aktion, Kategorie am Feld bestätigt, Fehler rot an derselben Stelle"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Bau-Task aus der freigegebenen Skizze ledger-vf5h6 (Durchgehen am Handy, Regel R3 ohne Toast am Handy).
+
+---
+
+## 2026-11-19 22:17 -- Modeling / Captured: design-system-x045q - "Detail: Memo als Block mit Bezeichnung darüber und ganzem Text, Memo-Editor mehrzeilig"
+
+**Type:** Modeling / Capture
+**BC:** design-system
+**Filed to:** backlog
+**Summary:** Bau-Task aus der freigegebenen Skizze ledger-vf5h6 (Durchgehen am Handy, Regel R3 ohne Toast am Handy).
+
+---
+
 ## 2026-11-19 19:18 -- Modeling / Captured: ledger-vf5h6 - "Design-Exploration Durchgehen am Handy: Wischen mit Bewegung und sichtbarer Aktion darunter, Bestätigen ohne störenden Toast, Memo auf der Karte ganz lesbar. Ergebnis ist eine Skizze mit Optionen zur Freigabe durch Roman, danach Tasks je Teil."
 
 **Type:** Modeling / Capture

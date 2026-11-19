@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 10
+- **Backlog:** 14
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 155
@@ -85,6 +85,10 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **ledger-wg42w** — "Durchgehen: Memo auf der Karte nur lesen (C3), so lang, wie Platz ist; Bearbeiten nur in „Details“" (feature) — `backlog/ledger-wg42w-durchgehen-memo-nur-lesen.md`
+- **ledger-s2cg3** — "Durchgehen am Handy: Wischen mit Fläche darunter (A1), Karte füllt den Platz bis zu den Knöpfen, Seite ohne Scrollen" (feature) — `backlog/ledger-s2cg3-durchgehen-wischen-mit-flaeche.md`
+- **ledger-gwr9j** — "Kassenbuch am Handy ohne Toast (R3): Meldungsleiste mit „+ Buchung“, Wische zusammengefasst, Rückgängig am Feld im Detail, Gelöschtes als Zeile am Platz" (feature) — `backlog/ledger-gwr9j-kassenbuch-ohne-toast.md`
+- **ledger-pz5wv** — "Durchgehen ohne Toast (B3): letzte Aktion unter „Passt, weiter“ mit Rückgängig für jede Aktion, Kategorie am Feld bestätigt, Fehler rot an derselben Stelle" (feature) — `backlog/ledger-pz5wv-durchgehen-ohne-toast-letzte-aktion.md`
 - **ledger-vf5h6** — "Design-Exploration Durchgehen am Handy: Wischen mit Bewegung und sichtbarer Aktion darunter, Bestätigen ohne störenden Toast, Memo auf der Karte ganz lesbar. Ergebnis ist eine Skizze mit Optionen zur Freigabe durch Roman, danach Tasks je Teil." (spike) — `backlog/ledger-vf5h6-design-exploration-durchgehen-handy.md`
 - **ledger-zqst5** — "Kassenbuch am Handy: Suche, Filter-Knopf und Chips haften oben beim Scrollen" (feature) — `backlog/ledger-zqst5-suche-und-filter-am-handy-haften.md`
 - **ledger-fp4wn** — "Auswahl außerhalb des geladenen Fensters: Leiste und Panel zählen gewählte, nicht mehr geladene Buchungen mit" (bug) — `backlog/ledger-fp4wn-auswahl-ausserhalb-des-fensters-mitzaehlen.md`

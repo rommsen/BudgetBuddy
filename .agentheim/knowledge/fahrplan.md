@@ -266,8 +266,8 @@ Zuletzt aktualisiert: 2026-11-19 abends, nach Design-Exploration Durchgehen am H
 - **Design-Exploration Durchgehen am Handy (ledger-vf5h6, 2026-11-19 abends):** Skizze
   https://claude.ai/artifact/GESk5E9GWEHhSTXbQTpRqL Version 9 freigegeben: Wischen A1, letzte Aktion unter dem Knopf B3,
   am Handy kein Toast (R3, ein fester Meldungsplatz je Seite), Memo auf der Karte nur lesen (C3), Karte füllt den Platz,
-  Rückgängig nach Verschiebung im Budget. Neun Bau-Tasks im Backlog (Reihenfolge: design-system-2k7uw und -x045q zuerst,
-  dann ledger-3pq7c, -pz5wv, -do0mz, -gwr9j, budgeting-xleop, categorization-dsuaq, banking-import-eibi8); design-system-vf94m
+  Rückgängig nach Verschiebung im Budget. Neun Bau-Tasks im Backlog (Reihenfolge: design-system-ytgnc und -x045q zuerst,
+  dann ledger-s2cg3, -pz5wv, -do0mz, -gwr9j, budgeting-gtrgk, categorization-t6j00, banking-import-vwhfm); design-system-vf94m
   darin abgelöst. Alle noch zu verfeinern.
 - **Nächster Schritt:** Romans Blick auf beide Läufe, danach Deploy auf Anweisung. Dann die Bau-Tasks aus ledger-vf5h6
   verfeinern (Skizze lesen, Dateien und Screenshots in den Scratchpad). Teil D budgeting-wnkgj fertig
