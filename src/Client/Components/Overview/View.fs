@@ -63,7 +63,7 @@ let private head (actions: Actions) (importStand: string option) =
             Html.div [
                 prop.className $"flex items-center {Spacing.sm} md:hidden"
                 prop.children [
-                    PageHeader.iconButton "Abrufen" Icons.refresh actions.Fetch
+                    PageHeader.iconButton "Abrufen" Icons.fetch actions.Fetch
                     PageHeader.iconButton "Einstellungen" Icons.gear actions.OpenSettings
                 ]
             ]
@@ -73,7 +73,7 @@ let private head (actions: Actions) (importStand: string option) =
                     Button.view {
                         Button.defaultProps with
                             Text = "Abrufen"
-                            Icon = Some (Icons.refresh Icons.XS Icons.Default)
+                            Icon = Some (Icons.fetch Icons.XS Icons.Default)
                             Variant = Button.Secondary
                             Size = Button.Small
                             OnClick = actions.Fetch

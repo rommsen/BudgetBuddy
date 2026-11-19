@@ -291,23 +291,26 @@ let private deletedStatusIcon () =
                 Size = Badge.Small
         })
 
-/// Das Kennzeichen eines gesetzten Flags (ADR 0032): *Rückfrage Lena* als Flag-Symbol in der
-/// Lena-Farbe mit dem Namen, ohne farbiges Badge (ADR 0087 Punkt 8); *Markiert* neutral.
-/// `NoFlag` zeigt nichts. Voller Wortlaut, für die Handy-Zeile (`entryRow`), dort ist keine
-/// Spaltenbreite zu wahren.
+/// *Rückfrage Lena* in einer Zeile des Kassenbuchs, am Handy und am PC gleich: Flag-Symbol in der Lena-Farbe mit
+/// „Lena“ (ADR 0087 Punkt 8, wie der Filter seit ledger-rb3xw), der volle Name für Hover und Vorleser.
+/// Eine Funktion und kein Wert: ein ReactElement auf Modulebene bricht unter .NET den Typinitialisierer.
+let private askLenaRowMark () : ReactElement =
+    withAccessibleName "Rückfrage Lena" (Badge.lenaMark "Lena")
+
+/// Das Kennzeichen eines gesetzten Flags (ADR 0032) in der Handy-Zeile (`entryRow`): *Rückfrage Lena* als
+/// `askLenaRowMark`, ohne farbiges Badge; *Markiert* neutral mit Namen. `NoFlag` zeigt nichts.
 let private flagBadge (flag: LedgerFlag) : ReactElement =
     match flag, flagLabel flag with
     | _, None -> Html.none
-    | AskLena, Some label -> Badge.lenaMark label
+    | AskLena, Some _ -> askLenaRowMark ()
     | _, Some label -> Badge.view { Badge.defaultProps with Text = label; Variant = Badge.Neutral; Size = Badge.Small }
 
-/// Das Flag in der Payee-Zelle der PC-Tabelle (Prototyp Version 17 `ledgerDesk`): *Rückfrage Lena* als Flag-Symbol
-/// mit „Lena“ (ADR 0087 Punkt 8), *Markiert* als neutrales Symbol mit Namen für Hover und Vorleser.
+/// Das Flag in der Payee-Zelle der PC-Tabelle (Prototyp Version 17 `ledgerDesk`): *Rückfrage Lena* als
+/// `askLenaRowMark`, *Markiert* als neutrales Symbol mit Namen für Hover und Vorleser.
 let private flagStatusBadge (flag: LedgerFlag) : ReactElement =
     match flag with
     | NoFlag -> Html.none
-    | AskLena ->
-        withAccessibleName "Rückfrage Lena" (Badge.lenaMark "Lena")
+    | AskLena -> askLenaRowMark ()
     | Marked ->
         withAccessibleName "Markiert" (
             Badge.view {
@@ -4901,7 +4904,7 @@ let view (model: Model) (dispatch: Msg -> unit) (tabs: LedgerTabs) (ruleForm: En
             | FetchIcon ->
                 [ Html.div [
                     prop.className "lg:hidden"
-                    prop.children [ PageHeader.iconButton "Abrufen" Icons.refresh tabs.Fetch ]
+                    prop.children [ PageHeader.iconButton "Abrufen" Icons.fetch tabs.Fetch ]
                   ] ]
             | MirrorIcon ->
                 [ Html.div [
@@ -4925,7 +4928,7 @@ let view (model: Model) (dispatch: Msg -> unit) (tabs: LedgerTabs) (ruleForm: En
                 [ Button.view {
                     Button.defaultProps with
                         Text = "Abrufen"
-                        Icon = Some (Icons.refresh Icons.SM Icons.Default)
+                        Icon = Some (Icons.fetch Icons.SM Icons.Default)
                         Variant = Button.Secondary
                         ClassName = Some "hidden lg:inline-flex"
                         OnClick = tabs.Fetch

@@ -175,14 +175,14 @@ let private colorSection =
             Html.div [
                 yield! Badge.lenaFlagScope (Some "purple")
                 prop.className "flex items-center gap-3"
-                prop.children [ Badge.lenaMark "Rückfrage Lena"; Badge.lenaMark "Lena" ]
+                prop.children [ Badge.lenaMark "Lena" ]
             ]
             caption "mit data-lena-flag (Badge.lenaFlagScope, hier Lila)"
         ]
         row [
             Html.div [
                 prop.className "flex items-center gap-3"
-                prop.children [ Badge.lenaMark "Rückfrage Lena"; Badge.lenaMark "Lena" ]
+                prop.children [ Badge.lenaMark "Lena" ]
             ]
             caption "ohne Vorfahr mit data-lena-flag: Symbol gedämpft"
         ]
@@ -1090,7 +1090,9 @@ let private iconsSection =
                     Icons.flagSolid Icons.MD Icons.Default
                     Icons.pin Icons.MD Icons.Default
                     Icons.pinSolid Icons.MD Icons.Accent
+                    Icons.fetch Icons.MD Icons.Default
                 ]
+                caption "Icons.sync (zwei Kreispfeile) heißt „Jetzt spiegeln“, Icons.fetch (Pfeil nach unten in eine Ablage) heißt „Abrufen“, der Comdirect-Abruf mit Push-TAN"
                 caption "Icons.pin (Umriss, nicht angepinnt) und Icons.pinSolid (gefüllt, angepinnt, im Akzent): Kategorie-Detail und Block „Angepinnt“"
             ]
         ]
@@ -2069,12 +2071,13 @@ let private navigationSection =
                     None
                     "Übersicht"
                     None
-                    [ PageHeader.iconButton "Abrufen" Icons.refresh ignore
+                    [ PageHeader.iconButton "Abrufen" Icons.fetch ignore
                       PageHeader.iconButton "Einstellungen" Icons.gear ignore ]
-                subTitle "Symbolknopf mit Laufzustand (iconButtonBusy, „Jetzt spiegeln“ im Kassenbuch)"
+                subTitle "Symbolknopf mit Laufzustand (iconButtonBusy, „Jetzt spiegeln“ im Kassenbuch, daneben „Abrufen“ wie im Kopf am Handy)"
                 Html.div [
                     prop.className "flex items-center gap-2"
                     prop.children [
+                        PageHeader.iconButton "Abrufen" Icons.fetch ignore
                         PageHeader.iconButtonBusy "Jetzt spiegeln" Icons.sync false ignore
                         PageHeader.iconButtonBusy "Jetzt spiegeln (läuft)" Icons.sync true ignore
                     ]

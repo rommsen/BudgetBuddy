@@ -155,7 +155,7 @@ let settings (size: IconSize) (color: IconColor) =
     ]
 
 // ============================================
-// Orte der Navigation (Prototyp Version 17, `I.home`, `I.book`, `I.pie`, `I.gear`, `I.refresh`)
+// Orte der Navigation (Prototyp Version 17, `I.home`, `I.book`, `I.pie`, `I.gear`; dazu `fetch` für „Abrufen“)
 // ============================================
 
 /// Wie `svgIcon`, mit der Strichstärke des Prototyps (1,8) und runden Enden.
@@ -195,13 +195,14 @@ let gear (size: IconSize) (color: IconColor) =
         ]
     ]
 
-/// Pfeile im Kreis: „Abrufen“.
-let refresh (size: IconSize) (color: IconColor) =
+/// Pfeil nach unten in eine Ablage: „Abrufen“, der Comdirect-Abruf mit Push-TAN. Eigene Form, damit er sich
+/// neben „Jetzt spiegeln“ (`sync`, zwei Kreispfeile) im Kopf ohne Rand und Tooltip unterscheidet.
+let fetch (size: IconSize) (color: IconColor) =
     protoIcon size color [
-        Svg.path [ svg.d "M20 11a8 8 0 0 0-14.3-4.9L4 8" ]
-        Svg.path [ svg.d "M4 4v4h4" ]
-        Svg.path [ svg.d "M4 13a8 8 0 0 0 14.3 4.9L20 16" ]
-        Svg.path [ svg.d "M20 20v-4h-4" ]
+        Svg.path [ svg.d "M12 3v9" ]
+        Svg.path [ svg.d "M8 8l4 4 4-4" ]
+        Svg.path [ svg.d "M22 13h-6l-2 3h-4l-2-3H2" ]
+        Svg.path [ svg.d "M2 13v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6" ]
     ]
 
 /// Pfeil nach links: „Zurück“ (Prototyp `I.left`, Strich 2).
