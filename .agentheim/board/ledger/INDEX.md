@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 10
+- **Backlog:** 11
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 145
@@ -75,6 +75,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **ledger-y8xrr** — "Nachladen: Liste verliert ihren Stand, alte Zahlen stehen ohne Hinweis" (refactor) — `backlog/ledger-y8xrr-nachladen-stand-und-alte-zahlen.md`
 - **ledger-hme9k** — "Durchgehen und Detail: gestapelte Sheets und Rücksprünge" (refactor) — `backlog/ledger-hme9k-durchgehen-detail-gestapelte-sheets.md`
 - **ledger-zqst5** — "Kassenbuch am Handy: Suche, Filter-Knopf und Chips haften oben beim Scrollen" (feature) — `backlog/ledger-zqst5-suche-und-filter-am-handy-haften.md`
 - **ledger-fp4wn** — "Auswahl außerhalb des geladenen Fensters: Leiste und Panel zählen gewählte, nicht mehr geladene Buchungen mit" (bug) — `backlog/ledger-fp4wn-auswahl-ausserhalb-des-fensters-mitzaehlen.md`

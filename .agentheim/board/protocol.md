@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-11-19 07:48 -- Capture / Captured: ledger-y8xrr - "Nachladen: Liste verliert ihren Stand, alte Zahlen stehen ohne Hinweis"
+
+**Type:** Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Bestandsreview ledger 2026-11-19, Gruppe G3
+
+---
+
 ## 2026-11-19 07:48 -- Capture / Captured: ledger-hme9k - "Durchgehen und Detail: gestapelte Sheets und Rücksprünge"
 
 **Type:** Capture
