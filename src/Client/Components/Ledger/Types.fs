@@ -300,7 +300,7 @@ let categoryFilterChipText (selectedCount: int) (categoryNames: string list) : s
     | _ -> $"Kategorie: {selectedCount}"
 
 /// Der Name des Lena-Filters (ADR 0056, ledger-rb3xw): gleich im Filter-Sheet, am Chip am PC und am aktiven Chip.
-/// Die Marke in der Zeile („Rückfrage Lena“) und Toast und Historie („Lena gefragt“) nennen den Zustand der Buchung.
+/// Auch die Marke in der Zeile zeigt „Lena“ (Vorleser „Rückfrage Lena“); Toast und Historie („Lena gefragt“) nennen den Zustand.
 let askLenaFilterLabel = "Lena"
 
 /// Die gesetzten Filter als Chips (ledger-d9z3n), in fester Reihenfolge: „Zu prüfen“, „Lena“,
