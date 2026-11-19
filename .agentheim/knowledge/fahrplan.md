@@ -3,7 +3,7 @@
 Stand 2026-11-07. Grundlage: ADR 0086, `vision.md` Abschnitt „What success looks like“.
 
 ## Stand
-Zuletzt aktualisiert: 2026-11-19 mittags, nach Bestandsreview ledger, work-Lauf über G1, G2, G3, G5 und Review-Lauf.
+Zuletzt aktualisiert: 2026-11-19 abends, nach Design-Exploration Durchgehen am Handy (ledger-vf5h6).
 
 - **Etappe 1 · Bedeutungen:** erledigt, 5 von 5 (Skizze und Prototyp, Layout-Sweep, Muster im
   Styleguide, Designwert-Tests aufgeräumt, Palette 2 im Token-Layer). Romans Blick auf dak16 neben
@@ -263,10 +263,17 @@ Zuletzt aktualisiert: 2026-11-19 mittags, nach Bestandsreview ledger, work-Lauf 
   „zurück-nehmen“ auf der Karte im Durchgehen in Chrome auf Android, der Hinweis „Kontostände konnten nicht aktualisiert
   werden“ mit dem neuen Kopf. Aus dem Lauf davor weiter offen: Blick auf Schnitt 10 A bis C und ledger-npqcb, Antworten (a)
   bis (e).
-- **Nächster Schritt:** Romans Blick auf beide Läufe, danach Deploy auf Anweisung. Dann Teil D budgeting-wnkgj fertig
+- **Design-Exploration Durchgehen am Handy (ledger-vf5h6, 2026-11-19 abends):** Skizze
+  https://claude.ai/artifact/GESk5E9GWEHhSTXbQTpRqL Version 9 freigegeben: Wischen A1, letzte Aktion unter dem Knopf B3,
+  am Handy kein Toast (R3, ein fester Meldungsplatz je Seite), Memo auf der Karte nur lesen (C3), Karte füllt den Platz,
+  Rückgängig nach Verschiebung im Budget. Neun Bau-Tasks im Backlog (Reihenfolge: design-system-2k7uw und -x045q zuerst,
+  dann ledger-3pq7c, -pz5wv, -do0mz, -gwr9j, budgeting-xleop, categorization-dsuaq, banking-import-eibi8); design-system-vf94m
+  darin abgelöst. Alle noch zu verfeinern.
+- **Nächster Schritt:** Romans Blick auf beide Läufe, danach Deploy auf Anweisung. Dann die Bau-Tasks aus ledger-vf5h6
+  verfeinern (Skizze lesen, Dateien und Screenshots in den Scratchpad). Teil D budgeting-wnkgj fertig
   verfeinern, sobald Roman w07 beantwortet hat. Offen in der Prüfliste: w07, die Sichtpunkte „Ansehen“ (g20 bis g22, pk1 bis
   pk4). Verfeinern bei Gelegenheit: ledger-fp4wn (berührt Sammelaktionen), ledger-zqst5, design-system-m4e7q, ledger-h7de3,
-  design-system-vf94m, ledger-t4rk8 (Geld, Roman entscheidet). ledger-ayjzq (Sicht „Für mich“) nach Gespräch mit Roman.
+  ledger-t4rk8 (Geld, Roman entscheidet). ledger-ayjzq (Sicht „Für mich“) nach Gespräch mit Roman.
 - Verfeinert wird nur die nächste Etappe. Spätere Etappen haben Zeilen, keine Tickets.
 - Neue Ideen für spätere Etappen kommen hier als Zeile dazu.
 - Bestehende Tasks tragen einen Tag: `etappe-1`, `etappe-2`, `etappe-3`, `laufend`, `danach`.
