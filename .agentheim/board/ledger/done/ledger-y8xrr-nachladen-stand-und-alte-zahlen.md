@@ -1,7 +1,7 @@
 ---
 id: ledger-y8xrr
 title: "Kassenbuch-Liste behält Seiten, Scrollstand und Auswahl auch nach eigenen Aktionen: Anlegen, Rückgängig nach dem Anlegen, Löschen, Wiederherstellen und „Geprüft“ für die Auswahl laden im Hintergrund nach statt neu aufzubauen (Components/Ledger/State.fs, LoadEntries an fünf Stellen)"
-status: doing
+status: done
 type: bug
 context: ledger
 created: 2026-11-19
@@ -90,3 +90,17 @@ Hinweise für den Worker:
   in der Antwort liefert, sonst verschwände der Hinweis nach dem Nachladen.
 - Löschen und Wiederherstellen setzen `DeletingEntries`/`RestoringEntries` als Zeilen-Sperre; das Nachladen ändert sie
   nicht (`src/Tests/LedgerRowLockWaysTests.fs` braucht nichts Neues).
+
+## Outcome
+
+Die fünf Antworten auf eigene Aktionen schicken `RefreshEntries` statt `LoadEntries`, `LoadBalances` bleibt daneben (`src/Client/Components/Ledger/State.fs`: `CaptureSubmitted (Ok _)`, `CapturedDiscarded (_, Ok ())`, `EntryDeleteFinished (_, Ok ())`, `EntryRestoreFinished (_, Ok ())`, `ReviewMarkBatchDone (Ok _)` mit `reload = true`; Kommentar an `applyReviewMarkBatch` auf „nachladen“). `LoadEntries` bleibt für „Erneut laden“ und „Erneut versuchen“ in `View.fs` (nicht angefasst). Die Antwort mit `Error` schickt weiter nichts. Der Server liefert `ReviewMarkWriteBackFailure` in der Zeilenansicht (`src/Server/Ledger/QueryHandlers.fs:171`), der Hinweis überlebt das Nachladen.
+
+Tests:
+- Neue Liste „Kassenbuch: Nachladen nach eigenen Aktionen“ in `src/Tests/LedgerBackgroundRefreshTests.fs` (7 Tests): die vier Antworten mit zwei Seiten, Fokus auf Seite 2, Auswahl-Modus und zwei gewählten Zeilen (Zeilen, `NextPage`, Auswahl bleiben, `RefreshEntries` und `LoadBalances` im Cmd, weder `LoadEntries` noch `RunLoadEntriesPage 0`); „Geprüft“ für die Auswahl mit `reload = true` (Seiten bleiben, Auswahl und Modus enden) und mit `reload = false` (kein Nachladen); alle fünf `Error`-Antworten ohne Nachladen und Neuaufbau; nach dem Nachladen fehlt die gelöschte Buchung und die angelegte steht an ihrem Platz (Antwort-Funktion aus `refreshRequest`); unter „Gelöschte zeigen“ fragt das Nachladen mit `IncludeDeleted` und zeigt die Buchung als gelöschte Zeile; läuft „Weitere laden“, wartet das Nachladen nach Anlegen und Löschen (`RefreshAfterPage`). Vor dem Fix rot: die vier Tests zu den fünf Antworten und zum Warten.
+- Aufzählung „Reihenfolgen beim Nachladen im Hintergrund“: neuer Schritt `DeleteRow` (`EntryDeleteFinished (idOf 5, Ok ())`, der Server kennt 5 schon nicht mehr). Fund dabei: `ChangeFilter` stand in jeder Permutation, der Zweig des Orakels ohne Filterwechsel (Auswahl und Auswahl-Modus bleiben) lief nie. Die Aufzählung nimmt jetzt Reihenfolgen mit und ohne `ChangeFilter` auf (1440 statt 180). Der nie gelaufene Zweig erwartete `Picked {3}`, das stimmt nur, wenn eine Antwort den ganzen Treffer abgedeckt hat (Regel aus ledger-ct3cx, hängt am Fenster beim Start). Er prüft jetzt: 3 bleibt gewählt, nichts kommt dazu, der Auswahl-Modus bleibt. Gegenprobe: mit `LoadEntries` in `EntryDeleteFinished` ist die Aufzählung rot („Erwartet die Auswahl mit 3, war NoSelection“).
+- Umgezogen: `LedgerCaptureClientTests.fs` (zwei Stellen „Liste neu“), `LedgerEntryDeletionClientTests.fs` (zwei Stellen), `LedgerReviewMarkBatchClientTests.fs` („der Versatz stimmt nur nach dem Nachladen“) erwarten `RefreshEntries`. Die übrigen Funde von `grep -n "LoadEntries" src/Tests/*.fs` betreffen andere Wege.
+- Kein Browser-Test, der `[scroll]`-Test aus ledger-ct3cx deckt den Scrollstand einer `Success`-Liste ab (Doktrin Punkt 2).
+
+README-Delta (Bullets **Nachladen im Hintergrund** und **Auswahl**) mit `npm run check:readme-delta -- --bc ledger` geprüft: Exit 0, „Ganz nachlesen: keine Einträge“. Bei der Integration Kann-Sammlung ledger-k4n2s Punkt 76 durchstreichen mit „geht auf in ledger-y8xrr“.
+
+`./verify.sh`: `VERIFY: PASS` (dotnet 5170 grün, 16 übersprungen wie gehabt, node 348 grün). Die zwei Läufe davor waren je an einem anderen Browser-Test rot, beide ohne Bezug zum Kassenbuch und einzeln grün: `[flow:bank-trennen]` (Klick-Timeout) und der `[layout]`-Sweep (`regeln-panel @ 1280 px`, Invariante 5). Das passt zur Last der parallelen Welle.

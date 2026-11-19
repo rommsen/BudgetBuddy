@@ -396,7 +396,7 @@ let submitTests =
             let model = opened (Some (OneAccount bar)) |> step (SetCaptureAmount "1") |> step SubmitCapture
             let model', sent, external = run (CaptureSubmitted (Ok (created None))) model
             Expect.isNone model'.Capture "zu"
-            Expect.contains sent LoadEntries "Liste neu"
+            Expect.contains sent RefreshEntries "Liste lädt im Hintergrund nach"
             match external with
             | ShowToastWithAction (text, ToastSuccess, action) ->
                 Expect.equal text "Buchung angelegt · Bar · -1,00 €" "Konto und Betrag (§7.13)"
@@ -426,12 +426,12 @@ let submitTests =
             let _, sent, _ = run (StartDiscardCaptured id) (baseModel None)
             Expect.equal sent [ RunDiscardCaptured id ] "Aufruf"
 
-        testCase "nach dem Verwerfen lädt die Liste neu und das Detail der Buchung schließt" <| fun () ->
+        testCase "nach dem Verwerfen lädt die Liste im Hintergrund nach und das Detail der Buchung schließt" <| fun () ->
             let entry = { LedgerSelectionTests.entryOf 1 -5m false false with Id = (created None).EntryId }
             let model = { baseModel None with DetailFor = Some entry }
             let model', sent, external = run (CapturedDiscarded (entry.Id, Ok ())) model
             Expect.isNone model'.DetailFor "Detail zu"
-            Expect.contains sent LoadEntries "Liste neu"
+            Expect.contains sent RefreshEntries "Liste lädt im Hintergrund nach"
             Expect.equal external (ShowToast (Components.Ledger.State.capturedDiscardedText, ToastSuccess)) "Rückmeldung"
     ]
 

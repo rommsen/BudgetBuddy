@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-19 09:34 -- Task verified and completed: ledger-y8xrr - "Kassenbuch-Liste behält Seiten, Scrollstand und Auswahl auch nach eigenen Aktionen: Anlegen, Rückgängig nach dem Anlegen, Löschen, Wiederherstellen und „Geprüft“ für die Auswahl laden im Hintergrund nach statt neu aufzubauen (Components/Ledger/State.fs, LoadEntries an fünf Stellen)"
+
+**Type:** Work / Task completion
+**Task:** ledger-y8xrr - "Kassenbuch-Liste behält Seiten, Scrollstand und Auswahl auch nach eigenen Aktionen: Anlegen, Rückgängig nach dem Anlegen, Löschen, Wiederherstellen und „Geprüft“ für die Auswahl laden im Hintergrund nach statt neu aufzubauen (Components/Ledger/State.fs, LoadEntries an fünf Stellen)"
+**Summary:** Kassenbuch-Liste behält Seiten, Scrollstand und Auswahl nach eigenen Aktionen (RefreshEntries statt LoadEntries)
+**Duration:** 1h20m
+**Verification:** PASS (iteration 1)
+**Files changed:** 5
+**Tests added:** 7
+**ADRs written:** none
+
+---
+
 ## 2026-11-19 09:25 -- Batch started: [ledger-ef068, ledger-gy77x]
 
 **Type:** Work / Batch start

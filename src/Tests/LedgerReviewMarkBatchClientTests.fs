@@ -109,7 +109,7 @@ let doneTests =
             Expect.equal model'.TotalCount 2 "Treffer sinkt"
             Expect.equal model'.TotalAmount.Amount -90m "Summe ohne die drei Zeilen"
             Expect.equal model'.LocallyRemoved 3 "LocallyRemoved steigt um die Zahl der gegangenen Zeilen"
-            Expect.isEmpty (messagesOf cmd) "alle Zeilen waren geladen: kein Neuladen"
+            Expect.isEmpty (messagesOf cmd) "alle Zeilen waren geladen: kein Nachladen"
 
         testCase "Erfolg ohne Chip: Zeilen bleiben, sind nicht mehr zu prüfen, LocallyRemoved bleibt" <| fun () ->
             let model = { modelWith false 3 3 with Selection = Picked (Set.ofList (rowIds [ 1; 2 ])) }
@@ -130,7 +130,7 @@ let doneTests =
             Expect.equal model'.LocallyRemoved 1 "nur die gegangene Zeile"
             Expect.equal model'.NeedsReviewCount 1 "der Zähler folgt dem BB-Stand: beide gesetzt"
 
-        testCase "AllExcept mit nie geladenen Buchungen und aktivem Chip: Treffer sinkt, Liste lädt neu" <| fun () ->
+        testCase "AllExcept mit nie geladenen Buchungen und aktivem Chip: Treffer sinkt, Liste lädt im Hintergrund nach" <| fun () ->
             let model =
                 { modelWith true 2 30 with Selection = AllExcept (Set.ofList (rowIds [ 2 ])) }
             // 29 Buchungen gesetzt, davon nur Zeile 1 geladen
@@ -138,7 +138,7 @@ let doneTests =
             let model', cmd, _ = update (ReviewMarkBatchDone (Ok (outcomeOf changes 0 0))) model
             Expect.equal model'.TotalCount 1 "30 minus 29"
             Expect.equal model'.NeedsReviewCount 1 "30 minus 29"
-            Expect.contains (messagesOf cmd) LoadEntries "der Versatz stimmt nur nach dem Neuladen"
+            Expect.contains (messagesOf cmd) RefreshEntries "der Versatz stimmt nur nach dem Nachladen"
 
         testCase "Fehler des Aufrufs: Aktion wieder frei, Auswahl bleibt, Fehler-Toast" <| fun () ->
             let model =

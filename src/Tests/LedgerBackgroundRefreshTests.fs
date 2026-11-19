@@ -406,6 +406,168 @@ let accountsTests =
     ]
 
 // ============================================
+// Nachladen nach eigenen Aktionen (ledger-y8xrr)
+// ============================================
+
+/// Die neue Buchung aus „Buchung anlegen“.
+let private createdEntry : LedgerEntryView = entryWith 2000 -7m
+
+let private createdBooking : LedgerBookingCreated =
+    { EntryId = createdEntry.Id; AccountName = "Giro"; PushFailure = None }
+
+/// Die Antworten auf Romans eigene Aktionen, die die Liste nachladen. `Ok` je Aktion; die gelöschte bzw.
+/// wiederhergestellte Buchung ist Buchung 120 auf der zweiten Seite.
+let private ownActions : (string * Msg) list = [
+    "Buchung anlegen", CaptureSubmitted (Ok createdBooking)
+    "Rückgängig nach dem Anlegen", CapturedDiscarded (createdEntry.Id, Ok ())
+    "Buchung löschen", EntryDeleteFinished (idOf 120, Ok ())
+    "Rückgängig nach dem Löschen", EntryRestoreFinished (idOf 120, Ok ())
+]
+
+let private ownActionErrors : (string * Msg) list = [
+    "Buchung anlegen", CaptureSubmitted (Error "Netz weg")
+    "Rückgängig nach dem Anlegen", CapturedDiscarded (createdEntry.Id, Error "Netz weg")
+    "Buchung löschen", EntryDeleteFinished (idOf 120, Error "Netz weg")
+    "Rückgängig nach dem Löschen", EntryRestoreFinished (idOf 120, Error "Netz weg")
+    "Geprüft für die Auswahl", ReviewMarkBatchDone (Error "Netz weg")
+]
+
+/// Zwei Seiten geladen, Fokus auf Buchung 120 (zweite Seite).
+let private twoPages () : Model =
+    { loadedModel [ for n in 1..150 -> entry n ] 300 2 with FocusedRow = Some (idOf 120) }
+
+/// „Geprüft“ für die Auswahl bei aktivem Chip unter „alle“: geändert sind die geladene Buchung 1 und
+/// nie geladene Buchungen, also lädt die Liste nach (`applyReviewMarkBatch` meldet `reload`).
+let private batchModel () : Model =
+    { twoPages () with
+        OnlyNeedsReview = true
+        SelectionMode = true
+        Selection = AllExcept (Set.singleton (idOf 3))
+        BatchRunning = Some ReviewMarkBatchRun }
+
+let private batchChange (id: Guid) : ReviewMarkBatchChange =
+    { EntryId = id; Previous = { IsApproved = false; ClearedState = ReviewUncleared }; WriteBack = ReviewMarkSent }
+
+let private batchOutcome (unloaded: bool) : ReviewMarkBatchOutcome =
+    let ids = idOf 1 :: (if unloaded then [ for n in 500..510 -> (entry n).Id ] else [])
+    { Changed = ids |> List.map batchChange; UnchangedCount = 0; FailedCount = 0; HeldCount = 0 }
+
+let private expectRefreshed (label: string) (before: Model) (after: Model) (cmd: Elmish.Cmd<Msg>) =
+    Expect.equal after.Entries before.Entries $"{label}: dieselben Zeilen, kein Skeleton"
+    Expect.equal after.NextPage 2 $"{label}: die nachgeladene Seite bleibt"
+    let msgs = dispatched cmd
+    Expect.contains msgs RefreshEntries $"{label}: im Hintergrund nachladen"
+    Expect.contains msgs LoadBalances $"{label}: Kontostände neu"
+    Expect.isFalse (List.contains LoadEntries msgs) $"{label}: kein Neuaufbau"
+    Expect.isFalse (List.contains (RunLoadEntriesPage 0) msgs) $"{label}: keine Abfrage der Seite 0"
+
+[<Tests>]
+let ownActionTests =
+    testList "Kassenbuch: Nachladen nach eigenen Aktionen" [
+
+        // Regression ledger-y8xrr: vor dem Fix schickten die fünf Antworten `LoadEntries`, das über
+        // `rebuildEntries` Liste, Seiten und Auswahl verwarf. Wer auf Seite 2 löschte, landete oben.
+        test "Anlegen, Rückgängig nach dem Anlegen, Löschen und Wiederherstellen behalten Liste, Seiten und Auswahl und laden im Hintergrund nach" {
+            for label, msg in ownActions do
+                let model =
+                    { twoPages () with
+                        SelectionMode = true
+                        Selection = Picked (Set.ofList [ idOf 3; idOf 120 ]) }
+                let after, cmd, _ = update msg model
+                expectRefreshed label model after cmd
+                Expect.equal after.Selection model.Selection $"{label}: die Auswahl bleibt"
+                Expect.isTrue after.SelectionMode $"{label}: der Auswahl-Modus bleibt"
+        }
+
+        test "„Geprüft“ für die Auswahl bei aktivem Chip unter „alle“ behält Seiten und lädt im Hintergrund nach, die Auswahl endet" {
+            let model = batchModel ()
+            let after, cmd, _ = update (ReviewMarkBatchDone (Ok (batchOutcome true))) model
+            Expect.equal after.NextPage 2 "die nachgeladene Seite bleibt"
+            match after.Entries with
+            | Success rows ->
+                // Buchung 1 verlässt die Liste unter dem Chip, die übrigen Zeilen bleiben stehen.
+                let expected = model.Entries |> RemoteData.withDefault [] |> List.filter (fun e -> e.Id <> idOf 1)
+                Expect.equal rows expected "dieselben Zeilen ohne die geprüfte, kein Skeleton"
+            | other -> failtestf "Erwartet Success, war %A" other
+            Expect.equal after.Selection NoSelection "die Auswahl endet"
+            Expect.isFalse after.SelectionMode "der Auswahl-Modus endet"
+            let msgs = dispatched cmd
+            Expect.contains msgs RefreshEntries "im Hintergrund nachladen"
+            Expect.isFalse (List.contains LoadEntries msgs) "kein Neuaufbau"
+            Expect.isFalse (List.contains (RunLoadEntriesPage 0) msgs) "keine Abfrage der Seite 0"
+        }
+
+        test "„Geprüft“ für die Auswahl ohne nie geladene Buchungen lädt nicht nach" {
+            let after, cmd, _ = update (ReviewMarkBatchDone (Ok (batchOutcome false))) (batchModel ())
+            Expect.equal after.Selection NoSelection "die Auswahl endet"
+            Expect.isFalse after.SelectionMode "der Auswahl-Modus endet"
+            let msgs = dispatched cmd
+            Expect.isFalse (List.contains RefreshEntries msgs) "kein Nachladen"
+            Expect.isFalse (List.contains LoadEntries msgs) "kein Neuaufbau"
+        }
+
+        test "Die Antworten mit Fehler laden die Liste weder nach noch neu" {
+            for label, msg in ownActionErrors do
+                let model = { batchModel () with Capture = None }
+                let _, cmd, _ = update msg model
+                let msgs = dispatched cmd
+                Expect.isFalse (List.contains RefreshEntries msgs) $"{label}: kein Nachladen"
+                Expect.isFalse (List.contains LoadEntries msgs) $"{label}: kein Neuaufbau"
+        }
+
+        test "Nach dem Nachladen fehlt die gelöschte Buchung, die angelegte steht an ihrem Platz" {
+            let model = twoPages ()
+            let rows = model.Entries |> RemoteData.withDefault []
+            // Löschen: die Antwort kennt Buchung 120 nicht mehr.
+            let deleted, deleteCmd, _ = update (EntryDeleteFinished (idOf 120, Ok ())) model
+            Expect.contains (dispatched deleteCmd) RefreshEntries "Löschen lädt nach"
+            Expect.contains (idsOf deleted) (idOf 120) "bis zur Antwort steht die Buchung noch da"
+            let started, answer = startRefresh deleted
+            let withoutDeleted = rows |> List.filter (fun e -> e.Id <> idOf 120)
+            let afterDelete, _, _ = update (answer (Ok (pageOf withoutDeleted 299 (sumOf withoutDeleted)))) started
+            Expect.isFalse (List.contains (idOf 120) (idsOf afterDelete)) "die gelöschte Buchung ist weg"
+            Expect.equal afterDelete.TotalCount 299 "Trefferzahl aus der Antwort"
+            // Anlegen: die neue Buchung steht in der Antwort an zweiter Stelle.
+            let created, createCmd, _ = update (CaptureSubmitted (Ok createdBooking)) afterDelete
+            Expect.contains (dispatched createCmd) RefreshEntries "Anlegen lädt nach"
+            let startedCreate, answerCreate = startRefresh created
+            let withCreated = List.head withoutDeleted :: createdEntry :: List.tail withoutDeleted
+            let afterCreate, _, _ = update (answerCreate (Ok (pageOf withCreated 300 (sumOf withCreated)))) startedCreate
+            Expect.equal (idsOf afterCreate) (withCreated |> List.map (fun e -> e.Id)) "die neue Buchung steht an ihrem Platz"
+        }
+
+        test "Unter „Gelöschte zeigen“ steht die gelöschte Buchung nach dem Nachladen als gelöschte Zeile" {
+            let model = { twoPages () with IncludeDeleted = true }
+            let deleted, _, _ = update (EntryDeleteFinished (idOf 120, Ok ())) model
+            let started, answer = startRefresh deleted
+            match Components.Ledger.State.refreshRequest started with
+            | Some (query, _) -> Expect.isTrue query.IncludeDeleted "das Nachladen fragt mit den Gelöschten"
+            | None -> failtest "keine Abfrage"
+            let rows =
+                model.Entries |> RemoteData.withDefault []
+                |> List.map (fun e -> if e.Id = idOf 120 then { e with DeletedInYnab = true } else e)
+            let after, _, _ = update (answer (Ok { pageOf rows 300 (sumOf rows) with DeletedCount = 1 })) started
+            match after.Entries with
+            | Success list ->
+                let row = list |> List.find (fun e -> e.Id = idOf 120)
+                Expect.isTrue row.DeletedInYnab "als gelöschte Zeile"
+            | other -> failtestf "Erwartet Success, war %A" other
+            Expect.equal after.DeletedCount 1 "Zahl der Gelöschten aus der Antwort"
+        }
+
+        test "Läuft „Weitere laden“, wartet das Nachladen nach dem Löschen und dem Anlegen auf dessen Antwort" {
+            for label, msg in [ ownActions[0]; ownActions[2] ] do
+                let model = { twoPages () with LoadingMore = true }
+                let waiting, cmd, _ = update msg model
+                let msgs = dispatched cmd
+                Expect.contains msgs RefreshEntries $"{label}: nachladen"
+                let waited, waitCmd, _ = update RefreshEntries waiting
+                Expect.equal waited.Refresh RefreshAfterPage $"{label}: wartet auf die Seite"
+                Expect.isEmpty (dispatched waitCmd) $"{label}: keine Abfrage, solange die Seite läuft"
+        }
+    ]
+
+// ============================================
 // Reihenfolgen (Doktrin Punkt 20, Vorbild `moveWays` in MoveMoneyClientTests.fs)
 // ============================================
 
@@ -419,6 +581,9 @@ type private Step =
     | SecondMirror
     /// Ein Einzelbefehl samt Antwort: „Geprüft“ für Buchung 1.
     | MarkRow
+    /// Die Antwort auf „Buchung löschen“ für Buchung 5, die der Server nicht mehr kennt: ein weiterer
+    /// Nachladen-Start (ledger-y8xrr).
+    | DeleteRow
 
 /// Eine laufende Abfrage: die Anfrage, ihre Antwort-Funktion, wie der `Run*`-Zweig sie bindet, und der
 /// Stand des Servers beim Start (die Antwort kennt keinen späteren Befehl).
@@ -475,6 +640,7 @@ let private applyStep (world: World) (step: Step) : World =
     | ChangeFilter -> send ToggleOnlyNeedsReview world
     | LoadMore -> send LoadMoreEntries world
     | SecondMirror -> send (MirrorFinished (Ok summary)) world
+    | DeleteRow -> send (EntryDeleteFinished (idOf 5, Ok ())) world
     | AnswerLoadMore ->
         match world.Pending |> List.tryFind (function PagePending (q, _, _) -> q.Page > 0 | _ -> false) with
         | Some p -> answer p world
@@ -524,8 +690,10 @@ let orderTests =
                     LocallyRemoved = 1
                     SelectionMode = true
                     Selection = Picked (Set.ofList [ idOf 3; idOf 5 ]) }
+            // Mit und ohne Filterwechsel: nur ohne ihn sieht das Orakel, ob Auswahl und Auswahl-Modus halten.
+            let steps = [ StartRefresh; LoadMore; AnswerLoadMore; AnswerRefresh; SecondMirror; DeleteRow ]
             let orders =
-                permutations [ StartRefresh; ChangeFilter; LoadMore; AnswerLoadMore; AnswerRefresh; SecondMirror ]
+                (permutations (ChangeFilter :: steps) @ permutations steps)
                 |> List.filter (fun o -> before LoadMore AnswerLoadMore o && before StartRefresh AnswerRefresh o)
             Expect.isGreaterThan (List.length orders) 100 "die Aufzählung deckt die Reihenfolgen ab"
             for order in orders do
@@ -557,7 +725,14 @@ let orderTests =
                 if filterChanged then
                     Expect.equal final.Model.Selection NoSelection $"nach einem Filterwechsel ist die Auswahl leer: {label}"
                 else
-                    Expect.equal final.Model.Selection (Picked (Set.singleton (idOf 3))) $"die Auswahl ohne die gelöschte Buchung: {label}"
+                    // Die gelöschte 5 fällt nur heraus, wenn eine Antwort den ganzen Treffer umfasst hat (ledger-ct3cx);
+                    // ob das so war, hängt am Fenster beim Start, nicht an der Nachrichtenfolge. Sicher ist: 3 bleibt
+                    // gewählt, nichts kommt dazu, der Auswahl-Modus bleibt.
+                    match final.Model.Selection with
+                    | Picked ids ->
+                        Expect.isTrue (ids.Contains (idOf 3)) $"3 bleibt gewählt: {label}"
+                        Expect.isTrue (Set.isSubset ids (Set.ofList [ idOf 3; idOf 5 ])) $"nichts kommt dazu: {label}"
+                    | other -> failtestf "Erwartet die Auswahl mit 3, war %A: %s" other label
                     Expect.isTrue final.Model.SelectionMode $"Auswahl-Modus bleibt: {label}"
         }
 

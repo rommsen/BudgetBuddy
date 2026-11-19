@@ -1047,8 +1047,8 @@ let reviewMarkBatchSelection (model: Model) : ReviewMarkBatchSelection option =
 /// trägt ihren Fehlschlag, der Zähler "Zu prüfen" sinkt um die Zahl der geänderten
 /// Buchungen. Bei aktivem Chip verlassen die Zeilen ohne Fehlschlag die Liste
 /// (`LocallyRemoved` steigt um ihre Zahl, Treffer und Summe sinken). Das zweite Ergebnis
-/// sagt, ob die Liste neu zu laden ist: bei aktivem Chip waren geänderte Buchungen nie
-/// geladen (`AllExcept`), der Versatz der nächsten Seite stimmt dann nur nach dem Neuladen.
+/// sagt, ob die Liste nachzuladen ist: bei aktivem Chip waren geänderte Buchungen nie
+/// geladen (`AllExcept`), der Versatz der nächsten Seite stimmt dann nur nach dem Nachladen.
 /// Rein, ohne Proxy.
 let private applyReviewMarkBatch (outcome: ReviewMarkBatchOutcome) (model: Model) : Model * bool =
     let changedCount = List.length outcome.Changed
@@ -3517,7 +3517,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
                 )
             | Some _ -> ShowToast (Capture.createdText created amount, ToastWarning)
         { model with Capture = None },
-        Cmd.batch [ Cmd.ofMsg LoadEntries; Cmd.ofMsg LoadBalances; openDetail ],
+        Cmd.batch [ Cmd.ofMsg RefreshEntries; Cmd.ofMsg LoadBalances; openDetail ],
         toast
 
     | CaptureSubmitted (Error message) ->
@@ -3549,7 +3549,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             if model.DetailFor |> Option.exists (fun d -> d.Id = entryId) then closeDetail model
             else
                 model
-        model', Cmd.batch [ Cmd.ofMsg LoadEntries; Cmd.ofMsg LoadBalances ], ShowToast (capturedDiscardedText, ToastSuccess)
+        model', Cmd.batch [ Cmd.ofMsg RefreshEntries; Cmd.ofMsg LoadBalances ], ShowToast (capturedDiscardedText, ToastSuccess)
 
     | CapturedDiscarded (entryId, Error message) ->
         { model with DiscardingCaptured = model.DiscardingCaptured.Remove entryId },
@@ -3581,7 +3581,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             else
                 model
         model',
-        Cmd.batch [ Cmd.ofMsg LoadEntries; Cmd.ofMsg LoadBalances ],
+        Cmd.batch [ Cmd.ofMsg RefreshEntries; Cmd.ofMsg LoadBalances ],
         ShowToastWithAction (entryDeletedText, ToastSuccess, { Label = undoToastLabel; Kind = UndoDeleteEntry entryId })
 
     | EntryDeleteFinished (entryId, Error message) ->
@@ -3608,7 +3608,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
 
     | EntryRestoreFinished (entryId, Ok ()) ->
         { model with RestoringEntries = model.RestoringEntries.Remove entryId },
-        Cmd.batch [ Cmd.ofMsg LoadEntries; Cmd.ofMsg LoadBalances ],
+        Cmd.batch [ Cmd.ofMsg RefreshEntries; Cmd.ofMsg LoadBalances ],
         ShowToast (entryRestoredText, ToastSuccess)
 
     | EntryRestoreFinished (entryId, Error message) ->
@@ -3999,7 +3999,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
                 let items =
                     outcome.Changed |> List.map (fun c -> { EntryId = c.EntryId; Previous = c.Previous })
                 ShowToastWithAction (text, toastType, { Label = undoToastLabel; Kind = UndoReviewMarkBatch items })
-        model', (if reload then Cmd.ofMsg LoadEntries else Cmd.none), external
+        model', (if reload then Cmd.ofMsg RefreshEntries else Cmd.none), external
 
     | ReviewMarkBatchDone (Error message) ->
         { model with BatchRunning = None },

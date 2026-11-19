@@ -89,7 +89,7 @@ let deleteUpdateTests =
             let model, sent, external = run (EntryDeleteFinished (idOf 1, Ok ())) started
             Expect.isNone model.DetailFor "Detail zu"
             Expect.isFalse (model.DeletingEntries.Contains (idOf 1)) "Sperre frei"
-            Expect.contains sent LoadEntries "Liste neu"
+            Expect.contains sent RefreshEntries "Liste lädt im Hintergrund nach"
             Expect.contains sent LoadBalances "Kontostände neu"
             match external with
             | ShowToastWithAction ("Buchung gelöscht, auch in YNAB", ToastSuccess, { Label = "Rückgängig"; Kind = UndoDeleteEntry id }) ->
@@ -120,12 +120,12 @@ let deleteUpdateTests =
                 Expect.equal sent [ RunRestoreDeletedEntry (idOf 1) ] "Wiederherstellen"
             | other -> failtest $"LedgerMsg erwartet, war {other}"
 
-        testCase "nach dem Wiederherstellen lädt die Liste neu, ein Fehler nennt den Grund" <| fun () ->
+        testCase "nach dem Wiederherstellen lädt die Liste im Hintergrund nach, ein Fehler nennt den Grund" <| fun () ->
             let started, _, _ = run (StartRestoreDeletedEntry (idOf 1)) (modelWith [ entryOf 1 ])
             let _, again, _ = run (StartRestoreDeletedEntry (idOf 1)) started
             Expect.isEmpty again "kein zweiter Aufruf"
             let _, sent, external = run (EntryRestoreFinished (idOf 1, Ok ())) started
-            Expect.contains sent LoadEntries "Liste neu"
+            Expect.contains sent RefreshEntries "Liste lädt im Hintergrund nach"
             Expect.equal external (ShowToast ("Buchung wiederhergestellt", ToastSuccess)) "Toast"
             let failed, _, failure = run (EntryRestoreFinished (idOf 1, Error "Zeitüberschreitung")) started
             Expect.equal failure (ShowToast ("Wiederherstellen nicht möglich: Zeitüberschreitung", ToastError)) "Grund"
