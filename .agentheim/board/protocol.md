@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-19 08:38 -- Batch started: [ledger-b7k2q, ledger-hme9k, ledger-y8xrr]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-b7k2q - "Bob-Grenzen vollständig: Commit prüft das Datumsfenster am Berliner Tag des Commits neu, Vorschau begrenzt Rumpf auf 8192 Bytes und Kategorie auf 200 Zeichen, „kein Flag“ im gesendeten Rumpf belegt, API-Test des Datumsfensters auf einen Fall gekürzt (BotApi.fs bookWithinLimit, readBody, Validation.fs parseBotPreviewRequest)", ledger-hme9k - "Durchgehen und Detail ohne zweite Ebene: Payee und Memo im offenen Detail öffnen kein zweites Sheet oder zweiten Dialog, das Regel-Formular ersetzt den Inhalt desselben Detail-Sheets, × im Split-Editor am PC führt ins Detail zurück, „Details“ schließen im Durchgehen über denselben Helfer wie im Kassenbuch (Components/Ledger/View.fs, State.fs)", ledger-y8xrr - "Kassenbuch-Liste behält Seiten, Scrollstand und Auswahl auch nach eigenen Aktionen: Anlegen, Rückgängig nach dem Anlegen, Löschen, Wiederherstellen und „Geprüft“ für die Auswahl laden im Hintergrund nach statt neu aufzubauen (Components/Ledger/State.fs, LoadEntries an fünf Stellen)"
+**Parallel:** yes (3 workers, cap 3) — ledger-pfhdq, ledger-awf5b, ledger-ef068, ledger-gy77x held to next waves: pfhdq overlaps y8xrr in Components/Ledger/State.fs, ef068 und gy77x overlap hme9k in Components/Ledger/View.fs
+
+---
+
 ## 2026-11-19 08:18 -- Modeling / Promoted: ledger-gy77x - "Knöpfe im Kassenbuch nach DS: „+ Buchung“ als Button.fab, „Abrufen“ und „Jetzt spiegeln“ als Symbolknopf im Kopf, „Lena fragen“ auf der Karte wie im Detail, „Abbrechen“ ohne Füllung in „Betrag“ und im Split-Editor"
 
 **Type:** Modeling / Promote

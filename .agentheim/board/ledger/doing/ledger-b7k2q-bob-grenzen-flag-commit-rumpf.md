@@ -1,7 +1,7 @@
 ---
 id: ledger-b7k2q
 title: "Bob-Grenzen vollständig: Commit prüft das Datumsfenster am Berliner Tag des Commits neu, Vorschau begrenzt Rumpf auf 8192 Bytes und Kategorie auf 200 Zeichen, „kein Flag“ im gesendeten Rumpf belegt, API-Test des Datumsfensters auf einen Fall gekürzt (BotApi.fs bookWithinLimit, readBody, Validation.fs parseBotPreviewRequest)"
-status: todo
+status: doing
 type: bug
 context: ledger
 created: 2026-11-19

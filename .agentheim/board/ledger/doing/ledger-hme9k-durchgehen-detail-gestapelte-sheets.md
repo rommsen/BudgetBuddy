@@ -1,7 +1,7 @@
 ---
 id: ledger-hme9k
 title: "Durchgehen und Detail ohne zweite Ebene: Payee und Memo im offenen Detail öffnen kein zweites Sheet oder zweiten Dialog, das Regel-Formular ersetzt den Inhalt desselben Detail-Sheets, × im Split-Editor am PC führt ins Detail zurück, „Details“ schließen im Durchgehen über denselben Helfer wie im Kassenbuch (Components/Ledger/View.fs, State.fs)"
-status: todo
+status: doing
 type: bug
 context: ledger
 created: 2026-11-19
