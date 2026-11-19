@@ -1,7 +1,7 @@
 ---
 id: ledger-y8xrr
 title: "Kassenbuch-Liste behält Seiten, Scrollstand und Auswahl auch nach eigenen Aktionen: Anlegen, Rückgängig nach dem Anlegen, Löschen, Wiederherstellen und „Geprüft“ für die Auswahl laden im Hintergrund nach statt neu aufzubauen (Components/Ledger/State.fs, LoadEntries an fünf Stellen)"
-status: backlog
+status: todo
 type: bug
 context: ledger
 created: 2026-11-19

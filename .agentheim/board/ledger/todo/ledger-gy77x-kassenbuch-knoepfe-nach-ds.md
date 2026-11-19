@@ -1,7 +1,7 @@
 ---
 id: ledger-gy77x
 title: "Knöpfe im Kassenbuch nach DS: „+ Buchung“ als Button.fab, „Abrufen“ und „Jetzt spiegeln“ als Symbolknopf im Kopf, „Lena fragen“ auf der Karte wie im Detail, „Abbrechen“ ohne Füllung in „Betrag“ und im Split-Editor"
-status: backlog
+status: todo
 type: refactor
 context: ledger
 created: 2026-11-19

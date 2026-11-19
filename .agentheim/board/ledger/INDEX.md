@@ -10,14 +10,21 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 19
-- **Todo:** 0
+- **Backlog:** 12
+- **Todo:** 7
 - **Doing:** 0
 - **Done:** 145
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **ledger-gy77x** — "Knöpfe im Kassenbuch nach DS: „+ Buchung“ als Button.fab, „Abrufen“ und „Jetzt spiegeln“ als Symbolknopf im Kopf, „Lena fragen“ auf der Karte wie im Detail, „Abbrechen“ ohne Füllung in „Betrag“ und im Split-Editor" (refactor) — `todo/ledger-gy77x-kassenbuch-knoepfe-nach-ds.md`
+- **ledger-ef068** — "Kassenbuch-Liste nach DS: gelbe Kante am Anker in der Kompaktliste mit Maus, Tokens für Auswahl und Rahmen, Kopf „Schnellwahl“ als sectionTitle, „Alles geprüft“ und „Alles kategorisiert“ als Card.allDone" (bug) — `todo/ledger-ef068-kassenbuch-ds-abweichungen.md`
+- **ledger-awf5b** — "Ein übernommener Betragsfilter mit Komma („12,50“) gilt nicht mehr als laufende Eingabe: isInputActive vergleicht die Betragsentwürfe als Wert statt als Text, der Update-Neustart beim Öffnen wird nicht mehr zurückgehalten (src/Client/State.fs isInputActive)" (bug) — `todo/ledger-awf5b-betragsfilter-haelt-update-zurueck.md`
+- **ledger-pfhdq** — "Späte und gescheiterte Antworten im Kassenbuch: Available, Kontostände und Spiegel-Status tragen eine Lade-Nummer, ältere Antworten fallen weg, ein gescheitertes Nachladen der Kontostände bleibt mit Hinweis sichtbar (Components/Ledger/State.fs CategoriesLoaded, BalancesLoaded, MirrorStatusLoaded)" (bug) — `todo/ledger-pfhdq-spaete-antworten-available-kontostaende-spiegel.md`
+- **ledger-y8xrr** — "Kassenbuch-Liste behält Seiten, Scrollstand und Auswahl auch nach eigenen Aktionen: Anlegen, Rückgängig nach dem Anlegen, Löschen, Wiederherstellen und „Geprüft“ für die Auswahl laden im Hintergrund nach statt neu aufzubauen (Components/Ledger/State.fs, LoadEntries an fünf Stellen)" (bug) — `todo/ledger-y8xrr-nachladen-stand-und-alte-zahlen.md`
+- **ledger-hme9k** — "Durchgehen und Detail ohne zweite Ebene: Payee und Memo im offenen Detail öffnen kein zweites Sheet oder zweiten Dialog, das Regel-Formular ersetzt den Inhalt desselben Detail-Sheets, × im Split-Editor am PC führt ins Detail zurück, „Details“ schließen im Durchgehen über denselben Helfer wie im Kassenbuch (Components/Ledger/View.fs, State.fs)" (bug) — `todo/ledger-hme9k-durchgehen-detail-gestapelte-sheets.md`
+- **ledger-b7k2q** — "Bob-Grenzen vollständig: Commit prüft das Datumsfenster am Berliner Tag des Commits neu, Vorschau begrenzt Rumpf auf 8192 Bytes und Kategorie auf 200 Zeichen, „kein Flag“ im gesendeten Rumpf belegt, API-Test des Datumsfensters auf einen Fall gekürzt (BotApi.fs bookWithinLimit, readBody, Validation.fs parseBotPreviewRequest)" (bug) — `todo/ledger-b7k2q-bob-grenzen-flag-commit-rumpf.md`
 <!-- todo-list:end -->
 
 ### Doing
@@ -77,14 +84,7 @@ research touching this BC, and concept synthesis pages.
 <!-- backlog-list:start -->
 - **ledger-rb3xw** — "Begriffe und Texte im Kassenbuch: ein Name für den Lena-Filter, leerer Zustand „Keine Buchungen“ nach §7.12 mit „Abrufen“, Listen-Platzhalter ohne „Transaktionen“" (refactor) — `backlog/ledger-rb3xw-kassenbuch-begriffe-und-leerer-zustand.md`
 - **ledger-zf6zg** — "„Neue Buchung“ nach DS: Kontowahl als Money.accountChoiceRow wie im Sheet „Konto“, Kopf des Panels wie der Kopf des Details, „Abbrechen“ ohne Füllung, Payee-Feld sagt „optional“" (refactor) — `backlog/ledger-zf6zg-neue-buchung-nach-ds.md`
-- **ledger-gy77x** — "Knöpfe im Kassenbuch nach DS: „+ Buchung“ als Button.fab, „Abrufen“ und „Jetzt spiegeln“ als Symbolknopf im Kopf, „Lena fragen“ auf der Karte wie im Detail, „Abbrechen“ ohne Füllung in „Betrag“ und im Split-Editor" (refactor) — `backlog/ledger-gy77x-kassenbuch-knoepfe-nach-ds.md`
-- **ledger-awf5b** — "Ein übernommener Betragsfilter mit Komma („12,50“) gilt nicht mehr als laufende Eingabe: isInputActive vergleicht die Betragsentwürfe als Wert statt als Text, der Update-Neustart beim Öffnen wird nicht mehr zurückgehalten (src/Client/State.fs isInputActive)" (bug) — `backlog/ledger-awf5b-betragsfilter-haelt-update-zurueck.md`
 - **ledger-pz028** — "Kassenbuch-State aufräumen: drei Antworten tragen Result, das Quick-Add-Konto kommt aus den Settings des Root statt aus einem eigenen Abruf, die toten Kategorien-Zweige fallen weg, „Weitere laden“ und Nachladen teilen einen Zustand statt LoadingMore (Components/Ledger/State.fs, Types.fs)" (refactor) — `backlog/ledger-pz028-aufraeumen-antworten-quickadd-ladezustand.md`
-- **ledger-pfhdq** — "Späte und gescheiterte Antworten im Kassenbuch: Available, Kontostände und Spiegel-Status tragen eine Lade-Nummer, ältere Antworten fallen weg, ein gescheitertes Nachladen der Kontostände bleibt mit Hinweis sichtbar (Components/Ledger/State.fs CategoriesLoaded, BalancesLoaded, MirrorStatusLoaded)" (bug) — `backlog/ledger-pfhdq-spaete-antworten-available-kontostaende-spiegel.md`
-- **ledger-b7k2q** — "Bob: kein Flag nicht belegt, Grenzen am Commit und am Rumpf lückenhaft" (refactor) — `backlog/ledger-b7k2q-bob-grenzen-flag-commit-rumpf.md`
-- **ledger-ef068** — "Kassenbuch weicht von DS-Bausteinen ab: Knöpfe, Köpfe, Kontowahl, Kanten" (refactor) — `backlog/ledger-ef068-kassenbuch-ds-abweichungen.md`
-- **ledger-y8xrr** — "Nachladen: Liste verliert ihren Stand, alte Zahlen stehen ohne Hinweis" (refactor) — `backlog/ledger-y8xrr-nachladen-stand-und-alte-zahlen.md`
-- **ledger-hme9k** — "Durchgehen und Detail: gestapelte Sheets und Rücksprünge" (refactor) — `backlog/ledger-hme9k-durchgehen-detail-gestapelte-sheets.md`
 - **ledger-zqst5** — "Kassenbuch am Handy: Suche, Filter-Knopf und Chips haften oben beim Scrollen" (feature) — `backlog/ledger-zqst5-suche-und-filter-am-handy-haften.md`
 - **ledger-fp4wn** — "Auswahl außerhalb des geladenen Fensters: Leiste und Panel zählen gewählte, nicht mehr geladene Buchungen mit" (bug) — `backlog/ledger-fp4wn-auswahl-ausserhalb-des-fensters-mitzaehlen.md`
 - **ledger-yhemh** — "Neue Buchung am Handy: Memo steht neben dem Datum statt darunter" (bug) — `backlog/ledger-yhemh-memo-unter-datum-am-handy.md`

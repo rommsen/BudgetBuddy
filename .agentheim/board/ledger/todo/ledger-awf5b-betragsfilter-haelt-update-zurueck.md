@@ -1,7 +1,7 @@
 ---
 id: ledger-awf5b
 title: "Ein übernommener Betragsfilter mit Komma („12,50“) gilt nicht mehr als laufende Eingabe: isInputActive vergleicht die Betragsentwürfe als Wert statt als Text, der Update-Neustart beim Öffnen wird nicht mehr zurückgehalten (src/Client/State.fs isInputActive)"
-status: backlog
+status: todo
 type: bug
 context: ledger
 created: 2026-11-19
