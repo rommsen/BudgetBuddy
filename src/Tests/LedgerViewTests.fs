@@ -797,6 +797,30 @@ let private amountFilterTextTests =
             Expect.equal (amountFilterValue None "abc") None "unlesbar ohne Filter"
         }
 
+        // ledger-awf5b: der Entwurf entspricht der Grenze als Wert, nicht als Text.
+        test "amountDraftMatches: leer entspricht keiner Grenze" {
+            Expect.isTrue (amountDraftMatches None "") "leer ohne Grenze"
+            Expect.isTrue (amountDraftMatches None "   ") "Leerzeichen ohne Grenze"
+            Expect.isFalse (amountDraftMatches (Some 12.5m) "") "leer bei gesetzter Grenze"
+        }
+
+        test "amountDraftMatches: gleicher Wert mit Komma und Punkt entspricht" {
+            Expect.isTrue (amountDraftMatches (Some 12.5m) "12,50") "Komma"
+            Expect.isTrue (amountDraftMatches (Some 12.5m) "12.50") "Punkt"
+            Expect.isTrue (amountDraftMatches (Some 12.5m) "12,5") "ohne Nachkommanull"
+            Expect.isTrue (amountDraftMatches (Some 12.5m) " 12,50 ") "mit Leerzeichen"
+        }
+
+        test "amountDraftMatches: anderer Wert entspricht nicht" {
+            Expect.isFalse (amountDraftMatches (Some 12.5m) "5") "anderer Wert"
+            Expect.isFalse (amountDraftMatches None "5") "Wert ohne Grenze"
+        }
+
+        test "amountDraftMatches: unlesbarer Text entspricht nie" {
+            Expect.isFalse (amountDraftMatches (Some 12.5m) "abc") "unlesbar bei Grenze"
+            Expect.isFalse (amountDraftMatches None "abc") "unlesbar ohne Grenze"
+        }
+
         test "Das Feld gilt nur bei unlesbarem Text als ungültig" {
             Expect.isTrue (amountFilterTextInvalid "abc") "unlesbar"
             Expect.isFalse (amountFilterTextInvalid "") "leer"

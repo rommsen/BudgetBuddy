@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-19 09:53 -- Task verified and completed: ledger-awf5b - "Ein übernommener Betragsfilter mit Komma („12,50“) gilt nicht mehr als laufende Eingabe: isInputActive vergleicht die Betragsentwürfe als Wert statt als Text, der Update-Neustart beim Öffnen wird nicht mehr zurückgehalten (src/Client/State.fs isInputActive)"
+
+**Type:** Work / Task completion
+**Task:** ledger-awf5b - "Ein übernommener Betragsfilter mit Komma („12,50“) gilt nicht mehr als laufende Eingabe: isInputActive vergleicht die Betragsentwürfe als Wert statt als Text, der Update-Neustart beim Öffnen wird nicht mehr zurückgehalten (src/Client/State.fs isInputActive)"
+**Summary:** Betragsfilter mit Komma hält den Update-Neustart nicht mehr zurück (isInputActive vergleicht als Wert)
+**Duration:** 40m
+**Verification:** PASS (iteration 1)
+**Files changed:** 4
+**Tests added:** 11
+**ADRs written:** none
+
+---
+
 ## 2026-11-19 09:52 -- Batch started: [ledger-rb3xw]
 
 **Type:** Work / Batch start

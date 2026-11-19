@@ -156,6 +156,15 @@ let amountFilterValue (current: decimal option) (text: string) : decimal option 
     | AmountTextValue value -> Some value
     | AmountTextUnreadable -> current
 
+/// Der Entwurf eines Betragsfelds entspricht der übernommenen Grenze `committed` (ledger-awf5b): leer gegen
+/// keine Grenze, ein lesbarer Wert gegen dieselbe Grenze als Dezimalvergleich (12,5 = 12.50). Ein unlesbarer
+/// Text entspricht nie, er steht als Fehler am Feld und gilt als laufende Eingabe.
+let amountDraftMatches (committed: decimal option) (draft: string) : bool =
+    match parseAmountFilterText draft, committed with
+    | AmountTextEmpty, None -> true
+    | AmountTextValue value, Some limit -> value = limit
+    | _ -> false
+
 /// Das Betragsfeld des Filters ist ungültig: sein Text ist weder leer noch ein lesbarer Betrag. Gilt
 /// sofort beim Tippen, nicht erst nach der Verzögerung.
 let amountFilterTextInvalid (text: string) : bool =

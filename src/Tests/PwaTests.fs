@@ -211,6 +211,16 @@ let updateTests =
             let model = { baseModel () with Pwa = { Pwa.initialState with Reloading = true } }
             let _, cmd = State.update State.PwaApplyUpdate model
             Expect.isEmpty cmd "kein zweiter Reload"
+        // ledger-awf5b: über das echte Root-`update` übernommen, hielt „12,50“ das Neuladen zurück.
+        testCase "PwaUpdateWaiting nach übernommenem Betragsfilter mit Komma lädt neu" <| fun () ->
+            let typed, _ = State.update (State.LedgerMsg (SetAmountMinDraft "12,50")) (baseModel ())
+            let version = typed.Ledger.AmountVersion
+            let committed, _ = State.update (State.LedgerMsg (CommitAmountFilter (Some 12.5m, None, version))) typed
+            Expect.equal committed.Ledger.Filters.AmountMin (Some 12.5m) "Filter übernommen"
+            let after, cmd = State.update State.PwaUpdateWaiting committed
+            Expect.isTrue after.Pwa.Reloading "Reloading"
+            Expect.equal (List.length cmd) 1 "applyUpdate"
+            Expect.isEmpty (noticeToasts after) "kein Hinweis-Toast"
         testCase "Erste Installation: ohne PwaUpdateWaiting bleibt UpdateWaiting false" <| fun () ->
             // Beim ersten Installieren feuert onNeedRefresh nicht (Kommentar in Pwa.fs); ein
             // Vordergrund-Ereignis allein setzt UpdateWaiting nie.
@@ -263,6 +273,37 @@ let inputActiveTests =
         active "Kassenbuch: FilterSheetOpen" (withLedger (fun l -> { l with FilterSheetOpen = true }))
         active "Kassenbuch: AmountMinDraft weicht ab" (withLedger (fun l -> { l with AmountMinDraft = "5" }))
         active "Kassenbuch: AmountMaxDraft weicht ab" (withLedger (fun l -> { l with AmountMaxDraft = "9" }))
+        // ledger-awf5b: ein übernommener Betragsfilter mit Komma galt als laufende Eingabe, weil der Entwurf
+        // als Text gegen `formatAmountDraft` (immer mit Punkt) verglichen wurde.
+        testCase "ein übernommener Betragsfilter mit Komma ist keine Eingabe" <| fun () ->
+            let withDrafts minDraft maxDraft =
+                baseModel ()
+                |> withLedger (fun l ->
+                    { l with
+                        Filters = { l.Filters with AmountMin = Some 12.5m; AmountMax = Some 12.5m }
+                        AmountMinDraft = minDraft
+                        AmountMaxDraft = maxDraft })
+            Expect.isFalse (State.isInputActive (withDrafts "12,50" "12.5")) "AmountMinDraft 12,50"
+            Expect.isFalse (State.isInputActive (withDrafts "12.5" "12,50")) "AmountMaxDraft 12,50"
+            Expect.isFalse (State.isInputActive (withDrafts "12,5" "12,5")) "12,5 gegen 12.5"
+            Expect.isFalse (State.isInputActive (withDrafts " 12,50 " " 12,50 ")) "mit Leerzeichen"
+        active "Kassenbuch: AmountMinDraft 5 bei Filter 12,5" (withLedger (fun l ->
+            { l with Filters = { l.Filters with AmountMin = Some 12.5m }; AmountMinDraft = "5" }))
+        active "Kassenbuch: AmountMaxDraft 5 bei Filter 12,5" (withLedger (fun l ->
+            { l with Filters = { l.Filters with AmountMax = Some 12.5m }; AmountMaxDraft = "5" }))
+        active "Kassenbuch: AmountMinDraft unlesbar bei gesetzter Grenze" (withLedger (fun l ->
+            { l with Filters = { l.Filters with AmountMin = Some 12.5m }; AmountMinDraft = "abc" }))
+        active "Kassenbuch: AmountMaxDraft unlesbar bei gesetzter Grenze" (withLedger (fun l ->
+            { l with Filters = { l.Filters with AmountMax = Some 12.5m }; AmountMaxDraft = "abc" }))
+        testCase "leere Betragsentwürfe ohne Grenze sind keine Eingabe" <| fun () ->
+            let model =
+                baseModel ()
+                |> withLedger (fun l ->
+                    { l with
+                        Filters = { l.Filters with AmountMin = None; AmountMax = None }
+                        AmountMinDraft = "  "
+                        AmountMaxDraft = "" })
+            Expect.isFalse (State.isInputActive model) "leer gegen keine Grenze"
         // ledger-r8h19, ledger-sjbvc: je Fall des laufenden Sammellaufs ein Eintrag.
         active "Kassenbuch: Sammellauf Geprüft" (withLedger (fun l -> { l with BatchRunning = Some ReviewMarkBatchRun }))
         active "Kassenbuch: Sammellauf Kategorie" (withLedger (fun l -> { l with BatchRunning = Some CategoryBatchRun }))

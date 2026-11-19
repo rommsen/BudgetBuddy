@@ -1,7 +1,7 @@
 ---
 id: ledger-awf5b
 title: "Ein übernommener Betragsfilter mit Komma („12,50“) gilt nicht mehr als laufende Eingabe: isInputActive vergleicht die Betragsentwürfe als Wert statt als Text, der Update-Neustart beim Öffnen wird nicht mehr zurückgehalten (src/Client/State.fs isInputActive)"
-status: doing
+status: done
 type: bug
 context: ledger
 created: 2026-11-19
@@ -53,3 +53,14 @@ Urteil (geprüft an HEAD f98a8ce6):
   12.50m, `formatAmountDraft 12.50m` ergibt „12.50“; jede Eingabe mit Komma bleibt dadurch „ungleich“. Der bestehende
   Test `PwaTests.fs:255` baut den Entwurf mit `formatAmountDraft` und trifft den Fall deshalb nicht.
 - Kein sichtbarer UI-Teil, deshalb ohne `design-system-001-styleguide`.
+
+## Outcome
+
+`isInputActive` (`src/Client/State.fs`) vergleicht die beiden Betragsfelder jetzt über die reine Hilfsfunktion `amountDraftMatches` (`src/Client/Components/Ledger/Types.fs`, neben `amountFilterValue`) statt als Text gegen `formatAmountDraft`. Die Regeln: ein leerer Entwurf entspricht keiner Grenze, ein lesbarer Wert entspricht derselben Grenze als Dezimalvergleich (12,5 = 12,50 = 12.50, Leerzeichen egal), ein unlesbarer Text entspricht nie und gilt als laufende Eingabe. Die Suche vergleicht weiter als Text, und der lokale Helfer `amountText` ist weggefallen.
+
+Tests:
+- `src/Tests/PwaTests.fs`, Liste „State.isInputActive“: „ein übernommener Betragsfilter mit Komma ist keine Eingabe“ (Min und Max mit „12,50“, „12,5“, „ 12,50 “ gegen 12.5m). War vor dem Fix rot („AmountMinDraft 12,50. Actual value was true“). Intakt-Fälle: „5“ bei Filter 12,5 und „abc“ bei gesetzter Grenze sind laufende Eingaben (je Min und Max), leere Entwürfe ohne Grenze nicht. Die alten Fälle „AmountMinDraft weicht ab“ und „AmountMaxDraft weicht ab“ bleiben grün.
+- `src/Tests/PwaTests.fs`, Liste „State.update (PWA)“: „PwaUpdateWaiting nach übernommenem Betragsfilter mit Komma lädt neu“ über das echte Root-`update` (`LedgerMsg (SetAmountMinDraft "12,50")`, dann `CommitAmountFilter` mit derselben Version, dann `PwaUpdateWaiting`). Danach ist `Pwa.Reloading` wahr, es gibt einen Cmd und keinen Hinweis-Toast. War vor dem Fix rot („Reloading. Actual value was false“).
+- `src/Tests/LedgerViewTests.fs`, Liste „Betrags-Suchfeld“: vier Fälle für `amountDraftMatches` (leer, gleich mit Komma und Punkt, anderer Wert, unlesbar).
+
+`./verify.sh`: `VERIFY: PASS` (dotnet 5181 grün, node 348 grün). Hinweis: zwei frühere Läufe, parallel zu Verify-Läufen anderer Worktrees, waren in `test:scripts` rot. Rot waren der `[layout]`-Sweep (`regeln-panel @ 1024 px`, Invariante 5, `rule-form` ragt aus dem Bild) und `[flow:zugangsdaten-speichern]` (Timeout von `locator.waitFor`). Beide Tests berühren den geänderten Code nicht, und der Lauf danach ohne Änderung war grün. Das sieht nach Wackeln unter Last aus.

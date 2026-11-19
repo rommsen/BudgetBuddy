@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 11
 - **Todo:** 0
-- **Doing:** 4
-- **Done:** 149
+- **Doing:** 3
+- **Done:** 150
 <!-- task-counts:end -->
 
 ### Todo
@@ -25,11 +25,11 @@ research touching this BC, and concept synthesis pages.
 - **ledger-rb3xw** — "Begriffe und Texte im Kassenbuch: ein Name für den Lena-Filter, leerer Zustand „Keine Buchungen“ nach §7.12 mit „Abrufen“, Listen-Platzhalter ohne „Transaktionen“" (refactor) — `doing/ledger-rb3xw-kassenbuch-begriffe-und-leerer-zustand.md`
 - **ledger-pfhdq** — "Späte und gescheiterte Antworten im Kassenbuch: Available, Kontostände und Spiegel-Status tragen eine Lade-Nummer, ältere Antworten fallen weg, ein gescheitertes Nachladen der Kontostände bleibt mit Hinweis sichtbar (Components/Ledger/State.fs CategoriesLoaded, BalancesLoaded, MirrorStatusLoaded)" (bug) — `doing/ledger-pfhdq-spaete-antworten-available-kontostaende-spiegel.md`
 - **ledger-gy77x** — "Knöpfe im Kassenbuch nach DS: „+ Buchung“ als Button.fab, „Abrufen“ und „Jetzt spiegeln“ als Symbolknopf im Kopf, „Lena fragen“ auf der Karte wie im Detail, „Abbrechen“ ohne Füllung in „Betrag“ und im Split-Editor" (refactor) — `doing/ledger-gy77x-kassenbuch-knoepfe-nach-ds.md`
-- **ledger-awf5b** — "Ein übernommener Betragsfilter mit Komma („12,50“) gilt nicht mehr als laufende Eingabe: isInputActive vergleicht die Betragsentwürfe als Wert statt als Text, der Update-Neustart beim Öffnen wird nicht mehr zurückgehalten (src/Client/State.fs isInputActive)" (bug) — `doing/ledger-awf5b-betragsfilter-haelt-update-zurueck.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)
 <!-- done-list:start -->
+- **ledger-awf5b** — "Ein übernommener Betragsfilter mit Komma („12,50“) gilt nicht mehr als laufende Eingabe: isInputActive vergleicht die Betragsentwürfe als Wert statt als Text, der Update-Neustart beim Öffnen wird nicht mehr zurückgehalten (src/Client/State.fs isInputActive)" (bug) — `done/ledger-awf5b-betragsfilter-haelt-update-zurueck.md`
 - **ledger-ef068** — "Kassenbuch-Liste nach DS: gelbe Kante am Anker in der Kompaktliste mit Maus, Tokens für Auswahl und Rahmen, Kopf „Schnellwahl“ als sectionTitle, „Alles geprüft“ und „Alles kategorisiert“ als Card.allDone" (bug) — `done/ledger-ef068-kassenbuch-ds-abweichungen.md`
 - **ledger-y8xrr** — "Kassenbuch-Liste behält Seiten, Scrollstand und Auswahl auch nach eigenen Aktionen: Anlegen, Rückgängig nach dem Anlegen, Löschen, Wiederherstellen und „Geprüft“ für die Auswahl laden im Hintergrund nach statt neu aufzubauen (Components/Ledger/State.fs, LoadEntries an fünf Stellen)" (bug) — `done/ledger-y8xrr-nachladen-stand-und-alte-zahlen.md`
 - **ledger-hme9k** — "Durchgehen und Detail ohne zweite Ebene: Payee und Memo im offenen Detail öffnen kein zweites Sheet oder zweiten Dialog, das Regel-Formular ersetzt den Inhalt desselben Detail-Sheets, × im Split-Editor am PC führt ins Detail zurück, „Details“ schließen im Durchgehen über denselben Helfer wie im Kassenbuch (Components/Ledger/View.fs, State.fs)" (bug) — `done/ledger-hme9k-durchgehen-detail-gestapelte-sheets.md`

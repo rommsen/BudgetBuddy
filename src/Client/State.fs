@@ -386,7 +386,6 @@ let isInputActive (model: Model) : bool =
     let ledger = model.Ledger
     let filters = ledger.Filters
     let draftDiffers (draft: string) (committed: string) = draft.Trim() <> committed
-    let amountText = Option.map Components.Ledger.Types.formatAmountDraft >> Option.defaultValue ""
     let selectionActive =
         match ledger.Selection with
         | Components.Ledger.Types.NoSelection -> false
@@ -400,8 +399,9 @@ let isInputActive (model: Model) : bool =
         || ledger.SelectionMode
         || selectionActive
         || draftDiffers ledger.SearchDraft (filters.Search |> Option.defaultValue "")
-        || draftDiffers ledger.AmountMinDraft (amountText filters.AmountMin)
-        || draftDiffers ledger.AmountMaxDraft (amountText filters.AmountMax)
+        // Die Betragsfelder vergleichen als Wert, „12,50“ entspricht der Grenze 12,5 (ledger-awf5b).
+        || not (Components.Ledger.Types.amountDraftMatches filters.AmountMin ledger.AmountMinDraft)
+        || not (Components.Ledger.Types.amountDraftMatches filters.AmountMax ledger.AmountMaxDraft)
         || ledger.BatchRunning.IsSome
     let rulesActive = model.Rules.Panel.IsSome
     let settingsActive = model.Settings.EditingSection.IsSome
