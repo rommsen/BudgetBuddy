@@ -1,7 +1,7 @@
 ---
 id: ledger-rb3xw
 title: "Begriffe und Texte im Kassenbuch: ein Name für den Lena-Filter, leerer Zustand „Keine Buchungen“ nach §7.12 mit „Abrufen“, Listen-Platzhalter ohne „Transaktionen“"
-status: backlog
+status: todo
 type: refactor
 context: ledger
 created: 2026-11-19
