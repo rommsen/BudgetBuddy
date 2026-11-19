@@ -125,10 +125,11 @@ let amountLocked (value: decimal) (currency: string) (muted: bool) (reason: stri
         ]
     ]
 
-let private closeButton (onClose: unit -> unit) : ReactElement =
+/// Schließen rechts im Kopf; `label` ist der Name für den Screenreader („Detail schließen“, „Aufteilen schließen“).
+let private closeButton (label: string) (onClose: unit -> unit) : ReactElement =
     Html.button [
         prop.type'.button
-        prop.ariaLabel "Detail schließen"
+        prop.ariaLabel label
         prop.title "Schließen"
         prop.custom ("data-testid", "detail-close")
         prop.className (
@@ -165,12 +166,13 @@ let titleHead (title: string) (muted: bool) (subtitle: string) (onClose: (unit -
                 ]
             ]
             match onClose with
-            | Some close -> closeButton close
+            | Some close -> closeButton "Detail schließen" close
             | None -> ()
         ]
     ]
 
-/// Der Kopf über dem Split-Editor: Betrag, Unterzeile und der Schließen-Knopf.
+/// Der Kopf über dem Split-Editor: Betrag, Unterzeile und der Schließen-Knopf. Schließen führt zurück ins Detail
+/// (ledger-hme9k) und heißt für den Screenreader „Aufteilen schließen“.
 let head
     (amountElement: ReactElement)
     (subtitle: string)
@@ -190,7 +192,7 @@ let head
                 ]
             ]
             match onClose with
-            | Some close -> closeButton close
+            | Some close -> closeButton "Aufteilen schließen" close
             | None -> ()
         ]
     ]

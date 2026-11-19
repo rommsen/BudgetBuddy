@@ -500,6 +500,33 @@ let reducerTests =
             let closed, _, _ = update CloseSplitPicker opened1
             Expect.equal (editorOf closed).Picker NoSplitPicker "zu"
 
+        // ledger-hme9k Befund 3: das × im Kopf des Split-Editors am PC schloss das ganze Detail, während Esc,
+        // „Abbrechen“ und das × im Sheet ins Detail zurückführen. `detailCloseStep` ist der eine Weg für Schließen.
+        testCase "Schließen im Detail schließt zuerst, was im Detail offen ist" <| fun () ->
+            let entry = entryOf 1
+            let plain = modelWith [ entry; entryOf 2 ]
+            let cases =
+                [ "Split-Editor offen", opened entry, CloseSplitEditor
+                  "Payee offen", { plain with PayeeEdit = Some { PayeeEntryId = entry.Id; PayeeFieldError = None } }, CancelPayeeEdit
+                  "Betrag offen",
+                  { plain with AmountEdit = Some { AmountEntryId = entry.Id; AmountIsOutflow = true; AmountDraft = "1"; AmountFieldError = None } },
+                  CancelAmountEdit
+                  "nichts offen", plain, CloseDetail ]
+            for name, model, expected in cases do
+                Expect.equal (Components.Ledger.State.detailCloseStep model entry) expected name
+
+        testCase "× im Split-Editor am PC führt zurück ins Detail derselben Buchung, nicht während des Speicherns" <| fun () ->
+            let entry = entryOf 1
+            let model = opened entry
+            Expect.equal model.DetailForm DetailPanel "am PC"
+            let closed, _, _ = update (Components.Ledger.State.detailCloseStep model entry) model
+            Expect.equal (closed.DetailFor |> Option.map (fun d -> d.Id)) (Some entry.Id) "Detail von A bleibt"
+            Expect.isNone closed.SplitEditor "Editor zu, Entwurf verworfen"
+            let saving = { model with CategoryRows = Map.ofList [ entry.Id, CategorySending ] }
+            let stays, _, _ = update (Components.Ledger.State.detailCloseStep saving entry) saving
+            Expect.isSome stays.SplitEditor "während des Speicherns bleibt der Editor"
+            Expect.isSome stays.DetailFor "und das Detail"
+
         testCase "Esc schließt erst die Auswahl, dann den Editor" <| fun () ->
             let model, _, _ = update (OpenSplitTargetPicker 1) (opened (entryOf 1))
             let first, _, _ = update EscapePressed model

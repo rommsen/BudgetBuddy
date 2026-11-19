@@ -1323,16 +1323,30 @@ let capturedDiscardedText = "Buchung zurückgenommen"
 let entryDeletedText = "Buchung gelöscht, auch in YNAB"
 let entryRestoredText = "Buchung wiederhergestellt"
 
-/// Schließt das Detail samt allem, was daran hängt: Historie, Sheet "Notiz" und Sheet "Betrag".
-/// Jede Stelle, die das Detail schließt, geht hier durch, damit kein offenes Sheet stehen bleibt.
-let closeDetail (model: Model) : Model =
+/// Setzt alles zurück, was am offenen Detail hängt (Historie samt aufgeklappter, Memo, Betrag, Payee), lässt aber
+/// `DetailFor` stehen. Das Kassenbuch schließt darüber das Detail (`closeDetail`), das Durchgehen „Details“, wo die
+/// Karte `DetailFor` bleibt (ledger-hme9k).
+let clearDetailEdits (model: Model) : Model =
     { model with
-        DetailFor = None
         History = NotAsked
         HistoryOpenFor = None
         MemoEdit = None
         AmountEdit = None
         PayeeEdit = None }
+
+/// Schließt das Detail samt allem, was daran hängt: Historie, Sheet "Notiz" und Sheet "Betrag".
+/// Jede Stelle, die das Detail schließt, geht hier durch, damit kein offenes Sheet stehen bleibt.
+let closeDetail (model: Model) : Model =
+    { clearDetailEdits model with DetailFor = None }
+
+/// Was Schließen im Detail dieser Buchung tut (× im Kopf von Sheet und Panel, ledger-hme9k): erst die offene
+/// Payee-Auswahl, dann der Betrag, dann der Split-Editor (Entwurf verworfen), sonst das Detail selbst. Die
+/// Kategorie-Auswahl im Sheet schließt vorher ihr eigener Rückruf.
+let detailCloseStep (model: Model) (entry: LedgerEntryView) : Msg =
+    if model.PayeeEdit |> Option.exists (fun edit -> edit.PayeeEntryId = entry.Id) then CancelPayeeEdit
+    elif model.AmountEdit |> Option.exists (fun edit -> edit.AmountEntryId = entry.Id) then CancelAmountEdit
+    elif model.SplitEditor |> Option.exists (fun editor -> editor.EntryId = entry.Id) then CloseSplitEditor
+    else CloseDetail
 
 /// Öffnet „Neue Buchung“; `filterAccount` belegt das Konto vor (der Kassenbuch-Filter, `None` ohne Filter). Ein
 /// schon offenes Erfassen bleibt, wie es ist.
@@ -1859,11 +1873,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
     // Im Durchgehen schließt „Details“ nur das Detail: die Karte bleibt und liest die Buchung neu.
     | CloseDetail when model.Review |> Option.exists (fun r -> r.DetailShown) ->
         let model' =
-            { model with
-                History = NotAsked
-                MemoEdit = None
-                AmountEdit = None
-                PayeeEdit = None
+            { clearDetailEdits model with
                 SplitEditor = None
                 CategoryPickerFor = None
                 CategorySuggestions = [] }

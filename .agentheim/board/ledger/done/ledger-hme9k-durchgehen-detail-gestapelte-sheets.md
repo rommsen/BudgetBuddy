@@ -1,7 +1,7 @@
 ---
 id: ledger-hme9k
 title: "Durchgehen und Detail ohne zweite Ebene: Payee und Memo im offenen Detail öffnen kein zweites Sheet oder zweiten Dialog, das Regel-Formular ersetzt den Inhalt desselben Detail-Sheets, × im Split-Editor am PC führt ins Detail zurück, „Details“ schließen im Durchgehen über denselben Helfer wie im Kassenbuch (Components/Ledger/View.fs, State.fs)"
-status: doing
+status: done
 type: bug
 context: ledger
 created: 2026-11-19
@@ -177,3 +177,57 @@ Hinweise für den Worker:
 - ledger-y8xrr (Nachladen) ändert `State.fs` an anderen Stellen, keine gemeinsame Zeile.
 - ledger-k4n2s Punkt 67 (Durchgehen nach `Components/Review/`) verschiebt `ReviewPage` und `reviewEditors`: nicht
   gleichzeitig bauen.
+
+## Outcome
+
+Alle vier Befunde und Punkt 5 sind behoben. `./verify.sh` endet mit `VERIFY: PASS` (dotnet 5168 grün, node 351 grün).
+
+**Befund 1 (Payee und Memo im offenen Detail des Durchgehens).** `ReviewPage` rendert `reviewEditors` nur noch bei `not review.DetailShown` (`src/Client/Components/Ledger/View.fs`). Mit offenem Detail gilt, was im Kassenbuch gilt. Am Handy ersetzt die Payee-Auswahl den Inhalt des Detail-Sheets, Memo öffnet als Feld. Am PC kommt genau ein Payee-Dialog aus `detailPanelView`, Memo öffnet als Feld im Panel, auch wenn der Tipp auf das Feld der Karte geht.
+- Neue Invariante 11 „Höchstens eine Ebene“ in `scripts/layout-invariants.mjs`: höchstens ein sichtbares `.bottom-sheet.active` oder `[data-layer="dialog"]`. Popover (`data-layer="popover"`) und Toast zählen nicht. Gegenbeweis in `scripts/layout-invariants.test.mjs` („[layout] Gegenbeweis Invariante 11: ein zweites Sheet über dem Detail meldet die Ebene“). Er prüft dazu, dass ein Popover in der Ebene nicht zählt.
+- Neue Zustände in `scripts/layout-states.mjs`: `durchgehen-details-payee` und `durchgehen-details-memo` (412, 1280), `durchgehen-details-payee-karte` und `durchgehen-details-memo-karte` (1280, über das Feld der Karte neben dem Panel), `durchgehen-details-regel` (412).
+- Gegen ein Bundle mit der View von HEAD waren sie rot:
+  - payee @ 412: Invariante 11, `.bottom-sheet "Payee" und .bottom-sheet "Payee"`
+  - payee @ 1280 und payee-karte @ 1280: Invariante 11, zwei `[data-layer="dialog"] "Payee"`
+  - memo @ 412: Invariante 11, `.bottom-sheet "Memo"` und das Detail-Sheet
+- Am PC war Memo vor dem Fix ein Dialog über dem Feld im Panel. Das sind zwei Editoren, aber nur eine Ebene, deshalb meldet Invariante 11 es nicht. Die Memo-Zustände prüfen darum zusätzlich, dass genau ein `detail-memo-editor` sichtbar ist (`assertOneMemoEditor`). Vor dem Fix brachen memo @ 412, memo @ 1280 und memo-karte @ 1280 mit „Memo steht 2-mal offen“ ab. Nach dem Fix sind alle grün.
+- Invariante 11 meldet keinen bestehenden Zustand: der ganze Sweep ist grün, es gibt keine Ausnahme. `durchgehen-memo`, `durchgehen-regel`, `kassenbuch-detail`, `kassenbuch-detail-kategorie`, `kassenbuch-payee-auswahl` und `kassenbuch-regel-formular` sind grün.
+- Den Bereich der Ausnahme-Prüfung im Sweep-Test habe ich auf 1 bis 11 erweitert.
+
+**Befund 2 (Regel-Formular im Detail-Sheet).**
+- `detailSheetOrRuleForm` ist entfernt. `detailSheetView` ruft die neue Komponente `DetailBottomSheet` auf. Sie bekommt den `EntryRuleFormSlot` und zeigt das Formular als weiteren Inhalt: Titel, Fuß und Schließen kommen aus `EntryRuleForm`, eine Unterzeile gibt es nicht. Das Sheet bleibt dasselbe `BottomSheetInternal`.
+- Die Scrollposition des Details merkt sich die Komponente über einen Ref auf `.sheet-body`. Dafür gibt es die neue Funktion `BottomSheet.viewWithBody`, eine Ref-Variante ohne sichtbare Änderung (`src/Client/DesignSystem/BottomSheet.fs`). Die Komponente hört auf `scroll`, solange das Detail steht, und setzt den Wert bei der Rückkehr zum Detail derselben Buchung wieder. Das gilt für jeden Inhaltswechsel (Regel, Payee, Betrag, Kategorie, Aufteilen). Ein anderer Inhalt beginnt oben, ein geschlossenes Sheet vergisst die Stelle.
+- `ruleFormSheet` bleibt nur für das Formular über der Karte.
+- Regressionstest: „[scroll] Am Handy ersetzt „Regel anlegen“ den Inhalt desselben Detail-Sheets, nach Schließen steht das Detail an derselben Stelle“ in `scripts/regel-aus-buchung.test.mjs` (412 px, Touch, Historie aufgeklappt, ganz nach unten gerollt). Gegen das HEAD-Bundle rot („dasselbe Sheet zeigt das Formular“). Mit einem Mutanten ohne das Zurücksetzen der Scrollposition ebenfalls rot.
+- `[flow:regel-aus-buchung]` bleibt grün.
+
+**Befund 3 (× im Split-Editor am PC).**
+- `Components.Ledger.State.detailCloseStep model entry` gibt die Reihenfolge vor: Payee offen ergibt `CancelPayeeEdit`, dann Betrag `CancelAmountEdit`, dann Split-Editor `CloseSplitEditor`, sonst `CloseDetail`.
+- Sheet (`OnClose`, nach Regel-Formular und Kategorie-Auswahl) und beide Panel-Köpfe rufen sie auf. Die eigene Kaskade im Sheet ist weg.
+- `Detail.head` (nur vom Split-Editor genutzt) heißt für den Screenreader jetzt „Aufteilen schließen“. `title` „Schließen“ und `data-testid="detail-close"` bleiben. Es gibt keinen neuen Parameter und keine neue Variante, `/styleguide` bleibt deshalb unverändert (`src/Client/DesignSystem/Detail.fs`).
+- Tests in `src/Tests/LedgerSplitEditorClientTests.fs`: Tabelle „Schließen im Detail schließt zuerst, was im Detail offen ist“ (zuerst mit dem Verhalten von heute, Split-Editor ergab `CloseDetail`, rot) und „× im Split-Editor am PC führt zurück ins Detail derselben Buchung, nicht während des Speicherns“ (vorher rot).
+
+**Befund 4 („Details“ schließen im Durchgehen).**
+- `clearDetailEdits` setzt `History`, `HistoryOpenFor`, `MemoEdit`, `AmountEdit` und `PayeeEdit` zurück. `closeDetail` ist dieser Helfer mit `DetailFor = None`. Der Zweig `CloseDetail` im Durchgehen ist dieser Helfer mit `SplitEditor`, `CategoryPickerFor` und `CategorySuggestions` wie bisher.
+- Tests in `src/Tests/LedgerReviewClientTests.fs`:
+  - „„Details“ schließen klappt die Historie zu, beim nächsten Öffnen steht sie zugeklappt da“ (vorher rot)
+  - „„Details“ schließen leert alles Offene im Detail, die Karte bleibt und wird neu gelesen“ (intakt, mit `RunReviewRefresh A`)
+  - „im Kassenbuch schließt CloseDetail das Detail ganz“
+
+**Punkt 5.** Am Handy rendert das Durchgehen das Detail-Sheet immer, mit `IsOpen = card.IsSome && review.DetailShown`. Test: „[layout] Im Durchgehen am Handy steht das Detail-Sheet auch bei geschlossenen „Details“ im DOM, „Details“ und Schließen schalten nur .active“ in `scripts/regel-aus-buchung.test.mjs`, gegen das HEAD-Bundle rot.
+
+**Kommentare nachgezogen:** `CategoryPickerPlacement` (Inhalt des Detail-Sheets statt zweites Sheet) und der Kommentar an Invariante 5 in `scripts/layout-invariants.mjs`.
+
+**Verhaltensänderung am Rand:** am PC schloss das × im Kopf des Split-Editors während des Speicherns bisher das ganze Detail. Jetzt tut es dann nichts, wie `CloseSplitEditor` und wie in der Task verlangt.
+
+**README-Delta:** mit `npm run check:readme-delta -- --bc ledger --delta` geprüft, Exit 0, Liste „ganz nachlesen“ leer, kein `--keep`.
+
+**Bilder für Romans Blick** (gemockte Sweep-Zustände, Bundle nach dem Fix). `npm run screenshot:route` nimmt nur eine Route ohne Bedienung auf und braucht das echte Backend, darum habe ich die Bilder über die Sweep-Zustände gemacht:
+- /private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/4b5cf62e-3174-40e3-90f3-4b5312280eb9/scratchpad/shots/durchgehen-details-payee-412.png
+- /private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/4b5cf62e-3174-40e3-90f3-4b5312280eb9/scratchpad/shots/durchgehen-details-payee-1280.png
+- /private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/4b5cf62e-3174-40e3-90f3-4b5312280eb9/scratchpad/shots/durchgehen-details-memo-412.png
+- /private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/4b5cf62e-3174-40e3-90f3-4b5312280eb9/scratchpad/shots/durchgehen-details-memo-1280.png
+- /private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/4b5cf62e-3174-40e3-90f3-4b5312280eb9/scratchpad/shots/durchgehen-details-memo-karte-1280.png
+- /private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/4b5cf62e-3174-40e3-90f3-4b5312280eb9/scratchpad/shots/durchgehen-details-regel-412.png
+- /private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/4b5cf62e-3174-40e3-90f3-4b5312280eb9/scratchpad/shots/kassenbuch-regel-formular-390.png
+
+Das Ein- und Ausfahren und das Kriterium [human-eye] prüft Roman selbst.

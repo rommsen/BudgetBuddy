@@ -46,7 +46,7 @@ test("[layout] Sweep: eine Ausnahme nennt Breite, Invariante und Selektor und un
     for (const e of state.exceptions ?? []) {
       const label = `${state.name}: ${JSON.stringify(e)}`;
       assert.ok(state.widths.includes(e.width), `Breite des Zustands (${label})`);
-      assert.ok(Number.isInteger(e.inv) && e.inv >= 1 && e.inv <= 10, `Invariante 1 bis 10 (${label})`);
+      assert.ok(Number.isInteger(e.inv) && e.inv >= 1 && e.inv <= 11, `Invariante 1 bis 11 (${label})`);
       assert.ok(typeof e.selector === "string" && e.selector.trim() !== "", `Selektor nicht leer (${label})`);
     }
   }
@@ -265,6 +265,36 @@ test("[layout] Gegenbeweis Invariante 10: ein gesperrtes Element zählt nicht, e
     page.locator('[data-testid="filtered-out-note"]').evaluateAll((els) => els.forEach((el) => el.setAttribute("aria-disabled", "true")))
   );
   assert.deepEqual(locked.filter(note).map(formatViolation), []);
+});
+
+test("[layout] Gegenbeweis Invariante 11: ein zweites Sheet über dem Detail meldet die Ebene", async () => {
+  // ledger-hme9k: ein Abbild des offenen Detail-Sheets liegt als zweites Sheet darüber, wie es Payee und Memo im
+  // Durchgehen mit offenen „Details“ taten.
+  const hits = await brokenRun("kassenbuch-detail", 390, 11, transitionsOff, (page) =>
+    page.evaluate(() => {
+      const sheet = document.querySelector(".bottom-sheet.active");
+      const copy = sheet.cloneNode(true);
+      copy.querySelector(".sheet-header h3").textContent = "Payee";
+      sheet.parentElement.appendChild(copy);
+    })
+  );
+  assert.equal(hits.length, 1, hits.map(formatViolation).join("\n"));
+  assert.equal(hits[0].state, "kassenbuch-detail");
+  assert.equal(hits[0].width, 390);
+  assert.match(hits[0].selector, /^\.bottom-sheet ".+" und \.bottom-sheet "Payee"$/);
+  assert.equal(hits[0].value, "2 Ebenen offen");
+  // Ein Popover in einer Ebene zählt nicht: ein Dialog-Popover (`data-layer="popover"`) über dem Sheet bleibt grün.
+  const popover = await brokenRun("kassenbuch-detail", 390, 11, transitionsOff, (page) =>
+    page.evaluate(() => {
+      const el = document.createElement("div");
+      el.setAttribute("data-layer", "popover");
+      el.textContent = "Popover";
+      document.querySelector(".bottom-sheet.active .sheet-body").appendChild(el);
+    })
+  );
+  assert.deepEqual(popover.map(formatViolation), [], "ein Popover in der Ebene zählt nicht");
+  const clean = await runState(browser, baseUrl, stateNamed("kassenbuch-detail"), 390, { checks: [11] });
+  assert.deepEqual(clean.map(formatViolation), [], "ohne zweites Sheet keine Meldung");
 });
 
 test("[layout] settle wartet nicht auf eine pausierte Animation", { timeout: 30000 }, async () => {

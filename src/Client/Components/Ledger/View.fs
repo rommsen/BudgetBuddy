@@ -1414,7 +1414,7 @@ let private splitEditorHead
         onClose
 
 /// Wo der Kategorie-Picker aufgeht: am PC als Popover im Panel, am Handy und in der
-/// Kompaktliste als zweites Sheet über dem Detail-Sheet (Tafel 4.2 und 4.10).
+/// Kompaktliste als Inhalt des Detail-Sheets, der das Detail ersetzt (ledger-ea70s, §7.15).
 type CategoryPickerPlacement =
     | PickerPopover
     | PickerSheet
@@ -2134,7 +2134,8 @@ let private detailPanelView (today: DateTime) (dispatch: Msg -> unit) (model: Mo
         let saving = isSavingSplit model editor
         Detail.panel
             $"Aufteilen {payeeLabel entry}"
-            [ splitEditorHead today model entry editor (Some (fun () -> dispatch CloseDetail))
+            // × führt zurück ins Detail wie Esc und „Abbrechen“ (ledger-hme9k).
+            [ splitEditorHead today model entry editor (Some (fun () -> dispatch (Components.Ledger.State.detailCloseStep model entry)))
               // Die Fußleiste steht im scrollenden Bereich, am unteren Rand haftend: bei wenigen Zeilen
               // folgt sie dem Inhalt, bei vielen bleibt sie sichtbar. Als eigene Zeile unter dem
               // Panel läge sie bei einer kurzen Liste unterhalb des Fensters.
@@ -2153,7 +2154,7 @@ let private detailPanelView (today: DateTime) (dispatch: Msg -> unit) (model: Mo
         React.fragment [
             Detail.panel
                 $"Detail {payeeLabel entry}"
-                [ detailTitleHead today model entry (Some (fun () -> dispatch CloseDetail))
+                [ detailTitleHead today model entry (Some (fun () -> dispatch (Components.Ledger.State.detailCloseStep model entry)))
                   Detail.scrollBody (detailContent dispatch model entry) ]
             amountDialog dispatch model entry
             payeeDialog dispatch model entry
@@ -2163,9 +2164,18 @@ let private detailPanelView (today: DateTime) (dispatch: Msg -> unit) (model: Mo
 /// Das Sheet bringt den Kopf mit: der Payee als Titel, „<Tag> · <Konto>“ darunter und Schließen
 /// (ledger-zfj78); der Betrag steht als erste Zeile im Inhalt. Mit offenem Editor heißt es "Aufteilen" mit Payee und Datum als Unterzeile, der
 /// Schließen-Knopf kehrt zum Detail zurück, und "Speichern" klebt unten (kein "Abbrechen").
-let private detailSheetView (today: DateTime) (dispatch: Msg -> unit) (model: Model) (open': bool) : ReactElement =
+/// Payee, Betrag, Kategorie, Aufteilen und das Regel-Formular ersetzen den Inhalt desselben Sheets (§7.15): kein
+/// zweites Sheet, nichts fährt beim Wechsel ein oder aus, die Abdunklung bleibt (ledger-hme9k). Beim Wechsel weg vom
+/// Detail merkt sich das Sheet die Scrollposition und setzt sie bei der Rückkehr wieder (§7.8 Punkt 6).
+[<ReactComponent>]
+let private DetailBottomSheet (today: DateTime, dispatch: Msg -> unit, model: Model, ruleForm: EntryRuleFormSlot, open': bool) : ReactElement =
+    let body = React.useRef<Browser.Types.HTMLElement option> None
+    // Die Stelle im Detail, mit der Buchung, zu der sie gehört.
+    let saved = React.useRef<(Guid * float) option> None
     let entry = detailEntryOf model
     let editor = entry |> Option.bind (splitEditorFor model)
+    // Das Regel-Formular aus der Buchung (ledger-hg5m5) ersetzt den Inhalt wie die Auswahlen darunter.
+    let rule = if open' && entry.IsSome then ruleForm true else None
     // Das Sheet "Betrag" ersetzt den Inhalt des Detail-Sheets (kein zweites Sheet darüber, §7.15);
     // Schließen kehrt ins Detail zurück, wie beim Split-Editor.
     let amountEdit = entry |> Option.bind (amountEditOf model)
@@ -2185,23 +2195,42 @@ let private detailSheetView (today: DateTime) (dispatch: Msg -> unit) (model: Mo
             | None when model.CategoryPickerFor = Some e.Id && amountEdit.IsNone && payeeEdit.IsNone ->
                 Some (detailPickerProps dispatch model e)
             | None -> None)
-    BottomSheet.view
+    let showsDetail =
+        open' && entry.IsSome && rule.IsNone && categoryPicker.IsNone && payeeEdit.IsNone && amountEdit.IsNone && editor.IsNone
+    let entryId = entry |> Option.map (fun e -> e.Id)
+    React.useLayoutEffect (
+        (fun () ->
+            match body.current with
+            | Some el when showsDetail ->
+                // Zurück im Detail derselben Buchung: die Stelle von vorher.
+                match saved.current, entryId with
+                | Some (id, top), Some current when id = current -> el.scrollTop <- top
+                | _ -> ()
+                let remember (_: Browser.Types.Event) = saved.current <- entryId |> Option.map (fun id -> id, el.scrollTop)
+                el.addEventListener ("scroll", remember)
+                React.createDisposable (fun () -> el.removeEventListener ("scroll", remember))
+            | Some el ->
+                // Ein anderer Inhalt beginnt oben; ein geschlossenes Sheet vergisst die Stelle.
+                if open' then el.scrollTop <- 0.0 else saved.current <- None
+                React.createDisposable ignore
+            | None -> React.createDisposable ignore),
+        [| box showsDetail; box entryId; box open' |]
+    )
+    BottomSheet.viewWithBody
+        body
         { IsOpen = open' && entry.IsSome
           OnClose =
             (fun () ->
-                match categoryPicker with
-                | Some picker -> picker.OnClose ()
-                | None ->
-                    dispatch (
-                        if payeeEdit.IsSome then CancelPayeeEdit
-                        elif amountEdit.IsSome then CancelAmountEdit
-                        elif editor.IsSome then CloseSplitEditor
-                        else CloseDetail
-                    ))
+                match rule, categoryPicker, entry with
+                | Some form, _, _ -> form.OnBack ()
+                | None, Some picker, _ -> picker.OnClose ()
+                | None, None, Some e -> dispatch (Components.Ledger.State.detailCloseStep model e)
+                | None, None, None -> ())
           Title =
-            (match categoryPicker with
-             | Some picker -> CategoryPicker.sheetTitle picker.Accounts
-             | None ->
+            (match rule, categoryPicker with
+             | Some form, _ -> form.Title
+             | None, Some picker -> CategoryPicker.sheetTitle picker.Accounts
+             | None, None ->
                  if payeeEdit.IsSome then "Payee"
                  elif amountEdit.IsSome then "Betrag"
                  elif editor.IsSome then "Aufteilen"
@@ -2209,6 +2238,7 @@ let private detailSheetView (today: DateTime) (dispatch: Msg -> unit) (model: Mo
                  else entry |> Option.map payeeLabel |> Option.defaultValue "Buchung")
           Subtitle =
             (match entry, editor with
+             | _ when rule.IsSome -> None
              | Some e, _ when categoryPicker.IsSome ->
                  Some $"{payeeLabel e} · {Money.formatAmountText false true e.Amount.Amount e.Amount.Currency}"
              | Some e, _ when payeeEdit.IsSome -> Some (payeeLabel e)
@@ -2218,6 +2248,7 @@ let private detailSheetView (today: DateTime) (dispatch: Msg -> unit) (model: Mo
              | _ -> None)
           Footer =
             (match entry, amountEdit, editor with
+             | _ when rule.IsSome -> rule.Value.Footer
              | _ when categoryPicker.IsSome -> None
              | _ when payeeEdit.IsSome -> None
              | Some e, Some _, _ -> Some [ amountFooter dispatch model e ]
@@ -2228,6 +2259,7 @@ let private detailSheetView (today: DateTime) (dispatch: Msg -> unit) (model: Mo
         // Der Inhalt steht nur im DOM, solange das Sheet offen ist: ein geschlossenes Sheet bliebe
         // sonst als verstecktes Doppel neben dem Panel stehen.
         [ match entry, amountEdit, editor, categoryPicker with
+          | Some _, _, _, _ when rule.IsSome -> yield! rule.Value.Body
           | Some _, _, _, Some picker when open' -> CategoryPicker.sheetContent picker
           | Some entry, _, _, _ when open' && payeeEdit.IsSome ->
               PayeePicker.view (payeePickerProps dispatch model entry payeeEdit.Value (Viewport.isFinePointer ()))
@@ -2240,6 +2272,10 @@ let private detailSheetView (today: DateTime) (dispatch: Msg -> unit) (model: Mo
           | Some entry, None, Some ed, _ when open' -> yield! splitEditorBody dispatch model entry ed
           | Some entry, None, None, _ when open' -> yield! detailContent dispatch model entry
           | _ -> () ]
+
+/// Das Detail-Sheet am Handy; `ruleForm` füllt es mit dem Regel-Formular, solange es offen ist (ledger-hg5m5).
+let private detailSheetView (today: DateTime) (dispatch: Msg -> unit) (model: Model) (ruleForm: EntryRuleFormSlot) (open': bool) : ReactElement =
+    DetailBottomSheet (today, dispatch, model, ruleForm, open')
 
 /// Die Hülle des Regel-Formulars am Handy: ein Sheet, Schließen führt zur Buchung zurück (§7.15). Immer gerendert
 /// (`viewHeld`): mit `None` fährt es aus und hält dabei Titel, Inhalt und Fuß (§6, §7.10).
@@ -2263,13 +2299,6 @@ let private detailPanelOrRuleForm (today: DateTime) (dispatch: Msg -> unit) (mod
     match ruleForm false with
     | Some form -> Detail.panel form.Title [ ruleFormHead form; Detail.scrollBody form.Body ]
     | None -> detailPanelView today dispatch model entry
-
-/// Das Sheet am Handy, mit offenem Regel-Formular dieses als Inhalt (§7.15): Schließen führt zur Buchung zurück
-/// (ledger-hg5m5).
-let private detailSheetOrRuleForm (today: DateTime) (dispatch: Msg -> unit) (model: Model) (ruleForm: EntryRuleFormSlot) (open': bool) : ReactElement =
-    match ruleForm true with
-    | Some form when open' && (detailEntryOf model).IsSome -> ruleFormSheet (Some form)
-    | _ -> detailSheetView today dispatch model open'
 
 // ============================================
 // Nachladen beim Scrollen (AC5)
@@ -4643,7 +4672,7 @@ let private FilterBarColumn
         prop.style [ style.custom ("--ledger-filter-bar-height", sprintf "%.0fpx" barHeight) ]
         prop.children [
             // Das Sheet portalt nach `document.body`; es steht hier, weil die Form hier bekannt ist.
-            detailSheetOrRuleForm today dispatch model ruleForm (model.DetailFor.IsSome && detailForm = DetailSheet)
+            detailSheetView today dispatch model ruleForm (model.DetailFor.IsSome && detailForm = DetailSheet)
             captureSheetView dispatch model model.Capture (detailForm = DetailSheet)
             if panelShown then
                 match panelContentFor model, model.Capture, detailEntryOf model with
@@ -5434,21 +5463,24 @@ let ReviewPage (model: Model) (dispatch: Msg -> unit) (onBack: unit -> unit) (ru
                       match entry.PossibleDuplicate with
                       | Some duplicate -> reviewDuplicateCard dispatch model review entry duplicate
                       | None -> reviewNormalCard dispatch model review entry desk
-                      reviewEditors dispatch model entry desk
+                      // Mit offenem Detail öffnen Payee und Memo dort (Inhalt des Sheets, Feld im Panel, ein Dialog
+                      // für Payee am PC), keine zweite Ebene darüber (ledger-hme9k).
+                      if not review.DetailShown then reviewEditors dispatch model entry desk
                   // Ohne Karte steht die Endansicht: `update` zeigt nach jedem Schritt eine Karte oder überspringt
                   // eine Buchung ohne Stand bis hinter die letzte (`showReviewCardAt`).
                   | None -> reviewEnd count onBack ]
         let detail =
             match card with
-            | Some entry when review.DetailShown ->
-                if desk then detailPanelOrRuleForm today dispatch model ruleForm entry else detailSheetOrRuleForm today dispatch model ruleForm true
+            | Some entry when desk && review.DetailShown -> detailPanelOrRuleForm today dispatch model ruleForm entry
             | Some _ when desk ->
                 match openRuleForm with
                 | Some f -> ruleFormDialog f
                 | None -> Html.none
-            | _ -> Html.none
+            | _ when desk -> Html.none
+            // Am Handy steht das Detail-Sheet immer im DOM und fährt über `IsOpen` ein und aus (§6, §7.10).
+            | _ -> detailSheetView today dispatch model ruleForm (card.IsSome && review.DetailShown)
         // Am Handy steht das Regel-Sheet über der Karte immer im DOM und fährt über `IsOpen` ein und aus; mit offenem
-        // Detail ersetzt das Formular dessen Inhalt (`detailSheetOrRuleForm`).
+        // Detail ersetzt das Formular dessen Inhalt (`detailSheetView`).
         let ruleSheetOverCard =
             if desk then Html.none
             else ruleFormSheet (if card.IsSome && not review.DetailShown then openRuleForm else None)

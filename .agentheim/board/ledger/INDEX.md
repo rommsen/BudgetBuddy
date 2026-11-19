@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 12
 - **Todo:** 3
-- **Doing:** 3
-- **Done:** 146
+- **Doing:** 2
+- **Done:** 147
 <!-- task-counts:end -->
 
 ### Todo
@@ -27,11 +27,11 @@ research touching this BC, and concept synthesis pages.
 <!-- doing-list:start -->
 - **ledger-awf5b** — "Ein übernommener Betragsfilter mit Komma („12,50“) gilt nicht mehr als laufende Eingabe: isInputActive vergleicht die Betragsentwürfe als Wert statt als Text, der Update-Neustart beim Öffnen wird nicht mehr zurückgehalten (src/Client/State.fs isInputActive)" (bug) — `doing/ledger-awf5b-betragsfilter-haelt-update-zurueck.md`
 - **ledger-y8xrr** — "Kassenbuch-Liste behält Seiten, Scrollstand und Auswahl auch nach eigenen Aktionen: Anlegen, Rückgängig nach dem Anlegen, Löschen, Wiederherstellen und „Geprüft“ für die Auswahl laden im Hintergrund nach statt neu aufzubauen (Components/Ledger/State.fs, LoadEntries an fünf Stellen)" (bug) — `doing/ledger-y8xrr-nachladen-stand-und-alte-zahlen.md`
-- **ledger-hme9k** — "Durchgehen und Detail ohne zweite Ebene: Payee und Memo im offenen Detail öffnen kein zweites Sheet oder zweiten Dialog, das Regel-Formular ersetzt den Inhalt desselben Detail-Sheets, × im Split-Editor am PC führt ins Detail zurück, „Details“ schließen im Durchgehen über denselben Helfer wie im Kassenbuch (Components/Ledger/View.fs, State.fs)" (bug) — `doing/ledger-hme9k-durchgehen-detail-gestapelte-sheets.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)
 <!-- done-list:start -->
+- **ledger-hme9k** — "Durchgehen und Detail ohne zweite Ebene: Payee und Memo im offenen Detail öffnen kein zweites Sheet oder zweiten Dialog, das Regel-Formular ersetzt den Inhalt desselben Detail-Sheets, × im Split-Editor am PC führt ins Detail zurück, „Details“ schließen im Durchgehen über denselben Helfer wie im Kassenbuch (Components/Ledger/View.fs, State.fs)" (bug) — `done/ledger-hme9k-durchgehen-detail-gestapelte-sheets.md`
 - **ledger-b7k2q** — "Bob-Grenzen vollständig: Commit prüft das Datumsfenster am Berliner Tag des Commits neu, Vorschau begrenzt Rumpf auf 8192 Bytes und Kategorie auf 200 Zeichen, „kein Flag“ im gesendeten Rumpf belegt, API-Test des Datumsfensters auf einen Fall gekürzt (BotApi.fs bookWithinLimit, readBody, Validation.fs parseBotPreviewRequest)" (bug) — `done/ledger-b7k2q-bob-grenzen-flag-commit-rumpf.md`
 - **ledger-npqcb** — "Filter-Sheet am Handy: Kategorie, Zeitraum und Sortieren ersetzen den Inhalt des Sheets statt ein zweites Sheet zu öffnen" (feature) — `done/ledger-npqcb-filter-sheet-ersetzt-inhalt.md`
 - **ledger-pkrwd** — "Payee einer Buchung leeren: im Detail den Payee entfernen, nach YNAB ohne Payee zurückschreiben" (feature) — `done/ledger-pkrwd-payee-leeren.md`

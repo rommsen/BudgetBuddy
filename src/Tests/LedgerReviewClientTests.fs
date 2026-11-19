@@ -541,6 +541,42 @@ let caseTests =
             Expect.equal (cardId closed) (Some (idOf cardA)) "Karte bleibt"
             Expect.contains msgs (RunReviewRefresh (idOf cardA)) "neu lesen"
 
+        // ledger-hme9k Befund 4: „Details“ schließen setzte die Felder des Details von Hand und vergaß die
+        // aufgeklappte Historie; beim nächsten „Details“ stand sie schon offen da.
+        testCase "„Details“ schließen klappt die Historie zu, beim nächsten Öffnen steht sie zugeklappt da" <| fun () ->
+            let opened = reviewing [ cardA; cardC ] |> step ReviewShowDetails |> step ToggleHistory
+            Expect.equal opened.HistoryOpenFor (Some (idOf cardA)) "aufgeklappt"
+            let reopened = opened |> step CloseDetail |> step ReviewShowDetails
+            Expect.isNone reopened.HistoryOpenFor "zugeklappt"
+
+        testCase "„Details“ schließen leert alles Offene im Detail, die Karte bleibt und wird neu gelesen" <| fun () ->
+            let opened =
+                reviewing [ cardA; cardC ]
+                |> step ReviewShowDetails
+                |> step (StartMemoEdit (idOf cardA))
+            Expect.isSome opened.MemoEdit "Memo offen"
+            let withEdits =
+                { opened with
+                    AmountEdit = Some { AmountEntryId = idOf cardA; AmountDraft = "1"; AmountIsOutflow = true; AmountFieldError = None }
+                    PayeeEdit = Some { PayeeEntryId = idOf cardA; PayeeFieldError = None }
+                    CategoryPickerFor = Some (idOf cardA) }
+            let closed, msgs, _ = run CloseDetail withEdits
+            Expect.equal (closed.DetailFor |> Option.map idOf) (Some (idOf cardA)) "DetailFor bleibt die Karte"
+            Expect.equal (cardId closed) (Some (idOf cardA)) "Karte A sichtbar"
+            Expect.isNone closed.MemoEdit "Memo"
+            Expect.isNone closed.AmountEdit "Betrag"
+            Expect.isNone closed.PayeeEdit "Payee"
+            Expect.isNone closed.SplitEditor "Aufteilen"
+            Expect.isNone closed.CategoryPickerFor "Kategorie"
+            Expect.contains msgs (RunReviewRefresh (idOf cardA)) "neu lesen"
+
+        testCase "im Kassenbuch schließt CloseDetail das Detail ganz" <| fun () ->
+            let model, _ = Components.Ledger.State.init ()
+            let model = { model with Entries = Success [ cardA ]; DetailFor = Some cardA; HistoryOpenFor = Some (idOf cardA) }
+            let closed = step CloseDetail model
+            Expect.isNone closed.DetailFor "kein Detail"
+            Expect.isNone closed.HistoryOpenFor "Historie zu"
+
         testCase "Esc schließt erst den Picker, dann das Detail, dann die Ansicht" <| fun () ->
             let picking = reviewing [ cardA ] |> step (ReviewKey KeyOpenCategory)
             Expect.equal picking.CategoryPickerFor (Some (idOf cardA)) "K öffnet den Picker"

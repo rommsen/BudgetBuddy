@@ -34,6 +34,8 @@ type private BottomSheetInternalProps = {
     HeaderActions: ReactElement list
     /// Fester Bereich zwischen Kopf und scrollendem Inhalt.
     Pinned: ReactElement list
+    /// Der scrollende Inhalt (`.sheet-body`) für den Aufrufer, etwa um eine Scrollposition zu merken.
+    BodyRef: IRefValue<Browser.Types.HTMLElement option> option
 }
 
 /// Eine Rückfrage im Sheet (budgeting-r3wq8): `confirmDanger` als Gegenstück zu `Modal.confirmDanger`,
@@ -205,6 +207,9 @@ let private BottomSheetInternal (input: BottomSheetInternalProps) =
                         // Scrollable body
                         Html.div [
                             prop.className "sheet-body"
+                            match input.BodyRef with
+                            | Some bodyRef -> prop.ref bodyRef
+                            | None -> ()
                             prop.children children
                         ]
 
@@ -225,7 +230,12 @@ let private BottomSheetInternal (input: BottomSheetInternalProps) =
 /// Renders a bottom sheet with overlay, drag handle, header and scrollable body.
 /// The sheet and overlay are always in the DOM; visibility is toggled via the `.active` CSS class.
 let view (props: BottomSheetProps) (children: ReactElement list) : ReactElement =
-    BottomSheetInternal { Props = props; Children = children; FixedHeight = false; Held = false; HeaderActions = []; Pinned = [] }
+    BottomSheetInternal { Props = props; Children = children; FixedHeight = false; Held = false; HeaderActions = []; Pinned = []; BodyRef = None }
+
+/// Wie `view`, `bodyRef` zeigt auf den scrollenden Inhalt (`.sheet-body`). Für ein Sheet, das seinen Inhalt wechselt
+/// und bei der Rückkehr die Stelle wieder setzt (Detail-Sheet im Kassenbuch, ledger-hme9k).
+let viewWithBody (bodyRef: IRefValue<Browser.Types.HTMLElement option>) (props: BottomSheetProps) (children: ReactElement list) : ReactElement =
+    BottomSheetInternal { Props = props; Children = children; FixedHeight = false; Held = false; HeaderActions = []; Pinned = []; BodyRef = Some bodyRef }
 
 type private HeldContent = {
     Title: string
@@ -269,7 +279,8 @@ let private HeldSheet (props: BottomSheetProps, fixedHeight: bool, headerActions
           FixedHeight = fixedHeight
           Held = true
           HeaderActions = shown.HeaderActions
-          Pinned = shown.Pinned }
+          Pinned = shown.Pinned
+          BodyRef = None }
 
 /// Das Sheet für den Inspektor (budgeting-g8s3w): feste Höhe, `headerActions` stehen im Kopf links
 /// neben Schließen, Titel und Unterzeile kürzen statt umzubrechen, `pinned` steht fest zwischen Kopf und

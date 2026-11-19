@@ -22,6 +22,8 @@
 //   8 Spaltenköpfe einer Tabelle überlappen nicht und tragen ihren Text ganz
 //   9 kein Layout-Sprung beim Nachladen
 //  10 sichtbarer Text hat mindestens 4,5:1 gegen seinen tatsächlichen Hintergrund (ledger-dn4vy)
+//  11 höchstens eine Ebene: sichtbar ist höchstens ein offenes Sheet oder ein Dialog, kein zweites darüber
+//     (ledger-hme9k); ein Popover in einer Ebene und der Toast zählen nicht
 //
 // Farbwerte selbst prüft der Sweep nicht: die entfallenen Farben verbietet der Token-Wächter überall unter
 // src/Client (`entfallene-farbe` in scripts/token-guard.mjs), den Kontrast der Token-Paare
@@ -323,7 +325,8 @@ function measureInPage({ mobile, touchMin, inputFontMin, contrastMin, checks, re
         const area = clientRect(node);
         if (!inside(r, area)) report(5, layer, `${fmt(r)} wird von ${describe(node)} (${fmt(area)}) abgeschnitten`);
       }
-      // Über einer Ebene darf nur eine andere Ebene liegen (das zweite Sheet über dem Detail) oder ein Toast.
+      // Über einer Ebene darf nur eine andere Ebene liegen (ein Popover in einem Sheet oder Dialog; ein zweites Sheet
+      // oder ein zweiter Dialog meldet Invariante 11) oder ein Toast.
       const hit = topmost(layer);
       const above = hit.hit && (hit.hit.closest(".toast-layer") || overlays.some((o) => o !== layer && o.contains(hit.hit)));
       if (!hit.ok && !above) report(5, layer, `verdeckt von ${hit.hit ? describe(hit.hit) : "nichts"}`);
@@ -497,11 +500,26 @@ function measureInPage({ mobile, touchMin, inputFontMin, contrastMin, checks, re
     }
   }
 
+  // 11 Höchstens eine Ebene (ledger-hme9k, §7.1 Punkt 4 und §7.15): sichtbar ist höchstens ein offenes Sheet oder
+  // ein Dialog. Ein Popover in einer Ebene (`data-layer="popover"`) und der Toast zählen nicht.
+  if (want(11)) {
+    const levels = [...document.querySelectorAll('.bottom-sheet.active, [data-layer="dialog"]')].filter(shown);
+    if (levels.length > 1) {
+      const label = (el) => {
+        const title = el.querySelector(".sheet-header h3, h2, h3");
+        const name = (title?.textContent ?? "").replace(/\s+/g, " ").trim();
+        const kind = el.matches(".bottom-sheet") ? ".bottom-sheet" : '[data-layer="dialog"]';
+        return name ? `${kind} "${name.length > 40 ? name.slice(0, 40) + "…" : name}"` : kind;
+      };
+      report(11, levels.map(label).join(" und "), `${levels.length} Ebenen offen`);
+    }
+  }
+
   return out;
 }
 
-/// Invarianten 1 bis 5, 7, 8 und 10 im jetzigen Zustand.
-export async function measure(page, { width, checks = [1, 2, 3, 4, 5, 7, 8, 10], reachSelector = "[data-sweep-primary], [data-sweep-reach]" }) {
+/// Invarianten 1 bis 5, 7, 8, 10 und 11 im jetzigen Zustand.
+export async function measure(page, { width, checks = [1, 2, 3, 4, 5, 7, 8, 10, 11], reachSelector = "[data-sweep-primary], [data-sweep-reach]" }) {
   return page.evaluate(measureInPage, {
     mobile: width < MOBILE_BELOW,
     touchMin: TOUCH_MIN,
@@ -722,7 +740,7 @@ export async function runState(browser, baseUrl, state, width, { inject = null, 
   page.setDefaultTimeout(20000);
   const found = [];
   const unmocked = new Set();
-  const want = (n) => (checks ?? state.checks ?? [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]).includes(n);
+  const want = (n) => (checks ?? state.checks ?? [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]).includes(n);
   try {
     // Was nicht gemockt ist, antwortet mit 500 und wird gemeldet: ein Fehler-Toast verfälschte die Messung.
     await page.route("**/api/**", (route) => {
@@ -760,7 +778,7 @@ export async function runState(browser, baseUrl, state, width, { inject = null, 
     if (primary && (await mark(primary, "data-sweep-primary")) === 0) throw new Error("Primärknopf nicht gefunden");
     const reach = state.reach?.(page, { width, mobile });
     if (reach && (await mark(reach, "data-sweep-reach")) === 0) throw new Error("reach nicht gefunden");
-    found.push(...(await measure(page, { width, checks: [1, 2, 3, 4, 5, 7, 8, 10].filter(want) })));
+    found.push(...(await measure(page, { width, checks: [1, 2, 3, 4, 5, 7, 8, 10, 11].filter(want) })));
 
     // Mit offener Tastatur: das Feld hat den Fokus, der Viewport halbiert sich, was `keyboard.reach` nennt,
     // bleibt ohne Scrollen sichtbar.

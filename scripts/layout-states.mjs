@@ -705,6 +705,19 @@ export async function mockReview(page, queue) {
 }
 
 const reviewOpen = (testId) => async (page) => page.locator(`[data-testid="${testId}"]`).first().waitFor();
+/// Das Durchgehen mit offenen „Details“ (ledger-hme9k): am Handy das Detail-Sheet, am PC das Panel neben der Karte.
+const openReviewDetails = async (page) => {
+  // Erst wenn die Vorschläge stehen, steht die Karte still.
+  await page.locator('[data-testid="review-suggestions"]').first().waitFor();
+  await page.locator('[data-testid="review-details"]').first().click();
+  await page.locator('[data-testid="detail-payee"]').filter({ visible: true }).first().waitFor();
+};
+/// Am PC lag der Dialog „Memo“ über dem schon offenen Memo-Feld im Panel: eine Ebene, aber zwei Editoren mit demselben
+/// Entwurf (ledger-hme9k). Das zählt Invariante 11 nicht, deshalb bricht der Zustand hier ab.
+const assertOneMemoEditor = async (page) => {
+  const editors = await page.locator('[data-testid="detail-memo-editor"]').filter({ visible: true }).count();
+  if (editors !== 1) throw new Error(`Memo steht ${editors}-mal offen, im Durchgehen mit Details gehört es nur ins Detail`);
+};
 const reviewPrimary = (name) => (page) => page.getByRole("button", { name, exact: true }).locator("visible=true").first();
 
 // ============================================================
@@ -2023,6 +2036,70 @@ export const STATES = [
       focus: (page) => page.locator(".bottom-sheet.active textarea, .bottom-sheet.active input").first(),
       reach: (page) => page.locator(".bottom-sheet.active").first().getByRole("button", { name: "Speichern", exact: true }),
     },
+  },
+  // ledger-hme9k Befund 1: im Durchgehen mit offenen „Details“ legte ein Tipp auf Payee oder Memo eine zweite Ebene über
+  // das Detail (am Handy ein zweites Sheet, am PC einen zweiten Dialog bzw. einen Dialog über dem Memo-Feld im Panel).
+  // Invariante 11 meldet sie. Soll: am Handy ersetzt die Payee-Auswahl den Inhalt des Detail-Sheets und Memo öffnet
+  // als Feld in der Zeile, am PC öffnet Payee genau einen Dialog und Memo als Feld im Panel.
+  {
+    name: "durchgehen-details-payee",
+    route: "/review",
+    widths: [412, 1280],
+    mock: (page) => mockReview(page, [REVIEW_QUEUE.plain]),
+    open: async (page) => {
+      await openReviewDetails(page);
+      await page.locator('[data-testid="detail-payee-arrow"]').filter({ visible: true }).first().click();
+      await page.locator('[data-testid="payee-picker"]').filter({ visible: true }).first().waitFor();
+    },
+  },
+  {
+    name: "durchgehen-details-memo",
+    route: "/review",
+    widths: [412, 1280],
+    mock: (page) => mockReview(page, [REVIEW_QUEUE.plain]),
+    open: async (page) => {
+      await openReviewDetails(page);
+      await page.locator('[data-testid="detail-memo-action"]').filter({ visible: true }).first().click();
+      await page.locator('[data-testid="detail-memo-editor"]').filter({ visible: true }).first().waitFor();
+      await assertOneMemoEditor(page);
+    },
+  },
+  // Am PC stehen Payee und Memo der Karte neben dem Panel weiter zum Antippen: auch von dort keine zweite Ebene.
+  {
+    name: "durchgehen-details-payee-karte",
+    route: "/review",
+    widths: [1280],
+    mock: (page) => mockReview(page, [REVIEW_QUEUE.plain]),
+    open: async (page) => {
+      await openReviewDetails(page);
+      await page.locator('[data-testid="review-payee"]').first().click();
+      await page.locator('[data-testid="payee-picker"]').filter({ visible: true }).first().waitFor();
+    },
+  },
+  {
+    name: "durchgehen-details-memo-karte",
+    route: "/review",
+    widths: [1280],
+    mock: (page) => mockReview(page, [REVIEW_QUEUE.plain]),
+    open: async (page) => {
+      await openReviewDetails(page);
+      await page.locator('[data-testid="review-memo"]').first().click();
+      await page.locator('[data-testid="detail-memo-editor"]').filter({ visible: true }).first().waitFor();
+      await assertOneMemoEditor(page);
+    },
+  },
+  // ledger-hme9k Befund 2: „Regel anlegen“ aus dem Detail im Durchgehen ersetzt am Handy den Inhalt des Detail-Sheets.
+  {
+    name: "durchgehen-details-regel",
+    route: "/review",
+    widths: [412],
+    mock: (page) => mockReview(page, [REVIEW_QUEUE.plain]),
+    open: async (page) => {
+      await openReviewDetails(page);
+      await page.locator('.bottom-sheet.active [data-testid="detail-rule"]').click();
+      await page.locator('.bottom-sheet.active [data-testid="rule-form"]').waitFor();
+    },
+    primary: (page) => page.locator(".bottom-sheet.active").getByRole("button", { name: "Regel anlegen", exact: true }),
   },
   // ledger-s1weh: „Neue Buchung“ auf der Übersicht, am Handy als Sheet über „+ Buchung“, ab 1024 px als Dialog in der
   // Mitte über „Buchung“ im Kopf. „Buchung anlegen“ ist ohne Scrollen erreichbar, am Handy auch bei offener Tastatur.

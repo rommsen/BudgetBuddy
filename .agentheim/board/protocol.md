@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-19 09:25 -- Task verified and completed: ledger-hme9k - "Durchgehen und Detail ohne zweite Ebene: Payee und Memo im offenen Detail öffnen kein zweites Sheet oder zweiten Dialog, das Regel-Formular ersetzt den Inhalt desselben Detail-Sheets, × im Split-Editor am PC führt ins Detail zurück, „Details“ schließen im Durchgehen über denselben Helfer wie im Kassenbuch (Components/Ledger/View.fs, State.fs)"
+
+**Type:** Work / Task completion
+**Task:** ledger-hme9k - "Durchgehen und Detail ohne zweite Ebene: Payee und Memo im offenen Detail öffnen kein zweites Sheet oder zweiten Dialog, das Regel-Formular ersetzt den Inhalt desselben Detail-Sheets, × im Split-Editor am PC führt ins Detail zurück, „Details“ schließen im Durchgehen über denselben Helfer wie im Kassenbuch (Components/Ledger/View.fs, State.fs)"
+**Summary:** Durchgehen und Detail ohne zweite Ebene: Payee/Memo im Detail, Regel-Formular im selben Sheet, × im Split-Editor zurück ins Detail
+**Duration:** 45m
+**Verification:** PASS (iteration 1)
+**Files changed:** 10
+**Tests added:** 8
+**ADRs written:** none
+
+---
+
 ## 2026-11-19 09:12 -- Batch started: [ledger-awf5b]
 
 **Type:** Work / Batch start
