@@ -526,13 +526,13 @@ let rulesCategoriesDue (categories: RemoteData<YnabCategory list>) : bool =
     | Loading
     | Success _ -> false
 
-/// Die Kassenbuch-Kategorien als Fehler mit Grund; das Warten auf die Settings endet.
 /// Das Quick-Add-Konto aus einer Antwort der Settings; ihr Fehler wird zum Zustand (ledger-pz028).
 let private quickAddAccountFrom (result: Result<AppSettingsView, string>) : RemoteData<YnabAccountId option> =
     match result with
     | Ok settings -> Success (settings.Ynab |> Option.bind (fun ynab -> ynab.QuickAddAccountId))
     | Error message -> Failure message
 
+/// Die Kassenbuch-Kategorien als Fehler mit Grund; das Warten auf die Settings endet.
 let private ledgerCategoriesFailed (reason: string) (ledger: Components.Ledger.Types.Model) =
     { ledger with Categories = Failure reason; CategoriesAwaitSettings = false }
 

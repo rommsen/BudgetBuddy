@@ -1359,7 +1359,8 @@ let closeDetail (model: Model) : Model =
 
 /// Was Schließen im Detail dieser Buchung tut (× im Kopf von Sheet und Panel, ledger-hme9k): erst die offene
 /// Payee-Auswahl, dann der Betrag, dann der Split-Editor (Entwurf verworfen), sonst das Detail selbst. Die
-/// Kategorie-Auswahl im Sheet schließt vorher ihr eigener Rückruf.
+/// Kategorie-Auswahl im Sheet schließt vorher ihr eigener Rückruf. Esc geht eine eigene Kette (`KeyLeave` in
+/// `update`); die Zustände schließen sich heute gegenseitig aus, ein neuer Zustand im Detail gehört in beide.
 let detailCloseStep (model: Model) (entry: LedgerEntryView) : Msg =
     if model.PayeeEdit |> Option.exists (fun edit -> edit.PayeeEntryId = entry.Id) then CancelPayeeEdit
     elif model.AmountEdit |> Option.exists (fun edit -> edit.AmountEntryId = entry.Id) then CancelAmountEdit
@@ -4747,6 +4748,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         elif model.BatchCategoryPickerOpen then
             { model with BatchCategoryPickerOpen = false }, Cmd.none, NoOp
         elif model.SplitEditor.IsSome then
+            // Dieselben Zustände schließt `detailCloseStep` für das × im Kopf; ein neuer Zustand gehört in beide.
             // Erst die Auswahl über dem Editor, dann der Editor selbst (Entwurf verworfen).
             match model.SplitEditor with
             | Some editor when editor.Picker <> SplitEditor.NoSplitPicker -> updateCore CloseSplitPicker model
