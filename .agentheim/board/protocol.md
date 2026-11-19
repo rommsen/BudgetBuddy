@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-11-19 07:49 -- Capture / Captured: ledger-b7k2q - "Bob: kein Flag nicht belegt, Grenzen am Commit und am Rumpf lückenhaft"
+
+**Type:** Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Bestandsreview ledger 2026-11-19, Gruppe G1
+
+---
+
 ## 2026-11-19 07:48 -- Capture / Captured: ledger-ef068 - "Kassenbuch weicht von DS-Bausteinen ab: Knöpfe, Köpfe, Kontowahl, Kanten"
 
 **Type:** Capture

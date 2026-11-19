@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 12
+- **Backlog:** 13
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 145
@@ -75,6 +75,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **ledger-b7k2q** — "Bob: kein Flag nicht belegt, Grenzen am Commit und am Rumpf lückenhaft" (refactor) — `backlog/ledger-b7k2q-bob-grenzen-flag-commit-rumpf.md`
 - **ledger-ef068** — "Kassenbuch weicht von DS-Bausteinen ab: Knöpfe, Köpfe, Kontowahl, Kanten" (refactor) — `backlog/ledger-ef068-kassenbuch-ds-abweichungen.md`
 - **ledger-y8xrr** — "Nachladen: Liste verliert ihren Stand, alte Zahlen stehen ohne Hinweis" (refactor) — `backlog/ledger-y8xrr-nachladen-stand-und-alte-zahlen.md`
 - **ledger-hme9k** — "Durchgehen und Detail: gestapelte Sheets und Rücksprünge" (refactor) — `backlog/ledger-hme9k-durchgehen-detail-gestapelte-sheets.md`
