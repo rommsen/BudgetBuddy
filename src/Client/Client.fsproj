@@ -29,6 +29,7 @@
     <Compile Include="DesignSystem/PickerParts.fs" />
     <Compile Include="DesignSystem/Table.fs" />
     <Compile Include="DesignSystem/Toast.fs" />
+    <Compile Include="DesignSystem/Feedback.fs" />
     <Compile Include="DesignSystem/Modal.fs" />
     <Compile Include="DesignSystem/BottomSheet.fs" />
     <Compile Include="DesignSystem/Navigation.fs" />

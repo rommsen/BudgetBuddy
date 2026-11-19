@@ -229,3 +229,5 @@ Skizze lokal (`…` = `/private/tmp/claude-501/-Users-romansachse-src-BudgetBudd
   `25-kassenbuch-abgerufen.png`, `26-kassenbuch-abrufen-fehler.png`, `27-kassenbuch-angelegt.png`, `30-uebersicht-leiste.png`
 - heute: `…/shots/vf5h6/heute-toast-412.png`, `heute-toast-150-412.png`, `heute-toast-600-412.png`,
   `heute-kassenbuch-wisch-412.png`, `heute-uebersicht-412.png`
+
+Hinweis Verifier design-system-ytgnc (2026-11-20): das Muster-Bullet der design-system-README nennt noch „Toast … Mobile oben über der Bottom-Nav“ (ADR 0007); mit dieser Task nachziehen.

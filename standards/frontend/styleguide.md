@@ -212,7 +212,7 @@ Textfeld `readOnly`, Kalender-Knopf `aria-disabled`, beide behalten den Fokus, g
 - Kein Glow in Listen, keine violetten Kategorien, keine roten Ausgaben.
 - Herkunfts- oder Spiegel-Badges gehören in Detail und Historie, nicht in die Zeile.
 - Listen-Seiten bekommen einen schlanken Kopf ohne Gradient-Titel und füllen die Breite.
-- Rückmeldungen auf Aktionen (Wisch-Geste, Toast) dürfen leuchten.
+- Rückmeldungen auf Aktionen (Wisch-Geste, Toast, Leiste, Feld) dürfen leuchten.
 
 > **Harte Regel (siehe `.claude/rules/design-tokens.md`):** keine Standard-Tailwind-Farben
 > (`red-*`, `green-*`, `blue-*`, `gray-*`, …), keine hartkodierten Hex-Werte
@@ -319,7 +319,7 @@ nutzt die zweite Variante über `CategoryPicker.popoverInDialog`.
 
 ---
 
-## 5. Komponenten-Inventar (26 DS-Komponenten mit eigener Zeile)
+## 5. Komponenten-Inventar (27 DS-Komponenten mit eigener Zeile)
 
 Alle Komponenten liegen unter
 [`src/Client/DesignSystem/`](../../src/Client/DesignSystem/). Konkrete API/Props stehen dort in den
@@ -338,12 +338,13 @@ eigene Zeile; §2 und §7 nennen sie, wo sie gelten.
 | **Badge** | Kompakter Status/Label: semantisch (`success`/`warning`/`error`/`info`, `notice` in Gelb für „braucht dich, kein Fehler“, immer mit Wort, ADR 0087 Punkt 3), Domänen-Status (`imported`, `pendingReview`, `autoCategorized`, `uncategorized`), `count` | Klickbare Filter → `Button.ghost`/Pills; lange Texte |
 | **Input** | Alle Formularelemente: `text`/`password`/`email`/`number`, `textarea`, `AutoGrowTextarea` (mitwachsendes mehrzeiliges Feld für einen Text, der einzeilig gemeint ist, aber umbrechen darf, wie das Memo, design-system-x045q: startet einzeilig, wächst mit dem Text, zeigt beim Öffnen den ganzen Text, über `max-h-32` scrollt es in sich, kein Ziehgriff, Schrift 16 px; die Bildschirmtastatur zeigt „Fertig“, Enter fügt keinen Umbruch ein und ruft `OnEnter`; für freien Text mit Absätzen → `textarea`), `select`/`selectSimple`, `checkbox`, `checkboxNative` (die native Checkbox des Browsers ohne eigene Gestalt, in einem `label` mit der Zeile; Vorschau Targets anwenden nach der Skizze), `toggle`, `searchableSelect`, `pickerField` (Auswahlfeld als Knopf nach §7.5: Bezeichnung klein oben, Wert oder gedämpfter Platzhalter, optional der Saldo, Pfeil rechts; hält den Fokus, eine offene Tastatur bleibt offen; erster Nutzer „Neue Buchung“ im Kassenbuch), `selectField` (Auswahlfeld mit Pfeil nach unten, Saldo gleich neben dem Wert, 48 px hoch und 12 px Innenabstand seitlich über `.input-select` in `styles.css`, Prototyp `.field`; die Kontowahl im Kassenbuch unter 1024 px, ledger-d9z3n), `requiredSelectField` (Pflicht-Auswahlfeld in der Form von `selectField`: ohne Wert steht der Platzhalter in Gelb, braucht dich, statt eines roten Fehlertexts unter dem Feld; gesperrt gedämpft und nicht antippbar; der Wochentag eines Targets, budgeting-h2brj), `searchField` (Suchfeld mit Lupe, `type=search`), `searchFieldCompact` (dasselbe am Ende einer Filterleiste am PC: 36 px hoch, Text 14 px, höchstens 280 px breit und rechtsbündig; Kassenbuch ab 1024 px, ledger-cnaz3), `countSwitchRow` (Schalter als Zeile mit kurzer Bezeichnung und gedämpfter Anzahl, ohne Erklärsatz; Filter-Sheet im Kassenbuch), `valueRow` (Zeile mit Bezeichnung links, Wert 14 px und Pfeil rechts, öffnet eine Auswahl; gesetzt im Akzent), `amountFieldClass` (Klasse eines Betragsfelds: Mono, Ziffern gleich breit, ungültig mit roten Ziffern, `hero` groß wie in „Neue Buchung“ und im Sheet „Betrag“), `switchRow` (Schalter als ganze Zeile mit Titel und Erklärsatz, `role switch`, der Satz über `aria-describedby`, aus in `border-strong`; für eine Einstellung mit Folgen wie „Aktiv“ einer Kategorie; ein Schalter mit kurzer Bezeichnung ohne Erklärsatz ist `toggle`, die Checkbox-Form auf einem `input`), plus `group`/`groupWithError`/`formSection` | Reine Anzeige; mobiles Kategorie-/Konto-Auswählen → `BottomSheet` (§7) |
 | **Modal** | Zentrierte Dialoge auf **Desktop**, nur für eine kurze Frage oder eine Auswahl (§7.6): `simple`, `custom`, `fullScreen`, `confirm`/`confirmDanger` (beide mit "Abbrechen"), `alert`, `loading`. Ein offenes Modal bekommt die Tasten zuerst, Esc schließt nur es (§7.8) | Anzeigen, Bearbeiten oder Neuanlegen eines Dings aus einer Liste → Panel (§7.6); mobile Auswahl-Flows → `BottomSheet` (keyboard-fest); persistente Inhalte |
-| **Toast** | Flüchtiges Feedback nach Aktion: `success`/`error`/`warning'`/`info'`, `renderList` | Blockierende Fehler → `ErrorDisplay`/`Modal`; persistenter Status → `Badge` |
+| **Toast** | Nur ab 1024 px und nur für Meldungen ohne Ort (Platz 3): höchstens einer, geht nach 5 s, mit ✕, aus demselben Zustand wie die Leiste (§7.13); `success`/`error`/`warning'`/`info'`, `renderList` | Unter 1024 px → `Feedback` (§7.13); Rückmeldung, deren Ergebnis man am Ort sieht, auch am PC → `Feedback` am Ort ohne zusätzlichen Toast; blockierende Fehler → `ErrorDisplay`/`Modal`; persistenter Status → `Badge` |
+| **Feedback** | Jede Rückmeldung unter 1024 px nach den Plätzen in §7.13: `bar` (Meldungsleiste über der Navigation, `BarPlacement.Docked` fest, `Preview` im Fluss; trägt auf Seiten mit „+ Buchung“ den Knopf, breit ohne Meldung, rund mit Meldung), `sheetLine` (Zeile im Sheet über dem Hauptknopf), `fieldNote` (Bestätigung unter einem Feld mit „Rückgängig“), `flash` (Klasse: Feld, Zeile oder Wert leuchtet kurz), `removedRow` („„Regel drei“ gelöscht · Rückgängig“ am Platz). Töne `Ok`, `Warning`, `Error`, `Running`, `Info`. Ab 1024 px die Rückmeldungen am Ort: Bestätigung am Feld, Leuchten, Zeile „gelöscht“ und Zeile im Sheet | Zustand der Seite (etwa „nicht neu gelesen“) → `ErrorDisplay.notice`; blockierende Fehler → `ErrorDisplay`/`Modal`; Fehler zu einer Eingabe → am Feld (`Input.groupWithError`, `ErrorDisplay.inline'`) |
 | **Stats** | KPI-/Kennzahl-Kacheln: `withIcon`, `withTrend`, `transactionCount`, `syncCount`, `grid*`, ohne Farbstreifen; Monatsbalken `monthBars`, `monthBarsChosen` (vorgewählter Balken, nur im Styleguide) und `monthBarsPlaceholder` (beim Laden, gleich hoch); Mini-Balken `sparkBars`, `sparkBarsLabelled` und `sparkBarsPlaceholder` (Seite Targets prüfen); Regeln in §2 Monatsbalken | Vollständige Tabellen → `Table`; einzelner Betrag im Fließtext → `Money` |
 | **Money** | **Jede** Geldanzeige, setzt die Vorzeichen-Farbe automatisch, ohne Glow: `available` (Auswahl, §2), `afterAmount` (Verfügbar danach: fett, rot unter 0, grün bei genau 0), `simple`, `large`, `hero`, `noSign`, `fromMoney`, `accountChoiceRow` (Zeile der Kontowahl im Sheet: Name und Saldo in Primärtext, Trennlinie, beim gewählten Konto nur Haken und Akzentrahmen, dazu `aria-current="true"`; ledger-d9z3n, seit ledger-zf6zg auch die Kontowahl in „Neue Buchung“), `balanceInline` (Kontostand im Fließtext: Mono ohne Plus, negativ Rot, sonst gedämpft oder in der Farbe der Zeile, Größe vom Aufrufer; Kopf am PC und Feld „Konto“ im Kassenbuch, ledger-cnaz3), `accountBalance` (Kontostand ohne führendes Plus, für Kontostände-Leiste und -Liste), `accountListRow` (klickbare Kontozeile: Name links, farbcodierter Betrag rechts, aktiver Zustand mit Akzentlinie), `accountListRowWith` (dieselbe Zeile mit eigenem Wert, etwa `Loading.amountSkeleton` beim Laden oder `balanceUnavailable`, ein gedämpfter Strich nach einem Ladefehler) | Nicht-monetäre Zahlen → `Presets.monoNumber` |
 | **Table** | Dichte tabellarische Daten (Desktop), inkl. `headerCell`/sortierbar/`sticky`; `RowProps.OnClickWithKeys` meldet beim Klick auf die Zeile Strg/Cmd und Umschalt (Mehrfachauswahl §7.7, ein Umschalt-Klick markiert keinen Text) | Mobile Listen mit Zeilen-Aktionen → Card-Liste + `Swipe`; einfache Key-Value-Paare → `Card` |
 | **Loading** | Ladezustände: `spinner`, `centered`, `neonPulse`, Skeletons (`txListSkeleton`, `tableSkeleton`, `statsGridSkeleton`, `cardSkeleton`, `amountSkeleton` für einen Betrag, `firstItemListSkeleton` für eine Liste mit großem ersten Eintrag und Knopf wie „Zu tun“, gleich hoch wie das Ziel mit einem Eintrag mehr als Zeilen, `cardListSkeleton` für eine Karte mit nummerierten Zeilen und Pfeilen wie der Tab „Regeln“ am Handy) | Inhalt da → echten Inhalt zeigen; Fehler → `ErrorDisplay` |
-| **ErrorDisplay** | Fehlerdarstellung: `inline'` (Feldfehler), `cardCompact`/`card`, `hero` (große Operation), `fullPage`, `forRemoteData`, `warning`, `notice` (Gelb, braucht dich, kein Fehler, ADR 0087 Punkt 3), `noticeWithLead` (wie `notice` mit fettem Anfang in `text-primary`: „**Push-TAN bestätigen.** Öffne die Comdirect-App …“ im Sheet „Abrufen“) | Kurzes Erfolgs-/Info-Feedback → `Toast`; Pflichtfeld-Hinweis → `Input.group*` |
+| **ErrorDisplay** | Fehlerdarstellung: `inline'` (Feldfehler), `cardCompact`/`card`, `hero` (große Operation), `fullPage`, `forRemoteData`, `warning`, `notice` (Gelb, braucht dich, kein Fehler, ADR 0087 Punkt 3), `noticeWithLead` (wie `notice` mit fettem Anfang in `text-primary`: „**Push-TAN bestätigen.** Öffne die Comdirect-App …“ im Sheet „Abrufen“) | Kurzes Erfolgs-/Info-Feedback → `Feedback` (§7.13); Pflichtfeld-Hinweis → `Input.group*` |
 | **Icons** | SVG-Icons mit `Size`×`Color`-Tokens (`Icons.sync MD Accent`, …); `flagSolid` (gefülltes Flag, nur als Marke einer Rückfrage an Lena in der Flag-Farbe, `Icons.LenaFlag`), Größe `Mark` (15 px, nur für die Marke vor einem Eintrag in „Zu tun“); `pin` (Umriss, nicht angepinnt) und `pinSolid` (gefüllt, angepinnt, im Akzent) im Kopf des Kategorie-Details (`Button.pinToggle`) und im Block „Angepinnt“ der Übersicht; `sync` (zwei Kreispfeile) nur für „Jetzt spiegeln“ und den Sync, `fetch` (Pfeil nach unten in eine Ablage) nur für „Abrufen“, den Comdirect-Abruf mit Push-TAN, damit die beiden im Kopf am Handy ohne Rand und Tooltip auseinanderzuhalten sind | Eigene rohe `<svg>` inline (Drift) — fehlt ein Icon, hier ergänzen; `flagSolid` als Schmuck oder in einer anderen Farbe als der Flag-Farbe; `Mark` außerhalb der Marke eines Eintrags → `XS`/`SM`; `pin`/`pinSolid` für etwas anderes als das Anpinnen auf der Übersicht |
 | **Navigation** | Die drei Orte (§7.4), einmal in der Haupt-`View.fs`: am Handy `bottomBar` (Leiste unten, gleich breite Spalten, Symbol 22 px über Text 12 px, 60 px plus Safe-Area, aktiv im Akzent mit `aria-current="page"`), von 768 bis 1023 px `rail` (72 px, Symbol über kurzer Beschriftung, unten das Zahnrad, keine Konten), ab 1024 px `sidebar` (232 px, Marke, Ort-Zeilen 40 px, Abschnitt „Konten“ mit Zeilen 34 px und Saldo in Mono, gewähltes Konto mit Akzentstrich links, unten „Einstellungen“); dazu `pageContent`/`pageContentFull` (Abstand zur Navigation) und `appWrapper`. Vorschau ohne `fixed`: `bottomBarPreview`, `railPreview`, `sidebarPreview`; `Props.OverviewCount` (die Zahl der zu prüfenden Buchungen an der Übersicht in Rail und Seitenleiste, gelb mit `aria-label` „n zu prüfen“, bei 0 ohne Zahl) | Aktionen innerhalb einer Seite → `Button`; Erfassen, Abrufen oder Sync als Eintrag (§7.4); `OverviewCount` für eine andere Zahl als die zu prüfenden Buchungen oder in der Leiste unten |
 | **PageHeader** | Seitentitel: `simple`, `withSubtitle`, `gradient*`, `withActions`, `gradientWithActions`; `Props.SubtitleDesktopOnly` (über `view`: der Untertitel steht erst ab `md`, Tab „Regeln“ im Kassenbuch, der Prototyp zeigt ihn nur am PC); `Props.SubtitleView` (Untertitel mit eigenem Aufbau in derselben Zeile und Schrift, im Kassenbuch am PC „Konto · Saldo“ mit dem Saldo in Mono vor dem Stand des Spiegels, ledger-cnaz3); `top` ist der Kopf eines Orts oder einer Unterseite nach dem Prototyp (optional „Zurück“, Titel 20 px in der Display-Schrift, Untertitel 12 px gedämpft, Aktionen rechts), `backButton`/`backButtonFor` das „Zurück“ mit Pfeil nach links (am Handy 48 px hoch), `iconButton` der Symbolknopf im Kopf (Symbol 22 px, am Handy 48 × 48 px, am PC 44 × 44 px, etwa „Abrufen“ (`Icons.fetch`) und „Einstellungen“ in der Übersicht, „Abrufen“ im Kassenbuch am Handy), `iconButtonBusy` derselbe Symbolknopf mit Laufzustand (während des eigenen Aufrufs Spinner statt Symbol, `aria-busy` und `aria-disabled`, kein `disabled`, der Fokus bleibt, ein Tipp tut nichts; „Jetzt spiegeln“ (`Icons.sync`) im Kassenbuch am Handy, ledger-gy77x). Kein `title` am Symbolknopf, der Name kommt über `aria-label`; das Ausblenden ab einer Breite setzt eine Hülle um den Knopf | Karten-Titel → `Card.header`; Abschnittstitel → `Card.headerSimple`/`Presets.sectionHeader` |
@@ -395,17 +396,15 @@ Bewegung ist subtil, schnell und respektiert Nutzerpräferenzen. Quelle:
   `Toast.isExiting` abgesichert (kein Timer-Leak / keine Doppel-Entfernung). Die
   Animationsklassen sitzen **nur auf dem inneren Toast-Element**, nie auf dem fixen
   Container (`css-animation-safety`). (design-system-004.)
-- **Toast-Platzierung — zwei bewusste Fälle (mobil ≠ Desktop), nicht halb-geerbt.**
-  Mobile: kompakter, **symmetrisch eingerückter Streifen** unter dem Header
-  (`top-16 inset-x-4`, nur `top` — kein `bottom`); so wird die linke Neon-Border/Glow
-  nicht am Rand abgeschnitten und der fixe Container spannt nicht über die volle Höhe.
-  Desktop (`md:`): Insets zurücksetzen, `md:max-w-sm`, dann der Anker unten rechts
-  (`md:bottom-4 md:right-4`). `positionToClasses` liefert **nur `md:`-Anker** — mobil
-  wird daraus nichts geerbt. Die innere Toast-Fläche ist **voll deckend**
-  (`bg-surface-card`, nicht `/95`), damit der helle Sync-Hero-Gradient nicht
-  durchscheint; `backdrop-blur` bleibt für den Glas-Charakter. Container ist
-  `fixed … pointer-events-none`; nur die Toasts selbst sind klickbar.
-  (ADR 0007; mobiler Sitz korrigiert in design-system-005.)
+- **Toast-Platzierung:** den Toast gibt es nur ab 1024 px, unten rechts, und nur für Meldungen ohne Ort
+  (Platz 3 in §7.13). Unter 1024 px steht statt eines Toasts die Meldungsleiste (`Feedback.bar`) über der
+  Navigation. Die innere Toast-Fläche ist voll deckend (`bg-surface-card`); der Container ist
+  `fixed … pointer-events-none`, nur die Toasts selbst sind klickbar. (ADR 0007, ADR 0098.)
+- **Eingang einer Meldung (`msgIn`):** Einblenden und 6 px von unten in 180 ms (`ease-out`), Klasse
+  `.feedback-in` auf dem inneren Element der Meldung, nie auf der festen Leiste. Kein Abgang: die nächste Meldung
+  ersetzt sie. Mit `prefers-reduced-motion` keine Animation. (ADR 0098.)
+- **Leuchten (`Feedback.flash`):** Rand und Ring im Akzent, rund 0,7 s, dann zurück (`.feedback-flash`). Mit
+  `prefers-reduced-motion` kein Übergang: der Ring steht, bis die App die Klasse nach der Zeit abnimmt. (ADR 0098.)
 - `neonPulse` sparsam — Glow markiert, es dekoriert nicht (§1).
 
 ---
@@ -727,18 +726,48 @@ Skeleton (§6).
 
 ### 7.13 Rückmeldung
 
-**Regel:** Eine Rückmeldung (`Toast`) verdeckt nie ein Bedienelement. Am Handy steht sie oben, auch
-bei offenem Sheet. Am PC steht sie unten rechts; liegt dort eine Leiste (Auswahl-Leiste, Fußzeile),
-steht sie darüber. Lässt sich die Änderung zurücknehmen, bietet die Rückmeldung „Rückgängig“. Der
-Text sagt knapp, was passiert ist („3 Buchungen geprüft“).
+**Regel:** Eine Rückmeldung verdeckt nie ein Bedienelement. Am Handy (unter 1024 px, auch 768 bis 1023 px mit
+Rail) gibt es keinen Toast: jede Rückmeldung hat einen festen Platz (Baustein `Feedback`, §5). Die Plätze in dieser
+Reihenfolge:
 
-**Wann:** nach jeder Aktion, deren Ergebnis man sonst nicht sofort sieht oder die man zurücknehmen
-können soll.
+1. **Ergebnis am Ort sichtbar:** die Stelle bestätigt selbst. Das Feld leuchtet kurz (`Feedback.flash`), darunter
+   steht die Bestätigung mit „Rückgängig“ (`Feedback.fieldNote`, „Bahn · 84,20 € verfügbar · Rückgängig“). Wechselt
+   ein Knopf sichtbar (Lena fragen), ist er selbst die Bestätigung.
+2. **Sheet offen:** eine Zeile im Sheet über dem Hauptknopf (`Feedback.sheetLine`), nie darüber.
+3. **Sonst:** die Meldungsleiste über der Navigation (`Feedback.bar`). Auf Seiten mit „+ Buchung“ trägt sie den
+   Knopf (kein schwebender Knopf, die Liste endet über der Leiste); kommt eine Meldung, wird der Knopf zum runden
+   „+“, links steht die Meldung zweizeilig: oben die Aktion (nie gekürzt, sie bricht um), darunter Name oder Grund
+   (gekürzt mit „…“), rechts „Rückgängig“ oder „Erneut“. Seiten ohne „+ Buchung“ zeigen die Leiste nur, solange es
+   eine Meldung gibt.
 
-**Wann nicht:** Blockierende Fehler gehören in `ErrorDisplay` oder `Modal` (§5). Platzierung im Detail
-und Animation regelt §6.
+Dazu gilt:
 
-**Quelle:** ADR 0087 Punkt 22.
+- **Eine Meldung.** Gleiche Aktionen hintereinander werden eine („3 geprüft“, „Rückgängig“ nimmt alle zurück), eine
+  andere Aktion ersetzt sie.
+- **Kein ✕, kein Zeitlimit am Handy.** Die Meldung bleibt bis zur nächsten Aktion oder bis man die Seite verlässt.
+- **Fehler** stehen rot am selben Platz und bleiben bis zur nächsten Aktion; der Grund bricht dort um (höchstens drei
+  Zeilen), weil am Handy kein `title` lesbar ist. Warnungen stehen gelb dort.
+- **Ein Zustand der Seite ist keine Meldung,** sondern ein Hinweis auf der Seite (`ErrorDisplay.notice`, etwa „Beträge
+  nicht neu gelesen“).
+- **Gelöschtes in einer Liste** hinterlässt am Platz eine Zeile (`Feedback.removedRow`, „„Regel drei“ gelöscht ·
+  Rückgängig“) bis zur nächsten Aktion.
+- **Am PC (ab 1024 px)** gelten die Plätze 1 und 2 genauso: was man am Ort sieht, bestätigt auch am PC am Ort und ohne
+  zusätzlichen Toast (Zeile „gelöscht“, „✓ Gespeichert“ am Feld, Leuchten, Pin-Knopf, Hinweis „nicht neu gelesen“,
+  letzte Aktion unter „Passt, weiter“, Rückgängig am Feld). Den Toast unten rechts gibt es am PC nur für Meldungen
+  ohne Ort (Platz 3): höchstens einer, er geht nach 5 s und hat ein ✕. Liegt dort eine Leiste (Auswahl-Leiste,
+  Fußzeile), steht er darüber.
+
+Der Text sagt knapp, was passiert ist („3 geprüft“). Lässt sich die Änderung zurücknehmen, bietet die Rückmeldung
+„Rückgängig“.
+
+**Wann:** nach jeder Aktion, deren Ergebnis man sonst nicht sofort sieht oder die man zurücknehmen können soll; am
+Ort auch dann, wenn man das Ergebnis sieht (Leuchten, Bestätigung am Feld).
+
+**Wann nicht:** Blockierende Fehler gehören in `ErrorDisplay` oder `Modal` (§5), Fehler zu einer Eingabe an das Feld
+(`Input.groupWithError`, `ErrorDisplay.inline'`). Ein Zustand der Seite ist ein Hinweis (`ErrorDisplay.notice`).
+Bewegung regelt §6.
+
+**Quelle:** ADR 0098 (Rückmeldung am Handy ohne Toast) und ADR 0087 Punkt 22.
 
 ### 7.14 Seitenaufbau
 

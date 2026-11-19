@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-20 00:16 -- Task verified and completed: design-system-ytgnc - "Rückmeldung am Handy ohne Toast (Regel R3), Teil 1: DS-Baustein `Feedback` (Meldungsleiste mit „+ Buchung“, Zeile im Sheet, Rückgängig am Feld, Zeile „gelöscht“) auf `/styleguide`, Styleguide §7.13, §5 und §6 neu, ADR 0098"
+
+**Type:** Work / Task completion
+**Task:** design-system-ytgnc - "Rückmeldung am Handy ohne Toast (Regel R3), Teil 1: DS-Baustein `Feedback` (Meldungsleiste mit „+ Buchung“, Zeile im Sheet, Rückgängig am Feld, Zeile „gelöscht“) auf `/styleguide`, Styleguide §7.13, §5 und §6 neu, ADR 0098"
+**Summary:** DS-Baustein Feedback für Rückmeldung ohne Toast (R3), Styleguide §7.13
+**Duration:** 80m
+**Verification:** PASS (iteration 1)
+**Files changed:** 8
+**Tests added:** 8
+**ADRs written:** none
+
+---
+
 ## 2026-11-20 00:11 -- Batch started: [ledger-wg42w]
 
 **Type:** Work / Batch start

@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 6
 - **Todo:** 0
-- **Doing:** 1
-- **Done:** 49
+- **Doing:** 0
+- **Done:** 50
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,11 +22,11 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **design-system-ytgnc** — "Rückmeldung am Handy ohne Toast (Regel R3), Teil 1: DS-Baustein `Feedback` (Meldungsleiste mit „+ Buchung“, Zeile im Sheet, Rückgängig am Feld, Zeile „gelöscht“) auf `/styleguide`, Styleguide §7.13, §5 und §6 neu, ADR 0098" (feature) — `doing/design-system-ytgnc-rueckmeldung-am-handy-ohne-toast.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)
 <!-- done-list:start -->
+- **design-system-ytgnc** — "Rückmeldung am Handy ohne Toast (Regel R3), Teil 1: DS-Baustein `Feedback` (Meldungsleiste mit „+ Buchung“, Zeile im Sheet, Rückgängig am Feld, Zeile „gelöscht“) auf `/styleguide`, Styleguide §7.13, §5 und §6 neu, ADR 0098" (feature) — `done/design-system-ytgnc-rueckmeldung-am-handy-ohne-toast.md`
 - **design-system-x045q** — "Detail: Memo als Block mit Bezeichnung darüber und ganzem Text, Memo-Editor mehrzeilig und am Handy als Inhalt des Detail-Sheets" (feature) — `done/design-system-x045q-detail-memo-als-block-editor-mehrzeilig.md`
 - **design-system-gcpws** — "Liste mit Panel überall: Panel rund 30 % ab 1024 px, auch für Regeln, Erfassen, Targets prüfen und Kategorien, ein generischer Tastentest" (feature) — `done/design-system-gcpws-liste-mit-panel-ueberall.md`
 - **design-system-k6kfw** — "Navigation mit drei Orten: Übersicht, Kassenbuch, Budget, Einstellungen hinter dem Zahnrad, ab 768 px links; dazu eine schlichte Übersicht als Einstieg" (feature) — `done/design-system-k6kfw-navigation-mit-drei-orten.md`

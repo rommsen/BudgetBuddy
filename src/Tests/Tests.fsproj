@@ -190,6 +190,7 @@
     <Compile Include="TargetCheckClientTests.fs" />
     <Compile Include="CategoryAdminClientTests.fs" />
     <Compile Include="DesignSystemStartupTests.fs" />
+    <Compile Include="FeedbackDesignTests.fs" />
     <Compile Include="RuhigeListenTests.fs" />
     <Compile Include="AuswahlTests.fs" />
     <Compile Include="RulesListTests.fs" />

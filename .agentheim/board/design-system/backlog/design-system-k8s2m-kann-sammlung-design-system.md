@@ -67,3 +67,4 @@ Geschnitten und priorisiert wird im Refinement.
 - Work-Lauf 2026-11-19 (ledger-zf6zg): `Money.accountListRow` und `accountListRowWith` haben außer `/styleguide` keinen Nutzer mehr, seit „Neue Buchung“ `Money.accountChoiceRow` nutzt; entfernen oder als Variante begründen.
 - Review-Lauf 2026-11-19 (ledger-zf6zg): §5 „Detail“ nennt für `titleHead` und `formHead` „Titel 17 px halbfett“, der Code nimmt `FontSizes.lg` (16 px, ab md 18 px). Doku oder Token angleichen.
 - Work-Lauf 2026-11-20 (design-system-x045q): der Layout-Sweep ist ein einzelner Test mit rund 300 Läufen und braucht jetzt eine eigene Höchstdauer (360 s in `scripts/layout-invariants.test.mjs`). In zwei Tests teilen (Handy, PC), damit er unter Last wieder unter die gemeinsame Höchstdauer passt.
+- Work-Lauf 2026-11-20 (design-system-ytgnc): der Hinweistext `note` der Styleguide-Galerie (`text-text-muted/80`) hat 3,99:1 und steht deshalb als Ausnahme der Invariante 10 im Zustand `styleguide-rueckmeldung`.

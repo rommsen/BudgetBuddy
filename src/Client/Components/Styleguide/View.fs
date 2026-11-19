@@ -1381,6 +1381,120 @@ let private ToastDemo () =
         ]
     ]
 
+/// Rückmeldung am Handy ohne Toast (Regel R3, ADR 0098, §7.13): die echten Bausteine aus `Feedback`, als Vorschau
+/// im Fluss der Seite. Die Demo „Meldung“ setzt nacheinander die Töne und zeigt Wechsel, Ersetzen und Eingang.
+[<ReactComponent>]
+let private FeedbackDemo () =
+    let undo : Feedback.Act = { Label = "Rückgängig"; OnClick = ignore }
+    let retry : Feedback.Act = { Label = "Erneut"; OnClick = ignore }
+    let add quiet testId : Feedback.Add =
+        { TestId = testId
+          Label = "Buchung"
+          AriaLabel = "Neue Buchung"
+          Quiet = quiet
+          OnClick = ignore
+          HideFrom = Feedback.AddBreakpoint.FromLg }
+    let msg tone action detail act : Feedback.Message =
+        { Tone = tone; Action = action; Detail = detail; Act = act }
+    let examples : (string * Feedback.Message) list =
+        [ "Ok mit Rückgängig", msg Feedback.Tone.Ok "Geprüft" (Some "REWE Markt GmbH Filiale Leipzig-Gohlis") (Some undo)
+          "Zusammengefasst", msg Feedback.Tone.Ok "3 geprüft" (Some "REWE, Bäckerei Schmidt, Tankstelle") (Some undo)
+          "Läuft", msg Feedback.Tone.Running "Abrufen läuft …" None None
+          "Ok ohne Knopf", msg Feedback.Tone.Ok "Abgerufen" (Some "3 neu, 1 geändert") None
+          "Fehler", msg Feedback.Tone.Error "Abrufen gescheitert" (Some "Comdirect antwortet nicht") (Some retry)
+          "Warnung",
+          msg
+              Feedback.Tone.Warning
+              "Prüfvermerk nicht in YNAB"
+              (Some "YNAB hat die Änderung nicht angenommen, BB versucht es beim nächsten Spiegeln erneut")
+              None
+          "Info", msg Feedback.Tone.Info "Regeln neu geladen" (Some "12 Regeln aus rules.yml") None ]
+    let step, setStep = React.useState 0
+    let current = snd examples.[step % examples.Length]
+    let preview (children: ReactElement list) =
+        Html.div [ prop.className "max-w-sm"; prop.children children ]
+    let flashOn, setFlashOn = React.useState 0
+    React.useEffect (
+        (fun () ->
+            if flashOn > 0 then
+                let timer = Fable.Core.JS.setTimeout (fun () -> setFlashOn 0) 700
+                React.createDisposable (fun () -> Fable.Core.JS.clearTimeout timer)
+            else
+                React.createDisposable ignore),
+        [| box flashOn |]
+    )
+
+    section "17a. Rückmeldung (Feedback)" [
+        note "Am Handy (unter 1024 px) kein Toast. Jede Rückmeldung hat einen festen Platz: am Ort (Feld leuchtet, Bestätigung darunter, Zeile „gelöscht“), bei offenem Sheet eine Zeile über dem Hauptknopf, sonst die Meldungsleiste über der Navigation. Immer nur eine Meldung, ohne ✕ und ohne Zeitlimit. styleguide.md §7.13, ADR 0098."
+        Html.div [
+            prop.custom ("data-testid", "styleguide-feedback")
+            prop.className "space-y-4"
+            prop.children [
+                subTitle "Leiste in Ruhe mit „+ Buchung“ (gefüllt und ruhig)"
+                preview [ Feedback.bar Feedback.BarPlacement.Preview None (Some (add false "styleguide-feedback-add")) ]
+                preview [ Feedback.bar Feedback.BarPlacement.Preview None (Some (add true "styleguide-feedback-add-quiet")) ]
+                subTitle "Leiste mit Meldung, „+ Buchung“ rund"
+                for label, m in examples do
+                    React.keyedFragment (label, [
+                        caption label
+                        preview [ Feedback.bar Feedback.BarPlacement.Preview (Some m) (Some (add false $"styleguide-feedback-add-{label}")) ]
+                    ])
+                subTitle "Leiste ohne „+ Buchung“ (nur solange eine Meldung steht)"
+                preview [
+                    Feedback.bar
+                        Feedback.BarPlacement.Preview
+                        (Some (msg Feedback.Tone.Ok "Regel gespeichert" (Some "Bäckerei Schmidt → Lebensmittel") (Some undo)))
+                        None
+                ]
+                subTitle "Lange Aktion: bricht um, die Leiste wächst mit"
+                preview [
+                    Feedback.bar
+                        Feedback.BarPlacement.Preview
+                        (Some (msg Feedback.Tone.Ok "Kategorie geändert und in YNAB nachgezogen, Prüfvermerk gesetzt" (Some "Ein Zahlungsempfänger mit einem sehr langen Namen, der in keine Zeile passt") (Some undo)))
+                        (Some (add false "styleguide-feedback-add-long"))
+                ]
+                subTitle "Demo: Meldung wechseln"
+                row [
+                    Button.secondary "Meldung" (fun () -> setStep (step + 1))
+                ]
+                preview [ Feedback.bar Feedback.BarPlacement.Preview (Some current) (Some (add false "styleguide-feedback-add-demo")) ]
+                subTitle "Zeile im Sheet über dem Hauptknopf"
+                preview [
+                    Html.div [
+                        prop.className "space-y-2"
+                        prop.children [
+                            Feedback.sheetLine (msg Feedback.Tone.Ok "50,00 € nach Reise" None (Some undo))
+                            Feedback.sheetLine
+                                (msg
+                                    Feedback.Tone.Error
+                                    "Nicht verschoben:"
+                                    (Some "YNAB antwortet nicht. Das Geld steht noch in Lebensmittel.")
+                                    (Some { Label = "Erneut senden"; OnClick = ignore }))
+                        ]
+                    ]
+                ]
+                subTitle "Feld mit Leuchten und Bestätigung"
+                row [ Button.secondary "Leuchten" (fun () -> setFlashOn (flashOn + 1)) ]
+                preview [
+                    Html.div [
+                        prop.className "space-y-1"
+                        prop.children [
+                            Html.div [
+                                prop.className (if flashOn > 0 then Feedback.flash else "")
+                                prop.children [
+                                    Input.pickerField "styleguide-feedback-field" "Kategorie" (Some "Bahn") "Kategorie wählen" None false ignore
+                                ]
+                            ]
+                            Feedback.fieldNote "Bahn · 84,20 € verfügbar" (Some undo)
+                        ]
+                    ]
+                ]
+                subTitle "Zeile „gelöscht“ am Platz"
+                preview [ Feedback.removedRow "Regel drei" undo ]
+            ]
+        ]
+    ]
+
 /// BottomSheet-Demo (mobiles Picker-Muster, ADR 0005) per useState.
 [<ReactComponent>]
 let private BottomSheetDemo () =
@@ -2922,6 +3036,7 @@ let view (back: ReactElement) =
                         FormDemo()
                         ModalDemo()
                         ToastDemo()
+                        FeedbackDemo()
                         BottomSheetDemo()
                         CategoryPickerDemo()
                         CategoryPickerSingleDemo()

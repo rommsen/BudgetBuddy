@@ -1,7 +1,7 @@
 ---
 id: design-system-ytgnc
 title: "Rückmeldung am Handy ohne Toast (Regel R3), Teil 1: DS-Baustein `Feedback` (Meldungsleiste mit „+ Buchung“, Zeile im Sheet, Rückgängig am Feld, Zeile „gelöscht“) auf `/styleguide`, Styleguide §7.13, §5 und §6 neu, ADR 0098"
-status: doing
+status: done
 type: feature
 context: design-system
 created: 2026-11-19
@@ -226,3 +226,67 @@ Code heute: `src/Client/DesignSystem/Toast.fs` (Handy-Streifen oben in `containe
 Navigation), `src/Client/DesignSystem/Button.fs` `fab` (Zeile 780), `styles.css` `.toast-above-nav` (Zeile 537),
 `.ledger-capture-fab`/`.overview-capture-fab` (Zeile 2720), `.toast-layer` (Zeile 2614), Styleguide-Demo
 `Components/Styleguide/View.fs` `ToastDemo` (Zeile 1320).
+
+
+## Outcome
+
+Baustein `Feedback` (Regel R3, ADR 0098) gebaut, im Styleguide gezeigt und beschrieben. Die App ist nicht verdrahtet,
+das macht design-system-gkded.
+
+- `src/Client/DesignSystem/Feedback.fs` (neu, im `Client.fsproj` nach `Toast.fs`), keine App-Typen. Typen: `Tone`
+  (Ok, Warning, Error, Running, Info), `Act`, `Message`, `Add` mit `AddBreakpoint` (FromMd, FromLg), `AddShape` (Wide,
+  Round), `BarPlacement` (Docked, Preview). Reine Funktionen: `barVisible`, `addShape` und `parts` (Zeichen und Farbe,
+  Farbe der Aktion, ob der Grund umbricht, ob der Knopf steht, ob `role="alert"`). Views: `bar placement message add`,
+  `sheetLine`, `fieldNote`, `flash` (Klasse `feedback-flash`), `removedRow name undo`.
+  Die Signatur von `bar` hat zusätzlich `BarPlacement`. Die Lage am Rand kommt von der App über CSS-Variablen
+  (`--feedback-bar-bottom`, `--feedback-bar-left` in `.feedback-bar-docked`), im Modul steht keine feste Zahl. `Docked`
+  ist `fixed`, `ZIndex.fixed'` (30) und `lg:hidden`; `HideFrom` blendet „+ Buchung“ nur in `Docked` aus (`md:hidden`
+  bzw. `lg:hidden`). `Preview` steht im Fluss der Seite und zeigt den Knopf auf jeder Breite.
+  `removedRow` nimmt den Namen und setzt „„Name“ gelöscht“ selbst zusammen, damit nur der Name gekürzt wird.
+- `src/Client/styles.css`: `.feedback-in` (Keyframes `msgIn`, 180 ms, ease-out, 6 px), `.feedback-flash` (Keyframes
+  `feedbackFlash`, 0,7 s, Rand und Ring im Akzent; sitzt die Klasse auf der Hülle eines `.input-field`, leuchtet das
+  Feld selbst), `.feedback-bar-docked`. Im Block `prefers-reduced-motion` stehen beide ohne Animation, der Ring des
+  Leuchtens bleibt stehen, bis die App die Klasse abnimmt.
+- `/styleguide`, Abschnitt „17a. Rückmeldung (Feedback)“ (`FeedbackDemo` in `Components/Styleguide/View.fs`, per
+  `useState`): Leiste in Ruhe gefüllt und ruhig, Leiste mit Meldung in jedem Ton (Ok „Geprüft“ mit Rückgängig, „3
+  geprüft“, Läuft „Abrufen läuft …“, Ok „Abgerufen“ / „3 neu, 1 geändert“, Fehler „Abrufen gescheitert“ / Erneut,
+  Warnung „Prüfvermerk nicht in YNAB“ mit langem Grund, Info), Leiste ohne Knopf, lange Aktion, Demo „Meldung“
+  (wechselt die Töne), Zeile im Sheet (Ok und Fehler mit „Erneut senden“), Feld mit „Leuchten“ und Bestätigung, Zeile
+  „gelöscht“. `ToastDemo` bleibt.
+- Styleguide: §7.13 neu (Plätze 1 bis 3, Grenze 1024 px, eine Meldung, Zusammenfassen, kein ✕ und kein Zeitlimit,
+  Fehler rot am Platz, Zustand als `ErrorDisplay.notice`, Zeile „gelöscht“, PC nur für Meldungen ohne Ort, höchstens
+  einer, 5 s, ✕; Quelle ADR 0098 und ADR 0087 Punkt 22; der Satz „Am Handy steht sie oben …“ ist gestrichen). §5:
+  neue Zeile `Feedback`, Zeile `Toast` und `ErrorDisplay` angepasst, Zähler 27. §6: Absatz zur Toast-Platzierung
+  ersetzt, Einträge für `msgIn` und Leuchten. §2: „Leiste, Feld“ ergänzt.
+- Tests: `src/Tests/FeedbackDesignTests.fs` (8 Tests: keine Leiste ohne Meldung und Knopf; Leiste mit nur Knopf oder
+  nur Meldung; breit ohne, rund mit Meldung; Knopf nur mit `Act`; Zeichen je Ton; Farbe der Aktion; Umbruch des Grunds
+  nur bei Fehler und Warnung; nur Fehler als Alert). Gegenprobe: mit `&&` statt `||` in `barVisible`, `Wide` statt
+  `Round` in `addShape` und `ShowsAct = true` waren 3 von 8 rot, danach wiederhergestellt.
+  Layout-Sweep: neuer Zustand `styleguide-rueckmeldung` (`scripts/layout-states.mjs`, Route `/styleguide`, 320, 390,
+  412 px, blendet die übrigen Abschnitte aus) mit allen Invarianten grün. Gegenprobe mit injiziertem CSS: eine auf eine
+  Zeile gekürzte Aktion meldet Invariante 4, Knöpfe mit 30 px melden Invariante 2. Benannte Ausnahme: Invariante 10 für
+  den Hinweistext `note` der Galerie (`text-text-muted/80`, 3,99:1) bei allen drei Breiten.
+- `./verify.sh`: `VERIFY: PASS` (dotnet 5222, node 351). Ein früherer Lauf unter hoher Last (Load 30, parallele
+  Worker) brach den ganzen Sweep beim Zeitlimit von 120 s ab; der Sweep liegt auch ohne Last bei rund 108 s.
+
+Abweichungen (alle in der Task genannt oder mit Grund): Schrift 13/12 px statt 13,5/12,5 px; Trefferflächen 48 px
+statt 28 bis 44 px; der Grund bricht bei Fehler und Warnung um (höchstens drei Zeilen, ganzer Text im `title`); Ton
+Info zusätzlich. Radius der Zeile „gelöscht“ ist `Radius.lg` (12 px) statt 10 px, weil 8 und 12 gleich weit entfernt
+sind und die Zeile wie eine Karte in der Liste steht. Ein Fehler in der Zeile im Sheet zeigt Aktion und Grund in einem
+umbrechenden Text, eine Warnung dort auf gelb getönter Fläche (in der Skizze gibt es keine Warnung im Sheet).
+
+Vergleich mit der Skizze (Screenshots unter
+`/private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/4b5cf62e-3174-40e3-90f3-4b5312280eb9/scratchpad/result-shots/design-system-ytgnc/`):
+- `rueckmeldung-412.png` (ganzer Abschnitt bei 412 px) neben `skizze-shots/22-kassenbuch-geprueft.png`,
+  `23-kassenbuch-3-geprueft.png`, `24-kassenbuch-abrufen-laeuft.png`, `26-kassenbuch-abrufen-fehler.png`: grünes ✓,
+  halbfette Aktion, Name gekürzt mit „…“, „Rückgängig“/„Erneut“ im Akzent, rundes gefülltes „+“, Fehler mit rotem !
+  und roter Aktion, Läuft ohne Zeichen gedämpft. Unterschiede nur die oben genannten.
+- dieselbe Datei neben `31-budget-sheet-geld.png`: „✓ 50,00 € nach Reise · Rückgängig“ als eine Zeile, gleich.
+- dieselbe Datei neben `33-regeln-geloescht-zeile.png`: gestrichelte Zeile mit „„Regel drei“ gelöscht“ links und
+  „Rückgängig“ rechts, Radius 12 statt 10 px, Höhe 48 statt 44 px.
+- `feld-leuchten-412.png` neben `06-kategorie-aus-vorschlag.png`: Feld mit Rand und Ring im Akzent, darunter „Bahn ·
+  84,20 € verfügbar · Rückgängig“.
+[human-eye] Gesamteindruck bleibt für Roman.
+
+Kann-Sammlung design-system: der Hinweistext `note` der Styleguide-Galerie (`text-text-muted/80`) hat 3,99:1 und
+steht deshalb als Ausnahme der Invariante 10 im Zustand `styleguide-rueckmeldung`.

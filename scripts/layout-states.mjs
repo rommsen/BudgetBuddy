@@ -2386,6 +2386,29 @@ export const STATES = [
     mock: (page) => mockLedger(page, { held: true }),
     open: async (page) => page.getByText(HELD_PAYEE, { exact: true }).locator("visible=true").first().waitFor(),
   },
+  // design-system-ytgnc (ADR 0098): der Abschnitt „Rückmeldung“ auf /styleguide mit den echten Bausteinen aus
+  // `Feedback`. Die Aktion einer Meldung bricht um (lange Aktion), der Name steht auf einer Zeile mit „…“ und
+  // `title`, bei Fehler und Warnung bricht der Grund um; Knöpfe 48 px, nichts überdeckt sich. Die übrigen Abschnitte
+  // der Galerie werden ausgeblendet, gemessen wird nur dieser.
+  {
+    name: "styleguide-rueckmeldung",
+    route: "/styleguide",
+    widths: [320, 390, 412],
+    mock: mockApp,
+    open: async (page) => {
+      await page.getByTestId("styleguide-feedback").waitFor();
+      await page.evaluate(() => {
+        let node = document.querySelector('[data-testid="styleguide-feedback"]').closest("section");
+        for (let i = 0; i < 2; i++) {
+          for (const sibling of node.parentElement.children) if (sibling !== node) sibling.style.display = "none";
+          node = node.parentElement;
+        }
+      });
+    },
+    // Der Hinweistext der Galerie (`note` in Components/Styleguide/View.fs, `text-text-muted/80`) hat 3,99:1, in
+    // jedem Abschnitt der Galerie, nicht nur in diesem. Kann-Sammlung design-system.
+    exceptions: [320, 390, 412].map((width) => ({ width, inv: 10, selector: 'p "Am Handy (unter 1024 px) kein Toast.' })),
+  },
 ];
 
 export const stateNamed = (name) => {

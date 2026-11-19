@@ -559,6 +559,52 @@ nav a:focus-visible {
   }
 }
 
+/* Rückmeldung (Baustein `Feedback`, ADR 0098, Styleguide §6 und §7.13, design-system-ytgnc).
+   Eingang der Meldung: Einblenden und 6 px von unten in 180 ms, ohne Abgang (sie wird ersetzt). Die Klasse sitzt
+   auf dem inneren Element der Meldung, nie auf der festen Leiste (css-animation-safety). */
+.feedback-in {
+  animation: msgIn 180ms ease-out both;
+}
+
+@keyframes msgIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Leuchten (`Feedback.flash`): Rand und Ring im Akzent, rund 0,7 s, dann zurück. Ohne Bewegung steht der Ring,
+   solange die Klasse sitzt (Block `prefers-reduced-motion` unten). Sitzt die Klasse auf der Hülle eines Felds
+   (`Input.pickerField` nimmt keine Klasse), leuchtet das Feld selbst. */
+.feedback-flash:not(:has(> .input-field)),
+.feedback-flash > .input-field {
+  animation: feedbackFlash 0.7s ease-out;
+}
+
+@keyframes feedbackFlash {
+  0%,
+  60% {
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 22%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 3px transparent;
+  }
+}
+
+/* Lage der Meldungsleiste unter 1024 px (`Feedback.bar BarPlacement.Docked`). Die App setzt
+   `--feedback-bar-bottom` (über der Navigation unten oder am Rand mit Safe-Area) und `--feedback-bar-left`
+   (rechts der Rail von 768 bis 1023 px), design-system-gkded. Ohne Angabe: über der Navigation unten. */
+.feedback-bar-docked {
+  left: var(--feedback-bar-left, 0px);
+  right: 0;
+  bottom: var(--feedback-bar-bottom, calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px)));
+}
+
 /* Bounce subtle (for attention) */
 .animate-bounce-subtle {
   animation: bounceSubtle 0.5s ease;
@@ -737,6 +783,16 @@ nav a:focus-visible {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+  /* Rückmeldung (ADR 0098): die Meldung steht sofort, das Leuchten steht als Ring, bis die App die Klasse abnimmt. */
+  .feedback-in {
+    animation: none !important;
+  }
+  .feedback-flash:not(:has(> .input-field)),
+  .feedback-flash > .input-field {
+    animation: none !important;
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 22%, transparent);
   }
 }
 
