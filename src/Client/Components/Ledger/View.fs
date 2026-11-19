@@ -5073,7 +5073,28 @@ let reviewMatchRow
 let reviewKeys : (string * string) list =
     [ "Enter", "passt"; "S", "später"; "K", "Kategorie"; "L", "Lena"; "Esc", "zurück" ]
 
-let reviewSwipeHintText = "Nach rechts wischen heißt „Passt“, nach links „Später“."
+let reviewSwipeHintText = "Wischen: rechts „Passt“, links „Später“"
+/// Während eines Wischs nach rechts ohne Kategorie in der Zeile unter dem Knopf (ledger-s2cg3, statt eines Toasts).
+let reviewNeedsTargetFootText = "Erst Kategorie wählen"
+
+/// Der Weg, auf dem Knöpfe und Tasten die Karte am Handy hinausfliegen lassen (Skizze ledger-vf5h6 `leave`).
+type ReviewLeaveSlot = IRefValue<(ReviewCard.SwipeLeave -> (unit -> unit) -> unit) option>
+
+/// Wie eine Taste die Karte verlässt: S nach links mit eingerasteter Fläche, L nach links ohne Fläche, nur wenn Lena
+/// gefragt wird (nicht beim Zurücknehmen, nicht gesperrt). Enter fliegt über `Confirming`, alles andere bleibt. Rein.
+let reviewLeaveOf (model: Model) (action: ReviewKeyAction) : ReviewCard.SwipeLeave option =
+    match action, reviewCardOf model with
+    | KeySkip, Some _ -> Some ReviewCard.LeaveSkip
+    | KeyLena, Some card when reviewCardKindOf card = NormalCard ->
+        let lena = lenaActionFor model.LenaFlagColor card
+        if lena.Target = AssignLena && lena.DisabledReason.IsNone then Some ReviewCard.LeaveQuiet else None
+    | _ -> None
+
+/// Führt `action` aus; steht die Bühne (Handy), fliegt die Karte vorher hinaus.
+let private leaveThen (slot: ReviewLeaveSlot) (kind: ReviewCard.SwipeLeave option) (action: unit -> unit) =
+    match kind, slot.current with
+    | Some k, Some leave -> leave k action
+    | _ -> action ()
 let reviewLenaHintText = "ist gefragt. Die Buchung bleibt offen, bis Lena oder du sie prüft."
 
 /// Liegt etwas über der Karte, das Tasten selbst behandelt (Picker, Payee, Memo, Betrag, Split)? Dann
@@ -5110,7 +5131,7 @@ let reviewKeyRoute
     routePageKey ruleFormOpen modifier key (reviewKeyFor model tagName isContentEditable modifier key)
 
 [<ReactComponent>]
-let private ReviewKeyboard (model: Model) (dispatch: Msg -> unit) (ruleForm: EntryRuleForm option) =
+let private ReviewKeyboard (model: Model) (dispatch: Msg -> unit) (ruleForm: EntryRuleForm option) (leave: ReviewLeaveSlot) =
     let modelRef = React.useRef model
     modelRef.current <- model
     let dispatchRef = React.useRef dispatch
@@ -5129,7 +5150,7 @@ let private ReviewKeyboard (model: Model) (dispatch: Msg -> unit) (ruleForm: Ent
                     match reviewKeyRoute modelRef.current form.IsSome tagName editable (ke.ctrlKey || ke.metaKey || ke.altKey) ke.key with
                     | Some (PageAction action) ->
                         ke.preventDefault ()
-                        dispatchRef.current (ReviewKey action)
+                        leaveThen leave (reviewLeaveOf modelRef.current action) (fun () -> dispatchRef.current (ReviewKey action))
                     | Some RuleFormBack ->
                         ke.preventDefault ()
                         form |> Option.iter (fun f -> f.OnBack ())
@@ -5141,62 +5162,6 @@ let private ReviewKeyboard (model: Model) (dispatch: Msg -> unit) (ruleForm: Ent
     )
     Html.none
 
-[<Emit("$0.style.transform = $1")>]
-let private setCardTransform (element: Browser.Types.HTMLElement) (value: string) : unit = jsNative
-
-[<Emit("$0.style.opacity = $1")>]
-let private setCardOpacity (element: Browser.Types.HTMLElement) (value: string) : unit = jsNative
-
-/// Die Karte folgt beim Wischen dem Finger und wird blasser (Prototyp `touchmove`); am Ende entscheidet
-/// `reviewSwipeOf` über den Weg (waagrecht und senkrecht). Bricht der Browser die Geste ab (`touchcancel`,
-/// etwa weil er scrollt), steht die Karte wieder an ihrem Platz und nichts wird entschieden.
-[<ReactComponent>]
-let private SwipeableReviewCard (enabled: bool) (onSwiped: float * float -> unit) (content: ReactElement list) =
-    let start = React.useRef<(float * float) option> None
-    let element = React.useRef<Browser.Types.HTMLElement option> None
-    let reset () =
-        match element.current with
-        | Some el ->
-            setCardTransform el ""
-            setCardOpacity el ""
-        | None -> ()
-    let swipeProps : IReactProperty list =
-        if not enabled then []
-        else
-            [ prop.onTouchStart (fun e ->
-                  if e.touches.Length > 0 then
-                      let t = e.touches.[0]
-                      start.current <- Some (t.clientX, t.clientY))
-              prop.onTouchMove (fun e ->
-                  match start.current, element.current with
-                  | Some (sx, sy), Some el when e.touches.Length > 0 ->
-                      let t = e.touches.[0]
-                      let dx = t.clientX - sx
-                      let dy = t.clientY - sy
-                      if abs dx > abs dy then
-                          setCardTransform el $"translateX({dx * 0.6}px)"
-                          setCardOpacity el (string (1.0 - min (abs dx / 400.0) 0.5))
-                  | _ -> ())
-              prop.onTouchEnd (fun e ->
-                  match start.current with
-                  | Some (sx, sy) when e.changedTouches.Length > 0 ->
-                      start.current <- None
-                      reset ()
-                      let t = e.changedTouches.[0]
-                      onSwiped (t.clientX - sx, t.clientY - sy)
-                  | _ ->
-                      start.current <- None
-                      reset ())
-              prop.onTouchCancel (fun _ ->
-                  start.current <- None
-                  reset ()) ]
-    ReviewCard.card
-        false
-        ([ prop.custom ("data-testid", "review-card")
-           prop.ref (fun (el: Browser.Types.Element) -> element.current <- (if isNull el then None else Some (el :?> Browser.Types.HTMLElement))) ]
-         @ swipeProps)
-        content
-
 /// Der Name eines Kontos des Kassenbuchs.
 let private reviewAccountName (model: Model) (accountId: Guid) : string =
     match model.Accounts with
@@ -5206,9 +5171,13 @@ let private reviewAccountName (model: Model) (accountId: Guid) : string =
 
 let private amountText (m: Money) = Money.formatAmountText false true m.Amount m.Currency
 
-/// Die normale Karte mit den Knöpfen darunter.
-let private reviewNormalCard (dispatch: Msg -> unit) (model: Model) (review: ReviewSession) (entry: LedgerEntryView) (desk: bool) =
+/// Die normale Karte mit den Knöpfen darunter. Am Handy steht sie auf der Bühne (`ReviewCard.SwipeStage`): sie füllt
+/// den Platz bis zu den Knöpfen, wischt mit Fläche darunter, und unter „Passt, weiter“ steht die Zeile mit fester Höhe.
+[<ReactComponent>]
+let private ReviewNormalCard (dispatch: Msg -> unit) (model: Model) (review: ReviewSession) (entry: LedgerEntryView) (desk: bool) (leave: ReviewLeaveSlot) =
     let today = DateTime.Today
+    // Ein Wisch nach rechts ohne Kategorie läuft: Satz in der Zeile, Feld in Gelb (Skizze `needHint`).
+    let needsTarget, setNeedsTarget = React.useState false
     let pickerOpen = model.CategoryPickerFor = Some entry.Id && not review.DetailShown
     let pickerProps = detailPickerProps dispatch model entry
     let hasTarget = reviewHasTarget entry
@@ -5219,9 +5188,8 @@ let private reviewNormalCard (dispatch: Msg -> unit) (model: Model) (review: Rev
         | ReviewSplit -> ReviewCard.field "review-category" "Kategorie" (Some "Aufgeteilt") "" false None
         | value ->
             let shown = match value with ReviewCategoryNamed n -> Some n | _ -> None
-            ReviewCard.field "review-category" "Kategorie" shown "Kategorie wählen" pickerOpen (Some (fun () -> dispatch ReviewOpenCategory))
-    React.fragment [
-        SwipeableReviewCard (not desk) (ReviewSwiped >> dispatch) [
+            ReviewCard.fieldNeeding (needsTarget && not hasTarget) "review-category" "Kategorie" shown "Kategorie wählen" pickerOpen (Some (fun () -> dispatch ReviewOpenCategory))
+    let content = [
             ReviewCard.meta (reviewMetaText today (reviewAccountName model entry.AccountId) entry)
             ReviewCard.payee
                 (payeeLabel entry)
@@ -5280,6 +5248,20 @@ let private reviewNormalCard (dispatch: Msg -> unit) (model: Model) (review: Rev
             else
                 ReviewCard.detailsLink (fun () -> dispatch ReviewShowDetails)
         ]
+    let cardProps = [ prop.custom ("data-testid", "review-card") ]
+    React.fragment [
+        if desk then ReviewCard.card false cardProps content
+        else
+            ReviewCard.SwipeStage
+                { Enabled = true
+                  CardKey = string entry.Id
+                  Holding = review.Confirming = Some entry.Id
+                  OffsetOf = reviewSwipeOffset hasTarget
+                  SurfaceOf = reviewSwipeSurface hasTarget
+                  OnRelease = fun dx dy -> dispatch (ReviewSwiped (dx, dy))
+                  OnSurface = fun surface -> setNeedsTarget (surface = ReviewCard.SurfaceNoTarget)
+                  Leave = leave
+                  Card = ReviewCard.cardFill false cardProps content }
         Html.div [
             prop.className "grid grid-cols-2 gap-2"
             prop.children [
@@ -5298,7 +5280,8 @@ let private reviewNormalCard (dispatch: Msg -> unit) (model: Model) (review: Rev
                         IsDisabled = lena.DisabledReason.IsSome
                         Title = lena.DisabledReason
                         IsBusy = (model.FlagRows |> Map.tryFind entry.Id) = Some FlagSending
-                        OnClick = fun () -> dispatch ReviewLena }
+                        // „Lena fragen“ fliegt nach links ohne Fläche, „Rückfrage zurücknehmen“ lässt die Karte stehen.
+                        OnClick = fun () -> leaveThen leave (reviewLeaveOf model KeyLena) (fun () -> dispatch ReviewLena) }
                 Button.view
                     { Button.defaultProps with
                         Text = "Später"
@@ -5306,39 +5289,50 @@ let private reviewNormalCard (dispatch: Msg -> unit) (model: Model) (review: Rev
                         Size = Button.Choice
                         ClassName = Some "min-h-[52px]"
                         FullWidth = true
-                        OnClick = fun () -> dispatch ReviewSkip }
+                        OnClick = fun () -> leaveThen leave (Some ReviewCard.LeaveSkip) (fun () -> dispatch ReviewSkip) }
             ]
         ]
         // Der Grund der Sperre steht als Text da, nicht nur im `title` (ledger-dn4vy, wie im Detail).
         match lena.DisabledReason with
         | Some reason -> ReviewCard.meta reason
         | None -> ()
-        Button.view
-            { Button.defaultProps with
-                Text = (if hasTarget then "Passt, weiter" else "Erst Kategorie wählen")
-                Variant = Button.Primary
-                Size = Button.Choice
-                FullWidth = true
-                Glow = false
-                ClassName = Some "min-h-[54px]"
-                IsDisabled = not hasTarget || categoryBusy
-                IsBusy = review.Confirming = Some entry.Id
-                OnClick = fun () -> dispatch ReviewConfirm }
-        if not desk then ReviewCard.hint reviewSwipeHintText
+        let primary =
+            Button.view
+                { Button.defaultProps with
+                    Text = (if hasTarget then "Passt, weiter" else "Erst Kategorie wählen")
+                    Variant = Button.Primary
+                    Size = Button.Choice
+                    FullWidth = true
+                    Glow = false
+                    ClassName = Some "min-h-[54px]"
+                    IsDisabled = not hasTarget || categoryBusy
+                    IsBusy = review.Confirming = Some entry.Id
+                    OnClick = fun () -> dispatch ReviewConfirm }
+        if desk then primary
+        else
+            // Knopf und Zeile ohne Abstand dazwischen: die Zeile trägt ihn selbst (Skizze `.ph-foot`).
+            Html.div [
+                prop.className "flex shrink-0 flex-col"
+                prop.children [
+                    primary
+                    ReviewCard.foot (if needsTarget && not hasTarget then ReviewCard.FootNeed reviewNeedsTargetFootText else ReviewCard.FootHint reviewSwipeHintText)
+                ]
+            ]
         // Kategorieauswahl am Handy: das Sheet über der Seite (die Karte ist kein Sheet).
         if not desk then
             CategoryPicker.sheet pickerOpen (Some $"{payeeLabel entry} · {amountText entry.Amount}") pickerProps
     ]
 
 /// Die Duplikat-Karte einer wartenden Buchung (ADR 0093): gelber Rand, der Treffer im Kassenbuch, „Ist neu“
-/// und „Ist doppelt, verwerfen“. Kein Wischen, keine Hinweiszeile.
-let private reviewDuplicateCard (dispatch: Msg -> unit) (model: Model) (review: ReviewSession) (entry: LedgerEntryView) (duplicate: PossibleDuplicateView) =
+/// und „Ist doppelt, verwerfen“. Kein Wischen. Am Handy füllt sie den Platz, darunter steht die leere Zeile, damit die
+/// Knöpfe über alle Kartenarten an derselben Stelle stehen.
+let private reviewDuplicateCard (dispatch: Msg -> unit) (model: Model) (review: ReviewSession) (entry: LedgerEntryView) (duplicate: PossibleDuplicateView) (desk: bool) =
     let today = DateTime.Today
     let resolved = duplicate.MatchEntryId |> Option.bind (fun id -> review.Matches |> Map.tryFind id)
     let matchPayee, matchMeta, matchAmount = reviewMatchRow today (reviewAccountName model) entry resolved duplicate
     let deciding = review.Deciding = Some entry.Id
     React.fragment [
-        ReviewCard.card true [ prop.custom ("data-testid", "review-duplicate-card") ] [
+        (if desk then ReviewCard.card else ReviewCard.cardFill) true [ prop.custom ("data-testid", "review-duplicate-card") ] [
             ReviewCard.metaAttention "Möglicherweise doppelt · noch nicht in YNAB"
             ReviewCard.payee (payeeLabel entry) (payeeMissing entry) "" None
             ReviewCard.amount (amountText entry.Amount)
@@ -5371,6 +5365,7 @@ let private reviewDuplicateCard (dispatch: Msg -> unit) (model: Model) (review: 
                         OnClick = fun () -> dispatch ReviewDiscard }
             ]
         ]
+        if not desk then ReviewCard.foot ReviewCard.FootEmpty
     ]
 
 /// Memo und Payee der Karte: am Handy ein Sheet, am PC ein Dialog.
@@ -5446,6 +5441,7 @@ let ReviewPage (model: Model) (dispatch: Msg -> unit) (onBack: unit -> unit) (ru
     // Das Regel-Formular aus der Buchung (ledger-hg5m5): mit Detail ersetzt es dessen Inhalt, sonst steht es über der
     // Karte, am PC als Dialog, am Handy als Sheet. Nach Anlegen oder Abbrechen steht dieselbe Karte da.
     let openRuleForm = ruleForm (not desk)
+    let leave : ReviewLeaveSlot = React.useRef None
     let form = if desk then DetailPanel else DetailSheet
     React.useEffect ((fun () -> if model.DetailForm <> form then dispatch (DetailFormChanged form)), [| box form; box model.DetailForm |])
     match model.Review with
@@ -5472,8 +5468,8 @@ let ReviewPage (model: Model) (dispatch: Msg -> unit) (onBack: unit -> unit) (ru
                   match card with
                   | Some entry ->
                       match entry.PossibleDuplicate with
-                      | Some duplicate -> reviewDuplicateCard dispatch model review entry duplicate
-                      | None -> reviewNormalCard dispatch model review entry desk
+                      | Some duplicate -> reviewDuplicateCard dispatch model review entry duplicate desk
+                      | None -> ReviewNormalCard dispatch model review entry desk leave
                       // Mit offenem Detail öffnen Payee und Memo dort (Inhalt des Sheets, Feld im Panel, ein Dialog
                       // für Payee am PC), keine zweite Ebene darüber (ledger-hme9k).
                       if reviewEditorPlace review = ReviewEditorPlace.OverCard then reviewEditors dispatch model entry desk
@@ -5497,11 +5493,16 @@ let ReviewPage (model: Model) (dispatch: Msg -> unit) (onBack: unit -> unit) (ru
             else ruleFormSheet (if card.IsSome && not review.DetailShown then openRuleForm else None)
         Html.div [
             prop.custom ("data-testid", "review-page")
-            prop.className ("relative flex min-h-full flex-col" + (if desk && review.DetailShown then $" {Tokens.PanelWidths.columnInsetPlain}" else ""))
+            // Am Handy genau so hoch wie der sichtbare Bereich (`review-page-fit`): die Seite scrollt nicht, die Karte nimmt
+            // den Rest (ledger-s2cg3).
+            prop.className (
+                if desk then "relative flex min-h-full flex-col" + (if review.DetailShown then $" {Tokens.PanelWidths.columnInsetPlain}" else "")
+                else "review-page-fit relative flex flex-col"
+            )
             yield! Badge.lenaFlagScope (lenaColorOf model.LenaFlagColor)
             prop.children [
                 Html.div [
-                    prop.className "mx-auto flex w-full max-w-[620px] flex-1 flex-col gap-3"
+                    prop.className "mx-auto flex min-h-0 w-full max-w-[620px] flex-1 flex-col gap-3"
                     prop.children [ header; yield! body ]
                 ]
                 if desk && card.IsSome then
@@ -5509,6 +5510,6 @@ let ReviewPage (model: Model) (dispatch: Msg -> unit) (onBack: unit -> unit) (ru
                 detail
                 ruleSheetOverCard
                 // Über dem Regel-Formular gelten die Tasten des Durchgehens nicht, Esc führt zur Karte zurück (`reviewKeyRoute`).
-                ReviewKeyboard model dispatch openRuleForm
+                ReviewKeyboard model dispatch openRuleForm leave
             ]
         ]

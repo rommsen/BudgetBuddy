@@ -2795,7 +2795,34 @@ let private reviewCardSection =
                     ReviewCard.amount "-42,80 €"
                     ReviewCard.field "demo-review-missing" "Kategorie" None "Kategorie wählen" false (Some ignore)
                 ]
-                ReviewCard.hint "Nach rechts wischen heißt „Passt“, nach links „Später“."
+                ReviewCard.foot (ReviewCard.FootHint "Wischen: rechts „Passt“, links „Später“")
+                ReviewCard.foot (ReviewCard.FootNeed "Erst Kategorie wählen")
+                ReviewCard.foot ReviewCard.FootEmpty
+            ]
+        ]
+        subTitle "ReviewCard.foot"
+        note "Die Zeile unter dem Hauptknopf: 54 px samt Abstand, einzeilig, mittig, 12 px. Hinweis in text-secondary, „Erst Kategorie wählen“ in attention halbfett, unter der Duplikat-Karte leer. Die Höhe ist immer dieselbe, die Knöpfe springen nie."
+        subTitle "ReviewCard.SwipeStage (Wischen mit Fläche)"
+        note "Am Handy: die Karte folgt dem Finger 1:1, darunter die Fläche über die ganze Karte. Rechts Haken über „Passt“ (grün getönt), links Uhr über „Später“ (neutral). Eingerastet ab der Grenze von reviewSwipeOf (90 px): Fläche kräftiger, Kreis gefüllt, Spalte etwas größer, kurzer Vibrationsimpuls. Ohne Kategorie nach rechts nur ein gelbes „!“, die Karte geht ab 72 px zäh mit und rastet nie ein. Unter der Grenze federt sie zurück, darüber fliegt sie hinaus; die nächste Karte blendet sich ein. Ruhige Beispiele der Zustände:"
+        let demoCard =
+            ReviewCard.cardFill false [] [
+                ReviewCard.meta "Heute · Girokonto · Comdirect-Import"
+                ReviewCard.payee "Amazon" false "" None
+                ReviewCard.amount "-21,50 €"
+            ]
+        Html.div [
+            prop.className "max-w-md flex flex-col gap-3"
+            prop.children [
+                ReviewCard.caption "demo-swipe-rest" "Ruhe"
+                ReviewCard.swipeExample ReviewCard.SurfaceRest 0.0 demoCard
+                ReviewCard.caption "demo-swipe-right" "Rechts unter der Grenze"
+                ReviewCard.swipeExample (ReviewCard.SurfaceConfirm false) 60.0 demoCard
+                ReviewCard.caption "demo-swipe-right-armed" "Rechts eingerastet"
+                ReviewCard.swipeExample (ReviewCard.SurfaceConfirm true) 110.0 demoCard
+                ReviewCard.caption "demo-swipe-left-armed" "Links eingerastet"
+                ReviewCard.swipeExample (ReviewCard.SurfaceSkip true) -110.0 demoCard
+                ReviewCard.caption "demo-swipe-no-target" "Ohne Kategorie"
+                ReviewCard.swipeExample ReviewCard.SurfaceNoTarget 76.0 demoCard
             ]
         ]
         subTitle "ReviewCard.card (Duplikat, gelber Rand)"

@@ -4712,7 +4712,8 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         | Some card when reviewCardKindOf card = NormalCard ->
             match reviewSwipeOf dx dy with
             | SwipeConfirm when reviewHasTarget card -> updateCore ReviewConfirm model
-            | SwipeConfirm -> model, Cmd.none, ShowToast (reviewNeedsTargetText, ToastInfo)
+            // Ohne Ziel steht „Erst Kategorie wählen“ während des Wischs in der Zeile unter dem Knopf (View).
+            | SwipeConfirm -> model, Cmd.none, NoOp
             | SwipeSkip -> updateCore ReviewSkip model
             | SwipeNothing -> model, Cmd.none, NoOp
         | _ -> model, Cmd.none, NoOp

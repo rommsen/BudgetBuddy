@@ -714,6 +714,8 @@ const openReviewDetails = async (page) => {
   await page.locator('[data-testid="review-details"]').first().click();
   await page.locator('[data-testid="detail-payee"]').filter({ visible: true }).first().waitFor();
 };
+/// Die Zeile unter dem Hauptknopf am Handy (ledger-s2cg3): ohne Scrollen im Bild. Am PC gibt es sie nicht.
+const reviewFoot = (page, { mobile }) => (mobile ? page.locator('[data-testid="review-foot"]') : null);
 const reviewPrimary = (name) => (page) => page.getByRole("button", { name, exact: true }).locator("visible=true").first();
 
 // ============================================================
@@ -2018,6 +2020,7 @@ export const STATES = [
     mock: (page) => mockReview(page, [REVIEW_QUEUE.plain]),
     open: reviewOpen("review-card"),
     primary: reviewPrimary("Passt, weiter"),
+    reach: reviewFoot,
   },
   // ledger-gy77x: die Karte einer gefragten Buchung. „Rückfrage zurücknehmen“ (Text aus `lenaActionFor`, statt des
   // gekürzten „Rückfrage zurück“) bricht in der halben Breite um und wird nicht abgeschnitten (Invarianten 3 und 4),
@@ -2029,6 +2032,7 @@ export const STATES = [
     mock: (page) => mockReview(page, [REVIEW_QUEUE.lena]),
     open: async (page) => page.getByRole("button", { name: "Rückfrage zurücknehmen", exact: true }).first().waitFor(),
     primary: reviewPrimary("Passt, weiter"),
+    reach: reviewFoot,
   },
   {
     name: "durchgehen-amazon",
@@ -2037,10 +2041,21 @@ export const STATES = [
     mock: (page) => mockReview(page, [REVIEW_QUEUE.amazon]),
     open: async (page) => page.locator('[data-testid="review-suggestions"]').first().waitFor(),
     primary: reviewPrimary("Passt, weiter"),
-    // ledger-gy77x: „Rückfrage zurücknehmen“ (statt „Rückfrage zurück“) passt bei 320 px nicht in die halbe Breite,
-    // „zurücknehmen“ allein ist breiter als der Knopf und wird getrennt (drei Zeilen). Auf dieser längsten Karte
-    // (Vorschläge, Bestell-Link, Lena-Hinweis) liegt „Passt, weiter“ dann 8 px unter dem Rand. Kann-Sammlung ledger.
-    exceptions: [{ width: 320, inv: 7, selector: '[data-testid="review-page"] button "Passt, weiter"' }],
+    // ledger-s2cg3: die Seite passt ohne Scrollen, langer Inhalt scrollt in der Karte. Die Ausnahme aus ledger-gy77x
+    // („Passt, weiter“ bei 320 px 8 px unter dem Rand, Kann-Sammlung ledger Punkt 150) ist gestrichen.
+    reach: reviewFoot,
+  },
+  // ledger-s2cg3: ein niedriger Viewport (412 × 600). Die Karte scrollt innen, „Passt, weiter“ und die Zeile darunter
+  // bleiben im Bild.
+  {
+    name: "durchgehen-amazon-niedrig",
+    route: "/review",
+    widths: [412],
+    height: 600,
+    mock: (page) => mockReview(page, [REVIEW_QUEUE.amazon]),
+    open: async (page) => page.locator('[data-testid="review-suggestions"]').first().waitFor(),
+    primary: reviewPrimary("Passt, weiter"),
+    reach: reviewFoot,
   },
   {
     name: "durchgehen-duplikat",
@@ -2049,6 +2064,7 @@ export const STATES = [
     mock: (page) => mockReview(page, [REVIEW_QUEUE.held]),
     open: reviewOpen("review-duplicate-card"),
     primary: reviewPrimary("Ist doppelt, verwerfen"),
+    reach: reviewFoot,
   },
   {
     name: "durchgehen-ende",

@@ -1298,6 +1298,33 @@ let reviewSwipeOf (dx: float) (dy: float) : ReviewSwipe =
     elif dx < -reviewSwipeThresholdPx then SwipeSkip
     else SwipeNothing
 
+/// Bis wohin die Karte ohne Ziel nach rechts dem Finger 1:1 folgt; danach geht sie zäh mit (Skizze ledger-vf5h6 `eff`).
+let reviewSwipeStiffFromPx = 72.0
+
+/// Wie weit die Karte beim Wischen steht, aus dem Weg des Fingers: 1:1, ohne Ziel nach rechts ab 72 px zäh
+/// (72 + Rest × 0,12), damit sie nie bis zur Grenze kommt. Rein.
+let reviewSwipeOffset (hasTarget: bool) (dx: float) : float =
+    if hasTarget || dx <= reviewSwipeStiffFromPx then dx
+    else reviewSwipeStiffFromPx + (dx - reviewSwipeStiffFromPx) * 0.12
+
+/// Ist die Fläche unter der Karte eingerastet? Genau dann, wenn `reviewSwipeOf` beim Loslassen eine Entscheidung
+/// träfe, nach rechts nur mit Ziel (ohne Ziel rastet nichts ein). Rein.
+let reviewSwipeArmed (hasTarget: bool) (dx: float) (dy: float) : bool =
+    match reviewSwipeOf dx dy with
+    | SwipeConfirm -> hasTarget
+    | SwipeSkip -> true
+    | SwipeNothing -> false
+
+/// Was die Fläche unter der Karte bei diesem Weg zeigt: rechts mit Ziel Haken über „Passt“, rechts ohne Ziel nur
+/// das gelbe „!“, links Uhr über „Später“; eingerastet nach `reviewSwipeArmed`. Ohne Weg nichts. Rein.
+let reviewSwipeSurface (hasTarget: bool) (dx: float) (dy: float) : Client.DesignSystem.ReviewCard.SwipeSurface =
+    let armed = reviewSwipeArmed hasTarget dx dy
+    if dx > 0.0 then
+        if hasTarget then Client.DesignSystem.ReviewCard.SurfaceConfirm armed
+        else Client.DesignSystem.ReviewCard.SurfaceNoTarget
+    elif dx < 0.0 then Client.DesignSystem.ReviewCard.SurfaceSkip armed
+    else Client.DesignSystem.ReviewCard.SurfaceRest
+
 /// Was eine Taste im Durchgehen auslöst (PC, Styleguide §7.8 Punkt 6).
 type ReviewKeyAction =
     | KeyConfirm
@@ -1338,8 +1365,6 @@ let reviewMemoToastText (current: string option) : string =
     | Some _ -> "Memo gespeichert"
     | None -> "Memo entfernt"
 
-/// Der Hinweis beim Wisch nach rechts ohne Ziel.
-let reviewNeedsTargetText = "Erst eine Kategorie wählen"
 let reviewConfirmedNewText = "Als neu übernommen, geht nach YNAB"
 let reviewDiscardedText = "Verworfen, nicht nach YNAB gegangen"
 let reviewRestoredText = "Steht wieder zur Entscheidung"

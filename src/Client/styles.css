@@ -114,6 +114,8 @@
   --bg-elevated: #1a1a36;
   --bg-input: #16162e;
   --bg-hover: #1e1e3c;
+  /* Eine Stufe heller als bg-hover: die eingerastete Fläche „Später“ unter der Karte des Durchgehens (ledger-s2cg3). */
+  --bg-hover-strong: #2a2a50;
 
   /* Borders */
   --border: #2a2a4a;
@@ -802,6 +804,11 @@ nav a:focus-visible {
 .input-field.input-invalid {
   color: var(--color-error);
 }
+/* Ein Wisch nach rechts ohne Kategorie zeigt, wo sie fehlt (`ReviewCard.fieldNeeding`, Skizze `.field.need`). */
+.input-field.input-need {
+  border-color: var(--color-attention);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-attention) 20%, transparent);
+}
 .input-field.input-amount {
   font-family: var(--font-mono);
 }
@@ -1444,6 +1451,103 @@ nav a:focus-visible {
 }
 .tx-swipe-content {
   position: relative;
+}
+
+/* --- Durchgehen am Handy ohne Scrollen (ledger-s2cg3) ---
+   Die Seite ist so hoch wie der sichtbare Bereich, abzüglich des oberen Abstands aus `Navigation.pageContentFlush`
+   (Safe Area oben plus 0,5 rem) und mit der Safe Area unten. Die Karte nimmt den Rest. */
+.review-page-fit {
+  height: calc(100vh - env(safe-area-inset-top) - 0.5rem);
+  height: calc(100dvh - env(safe-area-inset-top) - 0.5rem);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* --- Wischen mit Fläche im Durchgehen (ledger-s2cg3, Skizze ledger-vf5h6 `.ph-under`, Option A1) ---
+   `ReviewCard.SwipeStage`: unter der Karte eine Fläche über die ganze Karte, Radius wie die Karte, in Ruhe
+   unsichtbar. Rechts Haken über „Passt“ (grün getönt), links Uhr über „Später“ (neutral, Überspringen ist kein
+   Fehler, ADR 0087 Punkt 4), ohne Kategorie nur ein „!“ in Gelb. Eingerastet: Fläche kräftiger, Kreis gefüllt in der
+   Schriftfarbe, Symbol in der Farbe des App-Hintergrunds, Spalte leicht größer. */
+.review-swipe-under {
+  position: absolute;
+  inset: 0;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  font-weight: 600;
+  opacity: 0;
+  pointer-events: none;
+}
+.review-swipe-under.is-confirm,
+.review-swipe-under.is-skip,
+.review-swipe-under.is-no-target { opacity: 1; }
+.review-swipe-under.is-confirm {
+  background: color-mix(in srgb, var(--color-success) 12%, var(--bg-app));
+  color: var(--color-success);
+}
+.review-swipe-under.is-confirm.is-armed {
+  background: color-mix(in srgb, var(--color-success) 26%, var(--bg-app));
+}
+.review-swipe-under.is-skip {
+  background: var(--color-surface-hover);
+  color: var(--color-text-secondary);
+}
+.review-swipe-under.is-skip.is-armed {
+  background: var(--bg-hover-strong);
+  color: var(--color-text-primary);
+}
+.review-swipe-under.is-no-target {
+  background: color-mix(in srgb, var(--color-attention) 12%, var(--bg-app));
+  color: var(--color-attention);
+}
+.review-swipe-side {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 56px;
+  visibility: hidden;
+  transition: transform var(--sf-duration-micro) ease;
+}
+.review-swipe-side.is-right { margin-left: auto; }
+.review-swipe-under.is-confirm .review-swipe-side.is-left,
+.review-swipe-under.is-no-target .review-swipe-side.is-left,
+.review-swipe-under.is-skip .review-swipe-side.is-right { visibility: visible; }
+.review-swipe-under.is-armed .review-swipe-side { transform: scale(1.08); }
+.review-swipe-sym {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  border: 2px solid currentColor;
+  transition: background var(--sf-duration-micro) ease, color var(--sf-duration-micro) ease;
+}
+.review-swipe-under.is-armed .review-swipe-sym {
+  background: currentColor;
+}
+.review-swipe-under.is-armed .review-swipe-sym > * {
+  color: var(--bg-app);
+}
+/* Die Karte über der Fläche: sie folgt dem Finger (Transform setzt die Bühne), füllt den Platz bis zu den Knöpfen. */
+.review-swipe-card {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex: 1 1 0;
+  min-height: 0;
+  flex-direction: column;
+  touch-action: pan-y; /* senkrecht scrollt der Browser (auch in der Karte), waagrecht gehört der Geste */
+  will-change: transform;
+}
+/* Die nächste Karte blendet sich ein (Skizze `.card.enter`): aus 10 px tiefer, leicht kleiner. */
+.review-swipe-card.review-swipe-enter {
+  animation: reviewCardEnter var(--sf-duration-base) var(--sf-ease-out-cubic);
+}
+@keyframes reviewCardEnter {
+  from { transform: translateY(10px) scale(0.97); opacity: 0.3; }
+  to { transform: none; opacity: 1; }
 }
 
 /* Left status bar */

@@ -1,7 +1,7 @@
 ---
 id: ledger-s2cg3
 title: "Durchgehen am Handy: Wischen mit Fläche darunter (A1), Karte füllt den Platz bis zu den Knöpfen, Seite ohne Scrollen"
-status: doing
+status: done
 type: feature
 context: ledger
 created: 2026-11-19
@@ -194,3 +194,32 @@ Captured 2026-11-19 aus ledger-vf5h6. Verfeinert 2026-11-19.
 
 **Für ledger-pz5wv:** die Zeile `review-foot` ist der Platz der letzten Aktion; diese Task liefert sie mit Hinweis und
 „Erst Kategorie wählen“, pz5wv füllt sie mit der letzten Aktion und ersetzt den Fehler-Toast durch die rote Zeile.
+
+
+## Outcome
+
+Wischen mit Fläche (Option A1), Karte füllt den Platz, Seite ohne Scrollen am Handy. `./verify.sh`: VERIFY: PASS (dotnet 5218 grün, node 352 grün, Wächter grün).
+
+**Reine Funktionen** (`src/Client/Components/Ledger/Types.fs`): `reviewSwipeOffset` (1:1, ohne Ziel nach rechts ab 72 px zäh: 72 + Rest × 0,12), `reviewSwipeArmed` (eingerastet genau dann, wenn `reviewSwipeOf` entschiede, nach rechts nur mit Ziel), `reviewSwipeSurface` (welche Fläche je Richtung). `reviewNeedsTargetText` und sein Toast sind weg; `ReviewSwiped` ohne Ziel nach rechts gibt `NoOp` (`State.fs`). In `Ledger/View.fs` steht `reviewLeaveOf` (S nach links mit Fläche, L nur beim Fragen ohne Fläche, Enter über `Confirming`, Zurücknehmen bleibt). Tests in `src/Tests/LedgerReviewClientTests.fs`: vier neue (Grenzen 72 und 90, beide Richtungen, ohne Ziel, schräger Weg, Flächen, Tasten); „Wisch nach rechts ohne Ziel …“ prüft jetzt: Karte bleibt, kein externer Befehl.
+
+**DS-Variante** (`src/Client/DesignSystem/ReviewCard.fs`): `SwipeStage` (Pointer-Ereignisse nur für Touch, Geste erst nach 12 px überwiegend waagrecht, `setPointerCapture`, Klick nach einem Wisch unterdrückt wie in `Swipe.fs`, Vibration beim Übergang zu eingerastet, Flug `ease-in` und Zurückfedern `--sf-spring-out` über `--sf-duration-base`, Einblendung `reviewCardEnter`; „Passt“ hängt an `Holding` = `Review.Confirming`: die Fläche steht ohne Karte da, bei `ReviewConfirmed Ok` rückt die nächste nach, bei Fehler federt die Karte zurück; ein gesperrter Schritt federt nach dem Flug zurück; unter `prefers-reduced-motion` springt die Karte, Fläche und Einrasten bleiben), `swipeUnder`, `swipeExample`, `SwipeLeave`, `cardFill`, `fieldNeeding`, `foot` (`FootHint`/`FootNeed`/`FootEmpty`, 54 px, `data-testid="review-foot"`, ersetzt `hint`). „Regel anlegen“ und „Details“ mit `mt-auto` am unteren Kartenrand. CSS in `src/Client/styles.css` (`.review-swipe-*`, `.review-page-fit`, `.input-field.input-need`), neuer Token `--bg-hover-strong` (#2a2a50, eingerastete Fläche „Später“). Styleguide §5 (ReviewCard, Swipe, `ButtonSize.Choice` „bis zu drei Zeilen bei 320 px“) und `/styleguide` mit den Zuständen Ruhe, rechts, rechts eingerastet, links eingerastet, ohne Kategorie.
+
+**Seite**: `Navigation.pageContentFlush` (ohne `pb-24`, mit `overflow-x-clip`, ab 1024 px wie bisher) für `Review` in `src/Client/View.fs`; `ReviewPage` am Handy mit `review-page-fit` (100dvh minus Safe Area). Die Duplikat-Karte füllt ebenfalls den Platz und hat die leere Zeile darunter. PC (1280) unverändert.
+
+**Browser**: `scripts/durchgehen.test.mjs`: `[flow:durchgehen]` wischt zuerst die Karte ohne Kategorie vom Feld „Kategorie“ aus nach rechts (Karte bleibt, „Erst Kategorie wählen“ in `review-foot`, kein Toast, das Feld öffnet sich nicht), danach wie bisher; Satz in `FLOWS` nachgezogen. Neuer `[layout]`-Test: bei 412 × 844 und 320 × 844 `scrollHeight <= innerHeight`, die Karte mit `REVIEW_QUEUE.amazon` und langem Memo scrollt innen; Hauptknopf und Zeile stehen bei Hinweis, „Erst Kategorie wählen“ und leerer Zeile (Duplikat) an derselben Stelle. `scripts/layout-states.mjs`: Ausnahme bei `durchgehen-amazon` (320, Invariante 7) gestrichen, `reach` auf `review-foot` (am Handy) für `durchgehen-karte`, `-karte-lena`, `-amazon`, `-duplikat`, neuer Zustand `durchgehen-amazon-niedrig` (412 × 600). Sweep der Zustände `durchgehen-*`: 25 Läufe, keine Meldung.
+
+Gegenprobe: mit ausgeschalteter Klick-Unterdrückung blieb der Flow grün (Chromium feuert nach einem Wisch über die Tap-Schwelle selbst keinen Klick). Die Aussage „ein Wisch auf dem Feld öffnet nichts“ ist geprüft, die Unterdrückung selbst ist Absicherung wie in `Swipe.fs`; kein Test tötet diesen Mutanten.
+
+**Kann-Sammlung ledger Punkt 150 ist erledigt** (Ausnahme „Passt, weiter“ bei 320 px gestrichen, Sweep grün).
+
+**Seite neben der Skizze** (eigene Bilder unter `/private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/4b5cf62e-3174-40e3-90f3-4b5312280eb9/scratchpad/result-shots/ledger-s2cg3/`, Skizze unter `/private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/4b5cf62e-3174-40e3-90f3-4b5312280eb9/scratchpad/vf5h6/skizze-shots/`):
+- Ruhe: `01-durchgehen-ruhe.png` gegen `01-ruhe-412.png`: gleicher Aufbau (Kopf, Fortschritt, Karte bis zu den Knöpfen, Links unten in der Karte, Knopfzeile, „Passt, weiter“, Zeile). Unterschiede: Memo als Zeile statt Block (ledger-wg42w), Payee und Betrag in DS-Größen, Zeile 12 px (genannte Abweichungen).
+- Rechts unter der Grenze: `02-wisch-rechts-unter-schwelle.png` gegen `02-rechts-unter-grenze-412.png`: grün getönte Fläche, Haken im Kreis über „Passt“. Sonst gleich.
+- Rechts eingerastet: `03-wisch-rechts-eingerastet.png` gegen `03-rechts-eingerastet-412.png`: Fläche kräftiger, Kreis gefüllt, Haken in der Farbe des App-Hintergrunds. Sonst gleich.
+- Links eingerastet: `04-wisch-links-eingerastet.png` gegen `04-links-eingerastet-412.png`: Fläche `--bg-hover-strong`, Uhr im gefüllten Kreis über „Später“ in `text-primary`. Sonst gleich.
+- Ohne Kategorie: `05-wisch-ohne-kategorie.png` gegen `05-ohne-kategorie-412.png`: gelbes „!“ ohne Wort, Feld gelb umrandet, „Erst Kategorie wählen“ in der Zeile. Sonst gleich.
+- Kurzer Inhalt: `08-zweite-karte-langer-payee.png` gegen `08-kurzer-inhalt-412.png`: die Karte füllt den Platz, Links unten.
+- 320 px Ruhe mit `REVIEW_QUEUE.amazon` (`320-ruhe-amazon.png`): „Rückfrage zurücknehmen“ auf drei Zeilen, „Passt, weiter“ und Zeile im Bild, Karte scrollt innen. Dazu `412x600-amazon.png` und `duplikat-412.png`.
+- PC 1280 (`pc-1280.png`): unverändert (Spalte, Tastenleiste, kein Wischen, keine Zeile).
+
+Offen: das Gefühl der Geste am echten Handy [human-eye].

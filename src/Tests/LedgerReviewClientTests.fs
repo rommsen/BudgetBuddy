@@ -164,6 +164,51 @@ let pureTests =
             Expect.equal (reviewSwipeOf 120.0 -40.0) SwipeConfirm "leicht schräg nach rechts: Passt"
             Expect.equal (reviewSwipeOf -120.0 40.0) SwipeSkip "leicht schräg nach links: Später"
 
+        // ledger-s2cg3: die Karte folgt dem Finger 1:1; ohne Ziel nach rechts ab 72 px zäh (72 + Rest × 0,12).
+        testCase "die Karte folgt dem Finger 1:1, ohne Ziel nach rechts ab 72 Pixeln zäh" <| fun () ->
+            Expect.equal (reviewSwipeOffset true 150.0) 150.0 "mit Ziel rechts 1:1"
+            Expect.equal (reviewSwipeOffset true -150.0) -150.0 "mit Ziel links 1:1"
+            Expect.equal (reviewSwipeOffset false 72.0) 72.0 "ohne Ziel bis 72 px 1:1"
+            Expect.floatClose Accuracy.high (reviewSwipeOffset false 172.0) 84.0 "ohne Ziel danach zäh: 72 + 100 × 0,12"
+            Expect.equal (reviewSwipeOffset false -150.0) -150.0 "ohne Ziel nach links 1:1 (Später)"
+            Expect.equal (reviewSwipeOffset false 0.0) 0.0 "kein Weg"
+
+        // ledger-s2cg3: eingerastet genau dann, wenn `reviewSwipeOf` beim Loslassen entschiede, nach rechts nur mit Ziel.
+        testCase "die Fläche rastet an der Grenze von reviewSwipeOf ein, nach rechts nur mit Ziel" <| fun () ->
+            Expect.isTrue (reviewSwipeArmed true 91.0 0.0) "rechts über 90 mit Ziel"
+            Expect.isFalse (reviewSwipeArmed true 90.0 0.0) "genau 90 nicht"
+            Expect.isTrue (reviewSwipeArmed true -91.0 0.0) "links über 90"
+            Expect.isFalse (reviewSwipeArmed true -90.0 0.0) "genau -90 nicht"
+            Expect.isFalse (reviewSwipeArmed false 200.0 0.0) "ohne Ziel rechts nie"
+            Expect.isTrue (reviewSwipeArmed false -91.0 0.0) "ohne Ziel links wie Später"
+            Expect.isFalse (reviewSwipeArmed true 120.0 150.0) "schräg, mehr senkrecht: nicht"
+            Expect.isTrue (reviewSwipeArmed true 120.0 -40.0) "leicht schräg: eingerastet"
+
+        // ledger-s2cg3: die Fläche unter der Karte je Richtung; ohne Ziel nach rechts nur „!“, das nie einrastet.
+        testCase "die Fläche zeigt je Richtung ihr Symbol, ohne Ziel nach rechts nur das Ausrufezeichen" <| fun () ->
+            let surface = Components.Ledger.Types.reviewSwipeSurface
+            Expect.equal (surface true 0.0 0.0) Client.DesignSystem.ReviewCard.SurfaceRest "ohne Weg nichts"
+            Expect.equal (surface true 40.0 0.0) (Client.DesignSystem.ReviewCard.SurfaceConfirm false) "rechts unter der Grenze"
+            Expect.equal (surface true 91.0 0.0) (Client.DesignSystem.ReviewCard.SurfaceConfirm true) "rechts eingerastet"
+            Expect.equal (surface false 40.0 0.0) Client.DesignSystem.ReviewCard.SurfaceNoTarget "ohne Ziel rechts"
+            Expect.equal (surface false 200.0 0.0) Client.DesignSystem.ReviewCard.SurfaceNoTarget "ohne Ziel rechts weit: kein Einrasten"
+            Expect.equal (surface false -40.0 0.0) (Client.DesignSystem.ReviewCard.SurfaceSkip false) "links unter der Grenze"
+            Expect.equal (surface true -91.0 0.0) (Client.DesignSystem.ReviewCard.SurfaceSkip true) "links eingerastet"
+
+        // ledger-s2cg3: Tasten und Knöpfe bewegen die Karte wie ein Wisch; „Rückfrage zurücknehmen“ lässt sie stehen.
+        testCase "S fliegt nach links mit Fläche, L nur beim Fragen ohne Fläche, Enter und Zurücknehmen nicht" <| fun () ->
+            let leaveOf = Components.Ledger.View.reviewLeaveOf
+            let model = reviewing [ entryOf 1 ]
+            Expect.equal (leaveOf model KeySkip) (Some Client.DesignSystem.ReviewCard.LeaveSkip) "S"
+            Expect.equal (leaveOf model KeyLena) (Some Client.DesignSystem.ReviewCard.LeaveQuiet) "L fragt Lena"
+            Expect.equal (leaveOf model KeyConfirm) None "Enter fliegt über Confirming"
+            Expect.equal (leaveOf model KeyOpenCategory) None "K"
+            let asked = reviewing [ { entryOf 1 with Flag = AskLena } ]
+            Expect.equal (leaveOf asked KeyLena) None "Rückfrage zurücknehmen: Karte bleibt"
+            let noColor = { model with LenaFlagColor = Success None }
+            Expect.equal (leaveOf noColor KeyLena) None "gesperrt: Karte bleibt"
+            Expect.equal (leaveOf (reviewing []) KeySkip) None "ohne Karte nichts"
+
         testCase "Tasten je Kartenart: Enter nur mit Ziel und nicht auf der Duplikat-Karte, K und L nicht auf ihr" <| fun () ->
             let normal = Some (NormalCard, true)
             let noTarget = Some (NormalCard, false)
@@ -437,11 +482,12 @@ let caseTests =
             Expect.equal (cardId ok) (Some (idOf cardC)) "weiter"
             Expect.equal external NoOp "kein Toast"
 
-        testCase "Wisch nach rechts ohne Ziel meldet es und die Karte bleibt" <| fun () ->
+        // ledger-s2cg3: ohne Ziel steht „Erst Kategorie wählen“ in der Zeile unter dem Knopf, kein Toast mehr.
+        testCase "Wisch nach rechts ohne Ziel lässt die Karte stehen und meldet nichts nach außen" <| fun () ->
             let model = reviewing [ cardB; cardA ]
             let after, msgs, external = run (ReviewSwiped (120.0, 0.0)) model
             Expect.equal (cardId after) (Some (idOf cardB)) "bleibt"
-            Expect.equal external (ShowToast (reviewNeedsTargetText, ToastInfo)) "Hinweis"
+            Expect.equal external NoOp "kein externer Befehl"
             Expect.isEmpty (msgs |> List.filter (function RunReviewConfirm _ -> true | _ -> false)) "kein Prüfvermerk"
             Expect.equal (cardId (step (ReviewSwiped (-120.0, 0.0)) model)) (Some (idOf cardA)) "nach links: Später"
 

@@ -372,6 +372,16 @@ let pageContent (children: ReactElement list) =
         ]
     ]
 
+/// Wie `pageContent`, ohne den Abstand unten für die Leiste am Handy: für das Durchgehen, das die Leiste ausblendet
+/// und genau so hoch ist wie der sichtbare Bereich (ledger-s2cg3). Ab 1024 px wie `pageContent`.
+let pageContentFlush (children: ReactElement list) =
+    Html.main [
+        prop.className $"overflow-x-clip pb-0 lg:pb-8 {NavWidths.contentOffset} pt-[calc(env(safe-area-inset-top)+0.5rem)] animate-fade-in"
+        prop.children [
+            Html.div [ prop.className "container mx-auto px-4"; prop.children children ]
+        ]
+    ]
+
 /// Wie `pageContent`, ohne `container`-Begrenzung und ohne seitlichen Innenabstand: für Listen-Seiten, die die
 /// verfügbare Breite füllen (ADR 0049 Punkt 9). Die Seite setzt ihre Ränder selbst (`Primitives.Container.full`).
 let pageContentFull (children: ReactElement list) =

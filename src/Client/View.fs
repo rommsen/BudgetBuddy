@@ -97,6 +97,8 @@ let view (model: Model) (dispatch: Msg -> unit) =
     let pageShell =
         match model.CurrentPage with
         | Overview | Ledger | LedgerEntry _ | LedgerRules | Budget | BudgetHistory | BudgetTargetCheck | BudgetCategories -> Navigation.pageContentFull
+        // Das Durchgehen blendet die Leiste unten aus und passt am Handy ohne Scrollen (ledger-s2cg3).
+        | Review -> Navigation.pageContentFlush
         | _ -> Navigation.pageContent
 
     React.router [

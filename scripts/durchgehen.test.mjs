@@ -1,8 +1,11 @@
 // scripts/durchgehen.test.mjs
 //
 // ledger-v6s7c: Durchgehen Karte für Karte. Im Browser steht nur, was nur der Browser zeigt:
-//   * der eine Happy Path am Handy (412 px, Touch): ein Duplikat verwerfen, eine Kategorie wählen, per Wisch
-//     bestätigen, bei „Alles geprüft“ ankommen. Der Wisch läuft über echte Touch-Ereignisse (CDP);
+//   * der eine Happy Path am Handy (412 px, Touch): ein Duplikat verwerfen, ohne Kategorie nach rechts wischen (die
+//     Karte bleibt, die Zeile unter dem Knopf sagt es), eine Kategorie wählen, per Wisch bestätigen, bei „Alles geprüft“
+//     ankommen. Der Wisch läuft über echte Touch-Ereignisse (CDP), die auch Pointer-Ereignisse erzeugen;
+//   * am Handy die Seite ohne Scrollen, langer Inhalt scrollt in der Karte, die Zeile unter dem Knopf mit fester Höhe
+//     (ledger-s2cg3);
 //   * die Tasten am PC im echten DOM: K öffnet den Picker, Esc schließt erst ihn, Enter passt, L fragt Lena, S geht
 //     weiter, Esc führt zurück zur Übersicht;
 //   * Datum und Betrag des Treffers auf der Duplikat-Karte im Fable-Kompilat (die Aussage aus dem in d0fey
@@ -17,6 +20,7 @@ import assert from "node:assert/strict";
 import { chromium } from "playwright";
 import { getFreePort, startFrontend, stopServer } from "./screenshot-route.mjs";
 import { mockReview, REVIEW_QUEUE, stateNamed } from "./layout-states.mjs";
+import { settle } from "./layout-invariants.mjs";
 
 let frontend;
 let port;
@@ -35,8 +39,9 @@ after(async () => {
 const json = (route, body) => route.fulfill({ contentType: "application/json", body: JSON.stringify(body) });
 const unmocked = (page) => page.route("**/api/**", (r) => r.fulfill({ status: 500, contentType: "application/json", body: '{"error":"nicht gemockt"}' }));
 
-/// Ein Wisch mit dem Finger über die Mitte des Elements, `dx` Pixel weit, in kleinen Schritten.
-async function swipe(page, locator, dx) {
+/// Ein Wisch mit dem Finger über die Mitte des Elements, `dx` Pixel weit, in kleinen Schritten. Der Finger bleibt
+/// liegen; `release()` hebt ihn.
+async function touchHold(page, locator, dx) {
   const box = await locator.boundingBox();
   const cdp = await page.context().newCDPSession(page);
   const y = box.y + box.height / 2;
@@ -46,11 +51,18 @@ async function swipe(page, locator, dx) {
   for (let i = 1; i <= 8; i++) {
     await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: point(x0 + (dx * i) / 8) });
   }
-  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
-  await cdp.detach();
+  return async () => {
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await cdp.detach();
+  };
 }
 
-test("[flow:durchgehen] Am Handy ein Duplikat verwerfen, eine Kategorie wählen, per Wisch bestätigen und bei Alles geprüft ankommen", async () => {
+/// Ein ganzer Wisch: hinlegen, ziehen, loslassen.
+async function swipe(page, locator, dx) {
+  await (await touchHold(page, locator, dx))();
+}
+
+test("[flow:durchgehen] Am Handy ein Duplikat verwerfen, ohne Kategorie nach rechts wischen, eine Kategorie wählen, per Wisch bestätigen und bei Alles geprüft ankommen", async () => {
   const context = await browser.newContext({ viewport: { width: 412, height: 915 }, hasTouch: true, isMobile: true });
   const page = await context.newPage();
   page.setDefaultTimeout(20000);
@@ -70,10 +82,21 @@ test("[flow:durchgehen] Am Handy ein Duplikat verwerfen, eine Kategorie wählen,
     await page.locator('[data-testid="review-duplicate-card"]').waitFor();
     await page.getByRole("button", { name: "Ist doppelt, verwerfen" }).tap();
 
-    // 2 von 2: ohne Kategorie ist „Passt“ gesperrt; die Kategorie kommt aus dem Sheet.
+    // 2 von 2: ohne Kategorie ist „Passt“ gesperrt. Ein Wisch nach rechts lässt die Karte stehen, die Zeile unter dem
+    // Knopf sagt es, solange der Finger liegt (ledger-s2cg3, kein Toast).
     const card = page.locator('[data-testid="review-card"]');
+    const foot = page.locator('[data-testid="review-foot"]');
     await card.getByText("Markt ohne Kategorie").waitFor();
     await page.getByRole("button", { name: "Erst Kategorie wählen" }).waitFor();
+    // Der Wisch beginnt auf dem Feld „Kategorie“ und öffnet es nicht.
+    const release = await touchHold(page, page.locator('[data-testid="review-category"]'), 200);
+    await foot.getByText("Erst Kategorie wählen").waitFor();
+    await release();
+    await foot.getByText("Wischen: rechts „Passt“, links „Später“").waitFor();
+    await card.getByText("Markt ohne Kategorie").waitFor();
+    assert.equal(await page.getByText("Erst eine Kategorie wählen").count(), 0, "kein Toast");
+    assert.equal(await page.locator(".bottom-sheet.active").count(), 0, "der Wisch öffnete das Feld nicht");
+    // Die Kategorie kommt aus dem Sheet.
     await page.locator('[data-testid="review-category"]').tap();
     const sheet = page.locator(".bottom-sheet.active").first();
     await sheet.getByText("Lebensmittel", { exact: true }).first().tap();
@@ -87,6 +110,68 @@ test("[flow:durchgehen] Am Handy ein Duplikat verwerfen, eine Kategorie wählen,
       ["discardDuplicateEntry", "setEntryCategory", "setReviewMark"],
       "verwerfen, Kategorie, Prüfvermerk"
     );
+  } finally {
+    await context.close();
+  }
+});
+
+// ledger-s2cg3: Die Seite passt am Handy ohne Scrollen, die Karte nimmt den Rest, langer Inhalt scrollt in ihr. Die Zeile
+// unter dem Hauptknopf hat eine feste Höhe: mit Hinweis, mit „Erst Kategorie wählen“ und leer unter der Duplikat-Karte
+// stehen Knöpfe und Zeile an derselben Stelle.
+test("[layout] Am Handy scrollt das Durchgehen nicht, langer Inhalt scrollt in der Karte, und die Zeile unter dem Knopf lässt die Knöpfe nicht springen", async () => {
+  const longMemo = { ...REVIEW_QUEUE.amazon, Memo: "Wocheneinkauf fürs Grillfest am Samstag, dazu Getränke und Kohle. ".repeat(12) };
+  for (const width of [412, 320]) {
+    const context = await browser.newContext({ viewport: { width, height: 844 }, hasTouch: true, isMobile: true });
+    const page = await context.newPage();
+    page.setDefaultTimeout(20000);
+    try {
+      await unmocked(page);
+      await mockReview(page, [longMemo]);
+      await page.goto(`http://127.0.0.1:${port}/#/review`, { waitUntil: "load" });
+      await page.locator('[data-testid="review-suggestions"]').waitFor();
+      // Die Einblendung der Seite (`pageEnter`, 8 px tiefer) zählte sonst zur Höhe.
+      await settle(page, { where: `durchgehen @ ${width} px` });
+      const sizes = await page.evaluate(() => {
+        const card = document.querySelector('[data-testid="review-card"]');
+        return { page: document.scrollingElement.scrollHeight, view: innerHeight, content: card.scrollHeight, box: card.clientHeight };
+      });
+      assert.ok(sizes.page <= sizes.view, `${width} px: Seite ${sizes.page} px höher als ${sizes.view} px`);
+      assert.ok(sizes.content > sizes.box, `${width} px: Karte scrollt nicht innen (${sizes.content} zu ${sizes.box} px)`);
+    } finally {
+      await context.close();
+    }
+  }
+
+  const context = await browser.newContext({ viewport: { width: 412, height: 844 }, hasTouch: true, isMobile: true });
+  const page = await context.newPage();
+  page.setDefaultTimeout(20000);
+  try {
+    await unmocked(page);
+    await mockReview(page, [REVIEW_QUEUE.open, REVIEW_QUEUE.held]);
+    await page.goto(`http://127.0.0.1:${port}/#/review`, { waitUntil: "load" });
+    const card = page.locator('[data-testid="review-card"]');
+    const foot = page.locator('[data-testid="review-foot"]');
+    await card.getByText("Markt ohne Kategorie").waitFor();
+    await settle(page, { where: "durchgehen @ 412 px" });
+    const where = () =>
+      page.evaluate(() => {
+        const top = (el) => Math.round(el.getBoundingClientRect().top);
+        const buttons = [...document.querySelectorAll('[data-testid="review-page"] button')];
+        const main = buttons.find((b) => /Erst Kategorie wählen|Ist doppelt, verwerfen/.test(b.textContent));
+        return { main: top(main), foot: top(document.querySelector('[data-testid="review-foot"]')), height: document.querySelector('[data-testid="review-foot"]').offsetHeight };
+      });
+    const hint = await where();
+    const release = await touchHold(page, card, 200);
+    await foot.getByText("Erst Kategorie wählen").waitFor();
+    assert.deepEqual(await where(), hint, "„Erst Kategorie wählen“ in der Zeile: nichts springt");
+    await release();
+    await page.getByRole("button", { name: "Später", exact: true }).tap();
+    await page.locator('[data-testid="review-duplicate-card"]').waitFor();
+    await settle(page, { where: "durchgehen-duplikat @ 412 px" });
+    const empty = await where();
+    assert.equal(await foot.textContent(), "", "unter der Duplikat-Karte leer");
+    assert.equal(empty.foot, hint.foot, "die Zeile steht an derselben Stelle");
+    assert.equal(empty.height, hint.height, "gleiche Höhe");
   } finally {
     await context.close();
   }
