@@ -85,10 +85,33 @@ let mouseRowContainerTests =
             let focused = mouseRowContainerClassName { Selected = false; IsAnchor = false; IsFocused = true } false
             Expect.stringContains focused Client.DesignSystem.Table.focusedRowClass "Fokus-Darstellung"
             let selected = mouseRowContainerClassName { Selected = true; IsAnchor = false; IsFocused = false } false
-            Expect.stringContains selected "bg-accent/[0.07]" "gewählt"
-            let anchorReview = mouseRowContainerClassName { Selected = true; IsAnchor = true; IsFocused = false } true
-            Expect.stringContains anchorReview "inset_2px_0_0_0_var(--color-accent)" "Anker"
-            Expect.isFalse (anchorReview.Contains Client.DesignSystem.Tokens.ListRoles.statusEdge) "Anker gewinnt gegen die Statuskante"
-            let review = mouseRowContainerClassName { Selected = false; IsAnchor = false; IsFocused = false } true
-            Expect.stringContains review Client.DesignSystem.Tokens.ListRoles.statusEdge "Statuskante"
+            Expect.stringContains selected Client.DesignSystem.Tokens.ListRoles.selectedFill "gewählt"
+    ]
+
+/// Die Kante einer Zeile über alle vier Fälle von Anker × "zu prüfen", für die Kompaktliste mit
+/// Maus und die Tabelle. Regressionstest ledger-ef068: in der Kompaktliste verlor eine Buchung
+/// "zu prüfen" ihre gelbe Kante, sobald sie Anker der Spanne war (nur die Akzent-Kante stand da).
+/// Orakel ist diese Tabelle der erwarteten Tokens, nicht die Funktion, die die Kante bildet.
+module Roles = Client.DesignSystem.Tokens.ListRoles
+
+[<Tests>]
+let rowEdgeTests =
+    let edges = [ Roles.statusEdgeWithAnchor; Roles.selectedEdge; Roles.statusEdge ]
+    let expected =
+        [ (true, true), Some Roles.statusEdgeWithAnchor
+          (true, false), Some Roles.selectedEdge
+          (false, true), Some Roles.statusEdge
+          (false, false), None ]
+    let check (label: string) (classes: string) (want: string option) =
+        let present = classes.Split ' ' |> Set.ofArray
+        for edge in edges do
+            Expect.equal (present.Contains edge) (want = Some edge) $"{label}: Kante {edge}"
+        Expect.equal (classes.Contains "shadow-") want.IsSome $"{label}: Schatten nur mit Kante"
+    testList "Kante der Zeile: Anker × zu prüfen (ledger-ef068)" [
+        for (isAnchor, needsReview), want in expected do
+            testCase $"Anker {isAnchor}, zu prüfen {needsReview}" <| fun () ->
+                let mouse =
+                    mouseRowContainerClassName { Selected = true; IsAnchor = isAnchor; IsFocused = false } needsReview
+                check "Kompaktliste mit Maus" mouse want
+                check "Tabelle" (selectableRowClassName true isAnchor needsReview) want
     ]

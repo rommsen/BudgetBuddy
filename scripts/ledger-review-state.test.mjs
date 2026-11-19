@@ -80,9 +80,9 @@ test("[flow:pruefliste-abarbeiten] PC: nach dem letzten Prüfen unter Zu prüfen
     await page.keyboard.press("ArrowDown");
     await page.locator('tr[data-keyboard-focus="true"]', { hasText: "Prüfzustand v9rq3" }).waitFor();
     await page.keyboard.press("g");
-    await page.getByText("Alles geprüft", { exact: true }).waitFor();
-    // Der Kopf des Kassenbuchs hat eigene Spiegel-Knöpfe; geprüft wird nur die Karte des Leerzustands.
-    const emptyCard = page.locator("div").filter({ hasText: "Alles geprüft" }).last();
+    // Der Kopf des Kassenbuchs hat eigene Spiegel-Knöpfe; geprüft wird nur die Karte `Card.allDone` (ledger-ef068).
+    const emptyCard = page.getByTestId("ledger-all-reviewed");
+    await emptyCard.getByText("Alles geprüft", { exact: true }).waitFor();
     assert.ok((await emptyCard.innerText()).includes("steht nichts mehr zu prüfen"), "Text der Karte");
     assert.equal(await emptyCard.getByRole("button", { name: "Jetzt spiegeln" }).count(), 0, "kein Jetzt spiegeln");
     assert.equal(await page.getByText("Keine Buchungen", { exact: true }).count(), 0, "kein Leerzustand ohne Daten");

@@ -447,7 +447,18 @@ let entryRowReviewClassName : string =
 /// der Zeile, der Akzent darüber bleibt durchscheinend.
 let entryRowSelectedClassName : string =
     $"w-full text-left {Tokens.ListRoles.mobileRowPadding} transition-colors touch-manipulation " +
-    $"bg-accent/[0.07] border-b {Tokens.Borders.subtle}"
+    $"{Tokens.ListRoles.selectedFill} border-b {Tokens.Borders.subtle}"
+
+/// Die Kante links einer Zeile in der Kompaktliste mit Maus und in der Tabelle: der Anker der
+/// Spanne trägt die Akzent-Kante, eine Buchung "zu prüfen" die gelbe Statuskante. Beide Kanten
+/// sind ein Schatten; trifft beides zu, steht ein Schatten mit beiden Kanten da (Gelb außen,
+/// Akzent innen), sonst überschriebe der eine den anderen (§2 „Ruhige Listen“, ledger-ef068).
+let rowEdgeClassName (isAnchor: bool) (needsReview: bool) : string option =
+    match isAnchor, needsReview with
+    | true, true -> Some Tokens.ListRoles.statusEdgeWithAnchor
+    | true, false -> Some Tokens.ListRoles.selectedEdge
+    | false, true -> Some Tokens.ListRoles.statusEdge
+    | false, false -> None
 
 /// Der Zustand einer Kompaktzeile mit Maus (ledger-m6zpd): gewählt, Anker der Spanne, von der
 /// Tastatur markiert.
@@ -456,16 +467,15 @@ type MouseRowInfo = { Selected: bool; IsAnchor: bool; IsFocused: bool }
 /// Klassen des Containers einer Kompaktzeile mit Maus. Er trägt Grund, Unterkante und die
 /// Kanten, damit Kästchen, Zeile und Schaltfläche gemeinsam hervorgehoben sind: gewählt
 /// blasser Akzent, markiert die Fokus-Darstellung der Tabellenzeile (`Table.focusedRowClass`),
-/// sonst der Kartengrund mit Hover. Der Anker trägt die Akzent-Kante und gewinnt gegen die
-/// Statuskante "zu prüfen" (wie `selectableRowClassName` in der Tabelle).
+/// sonst der Kartengrund mit Hover. Die Kante kommt aus `rowEdgeClassName` wie in der Tabelle:
+/// Anker und "zu prüfen" zugleich tragen beide Kanten.
 let mouseRowContainerClassName (info: MouseRowInfo) (needsReview: bool) : string =
     [ "group flex items-stretch transition-colors"
       $"border-b {Tokens.Borders.subtle}"
-      if info.Selected then "bg-accent/[0.07]"
+      if info.Selected then Tokens.ListRoles.selectedFill
       elif info.IsFocused then Table.focusedRowClass
       else $"{Tokens.Backgrounds.dark} hover:bg-surface-hover"
-      if info.IsAnchor then "shadow-[inset_2px_0_0_0_var(--color-accent)]"
-      elif needsReview then Tokens.ListRoles.statusEdge ]
+      yield! Option.toList (rowEdgeClassName info.IsAnchor needsReview) ]
     |> String.concat " "
 
 /// Ein Kennzeichen in Zeile 2 der Handy-Zeile, das nicht schrumpfen darf.
@@ -663,7 +673,7 @@ let private entryRowWithReviewMark
                             prop.className (
                                 "shrink-0 flex items-center min-w-11 pl-4 pr-3 border-b " +
                                 $"{Tokens.Borders.subtle} " +
-                                (if isOn then "bg-accent/[0.07]" else Tokens.Backgrounds.dark)
+                                (if isOn then Tokens.ListRoles.selectedFill else Tokens.Backgrounds.dark)
                             )
                             prop.children [ MultiSelect.box (if isOn then MultiSelect.Checked else MultiSelect.Unchecked) true ]
                         ]
@@ -733,17 +743,12 @@ let private tdMoney (entry: LedgerEntryView) =
         Table.amountCell entry.Amount.Amount entry.Amount.Currency
 
 /// Klassen einer PC-Zeile mit Auswahl: gewählt trägt blasser Akzent als Grund, der Anker der
-/// Spanne zusätzlich die Akzent-Kante links, eine Buchung "zu prüfen" die gelbe Statuskante. Beide
-/// Kanten sind ein Schatten; trifft beides zu, steht ein Schatten mit beiden Kanten da (Gelb außen,
-/// Akzent innen), sonst überschriebe der eine den anderen.
+/// Spanne zusätzlich die Akzent-Kante links, eine Buchung "zu prüfen" die gelbe Statuskante, beides
+/// über `rowEdgeClassName`.
 let selectableRowClassName (selected: bool) (isAnchor: bool) (needsReview: bool) : string =
     [ Tokens.ListRoles.rowHeight
-      if selected then "bg-accent/[0.07]"
-      match isAnchor, needsReview with
-      | true, true -> Tokens.ListRoles.statusEdgeWithAnchor
-      | true, false -> Tokens.ListRoles.selectedEdge
-      | false, true -> Tokens.ListRoles.statusEdge
-      | false, false -> () ]
+      if selected then Tokens.ListRoles.selectedFill
+      yield! Option.toList (rowEdgeClassName isAnchor needsReview) ]
     |> String.concat " "
 
 /// Die Kästchen-Zelle einer PC-Zeile: ein Klick schaltet die Auswahl (mit Shift die
@@ -2937,19 +2942,15 @@ let private entryList
     | Success [] when emptyListKind model.OnlyNeedsReview model.Filters = EmptyListKind.AllReviewed ->
         // Nach dem letzten Prüfen fehlt nichts: kein "Jetzt spiegeln" (ledger-v9rq3).
         let scope = accountScopeText accounts model.SelectedFilter
-        Card.emptyState
-            (Icons.check Icons.XL Icons.Default)
-            "Alles geprüft"
-            (allReviewedText scope)
-            None
+        // Eine Aufgabenliste, die leer ist, weil alles erledigt ist (§5 Card, ledger-ef068).
+        Card.allDone "ledger-all-reviewed" "Alles geprüft" (allReviewedText scope)
 
     | Success [] when emptyListKind model.OnlyNeedsReview model.Filters = EmptyListKind.AllCategorized ->
         let scope = accountScopeText accounts model.SelectedFilter
-        Card.emptyState
-            (Icons.check Icons.XL Icons.Default)
+        Card.allDone
+            "ledger-all-categorized"
             "Alles kategorisiert"
             (if scope = "alle Konten" then "In allen Konten hat jede Buchung eine Kategorie." else $"In {scope} hat jede Buchung eine Kategorie.")
-            None
 
     | Success [] when emptyListKind model.OnlyNeedsReview model.Filters = EmptyListKind.NoMatch ->
         // AC "Leerzustand ohne Treffer": nennt eine nächste Handlung, statt nur
@@ -3083,10 +3084,8 @@ let private datePickerBody (dispatch: Msg -> unit) (model: Model) =
     Html.div [
         prop.className "flex flex-col gap-4"
         prop.children [
-            Html.div [
-                prop.className $"{Tokens.FontSizes.xs} {Tokens.Colors.textMuted} {Tokens.Fonts.mono} uppercase tracking-wider"
-                prop.text "Schnellwahl"
-            ]
+            // Der Kopf wie beim Sortieren (ledger-ef068).
+            BottomSheet.sectionTitle "Schnellwahl"
             // Zwei Reihen: vier Texte nebeneinander passen bei 320 px nicht sicher (ledger-dn4vy).
             Segmented.viewColumns
                 "date-quick"
@@ -3392,7 +3391,7 @@ let private accountField
                   Subtitle = None
                   Footer = None }
                 [ Html.div [
-                    prop.className "flex flex-col overflow-hidden rounded-xl border border-border-subtle bg-surface-card"
+                    prop.className $"flex flex-col overflow-hidden rounded-xl border {Tokens.Borders.subtle} {Tokens.Backgrounds.dark}"
                     prop.custom ("data-testid", "ledger-account-sheet")
                     prop.children [
                         for card in cards ->
@@ -3511,7 +3510,7 @@ let private filterSheet (dispatch: Msg -> unit) (model: Model) (categories: Ynab
                         (hasDateFilter model.Filters)
                         (fun () -> dispatch (OpenFilterPopover DateChip))
                     Html.div [
-                        prop.className "space-y-3 py-3 border-b border-border-subtle"
+                        prop.className $"space-y-3 py-3 border-b {Tokens.Borders.subtle}"
                         prop.children [
                             Html.div [
                                 prop.className "grid grid-cols-2 gap-3"

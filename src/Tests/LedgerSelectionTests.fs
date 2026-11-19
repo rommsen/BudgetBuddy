@@ -312,7 +312,7 @@ let viewTests =
             Expect.stringContains anchor edge "der Anker"
             Expect.isFalse (picked.Contains edge) "eine gewählte Zeile ohne Anker"
             Expect.isFalse (plain.Contains edge) "eine ungewählte Zeile"
-            Expect.stringContains picked "bg-accent/[0.07]" "gewählt trägt blasses Teal"
+            Expect.stringContains picked Client.DesignSystem.Tokens.ListRoles.selectedFill "gewählt trägt blasses Teal"
             Expect.isFalse (plain.Contains "bg-accent") "ungewählt nicht"
             // Anker und „zu prüfen“ zugleich: beide Kanten in einem Schatten, sonst verschwände die gelbe (ledger-cnaz3).
             let anchorReview = Components.Ledger.View.selectableRowClassName true true true

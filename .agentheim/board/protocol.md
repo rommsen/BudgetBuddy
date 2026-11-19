@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-19 09:52 -- Task verified and completed: ledger-ef068 - "Kassenbuch-Liste nach DS: gelbe Kante am Anker in der Kompaktliste mit Maus, Tokens für Auswahl und Rahmen, Kopf „Schnellwahl“ als sectionTitle, „Alles geprüft“ und „Alles kategorisiert“ als Card.allDone"
+
+**Type:** Work / Task completion
+**Task:** ledger-ef068 - "Kassenbuch-Liste nach DS: gelbe Kante am Anker in der Kompaktliste mit Maus, Tokens für Auswahl und Rahmen, Kopf „Schnellwahl“ als sectionTitle, „Alles geprüft“ und „Alles kategorisiert“ als Card.allDone"
+**Summary:** Kassenbuch-Liste nach DS: gelbe Kante am Anker in der Kompaktliste, Tokens, Schnellwahl als sectionTitle, Alles geprüft als Card.allDone
+**Duration:** 35m
+**Verification:** PASS (iteration 1)
+**Files changed:** 4
+**Tests added:** 4
+**ADRs written:** none
+
+---
+
 ## 2026-11-19 09:41 -- Batch started: [ledger-pfhdq]
 
 **Type:** Work / Batch start

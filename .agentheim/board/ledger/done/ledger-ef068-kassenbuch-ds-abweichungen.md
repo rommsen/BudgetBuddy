@@ -1,7 +1,7 @@
 ---
 id: ledger-ef068
 title: "Kassenbuch-Liste nach DS: gelbe Kante am Anker in der Kompaktliste mit Maus, Tokens für Auswahl und Rahmen, Kopf „Schnellwahl“ als sectionTitle, „Alles geprüft“ und „Alles kategorisiert“ als Card.allDone"
-status: doing
+status: done
 type: bug
 context: ledger
 created: 2026-11-19
@@ -101,3 +101,32 @@ Kann-Sammlung ledger-k4n2s: Punkt 48 (Statuspunkte inline, auch in `Card.allDone
 Überschneidungen: Teil 4 (ledger-rb3xw) ändert im selben `match` den Fall „Keine Buchungen“ und im Filter-Sheet den
 Namen des Lena-Filters, daher erst dieser Teil. Teil 2 (ledger-gy77x) und Teil 3 (ledger-zf6zg) arbeiten an anderen
 Stellen.
+
+## Outcome
+
+Die Kassenbuch-Liste folgt an den genannten Stellen dem DS. Kein DS-Baustein wurde geändert.
+
+**Kanten der Zeile (Bug).** Neue reine Funktion `rowEdgeClassName (isAnchor: bool) (needsReview: bool) : string option` in `src/Client/Components/Ledger/View.fs` direkt nach `entryRowSelectedClassName`: Anker und zu prüfen ergeben `ListRoles.statusEdgeWithAnchor`, nur Anker `ListRoles.selectedEdge`, nur zu prüfen `ListRoles.statusEdge`, sonst `None`. `mouseRowContainerClassName` und `selectableRowClassName` holen ihre Kante daraus. Der rohe Schatten `shadow-[inset_2px_0_0_0_var(--color-accent)]` ist weg, und der Doc-Kommentar „gewinnt gegen die Statuskante“ ist berichtigt.
+
+**Regressionstest.** `rowEdgeTests` („Kante der Zeile: Anker × zu prüfen (ledger-ef068)“) in `src/Tests/LedgerCompactInteractionTests.fs`. Er hat vier Fälle und prüft jeweils `mouseRowContainerClassName` und `selectableRowClassName`. Das Orakel ist eine im Test geschriebene Tabelle der erwarteten Tokens. Geprüft wird: genau die erwartete Kante steht als Klasse da, keine der anderen beiden, und ein `shadow-` kommt nur zusammen mit einer Kante vor. Vor dem Fix war der Fall „Anker True, zu prüfen True“ rot („Kompaktliste mit Maus: Kante shadow-[inset_3px…,inset_5px…]“), die anderen drei waren grün. Der alte Fall „Anker gewinnt gegen die Statuskante“ ist entfernt.
+
+**Tokens.** Alle vier `bg-accent/[0.07]` (Handy-Zeile gewählt, Maus-Container, Kästchen-Container der Handy-Zeile, Tabellenzeile) sind jetzt `Tokens.ListRoles.selectedFill`. Im Sheet „Konto“ steht `{Tokens.Borders.subtle} {Tokens.Backgrounds.dark}`, im Filter-Sheet `{Tokens.Borders.subtle}`. `grep -n 'bg-accent/\[0.07\]\|shadow-\[inset_2px'` auf View.fs findet nichts mehr. In View.fs stehen `border-border-subtle` und `bg-surface-card` noch an einer Stelle: Zeile 2865 im `ClassName` der Tabelle. Die gehört nicht zu den Funktionen um 3366 und 3485 und bleibt außerhalb des Auftrags. Die Testliterale in `LedgerCompactInteractionTests.fs` und `LedgerSelectionTests.fs:315` vergleichen jetzt mit `Tokens.ListRoles.selectedFill`.
+
+**Kopf „Schnellwahl“.** In `datePickerBody` steht `BottomSheet.sectionTitle "Schnellwahl"`. Das gilt für das Popover am PC und für das Filter-Sheet. Der Kopf ist jetzt 10 px Mono halbfett, wie beim Sortieren.
+
+**„Alles geprüft“ und „Alles kategorisiert“.** Beide sind jetzt `Card.allDone "ledger-all-reviewed" …` bzw. `Card.allDone "ledger-all-categorized" …`. Die Sätze sind wörtlich gleich geblieben, eine Aktion gibt es weiterhin nicht. „Kein Treffer“ und „Keine Buchungen“ bleiben `Card.emptyState`. Der Flow `[flow:pruefliste-abarbeiten]` in `scripts/ledger-review-state.test.mjs` sucht die Karte jetzt über `getByTestId("ledger-all-reviewed")`.
+
+**Gate.** `./verify.sh` endet mit `VERIFY: PASS` (dotnet 5179 grün, node 351 grün, guard:classes und guard:tokens grün). Darin sind auch der Sweep-Zustand `kassenbuch-filter-zeitraum`, der `[fable]`-Test in `scripts/ledger-filter-bar.test.mjs` und `LedgerReviewStateTests` grün.
+
+**Bilder für Romans Blick.** Die Bilder kommen aus gemockten Sweep-Zuständen mit dem HEAD-Bundle (before) und dem Bundle nach der Änderung (after). `npm run screenshot:route` braucht das echte Backend und kann nicht bedienen, darum dieser Weg. Skript: /private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/4b5cf62e-3174-40e3-90f3-4b5312280eb9/scratchpad/ef068-shots.mjs.
+- /private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/4b5cf62e-3174-40e3-90f3-4b5312280eb9/scratchpad/shots/ledger-ef068/kompakt-anker-pruefen-1024-before.png und …-after.png. 1024 px mit Maus, Klick auf Bauhaus (zu prüfen, Anker), dann Umschalt-Klick auf PayPal Shop. Vorher nur die Akzent-Kante, nachher gelb außen und Akzent innen.
+- /private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/4b5cf62e-3174-40e3-90f3-4b5312280eb9/scratchpad/shots/ledger-ef068/tabelle-anker-pruefen-1440-before.png und …-after.png (Tabelle, keine Änderung)
+- /private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/4b5cf62e-3174-40e3-90f3-4b5312280eb9/scratchpad/shots/ledger-ef068/alles-geprueft-412-before.png und …-after.png. 412 px mit Touch, Filter „Zu prüfen“. Vorher die große gestrichelte Karte mit Häkchen, nachher die flache Karte mit grünem Punkt.
+- /private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/4b5cf62e-3174-40e3-90f3-4b5312280eb9/scratchpad/shots/ledger-ef068/alles-geprueft-1280-before.png und …-after.png
+- /private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/4b5cf62e-3174-40e3-90f3-4b5312280eb9/scratchpad/shots/ledger-ef068/konto-sheet-412-before.png und …-after.png (keine sichtbare Änderung)
+- /private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/4b5cf62e-3174-40e3-90f3-4b5312280eb9/scratchpad/shots/ledger-ef068/filter-zeitraum-412-before.png und …-after.png sowie filter-zeitraum-pc-1280-before.png und …-after.png. Der Kopf „Schnellwahl“ ist etwas kleiner und halbfett.
+- /private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/4b5cf62e-3174-40e3-90f3-4b5312280eb9/scratchpad/shots/ledger-ef068/filter-sheet-412-before.png und …-after.png (keine sichtbare Änderung)
+- /private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/4b5cf62e-3174-40e3-90f3-4b5312280eb9/scratchpad/shots/ledger-ef068/kassenbuch-412-before.png und …-after.png sowie kassenbuch-1440-before.png und …-after.png (keine sichtbare Änderung)
+Für „Alles kategorisiert“ gibt es kein eigenes Bild: es läuft durch denselben Baustein.
+
+**README-Delta.** Geprüft mit `node scripts/readme-delta-check.mjs --bc ledger` (Exit 0). „Ganz nachlesen“ meldet keine Einträge.
