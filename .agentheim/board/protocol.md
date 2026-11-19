@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-20 00:17 -- Modeling / Promoted: design-system-gkded - "Rückmeldung am Handy ohne Toast (Regel R3), Teil 2: ein Meldungsplatz in der App statt Toast-Liste, Leiste unter 1024 px mit „+ Buchung“, Toast am PC höchstens einer, gleiche Wische zusammengefasst, alte Toasts übergangsweise in der Leiste, Sweep-Invariante mit Gegenbeweis"
+
+**Type:** Modeling / Promote
+**BC:** design-system
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-20 00:16 -- Task verified and completed: design-system-ytgnc - "Rückmeldung am Handy ohne Toast (Regel R3), Teil 1: DS-Baustein `Feedback` (Meldungsleiste mit „+ Buchung“, Zeile im Sheet, Rückgängig am Feld, Zeile „gelöscht“) auf `/styleguide`, Styleguide §7.13, §5 und §6 neu, ADR 0098"
 
 **Type:** Work / Task completion

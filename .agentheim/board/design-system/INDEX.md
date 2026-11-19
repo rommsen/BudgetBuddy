@@ -10,14 +10,15 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 6
-- **Todo:** 0
+- **Backlog:** 5
+- **Todo:** 1
 - **Doing:** 0
 - **Done:** 50
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **design-system-gkded** — "Rückmeldung am Handy ohne Toast (Regel R3), Teil 2: ein Meldungsplatz in der App statt Toast-Liste, Leiste unter 1024 px mit „+ Buchung“, Toast am PC höchstens einer, gleiche Wische zusammengefasst, alte Toasts übergangsweise in der Leiste, Sweep-Invariante mit Gegenbeweis" (feature) — `todo/design-system-gkded-rueckmeldung-ein-platz-in-der-app.md`
 <!-- todo-list:end -->
 
 ### Doing
@@ -40,7 +41,6 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
-- **design-system-gkded** — "Rückmeldung am Handy ohne Toast (Regel R3), Teil 2: ein Meldungsplatz in der App statt Toast-Liste, Leiste unter 1024 px mit „+ Buchung“, Toast am PC höchstens einer, gleiche Wische zusammengefasst, alte Toasts übergangsweise in der Leiste, Sweep-Invariante mit Gegenbeweis" (feature) — `backlog/design-system-gkded-rueckmeldung-ein-platz-in-der-app.md`
 - **design-system-m4e7q** — "Modal: Esc schließt den Dialog auch ohne Fokus darin, der Fokus kehrt zum Auslöser zurück" (bug) — `backlog/design-system-m4e7q-modal-esc-und-fokus.md`
 - **design-system-vf94m** — "Toast am Handy oben statt unten: der Toast mit Rückgängig verdeckt heute den Knopf „+ Buchung“ (Styleguide §7.13)" (bug) — `backlog/design-system-vf94m-toast-am-handy-verdeckt-fab.md`
 - **design-system-x1abn** — "Logo und Icon: Buddy aus standards/frontend/brand/ als Marke und PWA-Icon" (feature) — `backlog/design-system-x1abn-logo-und-icon.md`

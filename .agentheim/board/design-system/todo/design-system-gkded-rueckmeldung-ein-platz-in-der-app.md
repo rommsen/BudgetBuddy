@@ -1,7 +1,7 @@
 ---
 id: design-system-gkded
 title: "Rückmeldung am Handy ohne Toast (Regel R3), Teil 2: ein Meldungsplatz in der App statt Toast-Liste, Leiste unter 1024 px mit „+ Buchung“, Toast am PC höchstens einer, gleiche Wische zusammengefasst, alte Toasts übergangsweise in der Leiste, Sweep-Invariante mit Gegenbeweis"
-status: backlog
+status: todo
 type: feature
 context: design-system
 created: 2026-11-19
