@@ -90,7 +90,8 @@ Vorlage ist die Skizze aus ledger-vf5h6 (https://claude.ai/artifact/GESk5E9GWEHh
   Formular, Tastatur am PC (`RulesKeyboard`, Tastenleiste): bleibt.
 - „Regel gelöscht“ mit Rückgängig: ändert sich (Toast wird Zeile am Platz).
 - „Regel gespeichert“, Fehlermeldungen: ändern sich (siehe Tabelle).
-- Toast am Handy: gestrichen (Roman, 2026-11-19, R3).
+- Toast am Handy: gestrichen (Roman, 2026-11-19, R3). Toast am PC für Löschen, Speichern und Fehler am Tab: gestrichen
+  (Roman, 2026-11-19).
 
 ### Am Code
 - `src/Client/Components/Rules/Types.fs`: neuer Zustand der Zeile „gelöscht“ im `Model` (Regel, Stelle, Phase
@@ -119,7 +120,7 @@ Vorlage ist die Skizze aus ledger-vf5h6 (https://claude.ai/artifact/GESk5E9GWEHh
 
 ## Acceptance criteria
 - [ ] `grep -n "ShowToast" src/Client/Components/Rules/` trifft nur noch die Meldung bei `FromEntry`, und die geht über den
-      Meldungsweg aus design-system-ytgnc (am Handy kein Toast). `RuleDeletedUndoable` und `UndoDeleteRule` gibt es nicht mehr.
+      Meldungsweg aus design-system-ytgnc (am Handy kein Toast, am PC Toast nur ohne Ort). `RuleDeletedUndoable` und `UndoDeleteRule` gibt es nicht mehr.
 - [ ] Nach „Regel löschen“ steht an ihrem Platz die Zeile „„<Name>“ gelöscht“ mit „Rückgängig“, ohne Nummer, die Regeln
       darunter rücken auf; bis zur Antwort „„<Name>“ wird gelöscht …“. Langer Name gekürzt mit „…“, „gelöscht“ und
       „Rückgängig“ ganz lesbar (Sweep `regeln-geloescht` bei 320 und 412 px).
@@ -131,16 +132,16 @@ Vorlage ist die Skizze aus ledger-vf5h6 (https://claude.ai/artifact/GESk5E9GWEHh
       Buchung angelegt erscheint „Regel angelegt“ mit Namen am Meldungsplatz der Seite.
 - [ ] Jeder Fehler aus der Tabelle oben steht an seinem neuen Platz mit dem dort genannten Text (.NET-Tests je Fall).
 - [ ] Alle Funktionen aus dem Funktionsabgleich mit „bleibt“ funktionieren wie vorher (bestehende Tests grün).
-- [ ] Am PC (1024, 1440 px) bricht nichts: Zeile „gelöscht“ in Tabelle und Karte neben dem Panel (Sweep).
+- [ ] Am PC (1024, 1440 px) bricht nichts: Zeile „gelöscht“ in Tabelle und Karte neben dem Panel (Sweep), und es steht
+      kein Toast nach Löschen, Speichern oder einem Fehler am Tab.
 - [ ] Seite neben der Skizze verglichen (Screenshot bei 412 px im Outcome, dazu PC 1280), Abweichungen nur die in dieser
       Task genannten (gruppierte Karte statt Einzelkarten, Pfeile, Hinweis über der Liste, 48 px statt 44 px).
 - [ ] `./verify.sh` meldet `VERIFY: PASS`.
 
-## Offene Frage an Roman
-- **Zeile am Platz auch am PC?** R3 lässt am PC den Toast unten rechts. Empfehlung: die Zeile „gelöscht“ und das
-  Leuchten gelten auf allen Breiten, ohne zusätzlichen Toast am PC. Grund: das Ergebnis ist am Ort zu sehen (R3 Platz 1),
-  ein Toast daneben wiederholte nur dieselbe Aktion, und ein Weg je Breite wäre doppelter Code. Diese Task ist so
-  geschrieben; entscheidet Roman anders, kommt am PC zusätzlich der Toast über den Meldungsweg.
+## Entscheidungen Roman (2026-11-19)
+- **Zeile am Platz auch am PC?** Ja (ADR 0098): die Zeile „gelöscht“, das Leuchten und die Fehler an der Regel gelten
+  auf allen Breiten, ohne zusätzlichen Toast am PC. Folge: ein Weg für alle Breiten; der PC-Toast kommt nur für die
+  Meldung bei `FromEntry`, wenn sie dort keinen Ort hat (Kassenbuch: am Handy die Leiste).
 
 ## Notes
 Captured 2026-11-19 aus ledger-vf5h6. Verfeinert 2026-11-19.

@@ -30,7 +30,10 @@ Vorlage ist die Skizze aus ledger-vf5h6 (https://claude.ai/artifact/GESk5E9GWEHh
 2026-11-19 freigegeben), Abschnitt 2 „Kassenbuch“ und Anhang „Alle Toasts“. Pfade unter Notes.
 
 „Handy“ heißt hier wie in R3 unter 1024 px (dort, wo heute der FAB steht, `lg:hidden`). Am PC (ab 1024 px) bleibt der
-Toast unten rechts, höchstens einer, mit denselben Texten wie heute.
+Toast unten rechts, höchstens einer, 5 s, mit ✕. Er zeigt dieselbe Meldung wie die Leiste (ein Zustand, design-system-gkded), also die
+neuen Texte der Tabelle unten (Abgleich 2026-11-19). Die Meldungen dieser Task haben keinen
+Ort auf der Seite (am Handy die Leiste), darum gilt für sie am PC der Toast (ADR 0098, Roman 2026-11-19); Rückmeldungen
+am Ort (Detail, gelöschte Zeile) stehen auch am PC ohne Toast und gehören zu ledger-p5y9s, ledger-enjex und ledger-k68sd.
 
 ### Leiste mit „+ Buchung“
 Die Leiste selbst baut design-system-gkded (Abgleich der Verfeinerung 2026-11-19): `Feedback.bar` mit „+ Buchung“ statt
@@ -43,7 +46,8 @@ Leiste, mit den alten Texten. Diese Task setzt darauf auf:
 - den neuen Zustand „Spiegeln läuft …“ in der Leiste,
 - Kriterium: die letzte Zeile der Liste ist am Ende gescrollt ganz zu sehen, mit Leiste in Ruhe und mit zweizeiliger
   Meldung (gkded liefert die Höhe, hier wird es für das Kassenbuch geprüft).
-- Wo die Meldung im Auswahl-Modus steht, ist offene Frage 4; bis zur Antwort gilt die Empfehlung.
+- Im Auswahl-Modus steht die Meldung in der Leiste ohne Knopf direkt über der Auswahl-Leiste, die Liste endet über
+  beiden (Entscheidung Roman).
 
 ### Zuordnung je Toast (Zeilen in `src/Client/Components/Ledger/State.fs`, Stand d6e9cb95)
 Spalten wie im Anhang der Skizze: heute, Vorschlag, mit R3.
@@ -56,10 +60,10 @@ Spalten wie im Anhang der Skizze: heute, Vorschlag, mit R3.
 | 2451 | „Prüfvermerk nicht gesetzt: …“ | anders | Leiste rot: „Nicht geprüft“ / Grund; die Zeile bleibt „zu prüfen“ |
 | 2472 | „Prüfvermerk nicht in YNAB: …“ nach Rückgängig | bleibt | Leiste gelb wie 2438 |
 | 2479 | „Rückgängig nicht möglich: …“ | anders | Leiste rot: „Rückgängig nicht möglich“ / Grund |
-| 2035 | „Spiegel-Lauf fertig: 3 neu, 1 geändert, 0 gelöscht“ | bleibt, Leiste | „✓ Gespiegelt“ / „3 neu, 1 geändert“ (Texte: offene Frage 1) |
-| (neu) | während des Laufs nur der Spinner am Knopf | Skizze 24 | „Spiegeln läuft …“ ohne Symbol, gedämpft, bis zum Ergebnis |
+| 2035 | „Spiegel-Lauf fertig: 3 neu, 1 geändert, 0 gelöscht“ | bleibt, Leiste | „✓ Gespiegelt“ / „3 neu, 1 geändert“ (Teile mit 0 entfallen, alles 0: „nichts Neues“; Entscheidung Roman) |
+| (neu) | während des Laufs nur der Spinner am Knopf | Skizze 24 | „Spiegeln läuft …“ ohne Symbol, gedämpft, bis zum Ergebnis (Wort „Spiegeln“ statt „Abrufen“ der Skizze, Entscheidung Roman) |
 | 2042 | „Spiegel-Lauf gescheitert: …“ | bleibt, rot | Leiste rot: „Spiegeln gescheitert“ / Grund / „Erneut“ (= `StartMirror`, Skizze 26) |
-| 3561 | „Buchung angelegt · Konto · Betrag“ mit Rückgängig | bleibt, Leiste | „✓ Angelegt“ / zweite Zeile nach offener Frage 3 / „Rückgängig“ (= `UndoCapturedBooking`, Skizze 27) |
+| 3561 | „Buchung angelegt · Konto · Betrag“ mit Rückgängig | bleibt, Leiste | „✓ Angelegt“ / „Payee · Betrag“, dahinter „· Konto“ nur, wenn die Buchung nicht im gezeigten Konto liegt; ohne Payee „Konto · Betrag“ / „Rückgängig“ (= `UndoCapturedBooking`, Skizze 27) |
 | 3566 | „Buchung angelegt · …, noch nicht in YNAB: …“ gelb, ohne Rückgängig | bleibt | Leiste gelb: „Angelegt, nicht in YNAB“ / Grund, ohne Rückgängig (wie heute) |
 | 3574 | Fehler beim Anlegen, wenn das Formular schon zu ist | bleibt | Leiste rot: „Nicht angelegt“ / Grund (bei offenem Formular steht er wie heute im Formular) |
 | 3600 | „Buchung verworfen“ nach Rückgängig | entfällt | keine Meldung: die Zeile ist weg, die Leiste wird leer |
@@ -100,7 +104,7 @@ Zweige `isReviewCard`) gehören zu den anderen Teilen bzw. zu ledger-pz5wv. Bis 
 | „+ Buchung“ öffnet „Neue Buchung“ (vorbelegt mit dem Konto des Filters) | bleibt, Knopf in der Leiste statt schwebend |
 | Kopf: „Abrufen“ (⤓) und „Jetzt spiegeln“ (⟳) als Symbolknöpfe, „Gespiegelt …“ darunter | bleibt; die Skizze zeigt nur ⟳, BB behält beide |
 | Tabs Buchungen / Regeln, Konto, Suche, Filter, Chips, Summen je Tag | bleibt (Skizze vereinfacht) |
-| Hinweis „Spiegel läuft. Die Liste bleibt so lange stehen.“ an der Liste (View.fs ~4708) | bleibt, bis Roman ihn streicht (offene Frage 2) |
+| Hinweis „Spiegel läuft. Die Liste bleibt so lange stehen.“ an der Liste (View.fs ~4708) | bleibt (Entscheidung Roman, 2026-11-19) |
 | Wisch nach rechts prüft eine „zu prüfen“-Zeile | bleibt; geprüfte Zeilen bleiben nicht wischbar (Abweichung: Skizze zeigt „schon geprüft“ mit 40 px Weg, das war Demo der Skizze und ist nicht Teil von R3) |
 | Rückgängig nach Wisch | bleibt, in der Leiste |
 | Langes Drücken: Auswahl-Modus, Sammelaktionen, Rückgängig je Sammelaktion | bleibt, Rückmeldung in der Leiste |
@@ -114,8 +118,8 @@ Zweige `isReviewCard`) gehören zu den anderen Teilen bzw. zu ledger-pz5wv. Bis 
 - [ ] Mit Meldung: runder Knopf „+“ (zugänglicher Name „Neue Buchung“), Meldung links zweizeilig, Aktion nie gekürzt,
       zweite Zeile mit „…“ gekürzt, rechts „Rückgängig“ bzw. „Erneut“; Farben als Rollen aus dem Baustein von ytgnc
       (ok, Warnung, Fehler, läuft), keine eigenen Werte.
-- [ ] Jede Zeile der Tabelle „Zuordnung je Toast“ ist umgesetzt: am Handy die Leiste mit dem genannten Text, am PC derselbe
-      Toast wie heute (Text, Ton, Aktion). Client-Tests in `src/Tests` (heute u. a. `LedgerReviewMarkClientTests.fs`,
+- [ ] Jede Zeile der Tabelle „Zuordnung je Toast“ ist umgesetzt: am Handy die Leiste mit dem genannten Text, am PC der Toast mit
+      derselben Meldung (Text, Ton, Aktion wie in der Leiste). Client-Tests in `src/Tests` (heute u. a. `LedgerReviewMarkClientTests.fs`,
       `LedgerReviewMarkBatchClientTests.fs`, `LedgerCategoryBatchClientTests.fs`, `LedgerLenaFlagBatchClientTests.fs`,
       `LedgerCaptureClientTests.fs`, `LedgerBackgroundRefreshTests.fs`, `LedgerPageTests.fs`) prüfen je Weg die Meldung
       (Aktion, zweite Zeile, Ton, Aktion „Rückgängig“/„Erneut“ und welche Nachricht sie auslöst).
@@ -124,7 +128,9 @@ Zweige `isReviewCard`) gehören zu den anderen Teilen bzw. zu ledger-pz5wv. Bis 
       `[flow:buchung-pruefen]` (Handy-Teil in `scripts/ledger-review-mark.test.mjs`) wartet auf die Leiste statt auf
       `innerText.includes("geprüft")`.
 - [ ] Spiegeln am Handy: während des Laufs „Spiegeln läuft …“ in der Leiste, danach Ergebnis bzw. Fehler mit „Erneut“
-      (startet den Lauf neu). Texte nach Antwort auf offene Frage 1.
+      (startet den Lauf neu). Texte: „Spiegeln läuft …“, „✓ Gespiegelt“ mit zweiter Zeile „3 neu, 1 geändert“ (Teile
+      mit 0 entfallen), Fehler „Spiegeln gescheitert“. Der Hinweis „Spiegel läuft. Die Liste bleibt so lange stehen.“
+      an der Liste bleibt.
 - [ ] Die Meldung bleibt ohne Zeitlimit stehen, bis eine andere Aktion sie ersetzt oder die Seite verlassen wird.
 - [ ] Die Liste endet über der Leiste. Sweep-Invariante „am Ende gescrollt verdeckt“ bleibt grün; der Gegenbeweis in
       `scripts/layout-invariants.test.mjs` (heute über `ledger-capture-fab-spacer`, Zeile ~199) zeigt auf die Leiste.
@@ -132,25 +138,29 @@ Zweige `isReviewCard`) gehören zu den anderen Teilen bzw. zu ledger-pz5wv. Bis 
       „+ Buchung“ in der Leiste; neue Zustände `kassenbuch-leiste-geprueft`, `kassenbuch-leiste-3-geprueft`,
       `kassenbuch-leiste-spiegel-fehler` bei `HANDY_WIDTHS`. `kassenbuch-spiegel-laeuft` zeigt am Handy die Leiste.
 - [ ] `[flow:buchung-erfassen]` (`scripts/ledger-capture.test.mjs`) tippt „+ Buchung“ in der Leiste und findet danach
-      „Angelegt“ mit „Rückgängig“ in der Leiste, nicht im Toast.
+      „Angelegt“ mit „Rückgängig“ in der Leiste, nicht im Toast. Zweite Zeile „Payee · Betrag“, „· Konto“ nur, wenn die
+      Buchung nicht im gezeigten Konto liegt; reiner Test für beide Fälle und für „ohne Payee“.
+- [ ] Im Auswahl-Modus steht eine Meldung in der Leiste ohne Knopf direkt über der Auswahl-Leiste; die Liste endet über
+      beiden (Sweep-Zustand bei 412 px).
 - [ ] Am PC (1280) unverändert: kein Leisten-Element sichtbar, Toast unten rechts, höchstens einer.
 - [ ] Seite neben der Skizze verglichen (Screenshot bei 412 px im Outcome für Ruhe, Wisch eingerastet, Geprüft,
       3 geprüft, Spiegeln läuft, Spiegeln gescheitert, Angelegt; dazu PC 1280), Abweichungen nur die in dieser Task
       genannten.
 - [ ] `./verify.sh` meldet `VERIFY: PASS`.
 
-## Offene Fragen an Roman
-1. **Wort für den Spiegel-Lauf in der Leiste.** Die Skizze sagt „Abrufen läuft …“ / „Abgerufen“ am Knopf ⟳. In BB ist ⟳
-   „Jetzt spiegeln“ und „Abrufen“ (⤓) der Comdirect-Abruf (banking-import-vwhfm). Empfehlung: „Spiegeln läuft …“,
-   „✓ Gespiegelt“ / „3 neu, 1 geändert“ (Teile mit 0 weglassen, alles 0: „nichts Neues“), Fehler „Spiegeln gescheitert“.
-   Grund: zwei Knöpfe, zwei Wörter, sonst verwechselt man den Bankabruf mit dem Spiegel.
-2. **Hinweis „Spiegel läuft. Die Liste bleibt so lange stehen.“** steht heute über der Liste; mit der Leiste stünde der Lauf
-   zweimal da. Empfehlung: behalten, bis du ihn streichst; er sagt zusätzlich, dass die Liste stehen bleibt.
-3. **Zweite Zeile nach „Angelegt“.** Skizze: „Payee · Betrag“. Heute: „Konto · Betrag“. Empfehlung: „Payee · Betrag“, dahinter
-   „· Konto“, wenn die Buchung nicht im gerade gezeigten Konto liegt (dann sieht man sie in der Liste nicht). Ohne Payee
-   „Konto · Betrag“.
-4. **Meldung im Auswahl-Modus.** Empfehlung: Leiste ohne Knopf direkt über der Auswahl-Leiste, die Liste endet über beiden.
-   Alternative: Meldung wartet, bis der Auswahl-Modus endet (dann sähe man einen Spiegel-Fehler zu spät).
+## Entscheidungen Roman (2026-11-19)
+1. **Wort für den Spiegel-Lauf in der Leiste** (Skizze „Abrufen läuft …“, in BB ist „Abrufen“ der Comdirect-Abruf):
+   „Spiegeln läuft …“, „✓ Gespiegelt“, zweite Zeile „3 neu, 1 geändert“, Teile mit 0 entfallen; Fehler „Spiegeln
+   gescheitert“. Folge: Bankabruf und Spiegel heißen in der Leiste verschieden.
+2. **Hinweis „Spiegel läuft. Die Liste bleibt so lange stehen.“:** bleibt. Folge: der Lauf steht am Handy in Leiste und
+   Hinweis, der Hinweis sagt zusätzlich, dass die Liste stehen bleibt.
+3. **Zweite Zeile nach „✓ Angelegt“:** „Payee · Betrag“, „· Konto“ nur, wenn die Buchung nicht im gezeigten Konto liegt
+   (ohne Payee „Konto · Betrag“). Folge: Text als reine Funktion mit Test für beide Fälle.
+4. **Meldung im Auswahl-Modus:** Leiste ohne Knopf über der Auswahl-Leiste. Folge: ein Spiegel-Fehler ist auch im
+   Auswahl-Modus sofort zu sehen.
+5. **Rückmeldung am Ort am PC** (ADR 0098): Rückmeldungen am Ort stehen auch am PC ohne zusätzlichen Toast, der PC-Toast
+   gilt nur für Meldungen ohne Ort. Folge: die Meldungen dieser Task bleiben am PC Toast, weil sie am Handy in der
+   Leiste stehen.
 
 ## Notes
 Captured 2026-11-19 aus ledger-vf5h6, verfeinert und geteilt 2026-11-19.

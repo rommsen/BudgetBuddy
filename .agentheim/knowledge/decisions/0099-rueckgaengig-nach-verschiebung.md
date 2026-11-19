@@ -2,7 +2,7 @@
 id: 0099
 title: Rückgängig nach einer Verschiebung als Verschiebung in die Gegenrichtung
 scope: budgeting
-status: proposed
+status: accepted
 date: 2026-11-19
 supersedes: []
 superseded_by: []
@@ -31,7 +31,7 @@ Von Roman entschieden (2026-11-19):
    Ereignis wird weder gelöscht noch zurückgezogen.
 2. **Ort:** die Ergebniszeile über dem Hauptknopf im Sheet „Geld“.
 
-Vorgeschlagen beim Verfeinern (tactical-modeler, budgeting-y1kkr), bis zur Antwort von Roman offen:
+Vorgeschlagen beim Verfeinern (tactical-modeler, budgeting-y1kkr), von Roman am 2026-11-19 bestätigt:
 
 3. **Relativ:** derselbe Betrag zurück, über den bestehenden Befehl Verschieben mit vertauschter Quelle und vertauschtem
    Ziel, an den Monat der ursprünglichen Verschiebung, mit frischer Befehls-Id. Kein neuer Ereignistyp, kein neues Feld,
@@ -42,13 +42,14 @@ Vorgeschlagen beim Verfeinern (tactical-modeler, budgeting-y1kkr), bis zur Antwo
 6. **Lebensdauer:** nur die letzte Verschiebung; das Angebot endet mit dem nächsten Senden, Kategorie- oder Monatswechsel,
    Schließen des Sheets, Verlassen der Seite und Neuladen. Es lebt nur im Client.
 
-## Offene Fragen an Roman
+Entscheidungen Roman (2026-11-19) zu den beim Verfeinern offenen Punkten:
 
-- Zeigt die Historie ein Rückgängig als solches (Verweis `undoes` im Ereignis), oder reichen zwei normale Bewegungen?
-  Empfehlung: zwei normale Bewegungen, Verweis später als optionales Feld.
-- Endet das Angebot schon beim Moduswechsel (Zuweisen, Holen, Abgeben)? Empfehlung: nein, erst beim nächsten Senden.
-- Kein Rückgängig beim Feld Zugewiesen? Empfehlung: ja, keins.
-- Relativ statt absolut? Empfehlung: relativ.
+- (a) **Historie:** Hin- und Rückweg stehen als zwei normale Bewegungen, ohne Vermerk und ohne Verweis `undoes` im
+  Ereignis.
+- (b) **Moduswechsel:** Der Wechsel zwischen Zuweisen, Holen und Abgeben beendet das Angebot nicht, erst das nächste
+  Senden.
+- (c) **Feld Zugewiesen:** bekommt kein Rückgängig.
+- (d) **Relativ:** Rückgängig bucht relativ zurück (Punkt 3), kein absoluter Stand.
 
 ## Consequences
 
@@ -56,7 +57,7 @@ Vorgeschlagen beim Verfeinern (tactical-modeler, budgeting-y1kkr), bis zur Antwo
   unverändert auch für das Rückgängig.
 - Hat sich zwischen Verschiebung und Rückgängig in YNAB oder BB etwas geändert, bleibt diese Änderung erhalten; der
   Endstand ist dann nicht der alte Stand. Bei der kurzen Lebensdauer des Angebots ist das selten.
-- Die Historie zeigt Hin- und Rückweg als zwei Bewegungen, solange Frage 1 nicht anders entschieden ist.
+- Die Historie zeigt Hin- und Rückweg als zwei normale Bewegungen ohne Vermerk (Entscheidung a).
 
 ## Alternatives considered
 
@@ -64,4 +65,4 @@ Vorgeschlagen beim Verfeinern (tactical-modeler, budgeting-y1kkr), bis zur Antwo
   und eine schon nach YNAB geschriebene Zeile ist keine offene Rückschreibung, die man zurückziehen könnte.
 - **Absolut den alten Stand herstellen:** überschriebe Änderungen aus YNAB dazwischen (gegen ADR 0055) und bräuchte eine
   eigene Prüfung „Stand hat sich geändert“.
-- **Herkunft „Rückgängig“ mit Verweis im Ereignis:** möglich, aber im ersten Schnitt nicht nötig; offene Frage oben.
+- **Herkunft „Rückgängig“ mit Verweis im Ereignis:** möglich, aber nicht nötig; von Roman verworfen (Entscheidung a).

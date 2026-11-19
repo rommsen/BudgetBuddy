@@ -47,8 +47,9 @@ CSS `.field.flash`, `.cap`, `.cap .avail`, `.cap .undo`.
 - `prefers-reduced-motion`: das Feld leuchtet ohne Übergang (oder gar nicht), die Zeile darunter erscheint trotzdem.
 - Toasts, die im Durchgehen entfallen (`src/Client/Components/Ledger/State.fs`), solange `model.Review` gesetzt ist und
   die Buchung die Karte ist (`isReviewCard`): `EntryCategorySet` 2567, 2577, 2578, 2585; `EntryCategoryRestored` 2612,
-  2614, 2621; `EntryTransferSet` 2652, 2663, 2664, 2672. Außerhalb des Durchgehens und im Detail-Sheet bleibt es wie
-  heute bzw. wie ledger-gwr9j es baut. `reviewCategoryToastText` und `reviewTransferToastText` (`Types.fs` 1323, 1330)
+  2614, 2621; `EntryTransferSet` 2652, 2663, 2664, 2672. Das gilt am Handy und am PC gleich (Entscheidung Roman
+  2026-11-19, wie Frage 1 in ledger-pz5wv). Außerhalb des Durchgehens und im Detail-Sheet bleibt es wie heute bzw. wie
+  ledger-p5y9s es baut. `reviewCategoryToastText` und `reviewTransferToastText` (`Types.fs` 1323, 1330)
   werden zu Texten der Zeile am Feld.
 - Modell: Feld in `ReviewSession`, etwa `CategoryNote: { EntryId; Text; Undo }`, beim Kartenwechsel
   (`showReviewCardAt`) geleert.
@@ -75,22 +76,27 @@ CSS `.field.flash`, `.cap`, `.cap .avail`, `.cap .undo`.
 
 ## Acceptance criteria
 - [ ] Nach einer Kategorie auf der Karte: Feld leuchtet kurz, darunter „<Name> · <Betrag> verfügbar“ mit Rückgängig;
-      Übertrag mit „Gegenbuchung angelegt“; kein Toast. Reducer-Tests in `src/Tests/LedgerReviewClientTests.fs`
+      Übertrag mit „Gegenbuchung angelegt“; kein Toast, am Handy und am PC. Reducer-Tests in `src/Tests/LedgerReviewClientTests.fs`
       (Kategorie, ohne Verfügbares, entfernt, Übertrag); der Test „die Kategorie auf der Karte meldet Name und Verfügbares“
       (Zeile 555) prüft jetzt die Zeile am Feld statt des Toasts.
 - [ ] Rückgängig am Feld stellt Kategorie bzw. Übertrag zurück, ohne Meldung; Test je Weg.
 - [ ] Warnung gelb und Fehler rot mit „Erneut“ in der Zeile unter dem Knopf; Test je Fall.
 - [ ] Z nimmt die jüngste Aktion zurück (reine Funktion mit Test).
-- [ ] Außerhalb des Durchgehens bleiben die Kategorie-Toasts (Gegentest).
+- [ ] Außerhalb des Durchgehens ändert diese Task die Rückmeldung der Kategorie nicht (Gegentest; dort gilt
+      ledger-p5y9s).
 - [ ] Sweep: Zustand `durchgehen-kategorie-feld` (nach Tipp auf einen Vorschlag, 320/412/1280), `reach` auf „Rückgängig“
       am Feld; „Passt, weiter“ bleibt ohne Scrollen sichtbar; Invarianten grün ohne Ausnahme.
 - [ ] Seite neben der Skizze verglichen: Screenshot bei 412 px im Outcome für 06 (Kategorie aus Vorschlag), dazu PC 1280;
-      Abweichungen nur die genannten.
+      mit der Zeile am Feld, ohne Toast; Abweichungen nur die genannten.
 - [ ] Das kurze Leuchten des Felds ist am Handy wahrnehmbar und nicht grell. [human-eye]
+
+## Entscheidungen Roman (2026-11-19)
+- **Am PC:** Zeile am Feld und Zeile unter „Passt, weiter“ auch am PC, im Durchgehen kein Toast (wie ledger-pz5wv,
+  Frage 1; ADR 0098). Folge: Kriterien und Sweep bei 1280 prüfen die Zeile am Feld ohne Toast.
 
 ## Notes
 Abgeteilt 2026-11-19 aus ledger-pz5wv beim Verfeinern. Braucht die Zeile unter dem Knopf aus ledger-pz5wv (Warnung, Fehler,
-Z). Die Antwort auf Frage 1 in ledger-pz5wv (Zeile auch am PC) gilt hier genauso.
+Z).
 
 **Skizze** (Basis `/private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/4b5cf62e-3174-40e3-90f3-4b5312280eb9/scratchpad`):
 - `.../scratchpad/vf5h6/skizze-shots/06-kategorie-aus-vorschlag.png`

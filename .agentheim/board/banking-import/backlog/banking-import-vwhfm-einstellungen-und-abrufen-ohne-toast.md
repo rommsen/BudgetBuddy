@@ -119,7 +119,7 @@ Vorlage ist die Skizze aus ledger-vf5h6 (https://claude.ai/artifact/GESk5E9GWEHh
   nächsten Aktion.
 - Verbindung testen YNAB und Comdirect, TAN bestätigt, Vorschlag der Lena-Farbe, Link zu den YNAB-Entwicklereinstellungen,
   Link zum Styleguide, Kopf mit „Zurück“ und „Einstellungen aktualisieren“: bleibt.
-- Rückmeldungen: ändern sich (Tabelle). Toast am Handy: gestrichen (Roman, 2026-11-19, R3).
+- Rückmeldungen: ändern sich (Tabelle). Toast am Handy und am PC: gestrichen (Roman, 2026-11-19, R3, ADR 0098).
 - Nicht Teil dieser Task: die Anrede „Sie“ in „Die YNAB-Flag-Farbe, die Sie in YNAB Lena genannt haben“ und
   „Budget“/„Konto“ ohne Namen (nur ein Strich) im Lesen-Modus, solange kein Test lief. Beides ist heute so und bleibt.
 
@@ -158,16 +158,15 @@ Vorlage ist die Skizze aus ledger-vf5h6 (https://claude.ai/artifact/GESk5E9GWEHh
 - [ ] Kein englischer Text mehr, den die Seite zeigen kann (Client und die genannten Server-Stellen); Kann-Sammlung
       ledger Punkt 152 erledigt.
 - [ ] Alle Funktionen mit „bleibt“ funktionieren wie vorher; `[flow:zugangsdaten-speichern]` und `[flow:bank-trennen]` grün.
-- [ ] Seite neben der Skizze verglichen (Screenshot bei 412 px im Outcome, dazu PC 1280), Abweichungen nur die in dieser
+- [ ] Seite neben der Skizze verglichen (Screenshot bei 412 px im Outcome, dazu PC 1280 mit „✓ Gespeichert“ am Ort,
+      ohne Toast), Abweichungen nur die in dieser
       Task genannten (Karten mit „Bearbeiten“ statt Einzelabschnitten, „✓ Gespeichert“ im Kopf der Karte, Fehler der
       Zugangsdaten über dem Knopf).
 - [ ] `./verify.sh` meldet `VERIFY: PASS`.
 
-## Offene Frage an Roman
-- **Rückmeldung am Ort auch am PC?** R3 lässt am PC den Toast unten rechts. Empfehlung: „✓ Gespeichert“, Fehler am Feld
-  und Plakette gelten auf allen Breiten, ohne Toast am PC. Grund: das Ergebnis steht am Ort (R3 Platz 1), Fehler zu
-  einer Eingabe gehören ohnehin ans Feld (`.claude/rules/task-ui-vorgaben.md`), und ein Toast daneben wiederholte nur
-  dasselbe. Diese Task ist so geschrieben.
+## Entscheidungen Roman (2026-11-19)
+- **Rückmeldung am Ort auch am PC?** Ja (ADR 0098): „✓ Gespeichert“, Fehler am Feld, Leuchten und Plakette gelten auf
+  allen Breiten, ohne Toast am PC. Folge: die Seite hat in keiner Breite einen Toast, ein Weg für alle Breiten.
 
 ## Notes
 Captured 2026-11-19 aus ledger-vf5h6. Verfeinert 2026-11-19; das Sheet „Abrufen“ ging in banking-import-ns4re.

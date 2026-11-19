@@ -31,9 +31,11 @@ Vorlage ist die Skizze aus ledger-vf5h6 (https://claude.ai/artifact/GESk5E9GWEHh
 Zeilen „Budget, Sheet Geld“ und „Budget, Seite“ der Tabelle „Übrige Seiten“. Pfade der Screenshots in den Notes.
 
 Alle Meldungen gehen über den Meldungsweg aus design-system-ytgnc (DS-Modul vorläufig `Feedback`; Name, Nachricht und
-Orte nimmt der Worker aus der fertigen Task). Unter 1024 px steht eine Meldung an dem Ort, den diese Task nennt, ab
-1024 px bleibt sie der Toast unten rechts wie heute (R3), höchstens einer. Ausnahme: der Hinweis „nicht neu gelesen“
-ist ein Zustand der Seite, er steht in allen Breiten auf der Seite (siehe Abweichungen).
+Orte nimmt der Worker aus der fertigen Task). Eine Meldung steht an dem Ort, den diese Task nennt, am PC (ab 1024 px)
+genauso wie am Handy: die Zeile im Sheet steht am PC im Panel über dem Hauptknopf, „Verfügbar“ leuchtet dort, der
+Hinweis „nicht neu gelesen“ steht auf der Seite, alles ohne zusätzlichen Toast (Entscheidung Roman 2026-11-19, ADR
+0098). Nur Meldungen ohne Ort (am Handy die Leiste, etwa bei geschlossenem Sheet) kommen am PC als Toast unten rechts,
+höchstens einer, 5 s, mit ✕.
 
 ### 1. Zeile im Sheet „Geld“ (Ort: Zeile über dem Hauptknopf)
 Skizze `.mk-msg`: eine Zeile, links das Zeichen, dann der Text fett (Kürzung mit „…“, nie über zwei Zeilen), rechts eine
@@ -43,19 +45,19 @@ gelegt (ytgnc Regel 2).
 
 | Heute (Toast, Datei:Zeile) | Mit R3 in der Zeile |
 |---|---|
-| `moveToast` Erfolg: „50,00 € von Essen nach Reise“ (`Moves.fs:392`, `moveSummaryText`) | ✓ grün (Rolle ok) „50,00 € nach Reise“ bei Abgeben, „50,00 € von Reise“ bei Holen, aus Sicht der gewählten Kategorie (Skizze); bei Zu verteilen „50,00 € nach Zu verteilen“ / „50,00 € von Zu verteilen“. Rechts vorerst keine Aktion; „Rückgängig“ bringt budgeting-y1kkr. |
+| `moveToast` Erfolg: „50,00 € von Essen nach Reise“ (`Moves.fs:392`, `moveSummaryText`) | ✓ grün (Rolle ok) „50,00 € nach Reise“ bei Abgeben, „50,00 € von Reise“ bei Holen, aus Sicht der gewählten Kategorie (Skizze; „von Reise“ bei Holen: Entscheidung Roman); bei Zu verteilen „50,00 € nach Zu verteilen“ / „50,00 € von Zu verteilen“. Rechts vorerst keine Aktion; „Rückgängig“ bringt budgeting-y1kkr. |
 | Fehlbetrag-Knopf Erfolg (heute auch `moveToast`, „12,30 € von Zu verteilen nach Essen“) | ✓ „12,30 € von Zu verteilen“ |
 | `moveToast` „In YNAB geändert, nichts überschrieben“ (`Moves.fs:391`, Warnung) | „!“ gelb (Rolle Warnung) „In YNAB geändert, nichts überschrieben“, keine Aktion |
 | `failureToast` „Nicht vollständig verschoben: …“ / „Nicht zugewiesen: …“ mit „Erneut senden“ (`Moves.fs:380`, aus `moveToast` und `assignToast`) | rot (Rolle Fehler) „Nicht vollständig verschoben: <Grund>“ bzw. „Nicht zugewiesen: <Grund>“, rechts „Erneut senden“ (gleiche Wirkung wie heute: `RetryBudgetMove`) |
 | `assignToast` ohne offenen Bericht „Nicht zugewiesen: …“ (`Moves.fs:399`) | rot, ohne Aktion |
 | `applyAssignAnswered` Error „Nicht zugewiesen: …“ (`Moves.fs:442`) | rot, ohne Aktion |
 | `applyAssignCallLost` „Ob zugewiesen wurde, ist unklar: …“ (`Moves.fs:449`) | rot, ohne Aktion, Text unverändert |
-| `applyMoveAnswered` Error ohne Tab „Nicht verschoben: …“ (`Moves.fs:685`) | Sheet offen: rot in der Zeile; Sheet zu: Leiste (ytgnc Regel 3) |
+| `applyMoveAnswered` Error ohne Tab „Nicht verschoben: …“ (`Moves.fs:685`) | Sheet offen: rot in der Zeile; Sheet zu: Leiste (ytgnc Regel 3), am PC Toast |
 | `applyMoveCallLost` „Ob verschoben wurde, ist unklar: …“ (`Moves.fs:690`) | rot, ohne Aktion, Text unverändert |
 | `applyMoveRetried` Error „Erneut senden gescheitert: …“ (`Moves.fs:733`) | rot, rechts „Erneut senden“ |
 | `startMove` „Eine Verschiebung läuft noch. Gleich noch einmal versuchen.“ (`State.fs:810`, `moveBlockedText`) | gelb, ohne Aktion |
 | `CoverMissing` „Eingabe verworfen: der Fehlbetrag wurde zugewiesen“ (`State.fs:460`, `coverDroppedEntryText`) | gelb, ohne Aktion |
-| `leaveToast` „Zugewiesen nicht gespeichert: keine gültige Rechnung“ (`Moves.fs:332`, `invalidEntryText`) | Sheet bleibt offen (Kategorie- oder Monatswechsel): gelb in der Zeile; Sheet geschlossen: Leiste |
+| `leaveToast` „Zugewiesen nicht gespeichert: keine gültige Rechnung“ (`Moves.fs:332`, `invalidEntryText`) | Sheet bleibt offen (Kategorie- oder Monatswechsel): gelb in der Zeile; Sheet geschlossen: Leiste, am PC Toast |
 | `droppedEntryToast` „Zugewiesen nicht gespeichert: die Kategorie gibt es nicht mehr“ (`State.fs:826`) | wie `leaveToast` |
 
 Erfolgreiches Zuweisen über das Feld zeigt wie heute keinen Text (die Zahl ist die Antwort, `assignToast`); es gibt nur
@@ -67,7 +69,8 @@ das Leuchten.
 erfunden; bei `prefers-reduced-motion: reduce` ohne Bewegung (der Ring darf stehen und ohne Übergang verschwinden).
 
 **Lebensdauer** (ytgnc): eine Meldung zugleich; sie bleibt bis zur nächsten Aktion im Sheet (Tipp auf einen Knopf, eine
-neue Eingabe, Moduswechsel), bis zum Kategorie- oder Monatswechsel oder bis das Sheet schließt. Kein ✕, kein Zeitlimit.
+neue Eingabe), bis zum Kategorie- oder Monatswechsel oder bis das Sheet schließt. Der Wechsel zwischen Zuweisen, Holen
+und Abgeben beendet sie nicht (wie das Rückgängig-Angebot in budgeting-y1kkr, ADR 0099 Entscheidung b). Kein ✕, kein Zeitlimit.
 Fehler bleiben ebenso bis zur nächsten Aktion.
 
 ### 2. Hinweis „nicht neu gelesen“ (Ort: unter „Zu verteilen“, auf der Seite)
@@ -91,9 +94,9 @@ sein.“, rechts die Textaktion „Neu laden“. Steht unter dem Seitenkopf mit 
 ### 3. Übrige Toasts der Budget-Seite und des Sheets
 | Heute (Toast) | Mit R3 |
 |---|---|
-| `TargetPauseAnswered` Error, Pause-Knopf nicht im offenen Tab: `pauseRejectedAwayText` (`State.fs:554`) | Sheet offen: Zeile im Sheet (rot); sonst Leiste |
+| `TargetPauseAnswered` Error, Pause-Knopf nicht im offenen Tab: `pauseRejectedAwayText` (`State.fs:554`) | Sheet offen: Zeile im Sheet (rot); sonst Leiste, am PC Toast |
 | `TargetPauseCallLost`, nicht im Tab: `pauseCallLostText` (`State.fs:565`) | wie oben |
-| `MonthStartHideAnswered` Error „Ausblenden nicht gespeichert …“ (`State.fs:516`) | Leiste (gelb), die Budget-Seite hat kein „+ Buchung“, die Leiste steht nur solange (ytgnc) |
+| `MonthStartHideAnswered` Error „Ausblenden nicht gespeichert …“ (`State.fs:516`) | Leiste (gelb), die Budget-Seite hat kein „+ Buchung“, die Leiste steht nur solange (ytgnc); am PC Toast |
 | Offene Verschiebung (Hinweis mit „Erneut senden“, `moveRetries`, `InspectorView.fs:347`) | **bleibt** wie heute (Zustand, kein Toast) |
 
 ## Funktionsabgleich (heutige Funktionen der betroffenen Stellen)
@@ -105,15 +108,20 @@ sein.“, rechts die Textaktion „Neu laden“. Steht unter dem Seitenkopf mit 
 - Markierung „noch nicht in YNAB“ an der Kategorie mit „Erneut senden“ (`notInYnabNotice`): **bleibt**.
 - Kein Erfolgs-Toast beim Zuweisen im Feld: **bleibt**.
 - Sperre des Fehlbetrag-Knopfs bei veraltetem Monat (`canCover`): **bleibt**.
-- PC (ab 1024 px, Panel): Toast unten rechts **bleibt** für alle Meldungen aus Teil 1 und 3, höchstens einer.
+- PC (ab 1024 px, Panel): Toast nach Verschieben und Fehlern im Panel **ändert sich** (Zeile im Panel über dem
+  Hauptknopf wie am Handy, „Verfügbar“ leuchtet); Toast unten rechts **bleibt** nur für Meldungen ohne Ort (Panel zu,
+  Ausblenden des Monatsersten), höchstens einer, 5 s, mit ✕.
 - Rückgängig nach Verschiebung: neu, aber in budgeting-y1kkr.
 
 ## Abweichungen von der Skizze
 - Text der Erfolgszeile: die Skizze zeigt nur „50,00 € nach Reise“ (Abgeben). Für Holen und Zu verteilen leitet diese Task
   „von …“ und „… Zu verteilen“ ab; Grund: dieselbe Sicht aus der gewählten Kategorie, die Skizze zeigt nur einen Fall.
-- Hinweis „nicht neu gelesen“ auch am PC (Skizze zeigt nur das Handy, Brief sagt „am PC bleibt der Toast“). Grund: es ist
-  ein Zustand, kein Ergebnis einer Aktion; ein Toast, der nach fünf Sekunden geht, während der Monat veraltet bleibt, ist
-  heute schon falsch. Offene Frage an Roman unten.
+  Für Holen von Roman bestätigt („50,00 € von Reise“).
+- Hinweis „nicht neu gelesen“ auch am PC (Skizze zeigt nur das Handy; Entscheidung Roman 2026-11-19). Grund: es ist ein
+  Zustand, kein Ergebnis einer Aktion; ein Toast, der nach fünf Sekunden geht, während der Monat veraltet bleibt, ist
+  heute schon falsch.
+- Zeile über dem Hauptknopf auch im Panel am PC (Skizze zeigt nur das Handy). Grund: ADR 0098, Rückmeldung am Ort auch am
+  PC ohne Toast.
 - „Historie nicht neu gelesen“ steht im Tab Historie statt unter „Zu verteilen“ (Skizze nennt sie in der Tabelle unter
   „Budget, Seite“). Grund: „Neu laden“ dort liest die Historie, unter „Zu verteilen“ wäre unklar, was neu geladen wird,
   und am Handy verdeckt das Sheet den Seitenkopf nicht, aber der Blick liegt im Sheet.
@@ -121,16 +129,17 @@ sein.“, rechts die Textaktion „Neu laden“. Steht unter dem Seitenkopf mit 
   Toast, er soll nicht verloren gehen.
 
 ## Acceptance criteria
-- [ ] Unter 1024 px ruft keine Stelle in `src/Client/Components/Budget/Moves.fs`, `Month.fs`, `Inspector.fs`, `State.fs`
-      (Budget) mehr einen Toast; jede Zeile der Tabellen in Teil 1 bis 3 steht an ihrem Ort mit dem genannten Text.
-      Wächter: Expecto-Test je reiner Funktion (Ort und Text je Fall), siehe Tests.
-- [ ] Ab 1024 px kommen dieselben Meldungen wie heute als Toast unten rechts, höchstens einer zugleich (Gegenprobe im
-      Test des Meldungswegs aus ytgnc oder hier).
+- [ ] Keine Stelle in `src/Client/Components/Budget/Moves.fs`, `Month.fs`, `Inspector.fs`, `State.fs` (Budget) ruft
+      mehr einen Toast für eine Meldung mit Ort; jede Zeile der Tabellen in Teil 1 bis 3 steht an ihrem Ort mit dem
+      genannten Text, am Handy und am PC (Panel) gleich. Wächter: Expecto-Test je reiner Funktion (Ort und Text je
+      Fall), siehe Tests.
+- [ ] Ab 1024 px kommen nur die Meldungen ohne Ort (Sheet bzw. Panel zu, Ausblenden des Monatsersten) als Toast unten
+      rechts, höchstens einer zugleich, 5 s, mit ✕ (Gegenprobe im Test des Meldungswegs aus ytgnc oder hier).
 - [ ] Zeile im Sheet: Zeichen und Farbe je Rolle (ok, Warnung, Fehler), Text mit „…“ gekürzt, „Erneut senden“ nur bei
       offenem Bericht, steht über dem Hauptknopf; Tests auf die reine Funktion, die aus Bericht und Modus die Zeile
       macht (Text aus Sicht der Kategorie für Holen, Abgeben, Fehlbetrag, Zu verteilen).
-- [ ] Lebensdauer: die Zeile verschwindet bei der nächsten Aktion im Sheet, bei Kategorie-, Monats-, Moduswechsel und beim
-      Schließen; Test je Übergang auf der reinen Update-Funktion.
+- [ ] Lebensdauer: die Zeile verschwindet bei der nächsten Aktion im Sheet, bei Kategorie- und Monatswechsel und beim
+      Schließen, nicht beim Moduswechsel; Test je Übergang auf der reinen Update-Funktion.
 - [ ] „Verfügbar“ leuchtet nach einem Bericht mit geschriebener Zeile kurz, nicht nach einem Fehler; mit
       `prefers-reduced-motion: reduce` ohne Animation. `[human-eye]` für das Leuchten selbst.
 - [ ] Hinweis „nicht neu gelesen“ für Beträge und Monate unter „Zu verteilen“, für Historie im Tab Historie; bleibt bis
@@ -139,7 +148,8 @@ sein.“, rechts die Textaktion „Neu laden“. Steht unter dem Seitenkopf mit 
 - [ ] Am Handy liegt der Hauptknopf des Tabs Geld mit Zeile weiter ohne Scrollen im Sheet, bei allen `HANDY_WIDTHS`,
       auch bei offener Tastatur: neue Sweep-Zustände in `scripts/layout-states.mjs` (`budget-geld-ergebnis`: nach
       Abgeben mit Zeile; `budget-geld-fehler`: rote Zeile mit „Erneut senden“; `budget-nicht-neu-gelesen`: Hinweis unter
-      „Zu verteilen“), alle mit `primary` auf dem Hauptknopf bzw. dem Kopf. Die Ausnahme bei 320 px aus
+      „Zu verteilen“), alle mit `primary` auf dem Hauptknopf bzw. dem Kopf; `budget-geld-ergebnis` und
+      `budget-nicht-neu-gelesen` zusätzlich bei 1280 (Panel, kein Toast). Die Ausnahme bei 320 px aus
       `budget-geld-zuweisen` gilt nicht weiter, als sie heute gilt.
 - [ ] `[flow:geld-verschieben]` (`scripts/move-money.test.mjs:128`) prüft zusätzlich die Zeile „✓ 5,00 € nach …“ im
       Sheet und dass kein Toast im DOM steht. `[flow:verschiebung-erneut-senden]` (`move-money.test.mjs:175`) heißt
@@ -150,8 +160,16 @@ sein.“, rechts die Textaktion „Neu laden“. Steht unter dem Seitenkopf mit 
 - [ ] README budgeting: „Offene Verschiebung“ (Satz „der Toast läuft ab, der Hinweis nicht“) und „Veralteter Monat“ (Satz
       „Der Knopf verwirft eine offene Eingabe und meldet das per Warn-Toast“) im README_DELTA nachgezogen.
 - [ ] Seite neben der Skizze verglichen (Screenshot bei 412 px im Outcome: Sheet Geld nach Abgeben, Sheet mit Fehler,
-      Seite mit Hinweis; dazu PC 1280 mit Panel und Toast), Abweichungen nur die in dieser Task genannten.
+      Seite mit Hinweis; dazu PC 1280 mit Panel, Zeile über dem Hauptknopf und Hinweis, ohne Toast), Abweichungen nur
+      die in dieser Task genannten.
 - [ ] `./verify.sh` meldet `VERIFY: PASS`.
+
+## Entscheidungen Roman (2026-11-19)
+1. **Hinweis „nicht neu gelesen“ auch am PC statt Toast?** Ja, ein Zustand gehört auf die Seite, egal wie breit. Folge:
+   der Hinweis steht in allen Breiten unter „Zu verteilen“ bzw. im Tab Historie, kein Toast.
+2. **Erfolg nach Holen:** „50,00 € von Reise“, aus Sicht der Kategorie. Folge: Holen und Abgeben haben dieselbe Sicht.
+3. **Rückmeldung am Ort am PC** (ADR 0098): Rückmeldungen am Ort stehen auch am PC ohne zusätzlichen Toast. Folge: die
+   Zeile über dem Hauptknopf und das Leuchten gelten auch im Panel am PC, der Toast nur für Meldungen ohne Ort.
 
 ## Notes
 Captured 2026-11-19 aus ledger-vf5h6, verfeinert 2026-11-19 (Teilung siehe Why).
@@ -174,10 +192,6 @@ Captured 2026-11-19 aus ledger-vf5h6, verfeinert 2026-11-19 (Teilung siehe Why).
 
 **Tests (Doktrin):** reine Funktionen in `src/Tests` (Budget-Client-Tests, wo `moveToast`/`applyReloaded` heute getestet
 werden), Browser nur für Ort und Fluss.
-
-**Offene Fragen an Roman**
-1. Hinweis „nicht neu gelesen“ auch am PC statt Toast? Empfehlung: ja, ein Zustand gehört auf die Seite, egal wie breit.
-2. Erfolg nach Holen: „50,00 € von Reise“? Empfehlung: ja, gleiche Sicht wie Abgeben.
 
 **Nicht hier:** Leiste mit „+ Buchung“ auf der Übersicht und „Abgerufen“ dort (ledger-gwr9j bzw. banking-import-vwhfm),
 Pins (budgeting-p3sk0), Targets und Kategorien verwalten (budgeting-sx9v5), Rückgängig (budgeting-y1kkr).

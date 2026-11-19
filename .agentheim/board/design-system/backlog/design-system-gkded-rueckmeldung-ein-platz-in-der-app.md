@@ -26,7 +26,9 @@ Rückmeldungen gleichzeitig** stehen und am Handy keine etwas verdeckt. Die Seit
 
 Vorlage: Skizze aus ledger-vf5h6 (https://claude.ai/artifact/GESk5E9GWEHhSTXbQTpRqL, Version 9, freigegeben
 2026-11-19), Abschnitt 2 „Eine Meldung, ein Platz“ und Abschnitt 3 „Übersicht“. Pfade lokal in den Notes.
-Grenze Handy/PC: **unter 1024 px die Leiste, ab 1024 px der Toast** (Begründung in design-system-ytgnc).
+Grenze Handy/PC: **unter 1024 px die Leiste, ab 1024 px der Toast** (Begründung in design-system-ytgnc). Der Toast am
+PC ist nur für Meldungen ohne Ort (Roman, 2026-11-19); Rückmeldungen am Ort stellen die Folge-Tasks auch am PC um, ohne
+zusätzlichen Toast. Bis dahin zeigt der PC-Toast die heutigen Meldungen der Seiten (Übergang).
 
 ### 1. Ein Platz im Modell (`src/Client/Types.fs`, `src/Client/State.fs`)
 `Model.Toasts: Toast list` wird `Model.Feedback: FeedbackMessage option`. Vorschlag (Typen in `Types.fs` neben
@@ -113,7 +115,8 @@ module FeedbackSlot =
     (`Viewport.mirrorChildHeight`, Muster `--ledger-bottom-bar-height`), ohne Leiste 0. Der untere Innenabstand der
     Seitenhülle (`Navigation.fs` `shellOffset`, `pb-24`) rechnet sie mit ein, sodass das Ende jeder Seite über der
     Leiste steht, auch wenn die Aktion umbricht.
-  - Ebene unter Sheets: ein offenes Sheet deckt die Leiste. Siehe „Offene Frage an Roman“.
+  - Ebene unter Sheets: ein offenes Sheet deckt die Leiste. Im Übergang bis ledger-gwr9j gewollt (Entscheidungen
+    Roman unten).
 
 ### 4. Sweep-Invariante und Regressionstest (`scripts/layout-invariants.mjs`, `layout-states.mjs`, `layout-invariants.test.mjs`)
 - **Neue Invariante 12 „Rückmeldung“:** unter 1024 px steht kein sichtbares Element in `.toast-layer` (kein Toast am
@@ -160,7 +163,7 @@ module FeedbackSlot =
 | Mehrere Toasts zugleich, gestapelt | ändert sich: eine Meldung, die neue ersetzt, gleiche Wische fassen zusammen |
 | Auto-Dismiss nach 5 s, ✕ | am Handy gestrichen (Roman, 2026-11-19); am PC bleibt |
 | Sanfter Abgang (220 ms) | am PC bleibt; am Handy wird die Meldung ersetzt, Eingang `msgIn` |
-| Toast über offenem Sheet (`toast-layer` 90, Regression c819eeb) | am PC bleibt; am Handy ändert sich (Leiste unter dem Sheet, siehe Offene Frage) |
+| Toast über offenem Sheet (`toast-layer` 90, Regression c819eeb) | am PC bleibt; am Handy ändert sich (Leiste unter dem Sheet, bis ledger-gwr9j, Entscheidung Roman) |
 | „Rückgängig“ an jedem Toast mit `ToastActionKind` (16 Arten), „Erneut senden“ (`RetryBudgetMove`) | bleibt, in der Leiste bzw. im Toast |
 | Toast am PC über Auswahl- und Tastenleiste (`toast-above-bar`) | bleibt |
 | PWA-Hinweis „Neue Version verfügbar.“ mit „Neu laden“, ohne Zeitlimit | bleibt, im selben Platz; eine neue Meldung ersetzt ihn (gilt als Schließen) |
@@ -176,13 +179,16 @@ module FeedbackSlot =
   den Komponenten, die Folge-Tasks streichen es.
 - Detail-Sheet am Handy: Meldung erst nach dem Schließen sichtbar (Skizze: am Feld). Grund: Platz 1 baut ledger-gwr9j.
 
-### Offene Frage an Roman
-- **Meldung bei offenem Sheet im Übergang.** Bis ledger-gwr9j das Kassenbuch-Detail umstellt, liegt die Leiste unter
-  einem offenen Sheet: nach „Kategorie ändern“ im Detail sieht man „Kategorie geändert · Rückgängig“ erst nach dem
-  Schließen. Empfehlung: so lassen und ledger-gwr9j direkt danach bauen. Die Leiste über das Sheet zu legen, verdeckte
-  dessen Hauptknopf, was R3 ausschließt.
-- **PC-Toast nach 5 s weg oder bis zur nächsten Aktion?** Empfehlung: wie heute 5 s und ✕, weil R3 nur das Handy
-  ändert und ADR 0098 „am PC bleibt der Toast“ sagt.
+## Entscheidungen Roman (2026-11-19)
+- **Meldung bei offenem Sheet im Übergang:** Bis ledger-gwr9j das Kassenbuch-Detail umstellt, liegt die Leiste unter
+  einem offenen Sheet (nach „Kategorie ändern“ im Detail sieht man die Meldung erst nach dem Schließen). Antwort: in
+  Ordnung, ledger-gwr9j wird direkt danach gebaut. Folge: die Leiste liegt nie über einem Sheet, die Abweichung oben
+  bleibt bis gwr9j.
+- **PC-Toast nach 5 s weg oder bis zur nächsten Aktion?** Antwort: höchstens einer, geht nach 5 s, mit ✕, wie heute.
+  Folge: der Abgang des PC-Toasts bleibt wie unter 3. beschrieben.
+- **Rückmeldung am Ort am PC:** Rückmeldungen, deren Ergebnis man am Ort sieht, stehen auch am PC am Ort und ohne
+  zusätzlichen Toast; der PC-Toast gilt nur für Meldungen ohne Ort (ADR 0098). Folge: diese Task ändert die Quellen
+  nicht, die Folge-Tasks nehmen ihre Meldungen am Ort auch am PC aus dem Toast.
 
 ## Acceptance criteria
 - [ ] `Model.Toasts` ist `Model.Feedback: FeedbackMessage option`; jede heutige Toast-Quelle der Wurzel (Zeilen oben)
@@ -193,7 +199,7 @@ module FeedbackSlot =
 - [ ] `splitText` und `ofToast` mit Tests; Klick auf die Aktion einer alten Id tut nichts; Seitenwechsel leert, gleicher
       `pageKey` nicht; PWA-Hinweis bleibt ohne Zeitlimit und gilt beim Ersetzen als geschlossen.
 - [ ] Unter 1024 px kein Toast; die Leiste zeigt die Meldung bis zur nächsten Meldung oder zum Seitenwechsel, ohne ✕
-      und ohne Zeitlimit; ab 1024 px höchstens ein Toast unten rechts, 5 s und ✕ wie heute.
+      und ohne Zeitlimit; ab 1024 px höchstens ein Toast unten rechts, 5 s und ✕ wie heute (Entscheidung Roman).
 - [ ] „+ Buchung“ steht auf Kassenbuch (bis 1023 px) und Übersicht (bis 767 px) in der Leiste, breit ohne Meldung,
       rund mit Meldung, mit `data-testid` `ledger-capture-fab` bzw. `overview-capture-fab`; die schwebenden Knöpfe,
       ihr Abstandshalter und ihre CSS-Klassen sind entfernt; Übersicht ruhig wie heute.

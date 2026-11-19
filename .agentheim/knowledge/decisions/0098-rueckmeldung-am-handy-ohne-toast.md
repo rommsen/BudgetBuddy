@@ -52,6 +52,11 @@ Dazu gilt:
 - **Gelöschtes in einer Liste** hinterlässt an seinem Platz eine schmale Zeile („„Regel drei“ gelöscht ·
   Rückgängig“) bis zur nächsten Aktion.
 - **Am PC (ab 1024 px) bleibt der Toast unten rechts** (Styleguide §7.13), höchstens einer zugleich.
+  Entscheidung Roman (2026-11-19) bei der Verfeinerung: Rückmeldungen, deren Ergebnis man am Ort sieht, stehen auch am
+  PC am Ort und ohne zusätzlichen Toast (gelöschte Zeile am Platz, „✓ Gespeichert“ am Feld, Aufleuchten, Pin-Knopf,
+  Hinweis „nicht neu gelesen“, letzte Aktion unter „Passt, weiter“ im Durchgehen, Rückgängig am Feld). Den Toast unten
+  rechts gibt es am PC nur noch für Meldungen ohne Ort, also dort, wo am Handy die Leiste steht. Er ist höchstens einer,
+  geht nach 5 s und hat ein ✕, wie heute.
 
 Der Baustein im Design-System heißt `Feedback` (`src/Client/DesignSystem/Feedback.fs`, design-system-ytgnc). Die App
 hält genau einen Platz für die Meldung, Handy-Leiste und PC-Toast zeigen denselben Zustand (design-system-gkded). Die
@@ -77,7 +82,8 @@ banking-import-vwhfm, banking-import-ns4re).
 
 ## Consequences
 
-- Styleguide §7.13 wird neu geschrieben, §5 bekommt die Zeile `Feedback`, die Zeile `Toast` gilt nur noch ab 1024 px.
+- Styleguide §7.13 wird neu geschrieben, §5 bekommt die Zeile `Feedback`, die Zeile `Toast` gilt nur noch ab 1024 px
+  und dort nur für Meldungen ohne Ort.
   ADR 0087 Punkt 22 („Rückmeldungen verdecken nie Bedienelemente“) bleibt und wird hier für das Handy konkret.
 - Die Toast-Liste im App-Modell wird ein einzelner Platz. Bis jede Seite umgestellt ist, landen ihre bisherigen
   Toasts am Handy in der Leiste (Übergang, design-system-gkded).

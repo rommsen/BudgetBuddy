@@ -45,15 +45,15 @@ Texte (Aktion · zweiter Teil · Knopf):
 | Auslöser | Zeile |
 |---|---|
 | „Passt“ (Knopf, Enter, Wisch) | ✓ **Passt** · Payee · Rückgängig |
-| „Passt“, YNAB nimmt den Prüfvermerk nicht | ! **Passt, nicht in YNAB** · Grund · Rückgängig (gelb, Frage 2) |
+| „Passt“, YNAB nimmt den Prüfvermerk nicht | ! **Passt, nicht in YNAB** · Grund · Rückgängig (gelb, etwa „! Passt, nicht in YNAB · Zeitüberschreitung“) |
 | „Später“ (Knopf, S, Wisch) | ✓ **Später** · Payee · Rückgängig |
 | „Lena fragen“ (Knopf, L) | ✓ **Lena gefragt** · Payee · Rückgängig |
 | „Lena fragen“, Flag nicht in YNAB | ! **Lena gefragt, nicht in YNAB** · Grund · Rückgängig |
 | „Ist doppelt, verwerfen“ | ✓ **Verworfen** · Payee · Rückgängig |
-| „Ist neu“ | ✓ **Als neu übernommen** · Payee (ohne Rückgängig, Frage 3) |
+| „Ist neu“ | ✓ **Als neu übernommen** · Payee (ohne Rückgängig) |
 | „Ist neu“, nicht in YNAB | ! **Als neu übernommen, nicht in YNAB** · Grund |
 | Memo auf der Karte gespeichert / entfernt (bis ledger-wg42w es streicht) | ✓ **Memo gespeichert** bzw. **Memo entfernt** · Payee · Rückgängig; Warnung „Memo gespeichert, nicht in YNAB“ · Grund |
-| Payee auf der Karte geändert (Frage 4) | ✓ **Payee geändert** · neuer Payee · Rückgängig; Warnung „Payee geändert, nicht in YNAB“ · Grund |
+| Payee auf der Karte geändert | ✓ **Payee geändert** · neuer Payee · Rückgängig; Warnung „Payee geändert, nicht in YNAB“ · Grund |
 | Befehl scheitert | ! **Nicht geprüft** / **Nicht übernommen** / **Nicht verworfen** / **Flag nicht geändert** / **Memo nicht geändert** / **Payee nicht geändert** / **Rückgängig nicht möglich** · Grund · Erneut (rot) |
 
 „Rückfrage zurücknehmen“ schreibt keine Zeile: die Karte bleibt, der Knopf wechselt sichtbar zu „Lena fragen“ und ist
@@ -124,10 +124,9 @@ Betrag, Aufteilung, Flag, Prüfvermerk, Löschen) sind nicht Teil dieser Task: d
 ledger-gwr9j (dasselbe Detail wie im Kassenbuch). Kategorie und Übertrag auf der Karte: ledger-mf2bg.
 
 ### 5. Am PC
-Frage 1. Empfohlen und hier als Kriterium: die Zeile gilt auch am PC (unter „Passt, weiter“ in der Spalte), im Durchgehen
-gibt es auch am PC keinen Toast. Gründe: dieselbe Rückmeldung an derselben Stelle wie die Taste Z, ein Weg statt zwei, der
-Toast unten rechts liegt weit weg von der Spalte. Entscheidet Roman anders, behalten die Handler am PC ihre Toasts
-(höchstens einer, unten rechts, R3) und nur das Handy nutzt die Zeile.
+Die Zeile gilt auch am PC (unter „Passt, weiter“ in der Spalte), im Durchgehen gibt es auch am PC keinen Toast
+(Entscheidung Roman 2026-11-19, ADR 0098: Rückmeldung am Ort auch am PC). Gründe: dieselbe Rückmeldung an derselben
+Stelle wie die Taste Z, ein Weg statt zwei, der Toast unten rechts liegt weit weg von der Spalte.
 
 ### Funktionsabgleich (Seite Durchgehen)
 | Funktion heute | Stand |
@@ -139,7 +138,7 @@ Toast unten rechts liegt weit weg von der Spalte. Entscheidet Roman anders, beha
 | „Ist neu“: Toast „Als neu übernommen, geht nach YNAB“ | ändert sich: Zeile, Text „Als neu übernommen“ |
 | „Verwerfen“: Toast mit Rückgängig, danach Toast „Steht wieder zur Entscheidung“ | ändert sich: Zeile mit Rückgängig; die Karte steht sichtbar wieder da |
 | Memo auf der Karte: Toast mit Rückgängig | ändert sich: Zeile (bis ledger-wg42w das Bearbeiten auf der Karte streicht) |
-| Payee auf der Karte: Toast mit Rückgängig | ändert sich: Zeile (Frage 4) |
+| Payee auf der Karte: Toast mit Rückgängig | ändert sich: Zeile |
 | Fehler-Toasts („Nicht geprüft: …“ usw.) | ändert sich: rot in der Zeile mit „Erneut“ (neu) |
 | Wisch-Hinweis | bleibt bis zur ersten Aktion und nach Rückgängig |
 | Tasten Enter, S, K, L, Esc | bleibt; Z neu |
@@ -148,35 +147,35 @@ Toast unten rechts liegt weit weg von der Spalte. Entscheidet Roman anders, beha
 | Detail-Sheet über der Karte | ledger-gwr9j |
 
 ### Abweichungen von der Skizze (mit Grund)
-- Warnungen tragen im zweiten Teil den Grund statt des Payees (Skizze 09: Payee), sofern Roman Frage 2 so beantwortet:
-  heute nennt der Toast den Grund, und die Fehlerzeile (Skizze 10) hat dieselbe Form „Aktion · Grund“.
-- „Ist neu“ ohne Rückgängig, sofern Roman Frage 3 so beantwortet (Anhang der Skizze: „Rückgängig nein“; die erste Fassung
-  dieser Task nannte es).
+- Warnungen tragen im zweiten Teil den Grund statt des Payees (Skizze 09: Payee; Entscheidung Roman): heute nennt der
+  Toast den Grund, und die Fehlerzeile (Skizze 10) hat dieselbe Form „Aktion · Grund“.
+- „Ist neu“ ohne Rückgängig (Entscheidung Roman; Anhang der Skizze: „Rückgängig nein“; die erste Fassung dieser Task
+  nannte es).
+- Payee auf der Karte bestätigt in der Zeile unter „Passt, weiter“ (die Skizze zeigt den Fall nicht; Entscheidung Roman).
 - Die Pille oben in Skizze 09 wird nicht gebaut (Rest von B2, R3).
 - Schrift 12 px statt 13 px (§7.14).
 
-## Offene Fragen an Roman
-1. **PC:** Zeile auch am PC, kein Toast im Durchgehen? Empfehlung ja (ein Weg, Z passt dazu, Toast unten rechts weit weg).
-2. **YNAB-Warnung:** zweiter Teil Grund („! Passt, nicht in YNAB · Zeitüberschreitung“) statt Payee (Skizze 09)?
-   Empfehlung Grund: der heutige Toast nennt ihn, ohne ihn sieht man nicht, warum; der Payee steht auf der verlassenen
-   Karte und ist mit Rückgängig wieder da.
-3. **„Ist neu“ rückgängig:** die Task nannte es, die Skizze sagt nein, und es gibt keinen Server-Weg (die Buchung ist
-   schon nach YNAB gegangen; Rücknahme hieße in YNAB löschen und wieder zurückhalten). Empfehlung: kein Rückgängig.
-   Will Roman es, wird es eine eigene Task mit Server-Endpoint.
-4. **Payee auf der Karte:** Bestätigung in der Zeile („✓ Payee geändert · neuer Payee · Rückgängig“)? Die Skizze zeigt
-   den Fall nicht. Empfehlung Zeile: unter dem Payee ist kein Platz ohne dass der Karteninhalt springt.
+## Entscheidungen Roman (2026-11-19)
+1. **PC:** Zeile auch am PC, kein Toast im Durchgehen? Ja. Folge: Abschnitt 5 gilt ohne Vorbehalt, die Handler aus
+   Abschnitt 4 schicken im Durchgehen auch am PC keinen Toast.
+2. **YNAB-Warnung:** zweiter Teil ist der Grund („! Passt, nicht in YNAB · Zeitüberschreitung“), nicht der Payee
+   (Skizze 09). Folge: Abweichung von der Skizze, Warnungen und Fehler haben dieselbe Form „Aktion · Grund“.
+3. **„Ist neu“ rückgängig:** kein Rückgängig. Folge: kein Server-Weg nötig, die Zeile hat bei „Ist neu“ keinen Knopf.
+4. **Payee auf der Karte:** Bestätigung in der Zeile unter „Passt, weiter“ („✓ Payee geändert · neuer Payee ·
+   Rückgängig“). Folge: der Karteninhalt springt nicht.
 
 ## Acceptance criteria
 - [ ] Zeile der letzten Aktion nach Abschnitt 1 für jede Zeile der Tabelle; Aktion nie gekürzt, zweiter Teil mit „…“;
       Zeichen und Farben nach Ton; bleibt bis zur nächsten Aktion; nach Rückgängig wieder der Hinweis.
-- [ ] Rückgängig für Passt, Später, Lena, Verworfen, Memo, Payee (Ist neu nach Frage 3) holt die Karte bzw. den Wert zurück,
-      „i von n“ und Fortschritt stimmen. Je Weg ein Reducer-Test in `src/Tests/LedgerReviewClientTests.fs`.
+- [ ] Rückgängig für Passt, Später, Lena, Verworfen, Memo, Payee holt die Karte bzw. den Wert zurück, „i von n“ und
+      Fortschritt stimmen; „Ist neu“ hat kein Rückgängig. Je Weg ein Reducer-Test in `src/Tests/LedgerReviewClientTests.fs`.
 - [ ] „Passt rückgängig“: die zurückgeholte Karte wird nicht übersprungen, egal ob das Neulesen vor oder nach der Antwort
       von `restoreReviewMark` kommt; dazu das Orakel „jede Reihenfolge bis Tiefe 6“ um Rückgängig nach Passt, Später, Lena
       und Verwerfen erweitert (Test-Doktrin Punkt 20).
 - [ ] Fehler eines Befehls: Karte unverändert, Zeile rot mit Grund und „Erneut“; „Erneut“ schickt denselben Befehl
-      (Reducer-Test je Befehl). YNAB-Warnungen gelb in der Zeile.
-- [ ] Kein `ShowToast`/`ShowToastWithAction` aus den Handlern in Abschnitt 4, solange das Durchgehen offen ist (Reducer-Tests
+      (Reducer-Test je Befehl). YNAB-Warnungen gelb in der Zeile, zweiter Teil der Grund.
+- [ ] Kein `ShowToast`/`ShowToastWithAction` aus den Handlern in Abschnitt 4, solange das Durchgehen offen ist, am Handy
+      und am PC (Reducer-Tests
       prüfen `NoOp` als externen Befehl); außerhalb des Durchgehens bleiben die Toasts (je ein Gegentest für Prüfvermerk
       und Flag).
 - [ ] Taste Z: Reducer-Test für `reviewKeyAction` (mit und ohne Rückgängig, Endansicht, aus Eingabefeld nicht);
@@ -194,8 +193,8 @@ Toast unten rechts liegt weit weg von der Spalte. Entscheidet Roman anders, beha
 
 ## Notes
 Captured 2026-11-19 aus ledger-vf5h6. Verfeinert 2026-11-19, dabei geteilt: Kategorie und Übertrag am Feld in ledger-mf2bg.
-Bereit für todo, sobald Roman die Fragen 1 bis 4 beantwortet hat; danach Kriterien und Abweichungen an die Antworten
-anpassen. Wartet zusätzlich auf design-system-ytgnc (Baustein) und ledger-s2cg3 (Zeile, Flug und Rückkehr der Karte).
+Roman hat die Fragen 1 bis 4 am 2026-11-19 beantwortet, Kriterien und Abweichungen sind angepasst. Wartet auf
+design-system-ytgnc (Baustein) und ledger-s2cg3 (Zeile, Flug und Rückkehr der Karte).
 
 **Skizze** (Basis `/private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/4b5cf62e-3174-40e3-90f3-4b5312280eb9/scratchpad`):
 - ganze Skizze: `.../scratchpad/vf5h6/durchgehen-handy.html`, Quelltext `.../scratchpad/vf5h6/skizze.src.html`

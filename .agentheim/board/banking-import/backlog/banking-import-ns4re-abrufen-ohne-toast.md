@@ -38,8 +38,9 @@ Vorlage ist die Skizze aus ledger-vf5h6 (https://claude.ai/artifact/GESk5E9GWEHh
   neuer Abruf liest sie wieder (ADR 0071).
 - Die Meldung folgt den Regeln der Leiste aus ytgnc (eine Meldung, bis zur nächsten Aktion, kein ✕). Sie erscheint auf
   der Seite, auf der Roman gerade ist (Übersicht mit „+ Buchung“, Kassenbuch, Budget, Einstellungen).
-- Am PC (ab 1024 px, Dialog statt Sheet) gilt R3: der Meldungsweg aus ytgnc zeigt dort den Toast unten rechts, höchstens
-  einer. Texte wie am Handy.
+- Am PC (ab 1024 px, Dialog statt Sheet) gilt R3: solange der Dialog offen ist, stehen die Meldungen im Dialog. Ergebnis
+  und Fehler bei geschlossenem Dialog sind Meldungen ohne Ort, der Meldungsweg aus ytgnc zeigt sie dort als Toast unten
+  rechts, höchstens einer, geht nach 5 s, mit ✕ (Entscheidung Roman 2026-11-19, ADR 0098). Texte wie am Handy.
 
 ### Jeder heutige Toast und sein neuer Platz
 | Heute | Text heute | Neu |
@@ -73,13 +74,17 @@ Vorlage ist die Skizze aus ledger-vf5h6 (https://claude.ai/artifact/GESk5E9GWEHh
 - [ ] `grep -rn "ShowToast\|resultToast" src/Client/Components/Fetch/` ist leer; `fetchExternalCmd` ruft keinen Toast
       mehr direkt.
 - [ ] Sheet während des Abrufs geschlossen: am Handy steht das Ergebnis in der Leiste als „✓ Abgerufen“ / „<Titel>“, am
-      PC als Toast unten rechts (Sweep `abrufen-fertig-leiste` bei 320, 412, 1280).
+      PC als Toast unten rechts, höchstens einer, 5 s, mit ✕ (Sweep `abrufen-fertig-leiste` bei 320, 412, 1280).
 - [ ] Gescheitertes Abbrechen steht rot in der Leiste: „Nicht abgebrochen“ / Grund (.NET-Test).
 - [ ] TAN und Fehler holen das Sheet wie heute nach vorn; nach dem Abruf laden dieselben Teile neu wie heute
       (bestehende Tests grün, `[flow:abrufen]` grün).
 - [ ] Seite neben der Skizze verglichen (Screenshot bei 412 px im Outcome, dazu PC 1280), Abweichungen nur die in dieser
       Task genannten (verkürzte zweite Zeile bei „nur Zukunft“, kein Knopf rechts).
 - [ ] `./verify.sh` meldet `VERIFY: PASS`.
+
+## Entscheidungen Roman (2026-11-19)
+- **PC-Toast:** Ergebnis und Fehler bei geschlossenem Sheet bzw. Dialog haben keinen Ort, am PC bleiben sie Toast unten
+  rechts: höchstens einer, 5 s, mit ✕, wie heute (ADR 0098). Folge: diese Task ändert am PC nur die Texte.
 
 ## Notes
 Abgeteilt 2026-11-19 aus banking-import-vwhfm beim Verfeinern: anderer Baustein (Leiste statt Rückmeldung am Ort) und

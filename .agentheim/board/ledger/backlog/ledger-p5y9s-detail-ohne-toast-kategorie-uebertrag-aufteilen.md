@@ -25,26 +25,28 @@ Vorlage: Skizze aus ledger-vf5h6 (Version 9, freigegeben 2026-11-19), Anhang „
 Gestalt von „Rückgängig am Feld“ zeigt die Skizze im Durchgehen (Abschnitt 1, Kategorie: Feld leuchtet kurz, darunter
 Bestätigung und „Rückgängig“, Skizze 06); der Baustein kommt aus design-system-ytgnc.
 
-Gilt für das Detail als Sheet (`DetailForm = DetailSheet`, unter 1024 px). Im Panel am PC bleibt der Toast wie heute.
+Gilt für das Detail als Sheet (`DetailForm = DetailSheet`, unter 1024 px) und für das Buchungs-Panel am PC (ab 1024 px)
+gleich: Bestätigung und „Rückgängig“ am Feld, kein Toast (Entscheidung Roman 2026-11-19, ADR 0098).
 
 ### Mechanik „letzte Aktion im Detail“
 - Das Modell hält höchstens eine Bestätigung im Detail: Buchung, Feld, Ton (ok, Warnung, Fehler), Text, optional die
   Rückgängig-Nachricht. Eine neue Aktion im Detail ersetzt sie (gleiche Regel wie die Leiste).
 - Die Bestätigung steht unter dem Feld, das sich geändert hat; das Feld leuchtet kurz (Motion aus §6, mit
   `prefers-reduced-motion` ohne Leuchten). Kein Zeitlimit: sie bleibt bis zur nächsten Aktion im Detail oder bis das Detail
-  schließt (offene Frage 1).
+  schließt (Entscheidung Roman). Die Karte „Budget nach dem Wechsel“ behält ihr heutiges Zeitlimit.
 - „Rückgängig“ an der Bestätigung löst dieselbe Nachricht aus wie heute der Toast. Danach steht der alte Wert im Feld und
   die Bestätigung verschwindet; die heutigen Rücknahme-Toasts („Kategorie zurückgesetzt: …“, „Übertrag zurückgesetzt …“,
   „Aufteilung zurückgenommen“) entfallen (Anhang: „Zeile bzw. Feld steht sichtbar wieder da“).
-- Schließen des Details mit offener Bestätigung, die „Rückgängig“ trägt: nach Empfehlung zu offener Frage 2 wandert sie in
-  die Leiste aus ledger-gwr9j (Aktion „Kategorie geändert“, zweite Zeile Payee, „Rückgängig“).
-- Kommt die Antwort, wenn das Detail dieser Buchung nicht mehr offen ist, geht die Meldung in die Leiste (heutiges Muster
-  `splitSaveFailed`, State.fs ~1032).
+- Schließen des Details mit offener Bestätigung, die „Rückgängig“ trägt: sie wandert in die Leiste aus ledger-gwr9j
+  (Aktion „Kategorie geändert“, zweite Zeile Payee, „Rückgängig“; Entscheidung Roman). Am PC ist das der Toast unten
+  rechts, weil die Meldung nach dem Schließen keinen Ort mehr hat (ADR 0098).
+- Kommt die Antwort, wenn das Detail dieser Buchung nicht mehr offen ist, geht die Meldung in die Leiste, am PC in den
+  Toast (heutiges Muster `splitSaveFailed`, State.fs ~1032).
 - Detail aus dem Durchgehen geöffnet (`ReviewShowDetails`, `isReviewCard`): im offenen Sheet gilt dieselbe Bestätigung am
   Feld. Was nach dem Schließen in der Zeile unter „Passt, weiter“ steht, regelt ledger-pz5wv (Abgleich durch den Conductor).
 
 ### Zuordnung je Toast (State.fs, Stand d6e9cb95)
-| Zeile | Heute | Mit R3 im Detail-Sheet |
+| Zeile | Heute | Mit R3 im Detail-Sheet und im Panel am PC |
 |---|---|---|
 | 2577/2578 | „Kategorie geändert: X“ (gelb mit „Kategorie nicht in YNAB: …“) mit Rückgängig | unter „Kategorie“: „✓ Geändert“, „Rückgängig“ (= `UndoCategory`); bei Fehlschlag zu YNAB gelb „Geändert, nicht in YNAB: Grund“ mit „Rückgängig“. Die Karte „Budget nach dem Wechsel“ und „Regel anlegen?“ bleiben darunter wie heute |
 | 2567 | „Kategorie nicht in YNAB: …“ ohne Änderung | gelb unter „Kategorie“ |
@@ -58,7 +60,7 @@ Gilt für das Detail als Sheet (`DetailForm = DetailSheet`, unter 1024 px). Im P
 | 3759/3761 | „Aufgeteilt in n Zeilen“ / „Aufteilung aufgehoben“ (mit Rückgängig, wenn `SplitEditor.undoAvailable`) | Editor schließt wie heute, im Detail unter den Split-Zeilen (`Detail.splitCard`) bzw. unter „Kategorie“ nach Aufheben: „✓ Aufgeteilt in n Zeilen“ / „✓ Aufteilung aufgehoben“, „Rückgängig“ (= `UndoSplit`) nur wo heute |
 | 3748 | „Kategorie nicht in YNAB: …“ beim Split | gelb am selben Platz |
 | 3785/3786 | „Betrag geändert · …“ nach Split mit neuem Betrag (ohne Rückgängig, ADR 0092) | am Betrag oben im Detail: „✓ Geändert“, ohne Rückgängig; gelb bei Fehlschlag zu YNAB |
-| 3793/3796 via 1038 | Speicherfehler: im Editor, sonst Toast | im Editor wie heute; Editor schon zu: Leiste rot |
+| 3793/3796 via 1038 | Speicherfehler: im Editor, sonst Toast | im Editor wie heute; Editor schon zu: Leiste rot (am PC Toast) |
 | 3818/3820 | Rücknahme | entfällt (Warnung gelb am Platz) |
 | 3826 | „Rückgängig nicht möglich: …“ | rot am Platz |
 
@@ -78,38 +80,47 @@ offenen Sheet stattdessen gelb am Feld, aus demselben Grund.
 | Rückgängig für Kategorie, Übertrag, Aufteilen | bleibt, am Feld statt im Toast |
 | Hinweis „passt nicht mehr zum Filter“ an der Zeile | bleibt |
 | Toasts am Handy | gestrichen (Roman, 2026-11-19, R3) |
+| Toasts nach Kategorie, Übertrag, Aufteilen im Panel am PC | gestrichen (Roman, 2026-11-19): Rückgängig am Feld |
 
 ## Acceptance criteria
-- [ ] Am Handy (412 px) zeigt das Detail-Sheet nach Kategorie, Übertrag und Aufteilen die Bestätigung unter dem Feld mit
-      „Rückgängig“; es erscheint kein Toast. Das Feld leuchtet kurz, ohne Leuchten bei `prefers-reduced-motion`.
-- [ ] Jede Zeile der Tabelle „Zuordnung je Toast“ umgesetzt; am PC (Panel, 1280) derselbe Toast wie heute.
+- [ ] Am Handy (412 px) zeigt das Detail-Sheet und am PC (1280) das Buchungs-Panel nach Kategorie, Übertrag und
+      Aufteilen die Bestätigung unter dem Feld mit „Rückgängig“; es erscheint kein Toast. Das Feld leuchtet kurz, ohne
+      Leuchten bei `prefers-reduced-motion`.
+- [ ] Jede Zeile der Tabelle „Zuordnung je Toast“ umgesetzt, im Sheet und im Panel am PC gleich.
+- [ ] Die Bestätigung bleibt ohne Zeitlimit bis zur nächsten Aktion im Detail; beim Schließen mit offenem „Rückgängig“
+      wandert sie in die Leiste (am PC in den Toast) und „Rückgängig“ dort löst dieselbe Nachricht aus.
 - [ ] Reine Funktion(en) für „welche Bestätigung nach welchem Ergebnis“ und für „Detail schließt mit offener Bestätigung“
       mit Tests in `src/Tests` (heute `LedgerCategoryChangeClientTests.fs`, `LedgerSplitEditorClientTests.fs`,
       `LedgerDetailTests.fs`): je Weg Text, Ton, Rückgängig-Nachricht; Ersetzen durch die nächste Aktion; Antwort bei
       geschlossenem Detail geht in die Leiste.
 - [ ] „Rückgängig“ am Feld stellt den alten Wert her (Kategorie, Übertrag, Aufteilung) und die Bestätigung verschwindet; ein
       zweiter Tipp während der Rücknahme schickt nichts (heutige Sperre `whenRowIdle`).
-- [ ] Fehler eines Befehls stehen rot unter dem Feld, nicht als Toast und nicht in der Leiste, solange das Detail offen ist.
+- [ ] Fehler eines Befehls stehen rot unter dem Feld, nicht als Toast und nicht in der Leiste, solange das Detail (Sheet
+      oder Panel) offen ist.
 - [ ] Sweep-Zustände: `kassenbuch-kategorie-toast` wird `kassenbuch-kategorie-rueckgaengig` (wartet auf „Rückgängig“ am
       Feld statt `[data-toast-action]`); ebenso `kassenbuch-regel-angebot` und `openFilteredOut` mit `mobile: true`
       (`kassenbuch-ausgegraut-handy`). Neu bei `HANDY_WIDTHS`: `kassenbuch-aufgeteilt-rueckgaengig`,
-      `kassenbuch-kategorie-fehler-feld`. Die Invariante „keine Rückmeldung überdeckt Bedienelement oder Inhalt“ aus ytgnc
-      ist grün.
-- [ ] Browser-Tests: die PC-Flows `[flow:kategorie-aendern]` und `[flow:aufteilen]` bleiben unverändert grün (Beleg, dass der
-      PC nicht bricht). Ein Handy-Test je Kennung höchstens: `[layout]` Handy, Kategorie ändern im Sheet, Bestätigung am
-      Feld sichtbar ohne Scrollen, Rückgängig stellt zurück.
+      `kassenbuch-kategorie-fehler-feld`. `kassenbuch-kategorie-rueckgaengig`, `kassenbuch-aufgeteilt-rueckgaengig` und
+      `kassenbuch-kategorie-fehler-feld` laufen zusätzlich bei 1280 (Panel) und zeigen dort „Rückgängig“ bzw. den Fehler
+      am Feld, keinen Toast. Die PC-Breite 1280 aus design-system-gkded für `kassenbuch-kategorie-toast` wartet damit auf
+      das Feld; der Gegenbeweis zu c819eeb (Toast über dem Panel) braucht eine Meldung ohne Ort bei offenem Panel. Die
+      Invariante „keine Rückmeldung überdeckt Bedienelement oder Inhalt“ aus ytgnc ist grün.
+- [ ] Browser-Tests: die PC-Flows `[flow:kategorie-aendern]` und `[flow:aufteilen]` finden die Bestätigung und
+      „Rückgängig“ am Feld im Panel statt im Toast und sind grün. Ein Handy-Test je Kennung höchstens: `[layout]` Handy,
+      Kategorie ändern im Sheet, Bestätigung am Feld sichtbar ohne Scrollen, Rückgängig stellt zurück.
 - [ ] Seite neben der Skizze verglichen (Screenshot bei 412 px im Outcome: Detail nach Kategorie, nach Übertrag, nach
-      Aufteilen, Fehler am Feld; dazu PC 1280 Panel mit Toast), Abweichungen nur die in dieser Task genannten.
+      Aufteilen, Fehler am Feld; dazu PC 1280 Panel mit Bestätigung am Feld, ohne Toast), Abweichungen nur die in dieser
+      Task genannten.
 - [ ] `./verify.sh` meldet `VERIFY: PASS`.
 
-## Offene Fragen an Roman
-1. **Wie lange steht „Rückgängig“ am Feld, wenn das Detail offen bleibt?** Empfehlung: bis zur nächsten Aktion im Detail
-   oder bis es schließt, ohne Zeitlimit (R3). Die Karte „Budget nach dem Wechsel“ behält ihr heutiges Zeitlimit.
-2. **Was passiert beim Schließen des Detail-Sheets mit offenem „Rückgängig“?** Empfehlung: die Bestätigung wandert in die
-   Leiste über der Navigation („Kategorie geändert“ / Payee / „Rückgängig“). Grund: man ändert oft und schließt sofort;
-   heute überlebt der Toast das Schließen, das soll nicht verloren gehen. Alternative: verfällt beim Schließen.
-3. **Rückgängig am Feld auch im Panel am PC?** Empfehlung: nein, am PC bleibt der Toast (R3 sagt das so). Wenn du es dort
-   auch willst, wird es eine eigene Task.
+## Entscheidungen Roman (2026-11-19)
+1. **Wie lange steht „Rückgängig“ am Feld, wenn das Detail offen bleibt?** Ohne Zeitlimit bis zur nächsten Aktion im
+   Detail. Folge: die Karte „Budget nach dem Wechsel“ behält als einzige ihr Zeitlimit.
+2. **Was passiert beim Schließen des Detail-Sheets mit offenem „Rückgängig“?** Die Bestätigung wandert in die Leiste
+   („Kategorie geändert“ / Payee / „Rückgängig“). Folge: ein „Rückgängig“ geht beim schnellen Schließen nicht verloren.
+3. **Rückgängig am Feld auch im Panel am PC?** Ja, für Kategorie, Übertrag und Aufteilen (und in ledger-enjex für Memo,
+   Betrag, Payee), ohne Toast. Folge: diese Task deckt das Panel mit ab, Kriterien, Sweep-Zustände und Tests haben eine
+   PC-Breite 1280.
 
 ## Notes
 Teil 2 von 4 aus ledger-gwr9j (Verfeinerung 2026-11-19). Mechanik hier, ledger-enjex nutzt sie für Memo, Betrag, Payee

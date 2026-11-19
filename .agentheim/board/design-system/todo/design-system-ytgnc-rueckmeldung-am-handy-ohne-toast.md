@@ -48,7 +48,10 @@ Plätze in dieser Reihenfolge:
 - Fehler stehen rot am selben Platz und bleiben bis zur nächsten Aktion. Ein Zustand der Seite (etwa „nicht neu
   gelesen“) ist keine Meldung, sondern ein Hinweis auf der Seite (Muster wie ledger-pfhdq).
 - Gelöschtes in einer Liste hinterlässt eine Zeile am Platz („„Regel drei“ gelöscht · Rückgängig“), bis zur nächsten Aktion.
-- Am PC (ab 1024 px) bleibt der Toast unten rechts (§7.13), höchstens einer zugleich.
+- Am PC (ab 1024 px) gelten die Plätze 1 und 2 genauso: was man am Ort sieht, bestätigt auch am PC am Ort und ohne
+  zusätzlichen Toast (gelöschte Zeile am Platz, „✓ Gespeichert“ am Feld, Leuchten, Pin-Knopf, Hinweis „nicht neu
+  gelesen“, letzte Aktion unter „Passt, weiter“, Rückgängig am Feld). Den Toast unten rechts (§7.13) gibt es am PC nur
+  für Meldungen ohne Ort, also dort, wo am Handy die Leiste steht: höchstens einer, geht nach 5 s, mit ✕, wie heute.
 
 ### Handy und PC: Grenze 1024 px
 „Handy“ heißt in dieser Regel **unter 1024 px**, „PC“ ab 1024 px (wie in ADR 0098 und `Viewport.isInspectorPanelViewport`).
@@ -141,21 +144,24 @@ In der Route stehen die Leisten im Fluss der Seite (Vorschau wie `Navigation.bot
 ### Styleguide-Text
 - **§7.13 Rückmeldung** neu nach der Regel oben, mit „Wann / Wann nicht“, den Plätzen 1 bis 3, Grenze 1024 px,
   „eine Meldung“, Zusammenfassen, kein ✕ und kein Zeitlimit am Handy, Fehler rot am Platz, Zustand der Seite ist ein
-  Hinweis (`ErrorDisplay.notice`), Zeile „gelöscht“; PC: Toast unten rechts, höchstens einer. Quelle: ADR 0098 und
+  Hinweis (`ErrorDisplay.notice`), Zeile „gelöscht“; PC: Plätze 1 und 2 wie am Handy ohne zusätzlichen Toast, der
+  Toast unten rechts nur für Meldungen ohne Ort (Platz 3), höchstens einer, 5 s, mit ✕. Quelle: ADR 0098 und
   ADR 0087 Punkt 22. Der alte Satz „Am Handy steht sie oben, auch bei offenem Sheet“ entfällt.
-- **§5:** neue Zeile `Feedback` (wann: jede Rückmeldung unter 1024 px, nach den Plätzen in §7.13; wann nicht: Zustand
-  der Seite → `ErrorDisplay.notice`, blockierende Fehler → `ErrorDisplay`/`Modal`). Zeile `Toast`: „nur ab 1024 px,
-  höchstens einer, aus demselben Zustand wie die Leiste (§7.13)“. Zähler in der Überschrift von §5 (26) nachziehen.
+- **§5:** neue Zeile `Feedback` (wann: jede Rückmeldung unter 1024 px nach den Plätzen in §7.13, ab 1024 px die
+  Rückmeldungen am Ort, also Bestätigung am Feld, Leuchten, Zeile „gelöscht“ und Zeile im Sheet; wann nicht: Zustand
+  der Seite → `ErrorDisplay.notice`, blockierende Fehler → `ErrorDisplay`/`Modal`). Zeile `Toast`: „nur ab 1024 px
+  und nur für Meldungen ohne Ort (Platz 3), höchstens einer, 5 s, mit ✕, aus demselben Zustand wie die Leiste
+  (§7.13)“. Zähler in der Überschrift von §5 (26) nachziehen.
   Zeile `ErrorDisplay`: „Kurzes Erfolgs-/Info-Feedback → `Toast`“ wird „→ `Feedback` (§7.13)“.
 - **§6 Motion:** der Absatz „Toast-Platzierung, zwei bewusste Fälle (mobil ≠ Desktop)“ wird ersetzt: Toast nur ab
-  1024 px unten rechts; am Handy die Leiste. Die Zwei-Phasen-Mechanik des Toasts beschreibt dann design-system-gkded
+  1024 px unten rechts und nur für Meldungen ohne Ort; am Handy die Leiste. Die Zwei-Phasen-Mechanik des Toasts beschreibt dann design-system-gkded
   (sie ändert sich dort). Neuer Eintrag: Eingang der Meldung (`msgIn`) und Leuchten, beide mit `prefers-reduced-motion`.
 - §2 Zeile 215 („Rückmeldungen auf Aktionen (Wisch-Geste, Toast) dürfen leuchten“) um „Leiste, Feld“ ergänzen.
 
 ### Funktionsabgleich (betroffen: Styleguide-Route, Baustein `Toast`)
 | Heute | Mit dieser Task |
 |---|---|
-| `/styleguide` zeigt `ToastDemo` (Toast ohne und mit „Rückgängig“, sanfter Abgang) | bleibt (der Toast gilt am PC weiter) |
+| `/styleguide` zeigt `ToastDemo` (Toast ohne und mit „Rückgängig“, sanfter Abgang) | bleibt (der Toast gilt am PC weiter, für Meldungen ohne Ort) |
 | Baustein `Toast` mit `renderItems`, `renderList`, `container`, `actionContainer` | bleibt in dieser Task unverändert; `actionContainer` und der Handy-Streifen oben fallen in design-system-gkded |
 | Kein Baustein für Leiste, Zeile im Sheet, Bestätigung am Feld, Zeile „gelöscht“ | neu: `Feedback` |
 | Schwebender Knopf `Button.fab` | bleibt in dieser Task; die Leiste übernimmt ihn in design-system-gkded |
@@ -179,13 +185,21 @@ Gestrichen hat Roman (2026-11-19): Toasts am Handy. Sonst entfällt nichts.
       und 5 (Überdeckung) grün.
 - [ ] `/styleguide` zeigt den Abschnitt „Rückmeldung“ mit allen Beispielen aus What; die Demo „Meldung“ wechselt die Töne.
 - [ ] Bewegung: Eingang `msgIn` 180 ms und Leuchten rund 0,7 s, beide im `prefers-reduced-motion`-Block abgeschaltet.
-- [ ] Styleguide §7.13, §5 (`Feedback`, `Toast`, `ErrorDisplay`, Zähler), §6 und §2 nachgezogen wie in What.
+- [ ] Styleguide §7.13, §5 (`Feedback`, `Toast`, `ErrorDisplay`, Zähler), §6 und §2 nachgezogen wie in What; §7.13
+      und die Zeile `Toast` in §5 sagen, dass der PC-Toast nur für Meldungen ohne Ort gilt (höchstens einer, 5 s, ✕)
+      und Rückmeldungen am Ort auch am PC ohne zusätzlichen Toast stehen.
 - [ ] `/styleguide` neben der Skizze verglichen: Screenshot des Abschnitts bei 412 px im Outcome
       (`npm run screenshot:route`), neben `skizze-shots/22-kassenbuch-geprueft.png`, `23-…-3-geprueft.png`,
       `24-…-abrufen-laeuft.png`, `26-…-abrufen-fehler.png`, `31-budget-sheet-geld.png`, `33-regeln-geloescht-zeile.png`;
       Abweichungen nur die in dieser Task genannten (Schrift 13/12 statt 13,5/12,5 px, Trefferflächen 48 px statt 28
       bis 44 px, Grund bei Fehler und Warnung umbrechend, Ton Info zusätzlich). [human-eye] für den Gesamteindruck.
 - [ ] `./verify.sh` zeigt `VERIFY: PASS`.
+
+## Entscheidungen Roman (2026-11-19)
+- **Rückmeldung am Ort am PC:** Stehen Rückmeldungen, deren Ergebnis man am Ort sieht, am PC zusätzlich als Toast?
+  Nein, auch am PC am Ort und ohne Toast; der PC-Toast gilt nur für Meldungen ohne Ort. Folge: §7.13 und §5 fassen
+  den Toast so, `Feedback` gilt ab 1024 px für die Formen am Ort.
+- **PC-Toast:** höchstens einer, geht nach 5 s, mit ✕, wie heute. Folge: §7.13 und §5 nennen diese drei Eigenschaften.
 
 ## Notes
 Captured 2026-11-19 aus ledger-vf5h6, verfeinert 2026-11-19 und geteilt: Teil 2 ist design-system-gkded
