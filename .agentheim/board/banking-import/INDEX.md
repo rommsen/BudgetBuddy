@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 5
+- **Backlog:** 6
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 10
@@ -40,6 +40,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **banking-import-ns4re** — "Abrufen ohne Toast (R3): Meldungen im Sheet, solange es offen ist; Ergebnis und Fehler nach geschlossenem Sheet in der Meldungsleiste" (feature) — `backlog/banking-import-ns4re-abrufen-ohne-toast.md`
 - **banking-import-vwhfm** — "Einstellungen und Abrufen am Handy ohne Toast (R3), englische Toasts entfallen" (feature) — `backlog/banking-import-vwhfm-einstellungen-und-abrufen-ohne-toast.md`
 - **banking-import-r28hx** — "Alle Konten per FinTS selbst abrufen (zuerst ING), damit YNABs eigener Abruf und Abgleich wegfallen" (feature) — `backlog/banking-import-r28hx-fints-fuer-alle-konten.md`
 - **banking-import-asr13** — "Kann-Sammlung banking-import" (chore) — `backlog/banking-import-asr13-kann-sammlung-banking-import.md`

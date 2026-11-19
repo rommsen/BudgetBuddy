@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 7
+- **Backlog:** 8
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 48
@@ -38,6 +38,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **design-system-gkded** — "Rückmeldung am Handy ohne Toast (Regel R3), Teil 2: ein Meldungsplatz in der App statt Toast-Liste, Leiste unter 1024 px mit „+ Buchung“, Toast am PC höchstens einer, gleiche Wische zusammengefasst, alte Toasts übergangsweise in der Leiste, Sweep-Invariante mit Gegenbeweis" (feature) — `backlog/design-system-gkded-rueckmeldung-ein-platz-in-der-app.md`
 - **design-system-ytgnc** — "Rückmeldung am Handy ohne Toast (Regel R3): ein fester Meldungsplatz je Seite, Leiste über der Navigation mit „+ Buchung“, Zeile im Sheet, Rückgängig am Feld; Styleguide §7.13 und ADR" (feature) — `backlog/design-system-ytgnc-rueckmeldung-am-handy-ohne-toast.md`
 - **design-system-x045q** — "Detail: Memo als Block mit Bezeichnung darüber und ganzem Text, Memo-Editor mehrzeilig" (feature) — `backlog/design-system-x045q-detail-memo-als-block-editor-mehrzeilig.md`
 - **design-system-m4e7q** — "Modal: Esc schließt den Dialog auch ohne Fokus darin, der Fokus kehrt zum Auslöser zurück" (bug) — `backlog/design-system-m4e7q-modal-esc-und-fokus.md`

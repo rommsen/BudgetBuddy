@@ -5,6 +5,195 @@ Newest entries on top.
 
 ---
 
+## 2026-11-19 22:33 -- Modeling / Refined: ledger-wg42w - Durchgehen: Memo auf der Karte nur lesen (C3), „Memo“ über dem Text, so lang, wie Platz ist (gemessen); Bearbeiten nur in „Details“, Memo-Sheet und -Dialog der Karte entfallen
+
+Verfeinert aus der Skizze ledger-vf5h6 (Version 9): Kriterien je sichtbarem Element, Abgleich mit der heutigen Seite, Code-Anker, Kriterium „Seite neben der Skizze verglichen“. depends_on: [design-system-x045q, ledger-s2cg3].
+
+---
+
+## 2026-11-19 22:33 -- Modeling / Refined: ledger-s2cg3 - Durchgehen am Handy: Wischen mit Fläche darunter (A1), Karte füllt den Platz bis zu den Knöpfen, Seite ohne Scrollen
+
+Verfeinert aus der Skizze ledger-vf5h6 (Version 9): Kriterien je sichtbarem Element, Abgleich mit der heutigen Seite, Code-Anker, Kriterium „Seite neben der Skizze verglichen“. depends_on: [design-system-001-styleguide].
+
+---
+
+## 2026-11-19 22:33 -- Modeling / Refined: ledger-pz5wv - Durchgehen ohne Toast (B3): letzte Aktion unter „Passt, weiter“ mit Rückgängig für jede Aktion, Fehler rot an derselben Stelle
+
+Verfeinert aus der Skizze ledger-vf5h6 (Version 9): Kriterien je sichtbarem Element, Abgleich mit der heutigen Seite, Code-Anker, Kriterium „Seite neben der Skizze verglichen“. depends_on: [design-system-ytgnc, design-system-gkded, ledger-s2cg3, ledger-gwr9j].
+
+---
+
+## 2026-11-19 22:33 -- Modeling / Refined: ledger-p5y9s - Kassenbuch am Handy ohne Toast (R3), Teil 2 Detail I: Rückgängig am Feld im Detail-Sheet als Mechanik, Kategorie, Übertrag und Aufteilen bestätigen am Feld, Fehler am Feld, Übergang beim Schließen
+
+Verfeinert aus der Skizze ledger-vf5h6 (Version 9): Kriterien je sichtbarem Element, Abgleich mit der heutigen Seite, Code-Anker, Kriterium „Seite neben der Skizze verglichen“. depends_on: [design-system-ytgnc, ledger-gwr9j].
+
+---
+
+## 2026-11-19 22:33 -- Modeling / Refined: ledger-mf2bg - Durchgehen: Kategorie und Übertrag auf der Karte am Feld bestätigt (Feld leuchtet, „<Name> · <Betrag> verfügbar“ mit Rückgängig), ohne Toast
+
+Verfeinert aus der Skizze ledger-vf5h6 (Version 9): Kriterien je sichtbarem Element, Abgleich mit der heutigen Seite, Code-Anker, Kriterium „Seite neben der Skizze verglichen“. depends_on: [ledger-pz5wv].
+
+---
+
+## 2026-11-19 22:33 -- Modeling / Refined: ledger-k68sd - Kassenbuch am Handy ohne Toast (R3), Teil 4: gelöschte Buchung hinterlässt eine Zeile am Platz „… gelöscht · Rückgängig“ statt Toast, Fehler beim Löschen unter dem Knopf
+
+Verfeinert aus der Skizze ledger-vf5h6 (Version 9): Kriterien je sichtbarem Element, Abgleich mit der heutigen Seite, Code-Anker, Kriterium „Seite neben der Skizze verglichen“. depends_on: [design-system-ytgnc, ledger-gwr9j].
+
+---
+
+## 2026-11-19 22:33 -- Modeling / Refined: ledger-gwr9j - Kassenbuch am Handy ohne Toast (R3), Teil 1 Liste: Texte der Leiste für Wische, Spiegeln, Neue Buchung, Mehrfachauswahl und Ladefehler, „Spiegeln läuft“, Rückgängig nach n Wischen ohne Sprung der Liste
+
+Verfeinert aus der Skizze ledger-vf5h6 (Version 9): Kriterien je sichtbarem Element, Abgleich mit der heutigen Seite, Code-Anker, Kriterium „Seite neben der Skizze verglichen“. depends_on: [design-system-ytgnc, design-system-gkded].
+
+---
+
+## 2026-11-19 22:33 -- Modeling / Refined: ledger-enjex - Kassenbuch am Handy ohne Toast (R3), Teil 3 Detail II: Memo, Betrag und Payee mit Rückgängig am Feld, Lena-Knopf wechselt ohne Text, Erneut senden ohne Meldung; Schlussprüfung kein Toast im Kassenbuch am Handy
+
+Verfeinert aus der Skizze ledger-vf5h6 (Version 9): Kriterien je sichtbarem Element, Abgleich mit der heutigen Seite, Code-Anker, Kriterium „Seite neben der Skizze verglichen“. depends_on: [design-system-ytgnc, ledger-gwr9j, ledger-p5y9s, ledger-k68sd, design-system-x045q].
+
+---
+
+## 2026-11-19 22:33 -- Modeling / Refined: design-system-ytgnc - Rückmeldung am Handy ohne Toast (Regel R3), Teil 1: DS-Baustein `Feedback` (Meldungsleiste mit „+ Buchung“, Zeile im Sheet, Rückgängig am Feld, Zeile „gelöscht“) auf `/styleguide`, Styleguide §7.13, §5 und §6 neu, ADR 0098
+
+Verfeinert aus der Skizze ledger-vf5h6 (Version 9): Kriterien je sichtbarem Element, Abgleich mit der heutigen Seite, Code-Anker, Kriterium „Seite neben der Skizze verglichen“. depends_on: [design-system-001-styleguide].
+
+---
+
+## 2026-11-19 22:33 -- Modeling / Refined: design-system-x045q - Detail: Memo als Block mit Bezeichnung darüber und ganzem Text, Memo-Editor mehrzeilig und am Handy als Inhalt des Detail-Sheets
+
+Verfeinert aus der Skizze ledger-vf5h6 (Version 9): Kriterien je sichtbarem Element, Abgleich mit der heutigen Seite, Code-Anker, Kriterium „Seite neben der Skizze verglichen“. depends_on: [design-system-001-styleguide].
+
+---
+
+## 2026-11-19 22:33 -- Modeling / Refined: design-system-gkded - Rückmeldung am Handy ohne Toast (Regel R3), Teil 2: ein Meldungsplatz in der App statt Toast-Liste, Leiste unter 1024 px mit „+ Buchung“, Toast am PC höchstens einer, gleiche Wische zusammengefasst, alte Toasts übergangsweise in der Leiste, Sweep-Invariante mit Gegenbeweis
+
+Verfeinert aus der Skizze ledger-vf5h6 (Version 9): Kriterien je sichtbarem Element, Abgleich mit der heutigen Seite, Code-Anker, Kriterium „Seite neben der Skizze verglichen“. depends_on: [design-system-ytgnc].
+
+---
+
+## 2026-11-19 22:33 -- Modeling / Refined: categorization-t6j00 - Regeln ohne Toast (R3): gelöschte Regel als gestrichelte Zeile am Platz mit Rückgängig, gespeicherte Regel leuchtet kurz, Fehler an der Regel oder als Hinweis der Seite
+
+Verfeinert aus der Skizze ledger-vf5h6 (Version 9): Kriterien je sichtbarem Element, Abgleich mit der heutigen Seite, Code-Anker, Kriterium „Seite neben der Skizze verglichen“. depends_on: [design-system-ytgnc, design-system-gkded].
+
+---
+
+## 2026-11-19 22:33 -- Modeling / Refined: budgeting-y1kkr - „Rückgängig“ nach einer Verschiebung im Sheet „Geld“: Verschiebung in die Gegenrichtung mit demselben Betrag, für Holen, Abgeben und den Fehlbetrag-Knopf, nur wenn alles geschrieben ist
+
+Verfeinert aus der Skizze ledger-vf5h6 (Version 9): Kriterien je sichtbarem Element, Abgleich mit der heutigen Seite, Code-Anker, Kriterium „Seite neben der Skizze verglichen“. depends_on: [budgeting-gtrgk].
+
+---
+
+## 2026-11-19 22:33 -- Modeling / Refined: budgeting-sx9v5 - Targets und Kategorien verwalten am Handy ohne Toast (R3): Ergebnis am Target im Sheet und in der Zeile der Prüfung, Kategorien verwalten mit leuchtender Zeile und Fehler am Feld, Hinweis „nicht neu gelesen“ auf der Seite
+
+Verfeinert aus der Skizze ledger-vf5h6 (Version 9): Kriterien je sichtbarem Element, Abgleich mit der heutigen Seite, Code-Anker, Kriterium „Seite neben der Skizze verglichen“. depends_on: [design-system-ytgnc, design-system-gkded].
+
+---
+
+## 2026-11-19 22:33 -- Modeling / Refined: budgeting-p3sk0 - Angepinnt ohne Meldung (R3): Anpinnen und Lösen im Kategorie-Detail ohne Toast, die Kategorie leuchtet auf der Übersicht im Bereich „Angepinnt“ kurz, ein Fehler beim Speichern steht am Ort
+
+Verfeinert aus der Skizze ledger-vf5h6 (Version 9): Kriterien je sichtbarem Element, Abgleich mit der heutigen Seite, Code-Anker, Kriterium „Seite neben der Skizze verglichen“. depends_on: [design-system-ytgnc, design-system-gkded].
+
+---
+
+## 2026-11-19 22:33 -- Modeling / Refined: budgeting-gtrgk - Budget-Seite und Sheet „Geld“ am Handy ohne Toast (R3): Ergebnis und Fehler in der Zeile über dem Knopf, „Verfügbar“ leuchtet kurz, Hinweis „nicht neu gelesen“ unter „Zu verteilen“ mit „Neu laden“
+
+Verfeinert aus der Skizze ledger-vf5h6 (Version 9): Kriterien je sichtbarem Element, Abgleich mit der heutigen Seite, Code-Anker, Kriterium „Seite neben der Skizze verglichen“. depends_on: [design-system-ytgnc, design-system-gkded].
+
+---
+
+## 2026-11-19 22:33 -- Modeling / Refined: banking-import-vwhfm - Einstellungen ohne Toast (R3): „✓ Gespeichert“ am Abschnitt oder Feld, Fehler rot unter dem Feld, Bankstatus und Push-TAN im Abschnitt, alle Texte deutsch
+
+Verfeinert aus der Skizze ledger-vf5h6 (Version 9): Kriterien je sichtbarem Element, Abgleich mit der heutigen Seite, Code-Anker, Kriterium „Seite neben der Skizze verglichen“. depends_on: [design-system-ytgnc, design-system-gkded].
+
+---
+
+## 2026-11-19 22:33 -- Modeling / Refined: banking-import-ns4re - Abrufen ohne Toast (R3): Meldungen im Sheet, solange es offen ist; Ergebnis und Fehler nach geschlossenem Sheet in der Meldungsleiste
+
+Verfeinert aus der Skizze ledger-vf5h6 (Version 9): Kriterien je sichtbarem Element, Abgleich mit der heutigen Seite, Code-Anker, Kriterium „Seite neben der Skizze verglichen“. depends_on: [design-system-ytgnc, design-system-gkded].
+
+---
+
+## 2026-11-19 22:32 -- Modeling / Captured: banking-import-ns4re - "Abrufen ohne Toast (R3): Meldungen im Sheet, solange es offen ist; Ergebnis und Fehler nach geschlossenem Sheet in der Meldungsleiste"
+
+**Type:** Modeling / Capture
+**BC:** banking-import
+**Filed to:** backlog
+**Summary:** Kind-Task aus der Verfeinerung der Bau-Tasks von ledger-vf5h6
+
+---
+
+## 2026-11-19 22:32 -- Modeling / Captured: budgeting-p3sk0 - "Angepinnt ohne Meldung (R3): Anpinnen und Lösen im Kategorie-Detail ohne Toast, die Kategorie leuchtet auf der Übersicht im Bereich „Angepinnt“ kurz, ein Fehler beim Speichern steht am Ort"
+
+**Type:** Modeling / Capture
+**BC:** budgeting
+**Filed to:** backlog
+**Summary:** Kind-Task aus der Verfeinerung der Bau-Tasks von ledger-vf5h6
+
+---
+
+## 2026-11-19 22:32 -- Modeling / Captured: budgeting-sx9v5 - "Targets und Kategorien verwalten am Handy ohne Toast (R3): Ergebnis am Target im Sheet und in der Zeile der Prüfung, Kategorien verwalten mit leuchtender Zeile und Fehler am Feld, Hinweis „nicht neu gelesen“ auf der Seite"
+
+**Type:** Modeling / Capture
+**BC:** budgeting
+**Filed to:** backlog
+**Summary:** Kind-Task aus der Verfeinerung der Bau-Tasks von ledger-vf5h6
+
+---
+
+## 2026-11-19 22:32 -- Modeling / Captured: budgeting-y1kkr - "„Rückgängig“ nach einer Verschiebung im Sheet „Geld“: Verschiebung in die Gegenrichtung mit demselben Betrag, für Holen, Abgeben und den Fehlbetrag-Knopf, nur wenn alles geschrieben ist"
+
+**Type:** Modeling / Capture
+**BC:** budgeting
+**Filed to:** backlog
+**Summary:** Kind-Task aus der Verfeinerung der Bau-Tasks von ledger-vf5h6
+
+---
+
+## 2026-11-19 22:32 -- Modeling / Captured: ledger-k68sd - "Kassenbuch am Handy ohne Toast (R3), Teil 4: gelöschte Buchung hinterlässt eine Zeile am Platz „… gelöscht · Rückgängig“ statt Toast, Fehler beim Löschen unter dem Knopf"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Kind-Task aus der Verfeinerung der Bau-Tasks von ledger-vf5h6
+
+---
+
+## 2026-11-19 22:32 -- Modeling / Captured: ledger-enjex - "Kassenbuch am Handy ohne Toast (R3), Teil 3 Detail II: Memo, Betrag und Payee mit Rückgängig am Feld, Lena-Knopf wechselt ohne Text, Erneut senden ohne Meldung; Schlussprüfung kein Toast im Kassenbuch am Handy"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Kind-Task aus der Verfeinerung der Bau-Tasks von ledger-vf5h6
+
+---
+
+## 2026-11-19 22:32 -- Modeling / Captured: ledger-p5y9s - "Kassenbuch am Handy ohne Toast (R3), Teil 2 Detail I: Rückgängig am Feld im Detail-Sheet als Mechanik, Kategorie, Übertrag und Aufteilen bestätigen am Feld, Fehler am Feld, Übergang beim Schließen"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Kind-Task aus der Verfeinerung der Bau-Tasks von ledger-vf5h6
+
+---
+
+## 2026-11-19 22:32 -- Modeling / Captured: ledger-mf2bg - "Durchgehen: Kategorie und Übertrag auf der Karte am Feld bestätigt (Feld leuchtet, „<Name> · <Betrag> verfügbar“ mit Rückgängig), ohne Toast"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Kind-Task aus der Verfeinerung der Bau-Tasks von ledger-vf5h6
+
+---
+
+## 2026-11-19 22:32 -- Modeling / Captured: design-system-gkded - "Rückmeldung am Handy ohne Toast (Regel R3), Teil 2: ein Meldungsplatz in der App statt Toast-Liste, Leiste unter 1024 px mit „+ Buchung“, Toast am PC höchstens einer, gleiche Wische zusammengefasst, alte Toasts übergangsweise in der Leiste, Sweep-Invariante mit Gegenbeweis"
+
+**Type:** Modeling / Capture
+**BC:** design-system
+**Filed to:** backlog
+**Summary:** Rückmeldung am Handy ohne Toast, Teil 2: ein Meldungsplatz in der App statt Toast-Liste, Leiste mit „+ Buchung“, am PC höchstens ein Toast
+
+---
+
 ## 2026-11-19 22:18 -- Modeling / Captured: banking-import-vwhfm - "Einstellungen und Abrufen am Handy ohne Toast (R3), englische Toasts entfallen"
 
 **Type:** Modeling / Capture
