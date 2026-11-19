@@ -657,6 +657,8 @@ export const REVIEW_QUEUE = (() => {
       ],
     }),
     open: buildEntryFixture(accountId, 64, { ...base, Payee: "Markt ohne Kategorie", Amount: eur(-42.8), CategoryId: null, CategoryName: null, CategoryGroupName: null }),
+    // ledger-gy77x: eine gefragte Buchung mit langem Payee, der Knopf heißt „Rückfrage zurücknehmen“.
+    lena: buildEntryFixture(accountId, 65, { ...base, Payee: LONG_PAYEE, Amount: eur(-123456.78), Flag: "AskLena", ...lebensmittel }),
   };
 })();
 
@@ -1395,6 +1397,23 @@ export const STATES = [
     },
     primary: (page) => page.locator('[data-layer="dialog"]').getByRole("button", { name: "Speichern", exact: true }),
   },
+  // ledger-gy77x: am PC der Split-Editor im Panel, der Fuß mit „Abbrechen“ ohne Füllung und „Speichern“ über die volle
+  // Breite, ohne Scrollen erreichbar.
+  {
+    name: "kassenbuch-aufteilen-panel",
+    route: "/ledger",
+    widths: [1440],
+    mock: mockLedger,
+    open: async (page) => {
+      const row = page.locator("table tbody tr", { hasText: "Bauhaus" }).first();
+      await row.waitFor();
+      await row.locator("td").nth(2).click();
+      const panel = page.locator('[data-testid="ledger-detail-panel"]');
+      await panel.locator('[data-testid="detail-split-action"]').click();
+      await panel.locator('[data-testid="split-footer"]').waitFor();
+    },
+    primary: (page) => page.locator('[data-testid="split-footer"]').getByRole("button", { name: "Speichern", exact: true }),
+  },
   // ledger-fxt09: die Payee-Auswahl am Handy ersetzt den Inhalt des Detail-Sheets (§7.15), mit einem langen Payee,
   // der in der Liste mit Ellipse abschneidet.
   {
@@ -1814,11 +1833,12 @@ export const STATES = [
     },
   },
   // Regression ledger-filter-bar: lief der Spiegel, maß der Observer den Hinweis statt der Leiste. Während
-  // und nach dem Lauf haftet die Leiste, ohne den Tabellenkopf zu überdecken.
+  // und nach dem Lauf haftet die Leiste, ohne den Tabellenkopf zu überdecken. Am Handy (ledger-gy77x) sind „Abrufen“
+  // und „Jetzt spiegeln“ mit Spinner Symbolknöpfe im Kopf, 48 × 48 px (Invariante 2).
   {
     name: "kassenbuch-spiegel-laeuft",
     route: "/ledger",
-    widths: [1024, 1440],
+    widths: [...HANDY_WIDTHS, 412, 1024, 1440],
     mock: async (page) => {
       await mockLedger(page);
       await mockRunningMirror(page);
@@ -2003,6 +2023,17 @@ export const STATES = [
     open: reviewOpen("review-card"),
     primary: reviewPrimary("Passt, weiter"),
   },
+  // ledger-gy77x: die Karte einer gefragten Buchung. „Rückfrage zurücknehmen“ (Text aus `lenaActionFor`, statt des
+  // gekürzten „Rückfrage zurück“) bricht in der halben Breite um und wird nicht abgeschnitten (Invarianten 3 und 4),
+  // „Passt, weiter“ bleibt ohne Scrollen erreichbar.
+  {
+    name: "durchgehen-karte-lena",
+    route: "/review",
+    widths: [320, 412],
+    mock: (page) => mockReview(page, [REVIEW_QUEUE.lena]),
+    open: async (page) => page.getByRole("button", { name: "Rückfrage zurücknehmen", exact: true }).first().waitFor(),
+    primary: reviewPrimary("Passt, weiter"),
+  },
   {
     name: "durchgehen-amazon",
     route: "/review",
@@ -2010,6 +2041,10 @@ export const STATES = [
     mock: (page) => mockReview(page, [REVIEW_QUEUE.amazon]),
     open: async (page) => page.locator('[data-testid="review-suggestions"]').first().waitFor(),
     primary: reviewPrimary("Passt, weiter"),
+    // ledger-gy77x: „Rückfrage zurücknehmen“ (statt „Rückfrage zurück“) passt bei 320 px nicht in die halbe Breite,
+    // „zurücknehmen“ allein ist breiter als der Knopf und wird getrennt (drei Zeilen). Auf dieser längsten Karte
+    // (Vorschläge, Bestell-Link, Lena-Hinweis) liegt „Passt, weiter“ dann 8 px unter dem Rand. Kann-Sammlung ledger.
+    exceptions: [{ width: 320, inv: 7, selector: '[data-testid="review-page"] button "Passt, weiter"' }],
   },
   {
     name: "durchgehen-duplikat",

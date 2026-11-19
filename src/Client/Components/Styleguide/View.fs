@@ -2071,6 +2071,14 @@ let private navigationSection =
                     None
                     [ PageHeader.iconButton "Abrufen" Icons.refresh ignore
                       PageHeader.iconButton "Einstellungen" Icons.gear ignore ]
+                subTitle "Symbolknopf mit Laufzustand (iconButtonBusy, „Jetzt spiegeln“ im Kassenbuch)"
+                Html.div [
+                    prop.className "flex items-center gap-2"
+                    prop.children [
+                        PageHeader.iconButtonBusy "Jetzt spiegeln" Icons.sync false ignore
+                        PageHeader.iconButtonBusy "Jetzt spiegeln (läuft)" Icons.sync true ignore
+                    ]
+                ]
                 subTitle "Kopf einer Unterseite"
                 PageHeader.top (Some (PageHeader.backButton ignore)) "Targets prüfen" None []
             ]

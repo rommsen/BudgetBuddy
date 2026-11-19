@@ -158,6 +158,32 @@ let iconButton (ariaLabel: string) (icon: Client.DesignSystem.Icons.IconSize -> 
         prop.children [ icon Client.DesignSystem.Icons.Tab Client.DesignSystem.Icons.Default ]
     ]
 
+/// Symbolknopf im Kopf mit Laufzustand (ledger-gy77x, „Jetzt spiegeln“ im Kassenbuch): sieht aus wie `iconButton`.
+/// Solange `busy` gilt, dreht ein Spinner statt des Symbols, der Knopf trägt `aria-busy` und `aria-disabled` und
+/// tut beim Tipp nichts. Er setzt kein `disabled`, damit der Fokus bleibt (wie `Button.IsBusy`).
+let iconButtonBusy
+    (ariaLabel: string)
+    (icon: Client.DesignSystem.Icons.IconSize -> Client.DesignSystem.Icons.IconColor -> ReactElement)
+    (busy: bool)
+    (onClick: unit -> unit)
+    =
+    Html.button [
+        prop.type' "button"
+        prop.ariaLabel ariaLabel
+        if busy then prop.ariaBusy true
+        if busy then prop.ariaDisabled true
+        prop.className (
+            $"{TouchTargets.mobileSquare} md:h-11 md:w-11 shrink-0 grid place-items-center {Radius.sm} "
+            + $"{Colors.textSecondary} "
+            + (if busy then "cursor-wait" else "hover:bg-surface-hover hover:text-text-primary")
+        )
+        prop.onClick (fun _ -> if not busy then onClick ())
+        prop.children [
+            if busy then Html.span [ prop.className "proto-spinner" ]
+            else icon Client.DesignSystem.Icons.Tab Client.DesignSystem.Icons.Default
+        ]
+    ]
+
 /// Der Kopf eines Orts oder einer Unterseite (Prototyp `.top`): optional „Zurück“, Titel 20 px in der
 /// Display-Schrift, darunter optional ein Untertitel 12 px gedämpft, rechts die Aktionen.
 let top (back: ReactElement option) (title: string) (subtitle: string option) (actions: ReactElement list) =

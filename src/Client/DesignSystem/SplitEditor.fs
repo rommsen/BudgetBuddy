@@ -225,7 +225,7 @@ let lineActions (addEnabled: bool) (onAdd: unit -> unit) (cashbackEnabled: bool)
                     Variant = Button.Secondary
                     Size = Button.Small
                     IsDisabled = not addEnabled
-                    Icon = Some (Icons.plus Icons.SM Icons.Accent)
+                    Icon = Some (Icons.plus Icons.SM Icons.Default)
                     OnClick = onAdd }
             Button.view
                 { Button.defaultProps with
@@ -238,24 +238,30 @@ let lineActions (addEnabled: bool) (onAdd: unit -> unit) (cashbackEnabled: bool)
         ]
     ]
 
-/// "Speichern": die einzige primäre Aktion des Editors. `saving` zeigt den Ladezustand, solange
-/// der Aufruf läuft; ohne speicherbaren Entwurf ist der Knopf gesperrt. `fullWidth` für das Handy.
-let saveButton (fullWidth: bool) (canSave: bool) (saving: bool) (onSave: unit -> unit) : ReactElement =
+/// "Speichern": die einzige primäre Aktion des Editors. `saving` zeigt den Spinner, solange der Aufruf läuft, und
+/// lässt den Fokus am Knopf (`IsBusy`, ledger-gy77x); ohne speicherbaren Entwurf ist der Knopf gesperrt. `canSave`
+/// enthält deshalb `saving` nicht, sonst ergäbe `IsBusy` mit `IsDisabled` `disabled` ohne Spinner.
+/// `fullWidth` für das Handy.
+let private saveButtonWith (props: Button.ButtonProps) (canSave: bool) (saving: bool) (onSave: unit -> unit) : ReactElement =
     Button.view
-        { Button.defaultProps with
+        { props with
             Text = saveLabel
             Variant = Button.Primary
-            IsLoading = saving
+            IsBusy = saving
             IsDisabled = not canSave
-            FullWidth = fullWidth
             OnClick = onSave }
 
+let saveButton (fullWidth: bool) (canSave: bool) (saving: bool) (onSave: unit -> unit) : ReactElement =
+    saveButtonWith { Button.defaultProps with FullWidth = fullWidth } canSave saving onSave
+
+/// "Abbrechen" im Fuß neben "Speichern": ohne Füllung (`Outline`, Styleguide §2), über die volle Breite seiner Spalte.
 let cancelButton (saving: bool) (onCancel: unit -> unit) : ReactElement =
     Button.view
         { Button.defaultProps with
             Text = cancelLabel
-            Variant = Button.Secondary
+            Variant = Button.Outline
             IsDisabled = saving
+            ClassName = Some "w-full"
             OnClick = onCancel }
 
 /// Ein abgelehntes Speichern bei offenem Editor (ledger-ng110, §7.13): `ErrorDisplay.inline'` direkt über
@@ -279,8 +285,12 @@ let footer (error: string option) (canSave: bool) (saving: bool) (onCancel: unit
         prop.children [
             saveError error
             Html.div [
-                prop.className "flex items-center justify-end gap-3"
-                prop.children [ cancelButton saving onCancel; saveButton false canSave saving onSave ]
+                // Das Knopfpaar über die volle Breite wie im Fuß von "Betrag" (ledger-gy77x).
+                prop.className "grid grid-cols-2 gap-3"
+                prop.children [
+                    cancelButton saving onCancel
+                    saveButtonWith { Button.defaultProps with ClassName = Some "w-full" } canSave saving onSave
+                ]
             ]
         ]
     ]

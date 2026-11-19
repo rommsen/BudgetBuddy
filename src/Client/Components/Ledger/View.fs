@@ -2107,7 +2107,8 @@ let private amountFooter (dispatch: Msg -> unit) (model: Model) (entry: LedgerEn
             Button.view
                 { Button.defaultProps with
                     Text = "Abbrechen"
-                    Variant = Button.Secondary
+                    // Im Fuß neben der Hauptaktion ohne Füllung (Styleguide §2, ledger-gy77x).
+                    Variant = Button.Outline
                     IsDisabled = busy
                     ClassName = Some "w-full"
                     OnClick = fun () -> dispatch CancelAmountEdit }
@@ -2162,7 +2163,8 @@ let private detailPanelView (today: DateTime) (dispatch: Msg -> unit) (model: Mo
                     yield
                         SplitUi.footer
                             editor.SaveError
-                            (SplitLogic.canSave editor && not saving)
+                            // Ohne `not saving`: sonst gälte `IsBusy` mit `IsDisabled` als `disabled` ohne Spinner.
+                            (SplitLogic.canSave editor)
                             saving
                             (fun () -> dispatch CloseSplitEditor)
                             (fun () -> dispatch StartSaveSplits) ]
@@ -2271,7 +2273,7 @@ let private DetailBottomSheet (today: DateTime, dispatch: Msg -> unit, model: Mo
              | Some e, Some _, _ -> Some [ amountFooter dispatch model e ]
              | _, None, Some ed ->
                  let saving = isSavingSplit model ed
-                 Some [ SplitUi.sheetFooter ed.SaveError (SplitLogic.canSave ed && not saving) saving (fun () -> dispatch StartSaveSplits) ]
+                 Some [ SplitUi.sheetFooter ed.SaveError (SplitLogic.canSave ed) saving (fun () -> dispatch StartSaveSplits) ]
              | _ -> None) }
         // Der Inhalt steht nur im DOM, solange das Sheet offen ist: ein geschlossenes Sheet bliebe
         // sonst als verstecktes Doppel neben dem Panel stehen.
@@ -4027,10 +4029,10 @@ let private selectionBarSpacers (model: Model) : ReactElement =
 let captureFabVisible (model: Model) : bool =
     model.Capture.IsNone && not model.SelectionMode
 
-/// Am Handy, solange "+ Buchung" schwebt: unter der Liste Platz für den Knopf (48 px) und seinen
+/// Am Handy, solange "+ Buchung" schwebt: unter der Liste Platz für den Knopf (`Button.fab`, 52 px) und seinen
 /// Abstand (16 px), sonst verdeckt er am Ende Betrag und Symbol der letzten Buchung.
 let private captureFabSpacer (model: Model) : ReactElement =
-    if captureFabVisible model then Html.div [ prop.custom ("data-testid", "ledger-capture-fab-spacer"); prop.className "lg:hidden h-16"; prop.ariaHidden true ] else Html.none
+    if captureFabVisible model then Html.div [ prop.custom ("data-testid", "ledger-capture-fab-spacer"); prop.className "lg:hidden h-[68px]"; prop.ariaHidden true ] else Html.none
 
 /// Die Hinweisleiste über der Liste, wenn eine Kategorieänderung den Sortierschlüssel verschoben
 /// hat (ADR 0055, Punkt 9). Sie steht nur bei `OrderStale`; "Neu laden" setzt die Liste ab
@@ -4559,13 +4561,9 @@ let captureFab (dispatch: Msg -> unit) (model: Model) : ReactElement =
         Html.div [
             prop.className "lg:hidden ledger-capture-fab"
             prop.children [
-                Button.view
-                    { Button.defaultProps with
-                        Text = captureOpenLabel
-                        Icon = Some (Icons.plus Icons.SM Icons.Default)
-                        Variant = Button.Primary
-                        AriaLabel = Some captureTitle
-                        OnClick = fun () -> dispatch OpenCapture }
+                // Gefüllt (`quiet = false`): am Handy hat das Kassenbuch sonst keine Hauptaktion, der Kopf trägt nur
+                // Symbolknöpfe (Styleguide §7.14, ledger-gy77x).
+                Button.fab "ledger-capture-fab" captureOpenLabel captureTitle false (fun () -> dispatch OpenCapture)
             ]
         ]
 
@@ -4897,34 +4895,28 @@ let view (model: Model) (dispatch: Msg -> unit) (tabs: LedgerTabs) (ruleForm: En
                 tabs.OverviewReviewCount
         headerActionsFor onRules reviewCount
         |> List.collect (function
+            // Symbolknöpfe wie auf der Übersicht (ledger-gy77x): ohne Rand, Symbol 22 px, der Name über `aria-label`.
+            // Die Hülle blendet sie ab `lg` bzw. `xl` aus.
             | FetchIcon ->
-                [ Button.view {
-                    Button.defaultProps with
-                        Icon = Some (Icons.refresh Icons.SM Icons.Default)
-                        Variant = Button.Secondary
-                        Title = Some "Abrufen"
-                        AriaLabel = Some "Abrufen"
-                        ClassName = Some "lg:hidden"
-                        OnClick = tabs.Fetch
-                  } ]
+                [ Html.div [
+                    prop.className "lg:hidden"
+                    prop.children [ PageHeader.iconButton "Abrufen" Icons.refresh tabs.Fetch ]
+                  ] ]
             | MirrorIcon ->
-                [ Button.view {
-                    Button.defaultProps with
-                        Icon = Some (Icons.sync Icons.SM Icons.Default)
-                        Variant = Button.Secondary
-                        IsLoading = model.MirrorRunning
-                        Title = Some "Jetzt spiegeln"
-                        // Am Handy zeigt `title` nichts: der Name kommt aus `AriaLabel` (ledger-dn4vy).
-                        AriaLabel = Some "Jetzt spiegeln"
-                        ClassName = Some mirrorIconClass
-                        OnClick = (fun () -> dispatch StartMirror)
-                  } ]
+                [ Html.div [
+                    prop.className mirrorIconClass
+                    prop.children [
+                        PageHeader.iconButtonBusy "Jetzt spiegeln" Icons.sync model.MirrorRunning (fun () -> dispatch StartMirror)
+                    ]
+                  ] ]
             | MirrorButton ->
                 [ Button.view {
                     Button.defaultProps with
                         Text = if model.MirrorRunning then "Spiegel läuft…" else "Jetzt spiegeln"
                         Variant = Button.Secondary
-                        IsLoading = model.MirrorRunning
+                        // `IsBusy` statt `IsLoading`: der Fokus bleibt am Knopf, ein zweiter Druck tut nichts
+                        // (`StartMirror` läuft während eines Spiegels ins Leere, ledger-gy77x).
+                        IsBusy = model.MirrorRunning
                         ClassName = Some mirrorButtonClass
                         OnClick = (fun () -> dispatch StartMirror)
                   } ]
@@ -5289,12 +5281,16 @@ let private reviewNormalCard (dispatch: Msg -> unit) (model: Model) (review: Rev
             prop.children [
                 Button.view
                     { Button.defaultProps with
-                        Text = (if entry.Flag = AskLena then "Rückfrage zurück" else "Lena fragen")
+                        // Text und Flagge wie im Detail (`detailActionRow`): „Lena fragen“ bzw. „Rückfrage zurücknehmen“
+                        // aus `lenaActionFor`, das Umriss-Flag in der Farbe aus den Einstellungen (ledger-gy77x).
+                        Text = lena.Label
                         Variant = Button.Secondary
                         Size = Button.Choice
-                        ClassName = Some "min-h-[52px]"
+                        // „zurücknehmen“ ist bei 320 px breiter als die halbe Karte: es trennt statt über den Rand zu
+                        // laufen.
+                        ClassName = Some "min-h-[52px] hyphens-auto"
                         FullWidth = true
-                        Icon = (if entry.Flag = AskLena then None else Some (Icons.flagSolid Icons.XS Icons.LenaFlag))
+                        Icon = Some (Icons.flag Icons.SM Icons.LenaFlag)
                         IsDisabled = lena.DisabledReason.IsSome
                         Title = lena.DisabledReason
                         IsBusy = (model.FlagRows |> Map.tryFind entry.Id) = Some FlagSending

@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-19 10:16 -- Task verified and completed: ledger-gy77x - "Knöpfe im Kassenbuch nach DS: „+ Buchung“ als Button.fab, „Abrufen“ und „Jetzt spiegeln“ als Symbolknopf im Kopf, „Lena fragen“ auf der Karte wie im Detail, „Abbrechen“ ohne Füllung in „Betrag“ und im Split-Editor"
+
+**Type:** Work / Task completion
+**Task:** ledger-gy77x - "Knöpfe im Kassenbuch nach DS: „+ Buchung“ als Button.fab, „Abrufen“ und „Jetzt spiegeln“ als Symbolknopf im Kopf, „Lena fragen“ auf der Karte wie im Detail, „Abbrechen“ ohne Füllung in „Betrag“ und im Split-Editor"
+**Summary:** Knöpfe im Kassenbuch nach DS: FAB, Symbolknöpfe im Kopf mit iconButtonBusy, Lena-Knopf wie im Detail, Abbrechen als Outline
+**Duration:** 1h05m
+**Verification:** PASS (iteration 1)
+**Files changed:** 7
+**Tests added:** 1
+**ADRs written:** none
+
+---
+
 ## 2026-11-19 10:13 -- Batch started: [ledger-pz028]
 
 **Type:** Work / Batch start
