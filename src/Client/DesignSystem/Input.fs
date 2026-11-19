@@ -232,6 +232,75 @@ let textarea (props: TextareaProps) =
 let textareaSimple value onChange placeholder =
     textarea { textareaDefaults with Value = value; OnChange = onChange; Placeholder = placeholder }
 
+/// Ein mitwachsendes mehrzeiliges Feld für einen Text, der in einer Zeile gemeint ist, aber umbrechen darf (Memo,
+/// design-system-x045q). Startet einzeilig, wächst mit dem Text und zeigt beim Öffnen den ganzen vorhandenen Text;
+/// über `max-h-32` (128 px, rund vier Zeilen) scrollt es in sich. Kein Ziehgriff. Die Bildschirmtastatur zeigt
+/// „Fertig“ (`enterKeyHint "done"`); ein Zeilenumbruch über `beforeinput` (`insertLineBreak`, `insertParagraph`,
+/// Android meldet Enter im `textarea` nicht verlässlich als `keydown`) wird verhindert und ruft `OnEnter`.
+type AutoGrowTextareaProps = {
+    Value: string
+    OnChange: string -> unit
+    Placeholder: string
+    State: InputState
+    Disabled: bool
+    /// Enter der Bildschirmtastatur: statt des Umbruchs. Der Aufrufer entscheidet, ob gespeichert wird.
+    OnEnter: unit -> unit
+    AriaLabel: string option
+}
+
+/// Die Höchsthöhe des mitwachsenden Felds (Spacing-Skala von Tailwind, 128 px): „Speichern“ bleibt bei offener
+/// Tastatur und 500 Zeichen bei 320 px im Bild (Invariante 7, Sweep `kassenbuch-detail-memo`).
+let autoGrowMaxHeightClass = "max-h-32"
+
+[<ReactComponent>]
+let AutoGrowTextarea (props: AutoGrowTextareaProps) : ReactElement =
+    let fieldRef = React.useRef<Browser.Types.HTMLElement option> None
+    let onEnter = React.useRef props.OnEnter
+    onEnter.current <- props.OnEnter
+    // Höhe nach dem Text: erst `auto`, dann die Höhe des Inhalts samt Rand (`offsetHeight - clientHeight`).
+    React.useLayoutEffect (
+        (fun () ->
+            match fieldRef.current with
+            | Some el ->
+                let fieldStyle: obj = Fable.Core.JsInterop.(?) el "style"
+                Fable.Core.JsInterop.(?<-) fieldStyle "height" "auto"
+                Fable.Core.JsInterop.(?<-) fieldStyle "height" $"{el.scrollHeight + el.offsetHeight - el.clientHeight}px"
+            | None -> ()),
+        [| box props.Value |]
+    )
+    // Reacts `onBeforeInput` liefert kein `inputType`: nativer Listener über die Ref.
+    React.useEffect (
+        (fun () ->
+            match fieldRef.current with
+            | Some el ->
+                let handler (e: Browser.Types.Event) =
+                    let inputType: string = Fable.Core.JsInterop.(?) e "inputType"
+                    if inputType = "insertLineBreak" || inputType = "insertParagraph" then
+                        e.preventDefault ()
+                        onEnter.current ()
+                el.addEventListener ("beforeinput", handler)
+                React.createDisposable (fun () -> el.removeEventListener ("beforeinput", handler))
+            | None -> React.createDisposable ignore),
+        [||]
+    )
+    Html.textarea [
+        prop.ref fieldRef
+        prop.className (
+            $"{baseInputClass} block w-full text-base px-4 py-3 resize-none overflow-y-auto {autoGrowMaxHeightClass} {stateToClass props.State}"
+            + (if props.Disabled then " opacity-50 cursor-not-allowed" else "")
+        )
+        prop.value props.Value
+        prop.onChange props.OnChange
+        prop.placeholder props.Placeholder
+        prop.rows 1
+        prop.disabled props.Disabled
+        prop.custom ("enterKeyHint", "done")
+        match props.AriaLabel with
+        | Some label -> prop.ariaLabel label
+        | None -> ()
+        prop.style [ style.fontSize 16 ]
+    ]
+
 // ============================================
 // Select
 // ============================================

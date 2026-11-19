@@ -1662,17 +1662,42 @@ let memoActionMsg (model: Model) (entry: LedgerEntryView) : Msg option =
     if action.DisabledReason.IsSome || (model.MemoRows |> Map.tryFind entry.Id) = Some MemoSending then None
     else Some (StartMemoEdit entry.Id)
 
-/// Der Wert der Memo-Zeile ohne Memo (Prototyp Version 17): gedämpft „hinzufügen“.
+/// Der Text der Memo-Aktion ohne Memo (Prototyp Version 17, Skizze ledger-vf5h6): „hinzufügen ›“.
 let memoEmptyText = "hinzufügen"
 
 /// Das Eingabefeld des Memos, wenn es für diese Buchung offen ist.
 let memoEditFor (model: Model) (entry: LedgerEntryView) : MemoEdit option =
     model.MemoEdit |> Option.filter (fun edit -> edit.MemoEntryId = entry.Id)
 
-/// Die Memo-Zeile (Tafeln 5.2 und 7.8, Prototyp Version 17): der Text oder gedämpft "hinzufügen" und der Pfeil "Memo
-/// hinzufügen" bzw. "Bearbeiten". Ist das Feld offen, steht an dieser Stelle das Eingabefeld
-/// mit Speichern und Abbrechen. Ist die Aktion gesperrt (in YNAB gelöscht), nennt ein Text
-/// unter dem Wert den Grund.
+/// Das Eingabefeld des Memos für diese Buchung (mehrzeilig, design-system-x045q): am PC im Panel an der Stelle des
+/// Blocks, am Handy als Inhalt des Detail-Sheets (`DetailBottomSheet`), auf der Karte im Durchgehen in
+/// `reviewEditors`.
+let private memoEditorFor
+    (dispatch: Msg -> unit)
+    (memoRow: MemoRowState option)
+    (entry: LedgerEntryView)
+    (edit: MemoEdit)
+    : ReactElement =
+    let problem =
+        match memoDraftProblem edit.MemoDraft, memoRow with
+        | Some problem, _ -> Some problem
+        | None, Some (MemoCommandFailed message) -> Some message
+        | None, _ -> None
+    let busy = (memoRow = Some MemoSending)
+    Detail.memoEditor
+        { Value = edit.MemoDraft
+          OnChange = fun text -> dispatch (MemoEditChanged text)
+          OnSave = fun () -> dispatch (StartSaveMemo entry.Id)
+          OnCancel = fun () -> dispatch CancelMemoEdit
+          Busy = busy
+          Problem = problem
+          MaxLength = ynabMemoMaxLength
+          SaveDisabled = busy || (memoDraftProblem edit.MemoDraft).IsSome }
+
+/// Das Memo im Detail als Block (Skizze ledger-vf5h6 Bild 11, design-system-x045q): „Memo“ links oben, rechts
+/// „Bearbeiten ›“ bzw. „hinzufügen ›“, darunter der ganze Text über die volle Breite; ohne Memo nur die Kopfzeile.
+/// Ist das Feld offen, steht an dieser Stelle das Eingabefeld (am PC im Panel). Ist die Aktion gesperrt (in YNAB
+/// gelöscht), nennt ein Text unter dem Memo den Grund.
 let private memoField
     (dispatch: Msg -> unit)
     (model: Model)
@@ -1681,51 +1706,30 @@ let private memoField
     (textColor: string)
     : ReactElement =
     match memoEditFor model entry with
-    | Some edit ->
-        let problem =
-            match memoDraftProblem edit.MemoDraft, memoRow with
-            | Some problem, _ -> Some problem
-            | None, Some (MemoCommandFailed message) -> Some message
-            | None, _ -> None
-        let busy = (memoRow = Some MemoSending)
-        Detail.memoEditor
-            { Value = edit.MemoDraft
-              OnChange = fun text -> dispatch (MemoEditChanged text)
-              OnSave = fun () -> dispatch (StartSaveMemo entry.Id)
-              OnCancel = fun () -> dispatch CancelMemoEdit
-              Busy = busy
-              Problem = problem
-              MaxLength = ynabMemoMaxLength
-              SaveDisabled = busy || (memoDraftProblem edit.MemoDraft).IsSome }
+    | Some edit -> memoEditorFor dispatch memoRow entry edit
     | None ->
         let action = memoActionFor entry
-        let value =
-            Html.div [
-                prop.className "flex min-w-0 flex-col"
-                prop.children [
-                    match memoTextOf entry with
-                    | Some memo -> Detail.valueText textColor memo
-                    | None -> Detail.valueText Tokens.Colors.textMuted memoEmptyText
-                    match action.DisabledReason with
-                    | Some reason -> Detail.fieldLockHint "detail-memo-lock-hint" reason
-                    | None -> ()
-                ]
-            ]
         let openMsg = memoActionMsg model entry
-        // Die ganze Zeile und der Pfeil öffnen das Eingabefeld (Prototyp `.kv`, ledger-zfj78). Der Pfeil trägt den
-        // Namen der Aktion („Memo hinzufügen“ bzw. „Bearbeiten“); gesperrt oder während eines Aufrufs wirkt er nicht.
-        Detail.fieldRowWith
+        let memo = memoTextOf entry
+        // Die ganze Fläche und die Aktion öffnen das Eingabefeld. Die Aktion trägt den Namen („Memo hinzufügen“
+        // bzw. „Bearbeiten“), sichtbar „hinzufügen ›“ bzw. „Bearbeiten ›“; gesperrt oder während eines Aufrufs
+        // wirkt sie nicht.
+        Detail.fieldBlock
             (openMsg |> Option.map (fun msg -> fun () -> dispatch msg))
             "detail-memo"
             "Memo"
-            value
-            (Some (
-                Detail.forwardArrow
-                    "detail-memo-action"
-                    action.Label
-                    (if openMsg.IsSome then None else Some (action.DisabledReason |> Option.defaultValue action.Label))
-                    (fun () -> openMsg |> Option.iter dispatch)
-            ))
+            (Detail.fieldBlockAction
+                "detail-memo-action"
+                (if memo.IsSome then "Bearbeiten" else memoEmptyText)
+                action.Label
+                (if openMsg.IsSome then None else Some (action.DisabledReason |> Option.defaultValue action.Label))
+                (fun () -> openMsg |> Option.iter dispatch))
+            [ match memo with
+              | Some text -> Detail.blockText textColor text
+              | None -> ()
+              match action.DisabledReason with
+              | Some reason -> Detail.blockLockHint "detail-memo-lock-hint" reason
+              | None -> () ]
 
 /// Die externen Links des Buchungs-Details als (Beschriftung, Adresse) (ledger-rjhwp). Leer
 /// für eine Buchung ohne Treffer; ein fehlendes Feld (`null`) gilt defensiv als leer. Client und
@@ -2183,7 +2187,7 @@ let private detailPanelView (today: DateTime) (dispatch: Msg -> unit) (model: Mo
 /// Das Sheet bringt den Kopf mit: der Payee als Titel, „<Tag> · <Konto>“ darunter und Schließen
 /// (ledger-zfj78); der Betrag steht als erste Zeile im Inhalt. Mit offenem Editor heißt es "Aufteilen" mit Payee und Datum als Unterzeile, der
 /// Schließen-Knopf kehrt zum Detail zurück, und "Speichern" klebt unten (kein "Abbrechen").
-/// Payee, Betrag, Kategorie, Aufteilen und das Regel-Formular ersetzen den Inhalt desselben Sheets (§7.15): kein
+/// Payee, Betrag, Memo, Kategorie, Aufteilen und das Regel-Formular ersetzen den Inhalt desselben Sheets (§7.15): kein
 /// zweites Sheet, nichts fährt beim Wechsel ein oder aus, die Abdunklung bleibt (ledger-hme9k). Beim Wechsel weg vom
 /// Detail merkt sich das Sheet die Scrollposition und setzt sie bei der Rückkehr wieder (§7.10).
 [<ReactComponent>]
@@ -2200,6 +2204,8 @@ let private DetailBottomSheet (today: DateTime, dispatch: Msg -> unit, model: Mo
     let amountEdit = entry |> Option.bind (amountEditOf model)
     // Die Payee-Auswahl ersetzt ebenso den Inhalt (§7.15, ledger-fxt09).
     let payeeEdit = entry |> Option.bind (payeeEditOf model)
+    // Das Memo-Feld ersetzt ebenso den Inhalt (§7.15, design-system-x045q): Titel „Memo“, Payee darunter.
+    let memoEdit = entry |> Option.bind (memoEditFor model)
     // Auch die Kategorie-Auswahl des Details und das Ziel einer Split-Zeile ersetzen den Inhalt (§7.15,
     // ledger-ea70s); Wahl oder Schließen führen zurück, der Entwurf steht im Modell und bleibt.
     let categoryPicker =
@@ -2211,11 +2217,11 @@ let private DetailBottomSheet (today: DateTime, dispatch: Msg -> unit, model: Mo
                 | SplitLogic.SplitTargetPickerFor index ->
                     List.tryItem index ed.Lines |> Option.map (splitTargetPickerProps dispatch model e index)
                 | SplitLogic.NoSplitPicker -> None
-            | None when model.CategoryPickerFor = Some e.Id && amountEdit.IsNone && payeeEdit.IsNone ->
+            | None when model.CategoryPickerFor = Some e.Id && amountEdit.IsNone && payeeEdit.IsNone && memoEdit.IsNone ->
                 Some (detailPickerProps dispatch model e)
             | None -> None)
     let showsDetail =
-        open' && entry.IsSome && rule.IsNone && categoryPicker.IsNone && payeeEdit.IsNone && amountEdit.IsNone && editor.IsNone
+        open' && entry.IsSome && rule.IsNone && categoryPicker.IsNone && payeeEdit.IsNone && amountEdit.IsNone && memoEdit.IsNone && editor.IsNone
     let entryId = entry |> Option.map (fun e -> e.Id)
     React.useLayoutEffect (
         (fun () ->
@@ -2252,6 +2258,7 @@ let private DetailBottomSheet (today: DateTime, dispatch: Msg -> unit, model: Mo
              | None, None ->
                  if payeeEdit.IsSome then "Payee"
                  elif amountEdit.IsSome then "Betrag"
+                 elif memoEdit.IsSome then "Memo"
                  elif editor.IsSome then "Aufteilen"
                  // Das Detail trägt den Payee als Titel (Prototyp Version 17, ledger-zfj78).
                  else entry |> Option.map payeeLabel |> Option.defaultValue "Buchung")
@@ -2262,6 +2269,7 @@ let private DetailBottomSheet (today: DateTime, dispatch: Msg -> unit, model: Mo
                  Some $"{payeeLabel e} · {Money.formatAmountText false true e.Amount.Amount e.Amount.Currency}"
              | Some e, _ when payeeEdit.IsSome -> Some (payeeLabel e)
              | Some e, _ when amountEdit.IsSome -> Some (payeeLabel e)
+             | Some e, _ when memoEdit.IsSome -> Some (payeeLabel e)
              | Some e, Some _ -> Some $"{payeeLabel e} · {formatDateFull e.Date}"
              | Some e, None -> Some (detailSubtitleFor today (accountNameOf model e) e)
              | _ -> None)
@@ -2270,6 +2278,7 @@ let private DetailBottomSheet (today: DateTime, dispatch: Msg -> unit, model: Mo
              | _ when rule.IsSome -> rule.Value.Footer
              | _ when categoryPicker.IsSome -> None
              | _ when payeeEdit.IsSome -> None
+             | _ when memoEdit.IsSome -> None
              | Some e, Some _, _ -> Some [ amountFooter dispatch model e ]
              | _, None, Some ed ->
                  let saving = isSavingSplit model ed
@@ -2282,6 +2291,8 @@ let private DetailBottomSheet (today: DateTime, dispatch: Msg -> unit, model: Mo
           | Some _, _, _, Some picker when open' -> CategoryPicker.sheetContent picker
           | Some entry, _, _, _ when open' && payeeEdit.IsSome ->
               PayeePicker.view (payeePickerProps dispatch model entry payeeEdit.Value (Viewport.isFinePointer ()))
+          | Some entry, None, _, _ when open' && memoEdit.IsSome ->
+              memoEditorFor dispatch (model.MemoRows |> Map.tryFind entry.Id) entry memoEdit.Value
           | Some entry, Some edit, _, _ when open' ->
               Html.div [
                   prop.custom ("data-testid", "amount-form")
@@ -5374,22 +5385,7 @@ let private reviewEditors (dispatch: Msg -> unit) (model: Model) (entry: LedgerE
     let memoRow = model.MemoRows |> Map.tryFind entry.Id
     let memoBody =
         match memoEdit with
-        | Some edit ->
-            let problem =
-                match memoDraftProblem edit.MemoDraft, memoRow with
-                | Some problem, _ -> Some problem
-                | None, Some (MemoCommandFailed message) -> Some message
-                | None, _ -> None
-            let busy = (memoRow = Some MemoSending)
-            [ Detail.memoEditor
-                  { Value = edit.MemoDraft
-                    OnChange = fun text -> dispatch (MemoEditChanged text)
-                    OnSave = fun () -> dispatch (StartSaveMemo entry.Id)
-                    OnCancel = fun () -> dispatch CancelMemoEdit
-                    Busy = busy
-                    Problem = problem
-                    MaxLength = ynabMemoMaxLength
-                    SaveDisabled = busy || (memoDraftProblem edit.MemoDraft).IsSome } ]
+        | Some edit -> [ memoEditorFor dispatch memoRow entry edit ]
         | None -> []
     let payeeEdit = payeeEditOf model entry
     React.fragment [

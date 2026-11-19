@@ -1,7 +1,7 @@
 ---
 id: design-system-x045q
 title: "Detail: Memo als Block mit Bezeichnung darüber und ganzem Text, Memo-Editor mehrzeilig und am Handy als Inhalt des Detail-Sheets"
-status: doing
+status: done
 type: feature
 context: design-system
 created: 2026-11-19
@@ -186,3 +186,105 @@ heutige Verhalten und sind nachzuziehen.
 
 Bezug: ledger-gwr9j (Kassenbuch ohne Toast) setzt „Rückgängig am Feld“ auch für das Memo; das gehört dann in diesen
 Block. ledger-wg42w (Memo auf der Karte nur lesen) baut darauf auf.
+
+
+## Outcome
+
+Memo im Buchungs-Detail (Kassenbuch und Durchgehen) als Block nach Skizze 11, Memo-Editor mehrzeilig nach Skizze 12.
+Am Handy ersetzt der Editor den Inhalt des Detail-Sheets, am PC steht er im Panel. `./verify.sh`: `VERIFY: PASS`
+(dotnet 5216 grün, node 351 grün).
+
+**Bausteine (DS)**
+- `src/Client/DesignSystem/Detail.fs`: neu `fieldBlock` (Kopfzeile Bezeichnung/Aktion, darunter Inhalt, Linie unten,
+  ganze Fläche klickbar), `fieldBlockAction` (Text plus Pfeil in `text-muted`, Name aus `memoActionFor`, gesperrt
+  gedämpft ohne Wirkung, am Handy 48 px), `blockText` (volle Breite, linksbündig, `break-words`), `blockLockHint`
+  (Grund linksbündig). `memoEditor` nimmt das neue Feld, beide Knöpfe mit `KeepsFocus = true`, Zähler in Mono.
+  `fieldRowWith` ist unverändert.
+- `src/Client/DesignSystem/Input.fs`: neu `AutoGrowTextarea` (`[<ReactComponent>]`): `rows 1`, `resize-none`,
+  Höhe per `useLayoutEffect` auf den Wert (`height = auto`, dann `scrollHeight` plus Rand), Schrift 16 px,
+  `enterKeyHint "done"`, nativer `beforeinput`-Listener über die Ref (`insertLineBreak`/`insertParagraph` →
+  `preventDefault`, dann `OnEnter`; der Editor speichert nur, wenn Speichern nicht gesperrt ist).
+  Höchsthöhe `max-h-32` (128 px, Spacing-Skala von Tailwind): mit `max-h-40` lag „Speichern“ bei offener Tastatur und
+  500 Zeichen bei 320/390/412 px 22 px unter dem Bildrand (Sweep, Invariante 7). Deshalb `max-h-32`, das hält ihn im
+  Bild. `scripts/token-guard-exceptions.json`: Zahl der `style.fontSize 16` in Input.fs von 3 auf 4 (gleicher Grund,
+  iOS-Zoom-Schutz).
+
+**Ledger-Verdrahtung**
+- `Types.memoDraftOfInput`: `\r\n`, `\n`, `\r` je zu einem Leerzeichen. `State.fs` wendet sie bei
+  `MemoEditChanged` an, Zähler und `memoDraftProblem` sehen den bereinigten Entwurf.
+- `State.detailCloseStep`: offenes Memo → `CancelMemoEdit` vor `CloseDetail`.
+- `View.fs`: `memoEditorFor` (ein Ort für die Editor-Props, genutzt von Panel, Sheet und `reviewEditors`),
+  `memoField` baut den Block. `DetailBottomSheet` hat einen Zweig für `memoEditFor`: Titel „Memo“, Untertitel
+  `payeeLabel`, kein Fuß, `showsDetail` schließt den Memo-Zustand aus. Damit greift die bestehende Merk-Logik, und
+  Speichern, Abbrechen, × und die Zurück-Geste führen an dieselbe Scrollstelle ins Detail zurück. `memoEmptyText`
+  („hinzufügen“) ist jetzt der Text der Aktion ohne Memo. Das Memo-Sheet der Karte (`reviewEditors`) nutzt denselben
+  Editor und ist dadurch mehrzeilig, sonst ist es unverändert.
+
+**Tests**
+- .NET `LedgerMemoClientTests`: „MemoEditChanged macht aus jedem Zeilenumbruch ein Leerzeichen, ohne Umbruch bleibt
+  der Text“ (`\n`, `\r\n`, `\r`, mehrere, ohne Umbruch). Vor dem Fix rot.
+- .NET `LedgerSplitEditorClientTests`: Fall „Memo offen“ → `CancelMemoEdit` in „Schließen im Detail schließt zuerst,
+  was im Detail offen ist“, dazu neu „× im Memo-Editor führt zurück ins Detail derselben Buchung“ (MemoEdit zu,
+  `DetailFor` bleibt). Beide vor dem Fix rot.
+- `[flow:memo-setzen]` (`scripts/ledger-memo.test.mjs`): Locator `input` → `textarea`, Kommentar nachgezogen, grün.
+- Sweep `scripts/layout-states.mjs`: AMAZON-PAYMENTS-Memo in `mockLedger` verlängert (bei 412 px mindestens drei
+  Zeilen im Block). Neu `kassenbuch-detail-memo` (320, 390, 412, 1280: 500 Zeichen, `keyboard` mit Fokus im textarea
+  und „Speichern“ im Bild, am Handy Abbruch, wenn der Sheet-Titel nicht „Memo“ ist oder `detail-payee` noch sichtbar
+  ist). `durchgehen-details-memo` mit neuer Schlangen-Buchung `REVIEW_QUEUE.memo` (Memo über drei Zeilen),
+  `keyboard`-Prüfung und Abbruch bei `scrollHeight > clientHeight + 1`. Gegenprobe: mit injiziertem
+  `textarea{max-height:30px}` bricht `durchgehen-details-memo` mit „Memo-Feld zeigt nicht den ganzen Text“ ab.
+  `durchgehen-memo` ist unverändert.
+- `scripts/layout-invariants.test.mjs`: der Sweep-Test bekommt `{ timeout: 360000 }`. Mit 294 Läufen (vorher 290)
+  brach er unter der Last paralleler Worktrees zweimal nach 120 s ab, ohne Verletzung. Ein voller Sweep über das
+  Skript dauerte bei Last 12 rund 117 s. Ein hängender Lauf wird weiter rot.
+
+**Styleguide**: `/styleguide`, Karte „components-detail-fields“: drei Blöcke (ohne Memo, langes Memo, gesperrt).
+Karte „components-detail-memo“: Editor kurz, lang (mehrzeilig), zu lang. Karte „components-detail-panel“: Memo als
+Block. `standards/frontend/styleguide.md` §5: Zeile **Detail** um `fieldBlock` samt wann/wann nicht ergänzt, Zeile
+**Input** um `AutoGrowTextarea`.
+
+**Abgleich-Tabelle (Stand je Zeile)**
+| Funktion | Stand |
+|---|---|
+| Memo lesen | ändert sich: Block, Text über die volle Breite unter „Memo“ |
+| Memo hinzufügen / bearbeiten | ändert sich: ganze Fläche und „hinzufügen ›“ / „Bearbeiten ›“ als Text, Name „Memo hinzufügen“ / „Bearbeiten“ |
+| Gesperrt in YNAB gelöscht | bleibt (Aktion gedämpft, Grund unter dem Text, `detail-memo-lock-hint`) |
+| Editor | ändert sich: mehrzeilig, ganzer Text |
+| Editor am Handy | ändert sich: ersetzt den Inhalt des Sheets, Titel „Memo“, Untertitel Payee |
+| Editor am PC | bleibt (im Panel an der Stelle des Blocks, mehrzeilig) |
+| Zähler, Grenze 500, Grund bei zu langem Text, Fehler im Feld | bleibt |
+| Enter speichert, Esc bricht ab, Detail bleibt offen | bleibt, Enter zusätzlich über `beforeinput` |
+| Gleiches Memo speichern schließt ohne Aufruf | bleibt (Reducer unverändert) |
+| Toasts zum Memo | bleibt (unverändert) |
+| Memo in „Neue Buchung“, Memo einer Split-Zeile | bleibt einzeilig |
+
+**Seite neben der Skizze** (Bilder unter
+`/private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/4b5cf62e-3174-40e3-90f3-4b5312280eb9/scratchpad/result-shots/design-system-x045q/`)
+- Skizze 11 (`vf5h6/skizze-shots/11-details-memo-block.png`) neben `durchgehen-detail-block-412.png` und
+  `kassenbuch-detail-412.png`: „Memo“ links, „Bearbeiten ›“ rechts gedämpft, Text über die volle Breite in drei
+  Zeilen, Linie unten. Unterschiede: (b) Schrift 14 px statt 12,5/15 px. Das Sheet trägt den BB-Kopf (Payee als
+  Titel, Betrag, Geprüft und weitere Zeilen). Das war vorher schon so; die Skizze nennt das „im echten Detail stehen
+  hier auch …“. Der Pfeil ist das Chevron-Symbol der übrigen Zeilen statt des Zeichens `›`.
+  Ohne Memo: `durchgehen-detail-ohne-memo-412.png` (nur Kopfzeile mit „hinzufügen ›“).
+- Skizze 12 (`12-memo-editor-mehrzeilig.png`) neben `durchgehen-detail-editor-412.png`: Titel „Memo“, Untertitel
+  AMAZON PAYMENTS, Bezeichnung „Memo“, Feld mit dem ganzen Text in vier Zeilen, Zähler „135 / 500“ in Mono links,
+  „Abbrechen“ und „Speichern“ (umrandet) rechts. Unterschiede: keine außer (a) (nach Speichern/Abbrechen zurück ins
+  Detail). 500 Zeichen: `kassenbuch-detail-memo-412.png` (Feld scrollt in sich).
+- PC 1280: `durchgehen-detail-block-1280.png` und `kassenbuch-detail-1280.png` (Block im Panel),
+  `kassenbuch-detail-memo-1280.png` und `durchgehen-detail-editor-1280.png` (Editor im Panel an der Stelle des
+  Blocks, Abweichung (d)). Styleguide: `styleguide-detail-1280.png`.
+- Abweichung (c) (gesperrt mit Grund) steht im Styleguide und ist dort nachgeprüft.
+
+**Offen für Roman [human-eye]**: am Galaxy S25 prüfen, dass Enter bzw. „Fertig“ der Bildschirmtastatur das Memo
+speichert und keinen Zeilenumbruch einfügt.
+
+**Für den Conductor (README ledger, außerhalb des BC dieser Task):** In `contexts/ledger/README.md` beschreiben
+zwei Sätze noch das alte Verhalten. Im Bullet **Buchungs-Detail** „„Memo“ (Text oder gedämpft „hinzufügen“, Pfeil
+öffnet das Eingabefeld)“, neu etwa: „„Memo“ als Block (Bezeichnung und „Bearbeiten ›“ bzw. „hinzufügen ›“ oben, der
+ganze Text darunter; die Fläche öffnet das mehrzeilige Eingabefeld, am Handy als Inhalt des Sheets mit Titel „Memo“,
+am PC im Panel)“. Im Bullet **Durchgehen** „und Memo öffnet als Feld in der Zeile“, neu: „und das Memo-Feld ersetzt
+ebenso den Inhalt (Titel „Memo“)“. Der Worker darf dieses Delta nicht selbst melden.
+
+Kann-Sammlung design-system: Der Sweep ist ein einzelner Test mit rund 300 Läufen und braucht jetzt eine eigene
+Höchstdauer. Ihn in zwei Tests teilen (Handy/PC), damit er unter Last wieder unter die gemeinsame Höchstdauer
+passt.

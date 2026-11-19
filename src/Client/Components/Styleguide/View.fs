@@ -2365,7 +2365,7 @@ let private DetailDemo () =
                 (fun () -> setReviewed (not reviewed))
             Detail.reviewButton "Geprüft" true true ignore
         ]
-        card "components-detail-fields" "Detail: Felder mit „alle zeigen“" "Kategorie mit Pfeil, Split-Karte, Angebot, Memo, Payee mit „alle zeigen“ und Pfeil, gesperrte Zeilen" [
+        card "components-detail-fields" "Detail: Felder mit „alle zeigen“" "Kategorie mit Pfeil, Split-Karte, Angebot, Memo als Block, Payee mit „alle zeigen“ und Pfeil, gesperrte Zeilen" [
             // Kategorie: „alle zeigen“ setzt den Filter, der Pfeil öffnet den Picker (ledger-sfab0, ledger-zfj78).
             Detail.fieldRowWith
                 (Some ignore)
@@ -2397,30 +2397,32 @@ let private DetailDemo () =
             Detail.splitCard [ "Wohnen: Möbel", "-23,40 €"; "Übertrag: Tagesgeld", "-58,50 €" ]
             // Angebot unter der Kategorie nach einer Änderung (ledger-hg5m5): annehmen oder ausblenden.
             Detail.offerRow "styleguide-detail-offer" "Regel für „REWE Mitte“ anlegen?" "Anlegen" ignore "Angebot ausblenden" ignore
-            // Memo-Zeile mit Pfeil (ledger-fa1fp, ledger-zfj78): ohne Memo, mit Memo und gesperrt.
-            Detail.fieldRowWith
+            // Memo als Block (design-system-x045q, Skizze ledger-vf5h6 Bild 11): ohne Memo nur die Kopfzeile, mit
+            // langem Memo der ganze Text über die volle Breite, gesperrt mit dem Grund darunter.
+            Detail.fieldBlock
                 (Some ignore)
                 "styleguide-detail-memo"
                 "Memo"
-                (Detail.valueText Tokens.Colors.textMuted "hinzufügen")
-                (Some (Detail.forwardArrow "styleguide-detail-memo-action" "Memo hinzufügen" None ignore))
-            Detail.fieldRowWith
+                (Detail.fieldBlockAction "styleguide-detail-memo-action" "hinzufügen" "Memo hinzufügen" None ignore)
+                []
+            Detail.fieldBlock
                 (Some ignore)
                 "styleguide-detail-memo-set"
                 "Memo"
-                (Detail.valueText Tokens.Colors.textPrimary "Werkzeug + Lampe")
-                (Some (Detail.forwardArrow "styleguide-detail-memo-action-set" "Bearbeiten" None ignore))
-            Detail.fieldRow
+                (Detail.fieldBlockAction "styleguide-detail-memo-action-set" "Bearbeiten" "Bearbeiten" None ignore)
+                [ Detail.blockText Tokens.Colors.textPrimary "Wocheneinkauf fürs Grillfest am Samstag, dazu Getränke, Kohle und die Torte für den Geburtstag" ]
+            Detail.fieldBlock
+                None
                 "styleguide-detail-memo-locked"
                 "Memo"
-                (Html.div [
-                    prop.className "flex min-w-0 flex-col"
-                    prop.children [
-                        Detail.valueText Tokens.Colors.textMuted "Werkzeug + Lampe"
-                        Detail.fieldLockHint "styleguide-detail-memo-lock-hint" "In YNAB gelöscht, das Memo lässt sich nicht ändern"
-                    ]
-                 ])
-                (Some (Detail.forwardArrow "styleguide-detail-memo-action-locked" "Bearbeiten" (Some "In YNAB gelöscht, das Memo lässt sich nicht ändern") ignore))
+                (Detail.fieldBlockAction
+                    "styleguide-detail-memo-action-locked"
+                    "Bearbeiten"
+                    "Bearbeiten"
+                    (Some "In YNAB gelöscht, das Memo lässt sich nicht ändern")
+                    ignore)
+                [ Detail.blockText Tokens.Colors.textMuted "Werkzeug + Lampe"
+                  Detail.blockLockHint "styleguide-detail-memo-lock-hint" "In YNAB gelöscht, das Memo lässt sich nicht ändern" ]
             // Payee mit „alle zeigen“ (setzt die Suche) und Pfeil `›` (ledger-fxt09): forwardArrow öffnet eine eigene
             // Auswahl, die den Inhalt ersetzt; änderbar und gesperrt mit Hinweistext am Knopf.
             Detail.fieldRowWith
@@ -2460,9 +2462,18 @@ let private DetailDemo () =
             Detail.originLine "Herkunft: Comdirect-Import"
         ]
 
-        card "components-detail-memo" "Detail: Memo bearbeiten" "Eingabefeld mit Zähler, Speichern und Abbrechen; zu langer Text; Hinweis Memo nicht in YNAB" [
+        card "components-detail-memo" "Detail: Memo bearbeiten" "Mehrzeiliges Feld, wächst mit dem Text, mit Zähler, Abbrechen und Speichern; kurzer, langer und zu langer Text; Hinweis Memo nicht in YNAB" [
             Detail.memoEditor
                 { Value = "Werkzeug + Lampe"
+                  OnChange = ignore
+                  OnSave = ignore
+                  OnCancel = ignore
+                  Busy = false
+                  Problem = None
+                  MaxLength = ynabMemoMaxLength
+                  SaveDisabled = false }
+            Detail.memoEditor
+                { Value = "Wocheneinkauf fürs Grillfest am Samstag, dazu Getränke, Kohle und die Torte für den Geburtstag"
                   OnChange = ignore
                   OnSave = ignore
                   OnCancel = ignore
@@ -2562,12 +2573,12 @@ let private DetailDemo () =
                                           Detail.pickerArrow "Kategorie ändern" false None ignore
                                       ]
                                   ))
-                              Detail.fieldRowWith
+                              Detail.fieldBlock
                                   (Some ignore)
                                   "styleguide-detail-panel-memo"
                                   "Memo"
-                                  (Detail.valueText Tokens.Colors.textPrimary "Wocheneinkauf")
-                                  (Some (Detail.forwardArrow "styleguide-detail-panel-memo-action" "Bearbeiten" None ignore))
+                                  (Detail.fieldBlockAction "styleguide-detail-panel-memo-action" "Bearbeiten" "Bearbeiten" None ignore)
+                                  [ Detail.blockText Tokens.Colors.textPrimary "Wocheneinkauf" ]
                               Detail.originLine "Herkunft: Regel"
                           ] ]
                 ]

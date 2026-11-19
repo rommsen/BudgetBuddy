@@ -8,7 +8,7 @@
   {
     "file": "src/Client/DesignSystem/Input.fs",
     "pattern": "inline-style",
-    "count": 3,
+    "count": 4,
     "reason": "style.fontSize 16 als iOS-Zoom-Schutz bei Fokus (Kommentar in Input.fs): eine Utility-Klasse reicht nicht, weil der Wert unter Safari nicht unterschritten werden darf."
   }
 ]

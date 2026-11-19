@@ -793,6 +793,11 @@ let memoActionFor (entry: LedgerEntryView) : MemoAction =
         | Some reason -> Some reason
         | None -> if entry.DeletedInYnab then Some memoDeletedReason else None }
 
+/// Der Entwurf aus der Eingabe des mehrzeiligen Memo-Felds (design-system-x045q): YNAB-Memos sind einzeilig, jeder
+/// eingefügte Zeilenumbruch (`\r\n`, `\n`, `\r`) wird zu einem Leerzeichen. Das Feld bricht nur optisch um.
+let memoDraftOfInput (input: string) : string =
+    input.Replace("\r\n", " ").Replace("\n", " ").Replace("\r", " ")
+
 /// Warum das Eingabefeld sich nicht speichern lässt (zu lang), sonst `None`. Dieselbe Regel wie
 /// auf dem Server (`Shared.Domain.normalizeMemo`).
 let memoDraftProblem (draft: string) : string option =

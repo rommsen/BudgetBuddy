@@ -34,7 +34,10 @@ after(async () => {
   await stopServer(frontend, frontendPort);
 });
 
-test("[layout] Sweep: jeder Zustand hält bei jeder Breite alle Layout-Invarianten", async () => {
+// Der Sweep ist ein Test mit rund 300 Browser-Läufen (design-system-x045q: 294). Unter der Last paralleler Worktrees
+// brauchte er knapp über die 120 s, die `run-guards.mjs` je Test setzt, und brach ohne Verletzung ab. Er bekommt deshalb
+// eine eigene Höchstdauer; ein hängender Lauf wird weiter rot.
+test("[layout] Sweep: jeder Zustand hält bei jeder Breite alle Layout-Invarianten", { timeout: 360000 }, async () => {
   const { violations, errors, runs } = await sweep(browser, baseUrl, STATES);
   assert.deepEqual(errors, [], "jeder Zustand ließ sich herstellen");
   assert.deepEqual(violations.map(formatViolation), [], `${violations.length} Verletzungen in ${runs} Läufen`);

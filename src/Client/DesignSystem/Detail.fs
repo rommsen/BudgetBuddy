@@ -453,6 +453,87 @@ let offerRow
         ]
     ]
 
+/// Ein mehrzeiliges Feld als Block (Skizze ledger-vf5h6 Bild 11 `.memo-stack`, design-system-x045q): oben links die
+/// Bezeichnung, rechts die Aktion (`fieldBlockAction`), darunter der ganze Text über die volle Breite, linksbündig und
+/// umbrechend, Linie unten wie die Feldzeilen. `onClick`: die ganze Fläche öffnet dasselbe wie die Aktion. Für
+/// einzeilige Werte bleibt `fieldRowWith` (Bezeichnung links, Wert rechts).
+let fieldBlock
+    (onClick: (unit -> unit) option)
+    (testId: string)
+    (label: string)
+    (action: ReactElement)
+    (content: ReactElement list)
+    : ReactElement =
+    Html.div [
+        prop.custom ("data-testid", testId)
+        prop.className (
+            $"flex flex-col gap-1 px-4 detail-inset detail-line pb-3 md:pt-3 border-b {Borders.subtle}"
+            + (if onClick.IsSome then " cursor-pointer" else "")
+        )
+        match onClick with
+        | Some click ->
+            prop.onClick (fun _ -> click ())
+            prop.onMouseDown (fun e -> e.stopPropagation ())
+        | None -> ()
+        prop.children [
+            Html.div [
+                prop.className $"flex {TouchTargets.mobileMinHeight} md:min-h-0 items-center justify-between gap-3"
+                prop.children [
+                    Html.span [ prop.className $"shrink-0 {FontSizes.sm} {Colors.textMuted}"; prop.text label ]
+                    action
+                ]
+            ]
+            yield! content
+        ]
+    ]
+
+/// Die Aktion rechts im Kopf eines `fieldBlock` als Text mit Pfeil („Bearbeiten ›“, „hinzufügen ›“), in
+/// `text-muted`. `label` ist der Name für Screenreader und enthält den sichtbaren Text. `lockedHint`: gesperrt wie
+/// `forwardArrow`, gedämpft, ohne Wirkung, der Grund als Tooltip. Am Handy 48 px Trefferfläche.
+let fieldBlockAction
+    (testId: string)
+    (text: string)
+    (label: string)
+    (lockedHint: string option)
+    (onClick: unit -> unit)
+    : ReactElement =
+    let locked = lockedHint.IsSome
+    Html.button [
+        prop.type'.button
+        prop.title (lockedHint |> Option.defaultValue label)
+        prop.ariaLabel label
+        prop.custom ("aria-disabled", (if locked then "true" else "false"))
+        prop.custom ("data-testid", testId)
+        prop.className (
+            $"inline-flex {TouchTargets.mobileMinHeight} min-w-[48px] md:min-h-0 md:min-w-0 shrink-0 items-center justify-end gap-0.5 rounded-lg {FontSizes.sm} {Colors.textMuted} transition-colors touch-manipulation "
+            + (if locked then "opacity-40 cursor-not-allowed" else "hover:text-text-primary")
+        )
+        prop.onMouseDown (fun e -> e.stopPropagation ())
+        prop.onClick (fun e ->
+            e.stopPropagation ()
+            if not locked then onClick ())
+        prop.children [
+            Html.span [ prop.text text ]
+            Icons.chevronRight Icons.SM Icons.Default
+        ]
+    ]
+
+/// Der Text eines `fieldBlock`: über die volle Breite, linksbündig, umbrechend, ohne Kürzung. `className` trägt die
+/// Farbe (gedämpft bei einer gelöschten Buchung).
+let blockText (className: string) (text: string) : ReactElement =
+    Html.p [
+        prop.className ($"min-w-0 break-words text-left {FontSizes.sm} " + className)
+        prop.text text
+    ]
+
+/// Der Grund einer Sperre im `fieldBlock`, linksbündig unter dem Text.
+let blockLockHint (testId: string) (text: string) : ReactElement =
+    Html.p [
+        prop.custom ("data-testid", testId)
+        prop.className $"mt-1 text-left {ListRoles.muted}"
+        prop.text text
+    ]
+
 /// Der Grund, aus dem der Knopf einer Feldzeile gesperrt ist, als gedämpfter Text unter dem Wert.
 let fieldLockHint (testId: string) (text: string) : ReactElement =
     Html.p [
@@ -462,7 +543,7 @@ let fieldLockHint (testId: string) (text: string) : ReactElement =
     ]
 
 /// Das Eingabefeld des Memos im Detail (ledger-fa1fp, ADR 0062, Tafeln 5.2 und 7.8): eine Zeile
-/// mit der Bezeichnung, darunter das Textfeld, der Zähler gegen die Grenze von YNAB, ein Grund
+/// mit der Bezeichnung, darunter das mitwachsende mehrzeilige Feld (`Input.AutoGrowTextarea`, design-system-x045q), der Zähler gegen die Grenze von YNAB, ein Grund
 /// bei zu langem Text und die Knöpfe "Speichern" und "Abbrechen". Enter speichert, Esc bricht ab
 /// (das Ereignis erreicht das Dokument nicht, das Detail bleibt offen). `Busy`: der Aufruf läuft.
 type MemoEditorProps = {
@@ -480,6 +561,7 @@ type MemoEditorProps = {
 }
 
 let memoEditor (props: MemoEditorProps) : ReactElement =
+    let save () = if not props.SaveDisabled then props.OnSave ()
     Html.div [
         prop.custom ("data-testid", "detail-memo-editor")
         prop.className $"flex flex-col gap-2 px-4 detail-inset detail-line py-3 border-b {Borders.subtle}"
@@ -487,7 +569,7 @@ let memoEditor (props: MemoEditorProps) : ReactElement =
             if e.key = "Enter" then
                 e.preventDefault ()
                 e.stopPropagation ()
-                if not props.SaveDisabled then props.OnSave ()
+                save ()
             elif e.key = "Escape" then
                 e.stopPropagation ()
                 if not props.Busy then props.OnCancel ())
@@ -496,29 +578,34 @@ let memoEditor (props: MemoEditorProps) : ReactElement =
                 prop.className $"{FontSizes.sm} {Colors.textMuted}"
                 prop.text "Memo"
             ]
-            Input.text
-                { Input.textInputDefaults with
-                    Value = props.Value
-                    OnChange = props.OnChange
-                    Placeholder = "Memo"
-                    Disabled = props.Busy
-                    State = (if props.Problem.IsSome then Input.Error "" else Input.Normal) }
+            // Mehrzeilig, wächst mit (design-system-x045q); Enter der Bildschirmtastatur speichert über `OnEnter`.
+            Input.AutoGrowTextarea
+                { Value = props.Value
+                  OnChange = props.OnChange
+                  Placeholder = "Memo"
+                  State = (if props.Problem.IsSome then Input.Error "" else Input.Normal)
+                  Disabled = props.Busy
+                  OnEnter = save
+                  AriaLabel = Some "Memo" }
             Html.div [
                 prop.className "flex items-center justify-between gap-3"
                 prop.children [
                     Html.span [
                         prop.custom ("data-testid", "detail-memo-counter")
-                        prop.className ListRoles.muted
+                        prop.className $"{Fonts.mono} {ListRoles.muted}"
                         prop.text $"{props.Value.Length} / {props.MaxLength}"
                     ]
                     Html.div [
                         prop.className "flex items-center gap-2"
                         prop.children [
+                            // Beide Knöpfe halten den Fokus: der Tipp trifft den Knopf, bevor die Tastatur zugeht
+                            // und das Sheet springt (Vorbild „Speichern“ im Sheet „Betrag“, §5 Button).
                             Button.view
                                 { Button.defaultProps with
                                     Text = "Abbrechen"
                                     Variant = Button.Ghost
                                     IsDisabled = props.Busy
+                                    KeepsFocus = true
                                     OnClick = props.OnCancel
                                     Title = Some "Abbrechen (Esc)" }
                             Button.view
@@ -527,6 +614,7 @@ let memoEditor (props: MemoEditorProps) : ReactElement =
                                     Variant = Button.Secondary
                                     IsLoading = props.Busy
                                     IsDisabled = props.SaveDisabled
+                                    KeepsFocus = true
                                     OnClick = props.OnSave
                                     Title = Some "Speichern (Enter)" }
                         ]

@@ -358,7 +358,8 @@ function ledgerEntries(accountId, { held = false, withoutPayee = false } = {}) {
     ...(withoutPayee ? [entry(11, { Payee: null, Amount: eur(-4.5), ...lebensmittel })] : []),
     entry(2, {
       Payee: "AMAZON PAYMENTS",
-      Memo: "304-1234567-7654321 Lampe und ein sehr langes Memo, das weit über die Spalte hinausgeht",
+      // design-system-x045q: so lang, dass der Memo-Block im Detail bei 412 px über mindestens drei Zeilen umbricht.
+      Memo: "304-1234567-7654321 Lampe, Glühbirnen und Kabel und ein sehr langes Memo, das weit über die Spalte hinausgeht und im Detail über mehrere Zeilen umbricht",
       ExternalLinks: [{ Label: "Bestellung 304-1234567-7654321", Url: "https://www.amazon.de/gp/your-account/order-details?orderID=304-1234567-7654321" }],
       ...lebensmittel,
     }),
@@ -659,6 +660,14 @@ export const REVIEW_QUEUE = (() => {
     open: buildEntryFixture(accountId, 64, { ...base, Payee: "Markt ohne Kategorie", Amount: eur(-42.8), CategoryId: null, CategoryName: null, CategoryGroupName: null }),
     // ledger-gy77x: eine gefragte Buchung mit langem Payee, der Knopf heißt „Rückfrage zurücknehmen“.
     lena: buildEntryFixture(accountId, 65, { ...base, Payee: LONG_PAYEE, Amount: eur(-123456.78), Flag: "AskLena", ...lebensmittel }),
+    // design-system-x045q: ein Memo über drei Zeilen für den mehrzeiligen Editor im Detail.
+    memo: buildEntryFixture(accountId, 66, {
+      ...base,
+      Payee: "AMAZON PAYMENTS",
+      Amount: eur(-21.5),
+      Memo: "Wocheneinkauf fürs Grillfest am Samstag, dazu Getränke, Kohle, Servietten und die Torte für den Geburtstag von Oma am Sonntagnachmittag",
+      ...lebensmittel,
+    }),
   };
 })();
 
@@ -1227,6 +1236,44 @@ export const STATES = [
       await scope.locator('[data-testid="detail-external-link"]').waitFor();
       await scope.getByRole("button", { name: "Historie (3)" }).click();
       await scope.locator('[data-testid="history-row"]').first().waitFor();
+    },
+  },
+  // design-system-x045q: der Memo-Editor mit 500 Zeichen. Am Handy ersetzt er den Inhalt des Detail-Sheets (Titel
+  // „Memo“, keine Payee-Zeile mehr), das Feld scrollt über seiner Höchsthöhe in sich und „Speichern“ bleibt bei offener
+  // Tastatur im Bild; am PC steht er im Panel an der Stelle des Blocks.
+  {
+    name: "kassenbuch-detail-memo",
+    route: "/ledger",
+    widths: [...HANDY_WIDTHS, 412, 1280],
+    mock: mockLedger,
+    open: async (page, { mobile }) => {
+      let scope;
+      if (mobile) {
+        scope = await openLedgerDetail(page, "AMAZON PAYMENTS");
+      } else {
+        await openLedger(page);
+        const tableRow = page.locator("table tbody tr", { hasText: "AMAZON PAYMENTS" }).locator("visible=true");
+        if ((await tableRow.count()) > 0) await tableRow.first().locator("td").nth(2).click();
+        else await page.getByText("AMAZON PAYMENTS", { exact: true }).locator("visible=true").first().click();
+        scope = page.locator('[data-testid="ledger-detail-panel"]');
+        await scope.waitFor();
+      }
+      await scope.locator('[data-testid="detail-memo-action"]').click();
+      const field = scope.locator('[data-testid="detail-memo-editor"] textarea');
+      await field.waitFor();
+      await field.fill("M".repeat(20) + " " + "Lampe Kabel ".repeat(39) + "x".repeat(11));
+      await scope.locator('[data-testid="detail-memo-counter"]', { hasText: "500 / 500" }).waitFor();
+      await frames(page);
+      if (mobile) {
+        const title = (await page.locator(".bottom-sheet.active .sheet-header h3").first().textContent())?.trim();
+        if (title !== "Memo") throw new Error(`Sheet-Titel ist „${title}“, nicht „Memo“`);
+        if (await scope.locator('[data-testid="detail-payee"]').isVisible()) throw new Error("Detail steht noch neben dem Memo-Editor");
+      }
+    },
+    primary: (page) => page.getByRole("button", { name: "Speichern", exact: true }).locator("visible=true").first(),
+    keyboard: {
+      focus: (page) => page.locator(".bottom-sheet.active textarea").first(),
+      reach: (page) => page.locator(".bottom-sheet.active").first().getByRole("button", { name: "Speichern", exact: true }),
     },
   },
   // ledger-split-editor, design-system-j6dnj: Aufteilen im Sheet, Speichern klebt unten, Zeile hinzufügen und
@@ -2120,15 +2167,25 @@ export const STATES = [
       await page.locator('[data-testid="payee-picker"]').filter({ visible: true }).first().waitFor();
     },
   },
+  // design-system-x045q: der Memo-Editor ist mehrzeilig und zeigt den ganzen Text; am Handy ersetzt er den Inhalt des
+  // Detail-Sheets, „Speichern“ bleibt bei offener Tastatur im Bild (übernimmt die Prüfung von `durchgehen-memo`).
   {
     name: "durchgehen-details-memo",
     route: "/review",
     widths: [412, 1280],
-    mock: (page) => mockReview(page, [REVIEW_QUEUE.plain]),
+    mock: (page) => mockReview(page, [REVIEW_QUEUE.memo]),
     open: async (page) => {
       await openReviewDetails(page);
       await page.locator('[data-testid="detail-memo-action"]').filter({ visible: true }).first().click();
-      await page.locator('[data-testid="detail-memo-editor"]').filter({ visible: true }).first().waitFor();
+      const field = page.locator('[data-testid="detail-memo-editor"] textarea').filter({ visible: true }).first();
+      await field.waitFor();
+      await frames(page);
+      const clipped = await field.evaluate((el) => el.scrollHeight > el.clientHeight + 1);
+      if (clipped) throw new Error("Memo-Feld zeigt nicht den ganzen Text");
+    },
+    keyboard: {
+      focus: (page) => page.locator(".bottom-sheet.active textarea").first(),
+      reach: (page) => page.locator(".bottom-sheet.active").first().getByRole("button", { name: "Speichern", exact: true }),
     },
   },
   // Am PC stehen Payee und Memo der Karte neben dem Panel weiter zum Antippen: auch von dort keine zweite Ebene.

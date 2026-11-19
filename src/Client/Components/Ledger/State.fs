@@ -1358,12 +1358,13 @@ let closeDetail (model: Model) : Model =
     { clearDetailEdits model with DetailFor = None }
 
 /// Was Schließen im Detail dieser Buchung tut (× im Kopf von Sheet und Panel, ledger-hme9k): erst die offene
-/// Payee-Auswahl, dann der Betrag, dann der Split-Editor (Entwurf verworfen), sonst das Detail selbst. Die
+/// Payee-Auswahl, dann der Betrag, dann das Memo (am Handy Inhalt des Sheets, design-system-x045q), dann der Split-Editor (Entwurf verworfen), sonst das Detail selbst. Die
 /// Kategorie-Auswahl im Sheet schließt vorher ihr eigener Rückruf. Esc geht eine eigene Kette (`KeyLeave` in
 /// `update`); die Zustände schließen sich heute gegenseitig aus, ein neuer Zustand im Detail gehört in beide.
 let detailCloseStep (model: Model) (entry: LedgerEntryView) : Msg =
     if model.PayeeEdit |> Option.exists (fun edit -> edit.PayeeEntryId = entry.Id) then CancelPayeeEdit
     elif model.AmountEdit |> Option.exists (fun edit -> edit.AmountEntryId = entry.Id) then CancelAmountEdit
+    elif model.MemoEdit |> Option.exists (fun edit -> edit.MemoEntryId = entry.Id) then CancelMemoEdit
     elif model.SplitEditor |> Option.exists (fun editor -> editor.EntryId = entry.Id) then CloseSplitEditor
     else CloseDetail
 
@@ -2875,7 +2876,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         match model.MemoEdit with
         | Some edit ->
             { model with
-                MemoEdit = Some { edit with MemoDraft = text }
+                MemoEdit = Some { edit with MemoDraft = memoDraftOfInput text }
                 MemoRows = model.MemoRows |> Map.remove edit.MemoEntryId },
             Cmd.none,
             NoOp

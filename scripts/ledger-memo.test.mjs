@@ -144,13 +144,13 @@ test("[flow:memo-setzen] PC: Memo hinzufügen setzt das Memo, Detail und Liste z
   const context = await browser.newContext({ viewport: { width: 1600, height: 900 } });
   const page = await open(context);
   await openDetail(page, "Rewe Memo");
-  // ledger-zfj78: ohne Memo steht gedämpft „hinzufügen“, die Aktion ist der Pfeil mit ihrem Namen.
+  // design-system-x045q: ohne Memo steht nur die Kopfzeile mit „hinzufügen ›“, die Aktion trägt ihren Namen.
   assert.ok((await memoRow(panel(page)).textContent()).includes("hinzufügen"), "Wert: hinzufügen");
   assert.equal(await memoAction(panel(page)).getAttribute("aria-label"), "Memo hinzufügen");
 
   await memoAction(panel(page)).click();
   await editor(panel(page)).waitFor();
-  const input = editor(panel(page)).locator("input");
+  const input = editor(panel(page)).locator("textarea");
   assert.equal(await input.inputValue(), "", "leerer Entwurf");
   await input.fill("  Werkzeug + Lampe ");
   assert.match(await editor(panel(page)).locator('[data-testid="detail-memo-counter"]').textContent(), /^19 \/ 500$/);

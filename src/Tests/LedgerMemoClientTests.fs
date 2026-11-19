@@ -171,6 +171,19 @@ let memoReducerTests =
             Expect.isNone cancelled.MemoEdit "geschlossen"
             Expect.equal (rowOf 1 cancelled).Memo (Some "Lampe") "Memo unverändert"
 
+        // design-system-x045q: das Feld ist mehrzeilig, YNAB-Memos sind einzeilig. Eingefügte Umbrüche werden im
+        // Entwurf zu je einem Leerzeichen, Zähler und Grund sehen schon den bereinigten Text.
+        testCase "MemoEditChanged macht aus jedem Zeilenumbruch ein Leerzeichen, ohne Umbruch bleibt der Text" <| fun () ->
+            let opened, _, _ = run (StartMemoEdit (idOf 1)) (modelWith [ entryOf 1 ])
+            let draftAfter (text: string) =
+                let typed, _, _ = run (MemoEditChanged text) opened
+                typed.MemoEdit |> Option.map (fun e -> e.MemoDraft)
+            Expect.equal (draftAfter "Lampe\nneu") (Some "Lampe neu") "\\n"
+            Expect.equal (draftAfter "Lampe\r\nneu") (Some "Lampe neu") "\\r\\n"
+            Expect.equal (draftAfter "Lampe\rneu") (Some "Lampe neu") "\\r"
+            Expect.equal (draftAfter "a\n\nb\r\nc\r") (Some "a  b c ") "mehrere Umbrüche, je einer ein Leerzeichen"
+            Expect.equal (draftAfter "Lampe  neu") (Some "Lampe  neu") "ohne Umbruch gleich"
+
         testCase "Esc schließt erst das Memo-Feld, das Detail bleibt; der zweite Esc schließt das Detail" <| fun () ->
             let opened, _, _ = run (StartMemoEdit (idOf 1)) (modelWith [ entryOf 1 ])
             let first, _, _ = run EscapePressed opened

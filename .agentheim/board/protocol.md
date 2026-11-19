@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-11-20 00:11 -- Task verified and completed: design-system-x045q - "Detail: Memo als Block mit Bezeichnung darüber und ganzem Text, Memo-Editor mehrzeilig und am Handy als Inhalt des Detail-Sheets"
+
+**Type:** Work / Task completion
+**Task:** design-system-x045q - "Detail: Memo als Block mit Bezeichnung darüber und ganzem Text, Memo-Editor mehrzeilig und am Handy als Inhalt des Detail-Sheets"
+**Summary:** Memo im Detail als Block, Memo-Editor mehrzeilig und am Handy als Inhalt des Detail-Sheets
+**Duration:** 64m
+**Verification:** PASS (iteration 1, Gedankenstrich im README-Delta vom Conductor ersetzt)
+**Files changed:** 13
+**Tests added:** 3
+**ADRs written:** none
+
+---
+
+## 2026-11-20 00:11 -- Verification failed: design-system-x045q - Memo als Block im Detail
+
+**Type:** Work / Verification failure
+**Task:** design-system-x045q
+**Iteration:** 1 of 3
+**Reasons:** Gedankenstrich im README_DELTA, sonst alles grün (VERIFY: PASS)
+**Iteration hint:** likely-fixable
+**Next:** Conductor ersetzt den Gedankenstrich beim Integrieren, kein Re-Dispatch
+
+---
+
 ## 2026-11-20 00:04 -- Task verified and completed: ledger-s2cg3 - "Durchgehen am Handy: Wischen mit Fläche darunter (A1), Karte füllt den Platz bis zu den Knöpfen, Seite ohne Scrollen"
 
 **Type:** Work / Task completion

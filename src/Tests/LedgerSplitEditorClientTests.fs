@@ -511,9 +511,18 @@ let reducerTests =
                   "Betrag offen",
                   { plain with AmountEdit = Some { AmountEntryId = entry.Id; AmountIsOutflow = true; AmountDraft = "1"; AmountFieldError = None } },
                   CancelAmountEdit
+                  // design-system-x045q: am Handy ersetzt der Memo-Editor den Inhalt des Detail-Sheets.
+                  "Memo offen", { plain with MemoEdit = Some { MemoEntryId = entry.Id; MemoDraft = "x" } }, CancelMemoEdit
                   "nichts offen", plain, CloseDetail ]
             for name, model, expected in cases do
                 Expect.equal (Components.Ledger.State.detailCloseStep model entry) expected name
+
+        testCase "× im Memo-Editor führt zurück ins Detail derselben Buchung" <| fun () ->
+            let entry = entryOf 1
+            let model = { (modelWith [ entry ]) with MemoEdit = Some { MemoEntryId = entry.Id; MemoDraft = "x" } }
+            let closed, _, _ = update (Components.Ledger.State.detailCloseStep model entry) model
+            Expect.isNone closed.MemoEdit "Editor zu"
+            Expect.equal (closed.DetailFor |> Option.map (fun d -> d.Id)) (Some entry.Id) "Detail bleibt"
 
         testCase "× im Split-Editor am PC führt zurück ins Detail derselben Buchung, nicht während des Speicherns" <| fun () ->
             let entry = entryOf 1
