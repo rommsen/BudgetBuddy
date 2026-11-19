@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-19 10:16 -- Batch started: [ledger-zf6zg]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-zf6zg - "„Neue Buchung“ nach DS: Kontowahl als Money.accountChoiceRow wie im Sheet „Konto“, Kopf des Panels wie der Kopf des Details, „Abbrechen“ ohne Füllung, Payee-Feld sagt „optional“"
+**Parallel:** yes (nach ledger-gy77x, 2 Worker mit ledger-pz028; ledger-rb3xw in Verifikation)
+
+---
+
 ## 2026-11-19 10:16 -- Modeling / Promoted: ledger-zf6zg - "„Neue Buchung“ nach DS: Kontowahl als Money.accountChoiceRow wie im Sheet „Konto“, Kopf des Panels wie der Kopf des Details, „Abbrechen“ ohne Füllung, Payee-Feld sagt „optional“"
 
 **Type:** Modeling / Promote
