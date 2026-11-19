@@ -65,3 +65,4 @@ Geschnitten und priorisiert wird im Refinement.
 - Review-Lauf 2026-11-15 (design-system-gcpws): `CategoryMultiSelect.fs:~98` rechnet die Zeilen-Indizes zweimal (als `rows` und über einen veränderlichen `counter` beim Rendern); einmal mit `List.indexed` vorberechnen und je Abschnitt filtern.
 - Review-Lauf 2026-11-15 (design-system-gcpws): `ListKeysTests.fs:104` („Esc schließt erst das Panel …“) prüft nur, was die Aufzählung schon enthält; kann weg.
 - Work-Lauf 2026-11-19 (ledger-zf6zg): `Money.accountListRow` und `accountListRowWith` haben außer `/styleguide` keinen Nutzer mehr, seit „Neue Buchung“ `Money.accountChoiceRow` nutzt; entfernen oder als Variante begründen.
+- Review-Lauf 2026-11-19 (ledger-zf6zg): §5 „Detail“ nennt für `titleHead` und `formHead` „Titel 17 px halbfett“, der Code nimmt `FontSizes.lg` (16 px, ab md 18 px). Doku oder Token angleichen.

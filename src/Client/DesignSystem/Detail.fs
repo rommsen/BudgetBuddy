@@ -127,7 +127,7 @@ let amountLocked (value: decimal) (currency: string) (muted: bool) (reason: stri
 
 /// Schließen rechts im Kopf; `label` ist der Name für den Screenreader („Detail schließen“, „Aufteilen schließen“,
 /// „Formular schließen“), `testId` die Test-Id. `locked` sperrt den Knopf per `aria-disabled` (kein `disabled`, der
-/// Fokus bleibt erreichbar); der Aufrufer sorgt dafür, dass ein Klick dann nichts tut.
+/// Fokus bleibt erreichbar): gedämpft, ohne Hover, ein Klick tut nichts (§5 Detail).
 let private closeButton (label: string) (testId: string) (locked: bool) (onClose: unit -> unit) : ReactElement =
     Html.button [
         prop.type'.button
@@ -137,9 +137,10 @@ let private closeButton (label: string) (testId: string) (locked: bool) (onClose
         if locked then prop.ariaDisabled true
         prop.className (
             $"-mr-2 inline-flex {TouchTargets.mobileSquare} md:h-11 md:w-11 shrink-0 items-center justify-center rounded-xl " +
-            $"{Colors.textSecondary} hover:bg-surface-hover hover:text-text-primary transition-colors touch-manipulation"
+            $"{Colors.textSecondary} transition-colors touch-manipulation " +
+            (if locked then "opacity-40 cursor-not-allowed" else "hover:bg-surface-hover hover:text-text-primary")
         )
-        prop.onClick (fun _ -> onClose ())
+        prop.onClick (fun _ -> if not locked then onClose ())
         prop.children [ Icons.x Icons.SM Icons.Default ]
     ]
 

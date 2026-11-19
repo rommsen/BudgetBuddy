@@ -2182,7 +2182,7 @@ let private detailPanelView (today: DateTime) (dispatch: Msg -> unit) (model: Mo
 /// Schließen-Knopf kehrt zum Detail zurück, und "Speichern" klebt unten (kein "Abbrechen").
 /// Payee, Betrag, Kategorie, Aufteilen und das Regel-Formular ersetzen den Inhalt desselben Sheets (§7.15): kein
 /// zweites Sheet, nichts fährt beim Wechsel ein oder aus, die Abdunklung bleibt (ledger-hme9k). Beim Wechsel weg vom
-/// Detail merkt sich das Sheet die Scrollposition und setzt sie bei der Rückkehr wieder (§7.8 Punkt 6).
+/// Detail merkt sich das Sheet die Scrollposition und setzt sie bei der Rückkehr wieder (§7.10).
 [<ReactComponent>]
 let private DetailBottomSheet (today: DateTime, dispatch: Msg -> unit, model: Model, ruleForm: EntryRuleFormSlot, open': bool) : ReactElement =
     let body = React.useRef<Browser.Types.HTMLElement option> None

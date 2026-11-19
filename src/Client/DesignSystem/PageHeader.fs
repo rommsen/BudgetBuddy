@@ -152,7 +152,7 @@ let iconButton (ariaLabel: string) (icon: Client.DesignSystem.Icons.IconSize -> 
         prop.ariaLabel ariaLabel
         prop.className (
             $"{TouchTargets.mobileSquare} md:h-11 md:w-11 shrink-0 grid place-items-center {Radius.sm} "
-            + $"{Colors.textSecondary} hover:bg-surface-hover hover:text-text-primary"
+            + $"{Colors.textSecondary} hover:bg-surface-hover hover:text-text-primary touch-manipulation"
         )
         prop.onClick (fun _ -> onClick ())
         prop.children [ icon Client.DesignSystem.Icons.Tab Client.DesignSystem.Icons.Default ]
@@ -174,7 +174,7 @@ let iconButtonBusy
         if busy then prop.ariaDisabled true
         prop.className (
             $"{TouchTargets.mobileSquare} md:h-11 md:w-11 shrink-0 grid place-items-center {Radius.sm} "
-            + $"{Colors.textSecondary} "
+            + $"{Colors.textSecondary} touch-manipulation "
             + (if busy then "cursor-wait" else "hover:bg-surface-hover hover:text-text-primary")
         )
         prop.onClick (fun _ -> if not busy then onClick ())
