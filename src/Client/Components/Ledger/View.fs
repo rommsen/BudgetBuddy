@@ -4166,9 +4166,16 @@ let private captureAccountList (dispatch: Msg -> unit) (model: Model) (capture: 
                 let pick = fun () -> dispatch (ChooseCaptureAccount account.Id)
                 React.keyedFragment (
                     account.Id,
-                    [ match captureBalanceOf model account.Id with
-                      | Some balance -> Money.accountListRow account.Name balance.Amount balance.Currency isActive pick
-                      | None -> Money.accountListRowWith account.Name Html.none isActive pick ]
+                    // Dieselbe Zeile wie im Sheet „Konto“ (ledger-zf6zg): Haken und Akzentrahmen am gewählten Konto,
+                    // Saldo in Primärtext, negativ rot; ohne bekannten Saldo bleibt die Stelle leer.
+                    [ Money.accountChoiceRow
+                          "capture-account-choice"
+                          account.Name
+                          (match captureBalanceOf model account.Id with
+                           | Some balance -> cardBalanceElement true (BalanceShown balance)
+                           | None -> Html.none)
+                          isActive
+                          pick ]
                 )
     ]
 
@@ -4309,7 +4316,7 @@ let private captureFields (dispatch: Msg -> unit) (model: Model) (capture: Captu
                         Value = form.Payee
                         OnChange = fun text -> dispatch (SetCapturePayee text)
                         OnBlur = Some (fun _ -> dispatch CommitCapturePayee)
-                        Placeholder = "z. B. Bäckerei"
+                        Placeholder = "optional"
                         ClassName = Some "w-full" }
             ]
         ]
@@ -4408,7 +4415,7 @@ let private captureCancelButton (dispatch: Msg -> unit) (capture: Capture.Captur
     Button.view
         { Button.defaultProps with
             Text = captureCancelLabel
-            Variant = Button.Secondary
+            Variant = Button.Outline
             IsDisabled = capture.Saving
             ClassName = (if fullWidth then Some "w-full" else None)
             OnClick = fun () -> dispatch CloseCapture }
@@ -4418,20 +4425,7 @@ let private captureCancelButton (dispatch: Msg -> unit) (capture: Capture.Captur
 let private capturePanelView (dispatch: Msg -> unit) (model: Model) (capture: Capture.CaptureState) : ReactElement =
     Detail.panel
         captureTitle
-        [ Html.div [
-              prop.className $"flex items-center justify-between gap-3 px-4 py-3 border-b {Tokens.Borders.subtle}"
-              prop.children [
-                  Html.h2 [ prop.className $"{Tokens.FontSizes.lg} font-semibold {Tokens.Colors.textPrimary}"; prop.text captureTitle ]
-                  Button.view
-                      { Button.defaultProps with
-                          Icon = Some (Icons.x Icons.SM Icons.Default)
-                          Variant = Button.Secondary
-                          AriaLabel = Some "Formular schließen"
-                          Title = Some "Schließen"
-                          IsDisabled = capture.Saving
-                          OnClick = fun () -> dispatch CloseCapture }
-              ]
-          ]
+        [ Detail.formHead captureTitle "Formular schließen" capture.Saving (fun () -> dispatch CloseCapture)
           Detail.scrollBody [
               Html.div [
                   prop.custom ("data-testid", "capture-form")

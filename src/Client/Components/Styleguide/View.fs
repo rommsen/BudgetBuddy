@@ -2349,9 +2349,11 @@ let private DetailDemo () =
             Detail.externalLinkRow "Bestellung bei Amazon" (Some "304-1234567-7654321") "https://www.amazon.de/gp/your-account/order-details?ie=UTF8&orderID=304-1234567-7654321"
             Detail.externalLinkRow "PayPal Activity" None "https://www.paypal.com/activities"
         ]
-        card "components-detail-head" "Detail: Kopf, Betrag mit Prüfstand, Prüf-Knopf" "Payee als Titel mit „<Tag> · <Konto>“, Betrag mit „zu prüfen“ oder „geprüft“, „Geprüft“ als Hauptaktion bzw. „Als ungeprüft markieren“ neutral" [
+        card "components-detail-head" "Detail: Kopf, Betrag mit Prüfstand, Prüf-Knopf" "Payee als Titel mit „<Tag> · <Konto>“, Kopf eines Formulars („Neue Buchung“), Betrag mit „zu prüfen“ oder „geprüft“, „Geprüft“ als Hauptaktion bzw. „Als ungeprüft markieren“ neutral" [
             Detail.titleHead "REWE Mitte" false "Gestern · Girokonto" (Some ignore)
             Detail.titleHead "ohne Payee" true "10.09.2026 · Girokonto" (Some ignore)
+            // Kopf eines Formulars im Panel („Neue Buchung“, ledger-zf6zg): ohne Unterzeile, Schließen mit eigenem Namen.
+            Detail.formHead "Neue Buchung" "Formular schließen" false ignore
             Detail.amountRow (Detail.amountButton -48.12m "EUR" "Betrag bearbeiten" (Some ignore)) (Detail.reviewStatus (not reviewed))
             Detail.reviewButton
                 (if reviewed then "Als ungeprüft markieren" else "Geprüft")

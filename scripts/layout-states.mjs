@@ -1532,7 +1532,9 @@ export const STATES = [
       const pos = await page.evaluate(() => {
         const sheet = document.querySelector(".bottom-sheet.active");
         const date = sheet?.querySelector('[data-testid="capture-date"]')?.getBoundingClientRect();
-        const memo = sheet?.querySelector('input[placeholder="optional"]')?.getBoundingClientRect();
+        // Das Memo über seine Beschriftung: seit ledger-zf6zg sagt auch das Payee-Feld „optional“.
+        const memoLabel = [...(sheet?.querySelectorAll("label") ?? [])].find((l) => l.textContent.trim().startsWith("Memo"));
+        const memo = memoLabel?.querySelector("input")?.getBoundingClientRect();
         return date && memo ? { dateBottom: date.bottom, memoTop: memo.top } : null;
       });
       if (!pos) throw new Error("Datum oder Memo in Neue Buchung nicht gefunden");
@@ -1576,6 +1578,10 @@ export const STATES = [
       await page.locator('.bottom-sheet.active [data-testid="capture-account-list"]').getByText("Tagesgeld ING").waitFor();
       if ((await page.locator(".bottom-sheet.active").count()) !== 1)
         throw new Error("Die Konto-Auswahl der Neuen Buchung liegt als zweites Sheet über dem Formular");
+      // ledger-zf6zg: dieselben Zeilen wie im Sheet „Konto“ (`Money.accountChoiceRow`), das gewählte Konto mit Haken.
+      const chosen = page.locator('.bottom-sheet.active [data-testid="capture-account-choice"][aria-current="true"]');
+      if ((await chosen.count()) !== 1 || (await chosen.locator("svg").count()) !== 1)
+        throw new Error("Die Kontowahl der Neuen Buchung markiert das gewählte Konto nicht mit Haken und aria-current");
     },
   },
   // Bug ledger-vf6z5: "Buchung anlegen" mit leerem Betrag sammelte den Fehler am Formularende, das Betragsfeld bekam
@@ -1661,6 +1667,10 @@ export const STATES = [
       await page.getByRole("button", { name: "Neue Buchung" }).locator("visible=true").first().click();
       const panel = page.locator('[data-testid="ledger-detail-panel"]');
       await panel.locator('[data-testid="capture-recent"]').waitFor();
+      // ledger-zf6zg: der Kopf ist `Detail.formHead`, Schließen heißt „Formular schließen“, nicht „Detail schließen“.
+      const close = panel.locator('[data-testid="capture-close"]');
+      if ((await close.getAttribute("aria-label")) !== "Formular schließen" || (await panel.locator('[data-testid="detail-close"]').count()) !== 0)
+        throw new Error("Der Kopf von „Neue Buchung“ im Panel hat nicht den Schließen-Knopf „Formular schließen“");
     },
     primary: (page) => page.locator('[data-testid="ledger-detail-panel"]').getByRole("button", { name: "Buchung anlegen", exact: true }),
     // Das DS-Panel (`Detail.panel`, unverändert, gilt auch für das Buchungs-Detail) überlappt nach dem Scrollen ans

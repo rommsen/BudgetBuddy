@@ -125,13 +125,16 @@ let amountLocked (value: decimal) (currency: string) (muted: bool) (reason: stri
         ]
     ]
 
-/// Schließen rechts im Kopf; `label` ist der Name für den Screenreader („Detail schließen“, „Aufteilen schließen“).
-let private closeButton (label: string) (onClose: unit -> unit) : ReactElement =
+/// Schließen rechts im Kopf; `label` ist der Name für den Screenreader („Detail schließen“, „Aufteilen schließen“,
+/// „Formular schließen“), `testId` die Test-Id. `locked` sperrt den Knopf per `aria-disabled` (kein `disabled`, der
+/// Fokus bleibt erreichbar); der Aufrufer sorgt dafür, dass ein Klick dann nichts tut.
+let private closeButton (label: string) (testId: string) (locked: bool) (onClose: unit -> unit) : ReactElement =
     Html.button [
         prop.type'.button
         prop.ariaLabel label
         prop.title "Schließen"
-        prop.custom ("data-testid", "detail-close")
+        prop.custom ("data-testid", testId)
+        if locked then prop.ariaDisabled true
         prop.className (
             $"-mr-2 inline-flex {TouchTargets.mobileSquare} md:h-11 md:w-11 shrink-0 items-center justify-center rounded-xl " +
             $"{Colors.textSecondary} hover:bg-surface-hover hover:text-text-primary transition-colors touch-manipulation"
@@ -166,8 +169,24 @@ let titleHead (title: string) (muted: bool) (subtitle: string) (onClose: (unit -
                 ]
             ]
             match onClose with
-            | Some close -> closeButton "Detail schließen" close
+            | Some close -> closeButton "Detail schließen" "detail-close" false close
             | None -> ()
+        ]
+    ]
+
+/// Der Kopf eines Formulars im Panel („Neue Buchung“, ledger-zf6zg): derselbe Kopf wie `titleHead`, ohne
+/// Unterzeile und ohne Linie darunter. Titel 17 px halbfett, rechts derselbe Schließen-Knopf mit `closeLabel` als
+/// Namen und `data-testid="capture-close"`. `closing = true` (während das Formular speichert) setzt `aria-disabled`.
+let formHead (title: string) (closeLabel: string) (closing: bool) (onClose: unit -> unit) : ReactElement =
+    Html.div [
+        // Ohne Unterzeile steht der Titel mittig neben dem Knopf.
+        prop.className "flex items-center justify-between gap-3 px-4 pt-3.5 pb-2"
+        prop.children [
+            Html.h2 [
+                prop.className $"min-w-0 break-words {FontSizes.lg} font-semibold {Colors.textPrimary}"
+                prop.text title
+            ]
+            closeButton closeLabel "capture-close" closing onClose
         ]
     ]
 
@@ -192,7 +211,7 @@ let head
                 ]
             ]
             match onClose with
-            | Some close -> closeButton "Aufteilen schließen" close
+            | Some close -> closeButton "Aufteilen schließen" "detail-close" false close
             | None -> ()
         ]
     ]

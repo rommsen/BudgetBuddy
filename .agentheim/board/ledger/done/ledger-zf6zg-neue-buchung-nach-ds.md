@@ -1,7 +1,7 @@
 ---
 id: ledger-zf6zg
 title: "„Neue Buchung“ nach DS: Kontowahl als Money.accountChoiceRow wie im Sheet „Konto“, Kopf des Panels wie der Kopf des Details, „Abbrechen“ ohne Füllung, Payee-Feld sagt „optional“"
-status: doing
+status: done
 type: refactor
 context: ledger
 created: 2026-11-19
@@ -100,3 +100,49 @@ Inline-Kasten der Kontowahl im Panel statt eines DS-Popovers (`View.fs:3514` im 
 
 Überschneidungen: Teil 2 (ledger-gy77x) setzt in §5 die Regel für „Abbrechen“ ohne Füllung und ändert `captureFab`
 nebenan, daher erst Teil 2.
+
+## Outcome
+
+„Neue Buchung“ nach DS umgestellt (Bestandsreview G5, Teil 3).
+
+- **Kontowahl** (`captureAccountList` in `src/Client/Components/Ledger/View.fs`): jede Zeile ist
+  `Money.accountChoiceRow "capture-account-choice"`, Saldo über `cardBalanceElement true (BalanceShown …)`
+  (Primärtext, negativ rot), ohne bekannten Saldo `Html.none`. Lade-, Fehler- und Leerzeile und `PickerParts.ShortChoice`
+  unverändert; der Container im Panel bleibt. Gilt für Panel, Sheet und Dialog.
+- **Kopf im Panel**: neue DS-Funktion `Detail.formHead title closeLabel closing onClose`
+  (`src/Client/DesignSystem/Detail.fs`): Titel 17 px halbfett, ohne Unterzeile und ohne Linie, rechts derselbe
+  Schließen-Knopf wie im Detail (48 px Handy, 44 px PC), `data-testid="capture-close"`, `aria-disabled` bei
+  `closing`. Abweichung von `titleHead`: `items-center` statt `items-start`, damit der einzeilige Titel mittig
+  neben dem Knopf steht. Das private `closeButton` bekommt Name, Test-Id und Sperre als Parameter; `titleHead`
+  („Detail schließen“, `detail-close`) und `head` („Aufteilen schließen“, `detail-close`) übergeben ihre bisherigen
+  Werte, beide nicht gesperrt. Andere Nutzer von `Detail`: `titleHead` im Buchungs-Detail (`Ledger/View.fs`),
+  `head` über dem Split-Editor, `/styleguide`; Aussehen und Namen unverändert (Sweep `kassenbuch-detail` grün).
+  `capturePanelView` nutzt `Detail.formHead captureTitle "Formular schließen" capture.Saving`.
+- **„Abbrechen“**: `captureCancelButton` auf `Button.Outline` (Panel, Sheet, Dialog).
+- **Payee**: Platzhalter „optional“ statt „z. B. Bäckerei“.
+- **Styleguide**: `standards/frontend/styleguide.md` §5 Detail nennt `formHead`, Button `Outline` nennt „Neue Buchung“,
+  Money `accountChoiceRow` nennt die Kontowahl in „Neue Buchung“. `/styleguide` zeigt `formHead` in der Karte
+  `components-detail-head` unter den beiden `titleHead`.
+- **Sweep** (`scripts/layout-states.mjs`): `kassenbuch-erfassen-konto` prüft, dass genau eine
+  `capture-account-choice` `aria-current="true"` mit Haken trägt; `kassenbuch-erfassen-panel` prüft
+  `capture-close` mit Namen „Formular schließen“ und kein `detail-close` im Panel. `kassenbuch-erfassen-memo-unter-datum`
+  sucht das Memo jetzt über seine Beschriftung, weil das Payee-Feld nun ebenfalls „optional“ sagt (sonst maß der
+  Zustand das Payee-Feld und brach ab). Keine neue Sweep-Ausnahme.
+- Sperre beim Speichern: `aria-disabled` belegt der Diff (`closeButton ... locked`), das Nicht-Schließen
+  `LedgerCaptureClientTests` („bleibt offen“).
+- `./verify.sh`: `VERIFY: PASS` (dotnet 5204, node 352, guard:classes, guard:tokens grün), inklusive Layout-Sweep und
+  `key-invariants.test.mjs` (Tastatur-Fall der Kontowahl im Panel).
+
+Romans Blick, Vorher und Nachher über die Sweep-Zustände (Skript
+`/private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/4b5cf62e-3174-40e3-90f3-4b5312280eb9/scratchpad/shots/ledger-zf6zg/zf6zg-shots.mjs`),
+Ablage `/private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/4b5cf62e-3174-40e3-90f3-4b5312280eb9/scratchpad/shots/ledger-zf6zg/`,
+je `vorher-` und `nachher-`:
+`kassenbuch-erfassen-412.png` (Sheet Handy), `kassenbuch-erfassen-konto-412.png` (Kontowahl Handy, Touch),
+`kassenbuch-erfassen-panel-1280.png`, `kassenbuch-erfassen-panel-1440.png` (Panel mit Kopf),
+`kassenbuch-erfassen-panel-kontowahl-1440.png` (Panel mit offener Kontowahl), `uebersicht-erfassen-1280.png`,
+`uebersicht-erfassen-1440.png` (Dialog auf der Übersicht). Sichtbare Abweichungen nur die genannten: Haken und
+Akzentrahmen statt Linie links, 56-px-Zeilen, Kopf ohne Linie und Schließen ohne Rand, „Abbrechen“ ohne Fläche,
+Payee „optional“. Den Blick auf dem echten Gerät (`[human-eye]`) macht Roman.
+
+Für die Kann-Sammlung design-system: `Money.accountListRow` und `accountListRowWith` haben außer `/styleguide` keinen
+Nutzer mehr (nicht entfernt, laut Task).

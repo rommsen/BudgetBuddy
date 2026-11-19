@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-19 10:47 -- Task verified and completed: ledger-zf6zg - "„Neue Buchung“ nach DS: Kontowahl als Money.accountChoiceRow wie im Sheet „Konto“, Kopf des Panels wie der Kopf des Details, „Abbrechen“ ohne Füllung, Payee-Feld sagt „optional“"
+
+**Type:** Work / Task completion
+**Task:** ledger-zf6zg - "„Neue Buchung“ nach DS: Kontowahl als Money.accountChoiceRow wie im Sheet „Konto“, Kopf des Panels wie der Kopf des Details, „Abbrechen“ ohne Füllung, Payee-Feld sagt „optional“"
+**Summary:** Neue Buchung nach DS: Kontowahl als accountChoiceRow, Panel-Kopf Detail.formHead, Abbrechen Outline, Payee optional
+**Duration:** 40m
+**Verification:** PASS (iteration 1)
+**Files changed:** 5
+**Tests added:** 2
+**ADRs written:** none
+
+---
+
 ## 2026-11-19 10:21 -- Task verified and completed: ledger-rb3xw - "Begriffe und Texte im Kassenbuch: ein Name für den Lena-Filter, leerer Zustand „Keine Buchungen“ nach §7.12 mit „Abrufen“, Listen-Platzhalter ohne „Transaktionen“"
 
 **Type:** Work / Task completion
