@@ -70,8 +70,8 @@ async function openLedger(viewport) {
   return { page, context };
 }
 
-// Der Flow prüft nur, dass „Alles geprüft“ erscheint: Text der Karte aus `allReviewedText`, dass sie keine Aktion
-// hat aus `emptyListAction` (beides .NET, ledger-rb3xw).
+// Der Flow prüft nur, dass „Alles geprüft“ erscheint: Text der Karte aus `allReviewedText` (.NET, ledger-rb3xw).
+// Dass sie keinen Knopf (etwa „Jetzt spiegeln“) hat, ist gedeckt, weil `Card.allDone` keinen Knopf annimmt.
 test("[flow:pruefliste-abarbeiten] PC: nach dem letzten Prüfen unter Zu prüfen steht Alles geprüft", async () => {
   const { page, context } = await openLedger({ width: 1440, height: 900 });
   try {

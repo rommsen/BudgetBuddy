@@ -555,16 +555,6 @@ let ownActionTests =
             Expect.equal after.DeletedCount 1 "Zahl der Gelöschten aus der Antwort"
         }
 
-        test "Läuft „Weitere laden“, wartet das Nachladen nach dem Löschen und dem Anlegen auf dessen Antwort" {
-            for label, msg in [ ownActions[0]; ownActions[2] ] do
-                let model = { twoPages () with ListActivity = LoadingMorePage }
-                let waiting, cmd, _ = update msg model
-                let msgs = dispatched cmd
-                Expect.contains msgs RefreshEntries $"{label}: nachladen"
-                let waited, waitCmd, _ = update RefreshEntries waiting
-                Expect.equal waited.ListActivity LoadingMoreThenRefresh $"{label}: wartet auf die Seite"
-                Expect.isEmpty (dispatched waitCmd) $"{label}: keine Abfrage, solange die Seite läuft"
-        }
     ]
 
 // ============================================

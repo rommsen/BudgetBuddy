@@ -872,6 +872,26 @@ let botApiTests =
             Expect.equal env.Deps.Store.Count 0 "keine Vorschau gespeichert"
             Expect.equal (fst (call env.Deps "POST" "/bot/transactions/preview" bearer (padded 8192))) 200 "genau 8192 Bytes gehen"
 
+        // Fängt die Mutante, die Zeichen statt Bytes zählt (etwa `text.Length` nach dem Lesen als UTF-8): der Rumpf hat
+        // 8000 Zeichen, aber durch 500 „ü“ im Memo 8500 Bytes. Ohne das Auffüllen ist derselbe Rumpf gültig (200), die
+        // Ablehnung kommt also allein von der Rumpfgrenze.
+        testCase "Vorschau mit Umlauten im Rumpf: unter 8192 Zeichen, aber über 8192 Bytes ergibt 400 mit Feld body" <| fun () ->
+            let env = Env()
+            let body = (bodyOf env.Deps (uniquePayee ()) "5" "outflow").Replace("\"memo\": \"Test\"", $"\"memo\": \"{String('ü', 500)}\"")
+            Expect.stringContains body (String('ü', 500)) "Memo mit 500 Umlauten"
+            let padded = body + String(' ', 8000 - body.Length)
+            Expect.isLessThan padded.Length 8192 "unter 8192 Zeichen"
+            Expect.isGreaterThan (Text.Encoding.UTF8.GetByteCount padded) 8192 "über 8192 Bytes"
+            let status, json = call env.Deps "POST" "/bot/transactions/preview" bearer padded
+            Expect.equal status 400 "abgelehnt"
+            let fields =
+                json.Value.GetProperty("fields").EnumerateArray()
+                |> Seq.map (fun f -> f.GetProperty("field").GetString())
+                |> Seq.toList
+            Expect.equal fields [ "body" ] "nur Feld body"
+            Expect.equal env.Deps.Store.Count 0 "keine Vorschau gespeichert"
+            Expect.equal (fst (call env.Deps "POST" "/bot/transactions/preview" bearer body)) 200 "ohne Auffüllen gültig"
+
         testCase "Vorschau mit Rumpf über 8192 Bytes ohne Token ergibt 401" <| fun () ->
             let env = Env()
             let body = bodyOf env.Deps (uniquePayee ()) "5" "outflow"

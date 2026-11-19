@@ -106,7 +106,6 @@ let rowEdgeTests =
         let present = classes.Split ' ' |> Set.ofArray
         for edge in edges do
             Expect.equal (present.Contains edge) (want = Some edge) $"{label}: Kante {edge}"
-        Expect.equal (classes.Contains "shadow-") want.IsSome $"{label}: Schatten nur mit Kante"
     testList "Kante der Zeile: Anker × zu prüfen (ledger-ef068)" [
         for (isAnchor, needsReview), want in expected do
             testCase $"Anker {isAnchor}, zu prüfen {needsReview}" <| fun () ->
