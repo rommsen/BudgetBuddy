@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-19 09:41 -- Batch started: [ledger-pfhdq]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-pfhdq - "Späte und gescheiterte Antworten im Kassenbuch: Available, Kontostände und Spiegel-Status tragen eine Lade-Nummer, ältere Antworten fallen weg, ein gescheitertes Nachladen der Kontostände bleibt mit Hinweis sichtbar (Components/Ledger/State.fs CategoriesLoaded, BalancesLoaded, MirrorStatusLoaded)"
+**Parallel:** yes (nachgerückt für ledger-ef068, 3 Worker mit ledger-awf5b und ledger-gy77x)
+
+---
+
 ## 2026-11-19 09:34 -- Task verified and completed: ledger-y8xrr - "Kassenbuch-Liste behält Seiten, Scrollstand und Auswahl auch nach eigenen Aktionen: Anlegen, Rückgängig nach dem Anlegen, Löschen, Wiederherstellen und „Geprüft“ für die Auswahl laden im Hintergrund nach statt neu aufzubauen (Components/Ledger/State.fs, LoadEntries an fünf Stellen)"
 
 **Type:** Work / Task completion

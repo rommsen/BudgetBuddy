@@ -1,7 +1,7 @@
 ---
 id: ledger-pfhdq
 title: "Späte und gescheiterte Antworten im Kassenbuch: Available, Kontostände und Spiegel-Status tragen eine Lade-Nummer, ältere Antworten fallen weg, ein gescheitertes Nachladen der Kontostände bleibt mit Hinweis sichtbar (Components/Ledger/State.fs CategoriesLoaded, BalancesLoaded, MirrorStatusLoaded)"
-status: todo
+status: doing
 type: bug
 context: ledger
 created: 2026-11-19
