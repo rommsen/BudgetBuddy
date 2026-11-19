@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-19 09:12 -- Batch started: [ledger-awf5b]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-awf5b - "Ein übernommener Betragsfilter mit Komma („12,50“) gilt nicht mehr als laufende Eingabe: isInputActive vergleicht die Betragsentwürfe als Wert statt als Text, der Update-Neustart beim Öffnen wird nicht mehr zurückgehalten (src/Client/State.fs isInputActive)"
+**Parallel:** yes (nachgerückt für ledger-b7k2q, 3 Worker laufen) — ledger-pfhdq wartet auf ledger-y8xrr (Ledger/State.fs), ledger-ef068 und ledger-gy77x auf ledger-hme9k (Ledger/View.fs)
+
+---
+
 ## 2026-11-19 09:12 -- Task verified and completed: ledger-b7k2q - "Bob-Grenzen vollständig: Commit prüft das Datumsfenster am Berliner Tag des Commits neu, Vorschau begrenzt Rumpf auf 8192 Bytes und Kategorie auf 200 Zeichen, „kein Flag“ im gesendeten Rumpf belegt, API-Test des Datumsfensters auf einen Fall gekürzt (BotApi.fs bookWithinLimit, readBody, Validation.fs parseBotPreviewRequest)"
 
 **Type:** Work / Task completion
