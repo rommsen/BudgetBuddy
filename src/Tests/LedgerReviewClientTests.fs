@@ -118,6 +118,36 @@ let pureTests =
             let split : TransactionSplit = { Amount = eur -5m; Memo = None; Target = Uncategorized }
             Expect.isTrue (reviewHasTarget { bare with Splits = [ split; split ] }) "Aufteilung"
 
+        // ledger-hme9k Punkt 5: das Detail-Sheet am Handy steht immer im DOM, offen ist es nur mit Karte und „Details“.
+        // Aus scripts/regel-aus-buchung.test.mjs gezogen.
+        testCase "das Detail-Sheet im Durchgehen ist nur mit Karte und offenen Details offen" <| fun () ->
+            let session detailShown = { reviewStarting with DetailShown = detailShown }
+            for card, detailShown, expected, label in
+                [ Some (entryOf 1), true, true, "Karte, Details offen"
+                  Some (entryOf 1), false, false, "Karte, Details zu"
+                  None, true, false, "Endansicht, Details offen"
+                  None, false, false, "Endansicht, Details zu" ] do
+                Expect.equal (reviewDetailSheetOpen card (session detailShown)) expected label
+            // Über das echte `update`: „Details“ öffnet, Schließen schließt.
+            let opened = step ReviewShowDetails (reviewing [ entryOf 2 ])
+            Expect.isTrue (reviewDetailSheetOpen (reviewCardOf opened) opened.Review.Value) "nach Details offen"
+            let closed = step CloseDetail opened
+            Expect.isFalse (reviewDetailSheetOpen (reviewCardOf closed) closed.Review.Value) "nach Schließen zu"
+
+        // ledger-hme9k: am PC lag der Dialog „Memo“ über dem offenen Memo-Feld im Panel, zwei Editoren mit demselben
+        // Entwurf. Mit offenen „Details“ öffnen Payee und Memo nur im Detail. Aus scripts/layout-states.mjs gezogen
+        // (`assertOneMemoEditor`).
+        testCase "Payee und Memo öffnen bei offenen Details im Detail, sonst über der Karte" <| fun () ->
+            for detailShown, expected in [ true, ReviewEditorPlace.InDetail; false, ReviewEditorPlace.OverCard ] do
+                Expect.equal
+                    (reviewEditorPlace { reviewStarting with DetailShown = detailShown })
+                    expected
+                    $"DetailShown = {detailShown}"
+            let opened = step ReviewShowDetails (reviewing [ entryOf 2 ])
+            Expect.equal (reviewEditorPlace opened.Review.Value) ReviewEditorPlace.InDetail "nach Details im Detail"
+            let closed = step CloseDetail opened
+            Expect.equal (reviewEditorPlace closed.Review.Value) ReviewEditorPlace.OverCard "nach Schließen über der Karte"
+
         testCase "die Wischschwelle liegt über 90 Pixeln in beide Richtungen" <| fun () ->
             Expect.equal (reviewSwipeOf 91.0 0.0) SwipeConfirm "rechts: Passt"
             Expect.equal (reviewSwipeOf 90.0 0.0) SwipeNothing "genau 90: nichts"

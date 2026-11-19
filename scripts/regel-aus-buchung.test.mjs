@@ -15,7 +15,7 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
 import { getFreePort, startFrontend, stopServer } from "./screenshot-route.mjs";
-import { REVIEW_QUEUE, mockReview, stateNamed } from "./layout-states.mjs";
+import { stateNamed } from "./layout-states.mjs";
 import { settle } from "./layout-invariants.mjs";
 
 let frontend;
@@ -150,34 +150,6 @@ test("[scroll] Am Handy ersetzt „Regel anlegen“ den Inhalt desselben Detail-
     assert.equal(await page.evaluate(() => window.__overlayLost || !window.__overlay.isConnected), false, "die Abdunklung blieb aktiv");
     const after = await marked.locator(".sheet-body").evaluate((el) => el.scrollTop);
     assert.ok(Math.abs(after - before) <= 2, `Scrollposition ${after} statt ${before}`);
-  } finally {
-    await context.close();
-  }
-});
-
-// ledger-hme9k Punkt 5: im Durchgehen hing das Detail-Sheet erst mit „Details“ ein (offen beim Einhängen) und beim
-// Schließen aus, deshalb fuhr es weder ein noch aus.
-test("[layout] Im Durchgehen am Handy steht das Detail-Sheet auch bei geschlossenen „Details“ im DOM, „Details“ und Schließen schalten nur .active", async () => {
-  const context = await handy();
-  const page = await context.newPage();
-  page.setDefaultTimeout(20000);
-  try {
-    await page.route("**/api/**", (r) => r.fulfill({ status: 500, contentType: "application/json", body: '{"error":"nicht gemockt"}' }));
-    await mockReview(page, [REVIEW_QUEUE.plain]);
-    await page.goto(`http://127.0.0.1:${port}/#/review`, { waitUntil: "load" });
-    await page.locator('[data-testid="review-suggestions"]').first().waitFor();
-    await settle(page);
-    // Jedes Sheet vor „Details“ markieren: das Detail-Sheet muss darunter sein, ohne `.active`.
-    await page.locator(".bottom-sheet").evaluateAll((els) => els.forEach((el) => el.setAttribute("data-before-details", "")));
-    await page.locator('[data-testid="review-details"]').first().tap();
-    const detail = page.locator(".bottom-sheet.active", { has: page.locator('[data-testid="detail-payee"]') });
-    await detail.waitFor();
-    assert.equal(await detail.getAttribute("data-before-details"), "", "das Detail-Sheet stand schon vor „Details“ im DOM");
-    await detail.evaluate((el) => el.setAttribute("data-detail-sheet", ""));
-    await detail.locator(".sheet-close").tap();
-    const same = page.locator(".bottom-sheet[data-detail-sheet]");
-    await page.waitForFunction(() => !document.querySelector(".bottom-sheet[data-detail-sheet]")?.classList.contains("active"));
-    assert.equal(await same.count(), 1, "nach Schließen bleibt dasselbe Element im DOM");
   } finally {
     await context.close();
   }

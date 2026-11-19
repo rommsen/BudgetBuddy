@@ -1821,6 +1821,23 @@ let detailShows (model: Model) (entryId: Guid) : bool =
         | Some review -> review.DetailShown
         | None -> true)
 
+/// Wo Payee und Memo im Durchgehen öffnen (ledger-hme9k): mit offenen „Details“ im Detail (Inhalt des Sheets, Feld im
+/// Panel), sonst als eigene Ebene über der Karte. Nie beides: am PC lag sonst der Dialog „Memo“ über dem offenen
+/// Memo-Feld im Panel, zwei Editoren mit demselben Entwurf.
+[<RequireQualifiedAccess>]
+type ReviewEditorPlace =
+    | OverCard
+    | InDetail
+
+let reviewEditorPlace (review: ReviewSession) : ReviewEditorPlace =
+    if review.DetailShown then ReviewEditorPlace.InDetail else ReviewEditorPlace.OverCard
+
+/// Steht das Detail-Sheet im Durchgehen am Handy offen (ledger-hme9k Punkt 5)? Nur mit Karte und offenen „Details“.
+/// Das Sheet selbst steht immer im DOM und fährt über `IsOpen` ein und aus; vorher hing es erst mit „Details“ ein und
+/// beim Schließen aus, deshalb fuhr es weder ein noch aus.
+let reviewDetailSheetOpen (card: LedgerEntryView option) (review: ReviewSession) : bool =
+    card.IsSome && review.DetailShown
+
 /// Darf das Angebot „Regel anlegen?“ stehen bleiben (ledger-hg5m5)? Nur solange das Detail seiner Buchung offen ist
 /// und die Buchung noch einen Payee und genau die angebotene Kategorie hat (kein Rückgängig, keine Aufteilung, kein
 /// Übertrag dazwischen).

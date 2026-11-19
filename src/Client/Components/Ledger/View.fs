@@ -5473,7 +5473,7 @@ let ReviewPage (model: Model) (dispatch: Msg -> unit) (onBack: unit -> unit) (ru
                       | None -> reviewNormalCard dispatch model review entry desk
                       // Mit offenem Detail öffnen Payee und Memo dort (Inhalt des Sheets, Feld im Panel, ein Dialog
                       // für Payee am PC), keine zweite Ebene darüber (ledger-hme9k).
-                      if not review.DetailShown then reviewEditors dispatch model entry desk
+                      if reviewEditorPlace review = ReviewEditorPlace.OverCard then reviewEditors dispatch model entry desk
                   // Ohne Karte steht die Endansicht: `update` zeigt nach jedem Schritt eine Karte oder überspringt
                   // eine Buchung ohne Stand bis hinter die letzte (`showReviewCardAt`).
                   | None -> reviewEnd count onBack ]
@@ -5486,7 +5486,7 @@ let ReviewPage (model: Model) (dispatch: Msg -> unit) (onBack: unit -> unit) (ru
                 | None -> Html.none
             | _ when desk -> Html.none
             // Am Handy steht das Detail-Sheet immer im DOM und fährt über `IsOpen` ein und aus (§6, §7.10).
-            | _ -> detailSheetView today dispatch model ruleForm (card.IsSome && review.DetailShown)
+            | _ -> detailSheetView today dispatch model ruleForm (reviewDetailSheetOpen card review)
         // Am Handy steht das Regel-Sheet über der Karte immer im DOM und fährt über `IsOpen` ein und aus; mit offenem
         // Detail ersetzt das Formular dessen Inhalt (`detailSheetView`).
         let ruleSheetOverCard =
