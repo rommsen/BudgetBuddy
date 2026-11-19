@@ -1,7 +1,7 @@
 ---
 id: ledger-zf6zg
 title: "„Neue Buchung“ nach DS: Kontowahl als Money.accountChoiceRow wie im Sheet „Konto“, Kopf des Panels wie der Kopf des Details, „Abbrechen“ ohne Füllung, Payee-Feld sagt „optional“"
-status: backlog
+status: todo
 type: refactor
 context: ledger
 created: 2026-11-19
