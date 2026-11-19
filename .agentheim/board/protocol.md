@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-11-19 19:18 -- Modeling / Captured: ledger-vf5h6 - "Design-Exploration Durchgehen am Handy: Wischen mit Bewegung und sichtbarer Aktion darunter, Bestätigen ohne störenden Toast, Memo auf der Karte ganz lesbar. Ergebnis ist eine Skizze mit Optionen zur Freigabe durch Roman, danach Tasks je Teil."
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Design-Exploration fürs Durchgehen am Handy: Wischen mit Bewegung und Aktion darunter, Bestätigen ohne störenden Toast, Memo ganz lesbar. Skizze zur Freigabe, blockiert design-system-vf94m.
+
+---
+
 ## 2026-11-19 15:24 -- Review-Lauf: eb03979d^..7c10d418
 
 **Type:** Review / Review-Lauf

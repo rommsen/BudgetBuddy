@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 9
+- **Backlog:** 10
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 155
@@ -85,6 +85,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **ledger-vf5h6** — "Design-Exploration Durchgehen am Handy: Wischen mit Bewegung und sichtbarer Aktion darunter, Bestätigen ohne störenden Toast, Memo auf der Karte ganz lesbar. Ergebnis ist eine Skizze mit Optionen zur Freigabe durch Roman, danach Tasks je Teil." (spike) — `backlog/ledger-vf5h6-design-exploration-durchgehen-handy.md`
 - **ledger-zqst5** — "Kassenbuch am Handy: Suche, Filter-Knopf und Chips haften oben beim Scrollen" (feature) — `backlog/ledger-zqst5-suche-und-filter-am-handy-haften.md`
 - **ledger-fp4wn** — "Auswahl außerhalb des geladenen Fensters: Leiste und Panel zählen gewählte, nicht mehr geladene Buchungen mit" (bug) — `backlog/ledger-fp4wn-auswahl-ausserhalb-des-fensters-mitzaehlen.md`
 - **ledger-yhemh** — "Neue Buchung am Handy: Memo steht neben dem Datum statt darunter" (bug) — `backlog/ledger-yhemh-memo-unter-datum-am-handy.md`

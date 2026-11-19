@@ -6,7 +6,7 @@ type: bug
 context: design-system
 created: 2026-11-12
 completed:
-depends_on: [design-system-001-styleguide]
+depends_on: [design-system-001-styleguide, ledger-vf5h6]
 blocks: []
 tags: [review, captured, frontend]
 related_adrs: []
@@ -29,3 +29,5 @@ Belege: Screenshots `/private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/
 
 ## Notes
 Captured raw, unrefined. Verfeinern mit `/agentheim:modeling`. Regressionstest als Invariante im Layout-Sweep (Toast verdeckt kein Bedienelement), mit Gegenbeweis.
+
+Verknüpft 2026-11-19: hängt an der Toast-Regel aus der Design-Exploration ledger-vf5h6 (Durchgehen am Handy).
