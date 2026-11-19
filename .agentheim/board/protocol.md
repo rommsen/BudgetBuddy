@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-20 00:11 -- Batch started: [ledger-wg42w]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-wg42w - "Durchgehen: Memo auf der Karte nur lesen (C3), „Memo“ über dem Text, so lang, wie Platz ist (gemessen); Bearbeiten nur in „Details“, Memo-Sheet und -Dialog der Karte entfallen"
+**Parallel:** yes (neben der Prüfung von design-system-ytgnc)
+
+---
+
 ## 2026-11-20 00:11 -- Modeling / Promoted: ledger-wg42w - "Durchgehen: Memo auf der Karte nur lesen (C3), „Memo“ über dem Text, so lang, wie Platz ist (gemessen); Bearbeiten nur in „Details“, Memo-Sheet und -Dialog der Karte entfallen"
 
 **Type:** Modeling / Promote
