@@ -173,3 +173,4 @@ Sammelstelle für Befunde, die stimmen, aber die Schwelle der Backlog-Disziplin 
 151. **Review-Lauf 2026-11-19 (ledger-hme9k)**: `DetailBottomSheet` (`Ledger/View.fs` um 2222) setzt die Scrollposition nicht auf 0, wenn bei offenem Detail-Sheet nur die Buchung wechselt (`showsDetail` bleibt wahr): die neue Buchung beginnt an der Stelle der alten. Am Handy selten, weil das Sheet die Liste verdeckt; Fix im Zweig `| _ ->` mit `[scroll]`-Test.
 
 152. **Review-Lauf 2026-11-19**: `Components/Settings/State.fs:296` zeigt den englischen Toast „Failed to load Lena flag colour: …“ mit roher Fehlermeldung; deutsch und nach §8 formulieren. 2026-11-19: geht in banking-import-vwhfm auf (Einstellungen ohne Toast).
+153. **Work-Lauf 2026-11-20 (ledger-wg42w)**: der Kommentar über `durchgehen-details-memo` in `scripts/layout-states.mjs` nennt noch „übernimmt die Prüfung von `durchgehen-memo`“; der Zustand ist entfernt.

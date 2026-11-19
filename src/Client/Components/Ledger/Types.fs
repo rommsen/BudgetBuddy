@@ -1851,9 +1851,9 @@ let detailShows (model: Model) (entryId: Guid) : bool =
         | Some review -> review.DetailShown
         | None -> true)
 
-/// Wo Payee und Memo im Durchgehen öffnen (ledger-hme9k): mit offenen „Details“ im Detail (Inhalt des Sheets, Feld im
-/// Panel), sonst als eigene Ebene über der Karte. Nie beides: am PC lag sonst der Dialog „Memo“ über dem offenen
-/// Memo-Feld im Panel, zwei Editoren mit demselben Entwurf.
+/// Wo der Payee im Durchgehen öffnet (ledger-hme9k): mit offenen „Details“ im Detail (Inhalt des Sheets, am PC ein
+/// Dialog), sonst als eigene Ebene über der Karte. Nie beides übereinander. Das Memo öffnet seit ledger-wg42w nur noch
+/// in „Details“; auf der Karte steht es nur zum Lesen.
 [<RequireQualifiedAccess>]
 type ReviewEditorPlace =
     | OverCard

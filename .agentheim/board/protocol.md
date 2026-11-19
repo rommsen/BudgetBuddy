@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-20 00:40 -- Task verified and completed: ledger-wg42w - "Durchgehen: Memo auf der Karte nur lesen (C3), „Memo“ über dem Text, so lang, wie Platz ist (gemessen); Bearbeiten nur in „Details“, Memo-Sheet und -Dialog der Karte entfallen"
+
+**Type:** Work / Task completion
+**Task:** ledger-wg42w - "Durchgehen: Memo auf der Karte nur lesen (C3), „Memo“ über dem Text, so lang, wie Platz ist (gemessen); Bearbeiten nur in „Details“, Memo-Sheet und -Dialog der Karte entfallen"
+**Summary:** Durchgehen: Memo auf der Karte nur lesen (C3), Bearbeiten nur in Details
+**Duration:** 42m
+**Verification:** PASS (iteration 1)
+**Files changed:** 7
+**Tests added:** 4
+**ADRs written:** none
+
+---
+
 ## 2026-11-20 00:17 -- Batch started: [design-system-gkded]
 
 **Type:** Work / Batch start

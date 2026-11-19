@@ -30,6 +30,10 @@ let progress (percent: float) (valueText: string option) : ReactElement =
         ]
     ]
 
+/// Markiert den Scrollbereich der Karte (`card`, `cardFill`); `memoBlock` misst dessen Überlauf (ledger-wg42w). Am PC
+/// ist `card` nicht in der Höhe begrenzt, läuft also nie über, und das Memo steht immer ganz.
+let private scrollAreaAttribute = "data-review-scroll"
+
 /// Die Karte (Prototyp `.card.rcard`): Radius 14 px wie `Card.allDone`, Innenabstand 18 × 16 px, 12 px
 /// zwischen den Zeilen. `attention`
 /// zeichnet den Rand in Gelb (Duplikat-Karte, „braucht dich“). `extra` sind weitere Eigenschaften
@@ -38,19 +42,23 @@ let card (attention: bool) (extra: IReactProperty list) (children: ReactElement 
     let border = if attention then "border-attention" else Borders.default'
     Html.div [
         yield! extra
+        prop.custom (scrollAreaAttribute, "")
         prop.className $"flex flex-col gap-3 px-4 py-[18px] rounded-[14px] border {border} {Backgrounds.dark} touch-pan-y"
         prop.children children
     ]
 
 /// Die Karte am Handy (ledger-s2cg3, Skizze ledger-vf5h6 `.card`): wie `card`, sie füllt den Platz bis zu den
 /// Knöpfen (`flex-1`, `min-h-0`), auch bei kurzem Inhalt. Ist der Inhalt länger, scrollt er in der Karte; die
-/// Knöpfe darunter bleiben fest.
+/// Knöpfe darunter bleiben fest. Die Zeilen schrumpfen nie (`*:shrink-0`): ein Knopf mit Mindesthöhe (Payee) wurde
+/// sonst bei Überlauf gestaucht und überlappte den Betrag, und der gemessene Überlauf für `memoBlock` war zu klein
+/// (ledger-wg42w).
 let cardFill (attention: bool) (extra: IReactProperty list) (children: ReactElement list) : ReactElement =
     let border = if attention then "border-attention" else Borders.default'
     Html.div [
         yield! extra
+        prop.custom (scrollAreaAttribute, "")
         prop.className (
-            $"relative flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain px-4 py-[18px] rounded-[14px] border {border} "
+            $"relative flex min-h-0 flex-1 flex-col gap-3 *:shrink-0 overflow-y-auto overscroll-contain px-4 py-[18px] rounded-[14px] border {border} "
             + $"{Backgrounds.dark} touch-pan-y"
         )
         prop.children children
@@ -135,27 +143,82 @@ and fieldNeeding (need: bool) (testId: string) (label: string) (value: string op
 let caption (testId: string) (text: string) : ReactElement =
     Html.p [ prop.custom ("data-testid", testId); prop.className $"{FontSizes.xs} {Colors.textMuted}"; prop.text text ]
 
-/// Eine Zeile Schlüssel und Wert mit Pfeil (Prototyp `.kv`): 52 px hoch, Linie unten. Ohne Wert steht
-/// gedämpft `placeholder`.
-let kvRow (testId: string) (key: string) (value: string option) (placeholder: string) (onClick: unit -> unit) : ReactElement =
-    Html.button [
-        prop.type' "button"
-        prop.custom ("data-testid", testId)
-        prop.className (
-            $"flex w-full min-h-[52px] items-center justify-between gap-3 border-b {Borders.subtle} text-left "
-            + "touch-manipulation hover:bg-surface-hover"
+/// Wie viele Zeilen das Memo der Karte zeigt (ledger-wg42w, Skizze ledger-vf5h6 `fitMemo`): `None`, solange die Karte
+/// nicht überläuft (das Memo steht ganz); sonst so viele Zeilen, wie nach Abzug des Überlaufs in die Höhe des Memos
+/// passen, mindestens eine. `memoHeight` ist die Höhe des ungekürzten Texts, `overflow` `scrollHeight - clientHeight`
+/// des Scrollbereichs der Karte, `lineHeight` die Zeilenhöhe des Texts, alles in Pixeln.
+let memoClampLines (memoHeight: float) (overflow: float) (lineHeight: float) : int option =
+    if overflow <= 0.0 then None
+    else Some (max 1 (int (floor ((memoHeight - overflow) / lineHeight))))
+
+/// Kürzt das Memo nach dem Überlauf der Karte, in einem Schritt direkt am `style` (wie `setTransform` in `SwipeStage`):
+/// Kürzung entfernen, Überlauf des Scrollbereichs messen, `memoClampLines` fragen, bei Bedarf kürzen und `title` setzen.
+let private fitMemo (text: Browser.Types.HTMLElement) =
+    let textStyle: obj = text?style
+    textStyle?display <- ""
+    textStyle?webkitBoxOrient <- ""
+    textStyle?webkitLineClamp <- ""
+    textStyle?overflow <- ""
+    textStyle?maxHeight <- ""
+    text.removeAttribute "title"
+    let area: Browser.Types.HTMLElement = text?closest ($"[{scrollAreaAttribute}]")
+    if not (isNull (box area)) then
+        let overflow = area.scrollHeight - area.clientHeight
+        let computed: obj = Browser.Dom.window?getComputedStyle (text)
+        let lineHeight =
+            match System.Double.TryParse (string computed?lineHeight |> fun s -> s.Replace ("px", "")) with
+            | true, v when v > 0.0 -> v
+            | _ ->
+                let size = System.Double.Parse (string computed?fontSize |> fun s -> s.Replace ("px", ""))
+                size * 1.5
+        match memoClampLines text.clientHeight overflow lineHeight with
+        | Some lines ->
+            textStyle?display <- "-webkit-box"
+            textStyle?webkitBoxOrient <- "vertical"
+            textStyle?webkitLineClamp <- string lines
+            textStyle?overflow <- "hidden"
+            textStyle?maxHeight <- $"{float lines * lineHeight}px"
+            text.setAttribute ("title", text.textContent)
+        | None -> ()
+
+/// Das Memo auf der Karte (ledger-wg42w, Skizze ledger-vf5h6 Memo C3, `.memo-ro`): nur lesen. Oben „Memo“ klein und
+/// gedämpft, darunter der Text über die volle Breite, umbrechend, Linie unten. Kein Pfeil, kein Knopf; die Fläche
+/// gehört zur Wischfläche der Karte. Bearbeiten geht nur in „Details“.
+/// Der Text steht ganz da, solange die Karte nicht überläuft; sonst endet er mit „…“ in der letzten Zeile, die noch
+/// passt (`memoClampLines`), und trägt den ganzen Text als `title`. Gemessen wird nach jedem Rendern
+/// (`useLayoutEffect` ohne Abhängigkeiten: später geladene Inhalte zählen mit) und per `ResizeObserver` auf dem
+/// Scrollbereich der Karte (Drehen, Fensterbreite). Der Bereich wird über `closest` auf die Markierung von
+/// `card`/`cardFill` gefunden; die Callback-Ref beobachtet einen neuen Knoten neu. Der Screenreader liest immer den
+/// ganzen Text, die Kürzung ist nur optisch.
+[<ReactComponent>]
+let memoBlock (testId: string) (text: string) : ReactElement =
+    let textRef = React.useRef<Browser.Types.HTMLElement option> None
+    let disconnect = React.useRef<(unit -> unit) option> None
+    let textCallbackRef =
+        React.useCallback (
+            (fun (element: Browser.Types.Element) ->
+                disconnect.current |> Option.iter (fun stop -> stop ())
+                disconnect.current <- None
+                if isNull (box element) then textRef.current <- None
+                else
+                    let el = element :?> Browser.Types.HTMLElement
+                    textRef.current <- Some el
+                    let area: Browser.Types.Element = el?closest ($"[{scrollAreaAttribute}]")
+                    if not (isNull (box area)) then
+                        disconnect.current <- Some (Viewport.observeHeight area (fun _ -> fitMemo el))),
+            [||]
         )
-        prop.onClick (fun _ -> onClick ())
+    React.useLayoutEffect (fun () -> textRef.current |> Option.iter fitMemo)
+    Html.div [
+        prop.custom ("data-testid", testId)
+        prop.className $"flex flex-col gap-0.5 pt-2 pb-2.5 border-b {Borders.subtle}"
         prop.children [
-            Html.span [ prop.className $"shrink-0 {FontSizes.xs} {Colors.textMuted}"; prop.text key ]
-            Html.span [
-                prop.className "flex min-w-0 items-center gap-1"
-                prop.children [
-                    match value with
-                    | Some v -> Truncate.text $"text-base md:text-sm {Colors.textPrimary}" v
-                    | None -> Html.span [ prop.className $"text-base md:text-sm {Colors.textMuted}"; prop.text placeholder ]
-                    Icons.chevronRight Icons.SM Icons.Default
-                ]
+            Html.span [ prop.className $"{FontSizes.xs} {Colors.textMuted}"; prop.text "Memo" ]
+            Html.p [
+                prop.custom ("data-testid", $"{testId}-text")
+                prop.ref textCallbackRef
+                prop.className $"text-base md:text-sm {Colors.textPrimary} break-words"
+                prop.text text
             ]
         ]
     ]

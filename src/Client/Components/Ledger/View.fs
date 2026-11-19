@@ -1670,8 +1670,7 @@ let memoEditFor (model: Model) (entry: LedgerEntryView) : MemoEdit option =
     model.MemoEdit |> Option.filter (fun edit -> edit.MemoEntryId = entry.Id)
 
 /// Das Eingabefeld des Memos für diese Buchung (mehrzeilig, design-system-x045q): am PC im Panel an der Stelle des
-/// Blocks, am Handy als Inhalt des Detail-Sheets (`DetailBottomSheet`), auf der Karte im Durchgehen in
-/// `reviewEditors`.
+/// Blocks, am Handy als Inhalt des Detail-Sheets (`DetailBottomSheet`).
 let private memoEditorFor
     (dispatch: Msg -> unit)
     (memoRow: MemoRowState option)
@@ -5237,12 +5236,10 @@ let private ReviewNormalCard (dispatch: Msg -> unit) (model: Model) (review: Rev
                     ]
                 ]
             for (title, detail, url) in reviewLinks entry do ReviewCard.linkRow title detail url
-            ReviewCard.kvRow
-                "review-memo"
-                "Memo"
-                (memoTextOf entry)
-                "hinzufügen"
-                (fun () -> memoActionMsg model entry |> Option.iter dispatch)
+            // Das Memo nur lesen (ledger-wg42w, C3): bearbeitet wird es in „Details“; ohne Memo kein Block.
+            match memoTextOf entry with
+            | Some memo -> ReviewCard.memoBlock "review-memo" memo
+            | None -> ()
             if entry.Flag = AskLena then
                 ReviewCard.note "review-lena-note" [
                     Html.span [ prop.className "inline-flex shrink-0 pt-0.5"; prop.children [ Icons.flagSolid Icons.XS Icons.LenaFlag ] ]
@@ -5379,33 +5376,13 @@ let private reviewDuplicateCard (dispatch: Msg -> unit) (model: Model) (review: 
         if not desk then ReviewCard.foot ReviewCard.FootEmpty
     ]
 
-/// Memo und Payee der Karte: am Handy ein Sheet, am PC ein Dialog.
+/// Payee der Karte: am Handy ein Sheet, am PC ein Dialog.
 let private reviewEditors (dispatch: Msg -> unit) (model: Model) (entry: LedgerEntryView) (desk: bool) =
-    let memoEdit = memoEditFor model entry
-    let memoRow = model.MemoRows |> Map.tryFind entry.Id
-    let memoBody =
-        match memoEdit with
-        | Some edit -> [ memoEditorFor dispatch memoRow entry edit ]
-        | None -> []
     let payeeEdit = payeeEditOf model entry
     React.fragment [
         if desk then
-            Modal.view
-                { Modal.defaultProps with
-                    IsOpen = memoEdit.IsSome
-                    OnClose = fun () -> dispatch CancelMemoEdit
-                    Title = Some "Memo"
-                    Subtitle = Some (payeeLabel entry) }
-                [ Modal.bodyNoPadding memoBody ]
             payeeDialog dispatch model entry
         else
-            BottomSheet.view
-                { IsOpen = memoEdit.IsSome
-                  OnClose = fun () -> dispatch CancelMemoEdit
-                  Title = "Memo"
-                  Subtitle = Some (payeeLabel entry)
-                  Footer = None }
-                memoBody
             BottomSheet.view
                 { IsOpen = payeeEdit.IsSome
                   OnClose = fun () -> dispatch CancelPayeeEdit
@@ -5466,8 +5443,8 @@ let ReviewPage (model: Model) (dispatch: Msg -> unit) (onBack: unit -> unit) (ru
                       match entry.PossibleDuplicate with
                       | Some duplicate -> reviewDuplicateCard dispatch model review entry duplicate desk
                       | None -> ReviewNormalCard dispatch model review entry desk leave
-                      // Mit offenem Detail öffnen Payee und Memo dort (Inhalt des Sheets, Feld im Panel, ein Dialog
-                      // für Payee am PC), keine zweite Ebene darüber (ledger-hme9k).
+                      // Mit offenem Detail öffnet der Payee dort (Inhalt des Sheets, am PC ein Dialog), keine zweite
+                      // Ebene darüber (ledger-hme9k). Das Memo bearbeitet nur „Details“ (ledger-wg42w).
                       if reviewEditorPlace review = ReviewEditorPlace.OverCard then reviewEditors dispatch model entry desk
                   // Ohne Karte steht die Endansicht: `update` zeigt nach jedem Schritt eine Karte oder überspringt
                   // eine Buchung ohne Stand bis hinter die letzte (`showReviewCardAt`).

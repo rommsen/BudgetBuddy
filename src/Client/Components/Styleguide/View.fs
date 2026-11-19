@@ -2910,7 +2910,7 @@ let private reviewCardSection =
                     ReviewCard.field "demo-review-category" "Kategorie" (Some "Kinderkram") "Kategorie wählen" false (Some ignore)
                     ReviewCard.caption "demo-review-order" "aus Bestellnummer"
                     ReviewCard.linkRow "Bestellung bei Amazon" (Some "302-1234567-2222222") "https://www.amazon.de/gp/your-account/order-history"
-                    ReviewCard.kvRow "demo-review-memo" "Memo" None "hinzufügen" ignore
+                    ReviewCard.memoBlock "demo-review-memo" "Abschlag November"
                     ReviewCard.note "demo-review-note" [ Html.span [ ReviewCard.noteName "Lena"; Html.text " ist gefragt. Die Buchung bleibt offen, bis Lena oder du sie prüft." ] ]
                     ReviewCard.linksWithDetails "demo-review-rule" "Regel anlegen" ignore ignore
                 ]
@@ -2923,6 +2923,32 @@ let private reviewCardSection =
                 ReviewCard.foot (ReviewCard.FootHint "Wischen: rechts „Passt“, links „Später“")
                 ReviewCard.foot (ReviewCard.FootNeed "Erst Kategorie wählen")
                 ReviewCard.foot ReviewCard.FootEmpty
+            ]
+        ]
+        subTitle "ReviewCard.memoBlock"
+        note "Das Memo auf der Karte nur zum Lesen (ledger-wg42w): „Memo“ in 12 px gedämpft, darunter der Text über die volle Breite, Linie unten, kein Pfeil, kein Knopf; ohne Memo fehlt der Block. Der Text steht ganz da, solange die Karte nicht überläuft; sonst endet er mit „…“ in der letzten Zeile, die noch passt (mindestens eine), und trägt den ganzen Text als title. Bearbeiten geht nur in „Details“. Unten: kurz, und lang in einer niedrigen Karte (gekürzt)."
+        Html.div [
+            prop.className "max-w-md flex flex-col gap-3"
+            prop.children [
+                ReviewCard.card false [] [
+                    ReviewCard.payee "Stadtwerke" false "" None
+                    ReviewCard.memoBlock "demo-review-memo-short" "Abschlag November"
+                ]
+                Html.div [
+                    prop.custom ("data-testid", "demo-review-memo-low")
+                    prop.className "flex h-72 flex-col"
+                    prop.children [
+                        ReviewCard.cardFill false [] [
+                            ReviewCard.meta "Heute · Girokonto · Comdirect-Import"
+                            ReviewCard.payee "Amazon" false "" None
+                            ReviewCard.amount "-21,50 €"
+                            ReviewCard.memoBlock
+                                "demo-review-memo-long"
+                                "Wocheneinkauf fürs Grillfest am Samstag, dazu Getränke, Kohle, Servietten und die Torte für den Geburtstag von Oma am Sonntagnachmittag, außerdem Pappteller, Grillanzünder und zwei Kisten Wasser für die Nachbarn"
+                            ReviewCard.detailsLink ignore
+                        ]
+                    ]
+                ]
             ]
         ]
         subTitle "ReviewCard.foot"

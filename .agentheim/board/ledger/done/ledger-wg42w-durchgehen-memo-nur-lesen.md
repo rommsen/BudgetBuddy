@@ -1,7 +1,7 @@
 ---
 id: ledger-wg42w
 title: "Durchgehen: Memo auf der Karte nur lesen (C3), „Memo“ über dem Text, so lang, wie Platz ist (gemessen); Bearbeiten nur in „Details“, Memo-Sheet und -Dialog der Karte entfallen"
-status: doing
+status: done
 type: feature
 context: ledger
 created: 2026-11-19
@@ -166,3 +166,55 @@ README-Delta (ledger), Bullet **Durchgehen**: „Bestell-Link und weitere Links,
 lesen, gekürzt nur bei Überlauf), „auch über das Feld der Karte neben dem Panel“ (entfällt), „Die Karte ist die
 Buchung in `DetailFor`: Kategorie, Übertrag, Payee, Memo und Lena laufen über dieselben Befehle …“ (Memo nur über
 „Details“).
+
+
+## Outcome
+
+Memo auf der Karte nur lesen (C3). `./verify.sh`: `VERIFY: PASS` (dotnet 5221 grün, node 352 grün, Wächter grün).
+
+**Abgleich mit der heutigen Seite (Durchgehen), Stand je Zeile**
+| Funktion | Stand |
+|---|---|
+| Memo lesen auf der Karte | geändert: Block, „Memo“ darüber, so lang, wie Platz ist |
+| Memo bearbeiten auf der Karte (`›`, Sheet am Handy, Dialog am PC) | gestrichen (Roman, 2026-11-19, C3) |
+| Memo hinzufügen auf der Karte („hinzufügen“) | gestrichen (Roman, 2026-11-19, C3: ohne Memo kein Block) |
+| Am PC Memo der Karte neben offenem Panel antippen | gestrichen (Roman, 2026-11-19, C3) |
+| Memo bearbeiten in „Details“ | bleibt (Block und Editor aus design-system-x045q) |
+| Kategorie, Vorschläge, Payee antippen, Bestell-Link, Lena-Hinweis, „Regel anlegen“, „Details“ | bleibt |
+| Lena fragen, Später, Passt weiter, Wischen, Wisch-Hinweis | bleibt |
+| Tastenleiste am PC (Enter, S, K, L, Esc) | bleibt; Esc schließt ein offenes Memo in „Details“ wie bisher |
+| Toast „Memo gespeichert“ / „Memo entfernt“ | bleibt, kommt jetzt nach Speichern in „Details“ (entfällt mit ledger-pz5wv) |
+
+**DS** (`src/Client/DesignSystem/ReviewCard.fs`)
+- `memoClampLines memoHeight overflow lineHeight : int option`: `None` bei `overflow <= 0`, sonst `Some (max 1 (floor ((memoHeight - overflow) / lineHeight)))` (Skizze `fitMemo`).
+- `memoBlock testId text` (`[<ReactComponent>]`): „Memo“ in `FontSizes.xs` `text-muted`, darunter der Text (`text-base md:text-sm`, `text-primary`, `break-words`) über die volle Breite, Linie unten `Borders.subtle`, Abstände nach `.memo-ro` (8/10 px, 2 px). Kein Knopf, keine Wirkung beim Tippen. Die Messung (`fitMemo`) läuft in einem Schritt direkt am `style`: Kürzung und `title` zurücksetzen, `scrollHeight - clientHeight` des Scrollbereichs messen, `line-height` per `getComputedStyle`, bei `Some n` `display: -webkit-box`, `-webkit-box-orient: vertical`, `-webkit-line-clamp: n`, `overflow: hidden`, `max-height: n × Zeilenhöhe` und `title` mit dem ganzen Text. Gemessen wird in `React.useLayoutEffect` ohne Abhängigkeiten (nach jedem Rendern) und per `Viewport.observeHeight` (ResizeObserver) auf dem Scrollbereich. Ref per Callback-Ref (`React.useCallback`, Abmelden beim Wechsel des Knotens).
+- **Weg zum Scrollbereich**: `closest("[data-review-scroll]")`. Die Markierung tragen `card` (PC) und `cardFill` (Handy). Am PC ist `card` nicht in der Höhe begrenzt, läuft nie über, das Memo steht dort immer ganz.
+- `cardFill` bekommt `*:shrink-0`. Befund beim Bau: ohne das schrumpfte bei überlaufender Karte der Payee-Knopf (er hat eine Mindesthöhe, also kein `min-height: auto`) auf 44 px, der lange Payee überlappte den Betrag, und der gemessene Überlauf war zu klein (das Memo wurde zu wenig gekürzt). Gilt auch für die Duplikat-Karte, die `cardFill` nutzt; Sweep grün.
+- `kvRow` ist entfernt (DS, Styleguide-Route, §5).
+
+**Ledger** (`src/Client/Components/Ledger/View.fs`): `ReviewNormalCard` zeigt `ReviewCard.memoBlock "review-memo"` nur mit Memo, ohne Memo keinen Block. `reviewEditors` hat nur noch Payee (`payeeDialog` am PC, Sheet am Handy), Kommentar „Payee der Karte“. `ReviewEditorPlace` bleibt; Kommentar in `Types.fs` nennt nur noch Payee als Ebene über der Karte. `StartMemoEdit`, `MemoEdit`, `reviewOverlayOpen`, Esc-Zweige in `State.fs` unverändert. Die Task nennt `View.fs` Zeile 5261 und 5377; im Code standen sie nach ledger-s2cg3 bei 5240 und 5382, die Namen waren gleich.
+
+**Tests**
+- .NET `LedgerReviewClientTests`, „das Memo der Karte kürzt nur bei Überlauf, um den Überlauf, mindestens auf eine Zeile“: kein Überlauf (0, negativ) → `None`, kleiner als eine Zeile, genau eine Zeile, etwas mehr als eine Zeile, größer als das Memo → `Some 1`, einzeiliges Memo.
+- Testname „der Payee öffnet bei offenen Details im Detail, sonst über der Karte“ (vorher „Payee und Memo …“).
+- Zeile 709 und 755 der Task (offenes Memo auf Karte B): beide Fälle laufen jetzt über `ReviewShowDetails` vor `StartMemoEdit` und zeigen dasselbe (Einzelfall und Aufzählung bis Tiefe 6 grün). Umgestellt.
+- Sweep `scripts/layout-states.mjs`: neue Fixtures `REVIEW_QUEUE.memoShort` („Abschlag November“), `memoMedium` (Memo der Skizze, AMAZON PAYMENTS, ohne Bestell-Link und Lena) und `memoLong` (`LONG_PAYEE`, 500 Zeichen, `LONG_MEMO`). Neue Zustände `durchgehen-memo-kurz` (320, 412), `durchgehen-memo-mittel` (412, Abbruch bei Kürzung oder weniger als drei Zeilen), `durchgehen-memo-lang` (320, 412, 1280). Helfer `reviewMemoText`. Entfernt: `durchgehen-memo` (die Tastatur-Prüfung steht in `durchgehen-details-memo`, dort vorher nachgesehen) und `durchgehen-details-memo-karte`. Kommentare über `durchgehen-details-payee`, `durchgehen-details-payee-karte` und in `durchgehen-regel` nachgezogen. Alle 29 Läufe `durchgehen-*` ohne Meldung.
+- **Abweichung im Sweep `durchgehen-memo-lang`**: Bei 844 px Höhe ist das Memo gekürzt (5 bzw. 6 Zeilen), mit `title`, und die Karte läuft nicht über. Bei drei Vierteln der Höhe reicht mit dem langen Payee auch eine Zeile nicht; nach der Regel aus ledger-s2cg3 scrollt dann der Rest. Die Prüfung erlaubt dort Überlauf nur bei genau einer Zeile und verlangt weniger Zeilen als vorher. Zusätzlich bricht der Zustand ab, wenn eine andere Zeile der Karte gestaucht ist (`squeezed`, belegt „gekürzt wird nur das Memo“; vor `*:shrink-0` rot mit `review-payee`).
+- Gegenprobe ResizeObserver: mit abgeschalteter Beobachtung brach `durchgehen-memo-lang` bei 320 und 412 ab („Karte läuft trotz Kürzung über (Höhe −25 %, 5/6 Zeilen)“). Die Messung nach jedem Rendern belegt der Zustand, weil die Vorschläge erst nachladen.
+- `[flow:durchgehen]` grün (in `test:scripts`).
+
+**Styleguide**: `/styleguide` Abschnitt 29, „ReviewCard.memoBlock“: kurz in `card`, lang in einer niedrigen `cardFill` (h-72, drei Zeilen und „…“). Die Beispielkarte „ReviewCard.card (normal)“ zeigt `memoBlock` statt `kvRow`. `standards/frontend/styleguide.md` §5 Zeile **ReviewCard**: `memoBlock` statt `kvRow`, `cardFill` „ihre Zeilen schrumpfen nie“.
+
+**Weg „Details, dann Memo“ am Handy**: bestätigt ohne neuen Bau. Karte → „Details“ → „Bearbeiten ›“ ersetzt den Inhalt des Detail-Sheets (Titel „Memo“), ein Feld, kein Wechsel zwischen Feldern, kein Betragsfeld. „Speichern“ bleibt bei offener Tastatur im Bild (Sweep `durchgehen-details-memo` mit `keyboard` bei 412 grün), „Speichern“ und „Abbrechen“ halten mit `KeepsFocus` den Tipp am Knopf (design-system-x045q).
+
+**Seite neben der Skizze** (eigene Bilder unter `/private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/4b5cf62e-3174-40e3-90f3-4b5312280eb9/scratchpad/result-shots/ledger-wg42w/`, Skizze unter `/private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/4b5cf62e-3174-40e3-90f3-4b5312280eb9/scratchpad/vf5h6/skizze-shots/`)
+- Skizze `01-durchgehen-ruhe.png` neben `412-memo-mittel.png`: „Memo“ klein und gedämpft über dem Text, Text in drei Zeilen über die volle Breite, Linie unten, kein Pfeil; Karte bis zu den Knöpfen, „Regel anlegen“ und „Details“ unten. Unterschiede: (a) Schrift 12 px und 16 px statt 12,5 px und 15 px. Sonst gleich (Meta-Zeile zeigt das Datum der Fixture, „Gestern“).
+- `412-memo-lang.png`: langer Payee auf drei Zeilen, Betrag darunter ohne Überlappung, Memo in vier Zeilen mit „…“ am Ende, die Karte scrollt nicht. Keine Entsprechung in der Skizze (Regel `fitMemo`, Abweichung (c)).
+- `1280-memo-lang.png`: PC, das Memo steht ganz (Karte nicht in der Höhe begrenzt).
+- `320-memo-kurz.png`: „Abschlag November“ in einer Zeile, ganz.
+- `styleguide-memoBlock-1280.png`: beide Styleguide-Beispiele.
+- Abweichung (b) (Reihenfolge Bestell-Links, Memo, Lena-Hinweis) bleibt wie heute; im Code unverändert.
+
+**README**: Delta für den Bullet **Durchgehen** im README_DELTA, gegen `npm run check:readme-delta` geprüft (Exit 0, „Ganz nachlesen: keine Einträge“).
+
+**Kann-Sammlung ledger**: Der Kommentar über `durchgehen-details-memo` in `scripts/layout-states.mjs` nennt noch „übernimmt die Prüfung von `durchgehen-memo`“; der Zustand ist jetzt entfernt, der Satz bleibt als Herkunft stehen.

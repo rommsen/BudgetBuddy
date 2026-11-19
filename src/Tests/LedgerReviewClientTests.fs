@@ -135,9 +135,9 @@ let pureTests =
             Expect.isFalse (reviewDetailSheetOpen (reviewCardOf closed) closed.Review.Value) "nach Schließen zu"
 
         // ledger-hme9k: am PC lag der Dialog „Memo“ über dem offenen Memo-Feld im Panel, zwei Editoren mit demselben
-        // Entwurf. Mit offenen „Details“ öffnen Payee und Memo nur im Detail. Aus scripts/layout-states.mjs gezogen
-        // (`assertOneMemoEditor`).
-        testCase "Payee und Memo öffnen bei offenen Details im Detail, sonst über der Karte" <| fun () ->
+        // Entwurf. Mit offenen „Details“ öffnet der Payee nur im Detail; das Memo öffnet seit ledger-wg42w nur dort.
+        // Aus scripts/layout-states.mjs gezogen (`assertOneMemoEditor`).
+        testCase "der Payee öffnet bei offenen Details im Detail, sonst über der Karte" <| fun () ->
             for detailShown, expected in [ true, ReviewEditorPlace.InDetail; false, ReviewEditorPlace.OverCard ] do
                 Expect.equal
                     (reviewEditorPlace { reviewStarting with DetailShown = detailShown })
@@ -172,6 +172,18 @@ let pureTests =
             Expect.floatClose Accuracy.high (reviewSwipeOffset false 172.0) 84.0 "ohne Ziel danach zäh: 72 + 100 × 0,12"
             Expect.equal (reviewSwipeOffset false -150.0) -150.0 "ohne Ziel nach links 1:1 (Später)"
             Expect.equal (reviewSwipeOffset false 0.0) 0.0 "kein Weg"
+
+        // ledger-wg42w: das Memo auf der Karte wird nur gekürzt, wenn die Karte überläuft, um so viele Zeilen, wie der
+        // Überlauf braucht, mindestens eine Zeile bleibt (Skizze ledger-vf5h6 `fitMemo`).
+        testCase "das Memo der Karte kürzt nur bei Überlauf, um den Überlauf, mindestens auf eine Zeile" <| fun () ->
+            let clamp = Client.DesignSystem.ReviewCard.memoClampLines
+            Expect.equal (clamp 96.0 0.0 24.0) None "kein Überlauf: ganz"
+            Expect.equal (clamp 96.0 -30.0 24.0) None "Platz übrig: ganz"
+            Expect.equal (clamp 96.0 10.0 24.0) (Some 3) "Überlauf kleiner als eine Zeile: eine Zeile weniger"
+            Expect.equal (clamp 96.0 24.0 24.0) (Some 3) "Überlauf genau eine Zeile: eine Zeile weniger"
+            Expect.equal (clamp 96.0 25.0 24.0) (Some 2) "etwas mehr als eine Zeile: zwei weniger"
+            Expect.equal (clamp 96.0 200.0 24.0) (Some 1) "Überlauf größer als das Memo: eine Zeile"
+            Expect.equal (clamp 24.0 24.0 24.0) (Some 1) "einzeiliges Memo bei Überlauf: eine Zeile"
 
         // ledger-s2cg3: eingerastet genau dann, wenn `reviewSwipeOf` beim Loslassen entschiede, nach rechts nur mit Ziel.
         testCase "die Fläche rastet an der Grenze von reviewSwipeOf ein, nach rechts nur mit Ziel" <| fun () ->
@@ -703,11 +715,12 @@ let lenaFailureTests =
             Expect.equal external (ShowToast ("Flag nicht geändert: Netz", ToastError)) "Toast"
 
         // Regression Review a3f7eb1d..982bdf79 (ledger-nc708): der Sprung zurück lief über `closeDetail` und
-        // verwarf das offene Memo auf Karte B samt Entwurf.
+        // verwarf das offene Memo auf Karte B samt Entwurf. Seit ledger-wg42w öffnet das Memo nur über „Details“.
         testCase "steht auf Karte B eine Eingabe offen, bleibt B samt Entwurf, Fehlerzeile und Toast wie sonst" <| fun () ->
             let editing =
                 reviewing [ lenaA; lenaB ]
                 |> step ReviewLena
+                |> step ReviewShowDetails
                 |> step (StartMemoEdit (idOf lenaB))
                 |> step (MemoEditChanged "Entwurf")
             let failed, msgs, external = run (lenaFailed (idOf lenaA)) editing
@@ -752,7 +765,7 @@ let private lenaEvents (w: LenaWalk) : (string * Msg list * LenaWalk) list =
           if id = idOf lenaB && not w.ConfirmSent then
               "Passt B", [ ReviewConfirm ], { w with ConfirmSent = true }
           if id = idOf lenaB && not w.MemoOpen then
-              "Memo B", [ StartMemoEdit (idOf lenaB); MemoEditChanged "Entwurf" ], { w with MemoOpen = true }
+              "Memo B", [ ReviewShowDetails; StartMemoEdit (idOf lenaB); MemoEditChanged "Entwurf" ], { w with MemoOpen = true }
           "Später", [ ReviewSkip ], { w with At = w.At + 1; MemoOpen = false }
       | None -> ()
       if w.ConfirmSent then

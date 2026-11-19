@@ -628,6 +628,9 @@ const openOverview = async (page) =>
 // Durchgehen (ledger-v6s7c)
 // ============================================================
 
+/// Ein Memo mit 500 Zeichen (die Grenze von YNAB, ADR 0062) für die Karte im Durchgehen (ledger-wg42w).
+const LONG_MEMO = "Sammelbestellung für das Sommerfest im Garten: Getränke, Kohle, Servietten, Pappteller, Grillanzünder, Salate und die Torte für den Geburtstag von Oma. ".repeat(4).slice(0, 500);
+
 /// Die Karten der Schlange: lange Namen und große Beträge (Invariante 4). `REVIEW_QUEUE.<art>` ist je eine Buchung.
 export const REVIEW_QUEUE = (() => {
   const accountId = NAV_ACCOUNTS.DefaultAccountId;
@@ -668,6 +671,18 @@ export const REVIEW_QUEUE = (() => {
       Memo: "Wocheneinkauf fürs Grillfest am Samstag, dazu Getränke, Kohle, Servietten und die Torte für den Geburtstag von Oma am Sonntagnachmittag",
       ...lebensmittel,
     }),
+    // ledger-wg42w: das Memo auf der Karte nur zum Lesen, so lang, wie Platz ist. Kurz, mittel (Skizze ledger-vf5h6
+    // Bild 01, ohne Bestell-Link und Lena-Hinweis) und lang (500 Zeichen mit langem Payee, gekürzt).
+    memoShort: buildEntryFixture(accountId, 67, { ...base, Payee: "Stadtwerke", Amount: eur(-86), Memo: "Abschlag November", ...lebensmittel }),
+    memoMedium: buildEntryFixture(accountId, 68, {
+      ...base,
+      Payee: "AMAZON PAYMENTS",
+      Origin: "MirroredFromYnab",
+      Amount: eur(-21.5),
+      Memo: "Wocheneinkauf fürs Grillfest am Samstag, dazu Getränke, Kohle und die Torte für den Geburtstag",
+      ...lebensmittel,
+    }),
+    memoLong: buildEntryFixture(accountId, 69, { ...base, Payee: LONG_PAYEE, Amount: eur(-123456.78), Memo: LONG_MEMO, ...lebensmittel }),
   };
 })();
 
@@ -725,6 +740,27 @@ const openReviewDetails = async (page) => {
 };
 /// Die Zeile unter dem Hauptknopf am Handy (ledger-s2cg3): ohne Scrollen im Bild. Am PC gibt es sie nicht.
 const reviewFoot = (page, { mobile }) => (mobile ? page.locator('[data-testid="review-foot"]') : null);
+/// Der Memo-Text auf der Karte (ledger-wg42w), nachdem die Vorschläge stehen: gekürzt (`-webkit-line-clamp`), Zahl der
+/// sichtbaren Zeilen, `title`, und ob der Scrollbereich der Karte überläuft.
+const reviewMemoText = async (page) => {
+  await page.locator('[data-testid="review-suggestions"]').first().waitFor();
+  await frames(page);
+  return page.locator('[data-testid="review-memo-text"]').first().evaluate((el) => {
+    const s = getComputedStyle(el);
+    const area = el.closest("[data-review-scroll]");
+    return {
+      clamped: s.webkitLineClamp !== "none" && s.webkitLineClamp !== "",
+      lines: Math.round(el.clientHeight / parseFloat(s.lineHeight)),
+      title: (el.getAttribute("title") ?? "").length > 0,
+      overflow: area.scrollHeight > area.clientHeight + 1,
+      // Gekürzt wird nur das Memo: keine andere Zeile der Karte ist gestaucht (eine Zeile mit fester Mindesthöhe,
+      // etwa der Payee-Knopf, schrumpfte sonst im Flex-Layout und überlappte den Betrag).
+      squeezed: [...area.children]
+        .filter((c) => !c.contains(el) && c.scrollHeight > c.clientHeight + 1)
+        .map((c) => c.getAttribute("data-testid") ?? c.tagName),
+    };
+  });
+};
 const reviewPrimary = (name) => (page) => page.getByRole("button", { name, exact: true }).locator("visible=true").first();
 
 // ============================================================
@@ -2104,6 +2140,69 @@ export const STATES = [
     primary: reviewPrimary("Passt, weiter"),
     reach: reviewFoot,
   },
+  // ledger-wg42w: das Memo auf der Karte nur zum Lesen, „Memo“ über dem Text, so lang, wie Platz ist. Kurz und mittel
+  // stehen ganz (keine feste Grenze von zwei Zeilen); lang wird nur am Handy gekürzt, mit `title`, und die Karte
+  // scrollt dann nicht. Ein niedrigerer Viewport kürzt weiter (`ResizeObserver`). Am PC ist die Karte nicht in der
+  // Höhe begrenzt: das Memo steht ganz.
+  {
+    name: "durchgehen-memo-kurz",
+    route: "/review",
+    widths: [320, 412],
+    mock: (page) => mockReview(page, [REVIEW_QUEUE.memoShort]),
+    open: async (page) => {
+      const memo = await reviewMemoText(page);
+      if (memo.clamped) throw new Error("kurzes Memo ist gekürzt");
+    },
+    primary: reviewPrimary("Passt, weiter"),
+    reach: reviewFoot,
+  },
+  {
+    name: "durchgehen-memo-mittel",
+    route: "/review",
+    widths: [412],
+    mock: (page) => mockReview(page, [REVIEW_QUEUE.memoMedium]),
+    open: async (page) => {
+      const memo = await reviewMemoText(page);
+      if (memo.clamped) throw new Error("mittleres Memo ist gekürzt");
+      if (memo.lines < 3) throw new Error(`mittleres Memo steht auf ${memo.lines} statt mindestens drei Zeilen`);
+    },
+    primary: reviewPrimary("Passt, weiter"),
+    reach: reviewFoot,
+  },
+  {
+    name: "durchgehen-memo-lang",
+    route: "/review",
+    widths: [320, 412, 1280],
+    mock: (page) => mockReview(page, [REVIEW_QUEUE.memoLong]),
+    open: async (page, { mobile }) => {
+      const memo = await reviewMemoText(page);
+      if (memo.squeezed.length > 0) throw new Error(`Zeilen der Karte gestaucht: ${memo.squeezed.join(", ")}`);
+      if (!mobile) {
+        if (memo.clamped) throw new Error("langes Memo ist am PC gekürzt");
+        return;
+      }
+      // Reicht auch eine Zeile nicht, scrollt der Rest der Karte in sich (Regel aus ledger-s2cg3): Überlauf ist nur
+      // bei einer Zeile erlaubt. Bei 844 px darf die Karte nicht überlaufen; bei drei Vierteln davon reicht mit dem
+      // langen Payee auch eine Zeile nicht.
+      const expectFitted = (m, where, { scrollAllowed = false } = {}) => {
+        if (!m.clamped) throw new Error(`langes Memo ist nicht gekürzt (${where})`);
+        if (!m.title) throw new Error(`gekürztes Memo trägt keinen title (${where})`);
+        if (m.overflow && !(scrollAllowed && m.lines === 1)) throw new Error(`Karte läuft trotz Kürzung über (${where}, ${m.lines} Zeilen)`);
+      };
+      expectFitted(memo, "volle Höhe");
+      const size = page.viewportSize();
+      await page.setViewportSize({ width: size.width, height: Math.round(size.height * 0.75) });
+      await frames(page);
+      const low = await reviewMemoText(page);
+      expectFitted(low, "Höhe −25 %", { scrollAllowed: true });
+      if (low.lines >= memo.lines) throw new Error(`niedriger Viewport kürzt nicht weiter (${low.lines} statt weniger als ${memo.lines} Zeilen)`);
+      await page.setViewportSize(size);
+      await frames(page);
+      expectFitted(await reviewMemoText(page), "Höhe zurück");
+    },
+    primary: reviewPrimary("Passt, weiter"),
+    reach: reviewFoot,
+  },
   {
     name: "durchgehen-duplikat",
     route: "/review",
@@ -2128,34 +2227,17 @@ export const STATES = [
     widths: [412, 1280],
     mock: (page) => mockReview(page, [REVIEW_QUEUE.plain]),
     open: async (page) => {
-      // Erst wenn die Vorschläge stehen, steht die Zeile still; sonst trifft der Klick das Memo darüber.
+      // Erst wenn die Vorschläge stehen, steht die Zeile still; sonst rutscht sie unter dem Klick weg.
       await page.locator('[data-testid="review-suggestions"]').first().waitFor();
       await page.locator('[data-testid="review-rule"]').first().click();
       await page.locator('[data-testid="rule-form"]').waitFor();
     },
     primary: (page) => page.getByRole("button", { name: "Regel anlegen", exact: true }).locator("visible=true").last(),
   },
-  // Das Memo-Sheet der Karte am Handy: „Speichern“ bleibt bei offener Tastatur im Bild.
-  {
-    name: "durchgehen-memo",
-    route: "/review",
-    widths: [412],
-    mock: (page) => mockReview(page, [REVIEW_QUEUE.plain]),
-    open: async (page) => {
-      await page.locator('[data-testid="review-memo"]').first().waitFor();
-      await page.locator('[data-testid="review-memo"]').first().click();
-      await page.locator('.bottom-sheet.active [data-testid="detail-memo-editor"]').waitFor();
-    },
-    primary: (page) => page.locator(".bottom-sheet.active").first().getByRole("button", { name: "Speichern", exact: true }),
-    keyboard: {
-      focus: (page) => page.locator(".bottom-sheet.active textarea, .bottom-sheet.active input").first(),
-      reach: (page) => page.locator(".bottom-sheet.active").first().getByRole("button", { name: "Speichern", exact: true }),
-    },
-  },
-  // ledger-hme9k Befund 1: im Durchgehen mit offenen „Details“ legte ein Tipp auf Payee oder Memo eine zweite Ebene über
-  // das Detail (am Handy ein zweites Sheet, am PC einen zweiten Dialog bzw. einen Dialog über dem Memo-Feld im Panel).
-  // Invariante 11 meldet sie. Soll: am Handy ersetzt die Payee-Auswahl den Inhalt des Detail-Sheets und Memo öffnet
-  // als Feld in der Zeile, am PC öffnet Payee genau einen Dialog und Memo als Feld im Panel.
+  // ledger-hme9k Befund 1: im Durchgehen mit offenen „Details“ legte ein Tipp auf den Payee eine zweite Ebene über das
+  // Detail (am Handy ein zweites Sheet, am PC einen zweiten Dialog). Invariante 11 meldet sie. Soll: am Handy ersetzt
+  // die Payee-Auswahl den Inhalt des Detail-Sheets, am PC öffnet Payee genau einen Dialog. Das Memo öffnet seit
+  // ledger-wg42w nur in „Details“ (`durchgehen-details-memo`), auf der Karte steht es nur zum Lesen.
   {
     name: "durchgehen-details-payee",
     route: "/review",
@@ -2188,7 +2270,7 @@ export const STATES = [
       reach: (page) => page.locator(".bottom-sheet.active").first().getByRole("button", { name: "Speichern", exact: true }),
     },
   },
-  // Am PC stehen Payee und Memo der Karte neben dem Panel weiter zum Antippen: auch von dort keine zweite Ebene.
+  // Am PC steht der Payee der Karte neben dem Panel weiter zum Antippen: auch von dort keine zweite Ebene.
   {
     name: "durchgehen-details-payee-karte",
     route: "/review",
@@ -2198,17 +2280,6 @@ export const STATES = [
       await openReviewDetails(page);
       await page.locator('[data-testid="review-payee"]').first().click();
       await page.locator('[data-testid="payee-picker"]').filter({ visible: true }).first().waitFor();
-    },
-  },
-  {
-    name: "durchgehen-details-memo-karte",
-    route: "/review",
-    widths: [1280],
-    mock: (page) => mockReview(page, [REVIEW_QUEUE.plain]),
-    open: async (page) => {
-      await openReviewDetails(page);
-      await page.locator('[data-testid="review-memo"]').first().click();
-      await page.locator('[data-testid="detail-memo-editor"]').filter({ visible: true }).first().waitFor();
     },
   },
   // ledger-hme9k Befund 2: „Regel anlegen“ aus dem Detail im Durchgehen ersetzt am Handy den Inhalt des Detail-Sheets.
