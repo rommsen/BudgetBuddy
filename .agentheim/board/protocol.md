@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-19 09:25 -- Batch started: [ledger-ef068, ledger-gy77x]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-ef068 - "Kassenbuch-Liste nach DS: gelbe Kante am Anker in der Kompaktliste mit Maus, Tokens für Auswahl und Rahmen, Kopf „Schnellwahl“ als sectionTitle, „Alles geprüft“ und „Alles kategorisiert“ als Card.allDone", ledger-gy77x - "Knöpfe im Kassenbuch nach DS: „+ Buchung“ als Button.fab, „Abrufen“ und „Jetzt spiegeln“ als Symbolknopf im Kopf, „Lena fragen“ auf der Karte wie im Detail, „Abbrechen“ ohne Füllung in „Betrag“ und im Split-Editor"
+**Parallel:** yes (nachgerückt nach ledger-hme9k, 3 Worker mit ledger-awf5b) — beide fassen Ledger/View.fs an anderen Stellen an, Merge nacheinander; ledger-pfhdq wartet auf ledger-y8xrr (Ledger/State.fs)
+
+---
+
 ## 2026-11-19 09:25 -- Task verified and completed: ledger-hme9k - "Durchgehen und Detail ohne zweite Ebene: Payee und Memo im offenen Detail öffnen kein zweites Sheet oder zweiten Dialog, das Regel-Formular ersetzt den Inhalt desselben Detail-Sheets, × im Split-Editor am PC führt ins Detail zurück, „Details“ schließen im Durchgehen über denselben Helfer wie im Kassenbuch (Components/Ledger/View.fs, State.fs)"
 
 **Type:** Work / Task completion

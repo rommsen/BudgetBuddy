@@ -1,7 +1,7 @@
 ---
 id: ledger-ef068
 title: "Kassenbuch-Liste nach DS: gelbe Kante am Anker in der Kompaktliste mit Maus, Tokens für Auswahl und Rahmen, Kopf „Schnellwahl“ als sectionTitle, „Alles geprüft“ und „Alles kategorisiert“ als Card.allDone"
-status: todo
+status: doing
 type: bug
 context: ledger
 created: 2026-11-19
