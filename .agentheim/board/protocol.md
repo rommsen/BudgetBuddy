@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-19 10:13 -- Batch started: [ledger-pz028]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-pz028 - "Kassenbuch-State aufräumen: drei Antworten tragen Result, das Quick-Add-Konto kommt aus den Settings des Root statt aus einem eigenen Abruf, die toten Kategorien-Zweige fallen weg, „Weitere laden“ und Nachladen teilen einen Zustand statt LoadingMore (Components/Ledger/State.fs, Types.fs)"
+**Parallel:** yes (nach ledger-pfhdq, 1 Worker; ledger-gy77x und ledger-rb3xw in Verifikation)
+
+---
+
 ## 2026-11-19 10:13 -- Modeling / Promoted: ledger-pz028 - "Kassenbuch-State aufräumen: drei Antworten tragen Result, das Quick-Add-Konto kommt aus den Settings des Root statt aus einem eigenen Abruf, die toten Kategorien-Zweige fallen weg, „Weitere laden“ und Nachladen teilen einen Zustand statt LoadingMore (Components/Ledger/State.fs, Types.fs)"
 
 **Type:** Modeling / Promote
