@@ -400,7 +400,7 @@ let private botForbiddenAccountFields = [ "account"; "account_id"; "accountId"; 
 
 /// Größter Rumpf der Vorschau in Bytes (ledger-b7k2q). Die längste gültige Anfrage (Payee 200,
 /// Kategorie 200, Memo 500 Zeichen, jedes Zeichen als `\uXXXX` maskiert) braucht rund 5,5 KB.
-/// Fest im Code, nicht konfigurierbar (ADR 0068).
+/// Fest im Code, nicht konfigurierbar (ADR 0097, wie die Grenzen aus ADR 0068).
 let botMaxBodyBytes = 8192
 
 /// Der Feldfehler zu einem Rumpf über `botMaxBodyBytes`.

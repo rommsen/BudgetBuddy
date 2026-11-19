@@ -399,7 +399,7 @@ let private bookedFromLedger (entryId: Ledger.Events.EntryId) : Async<BotCommitR
 /// Prüft Datumsfenster und Tagesgrenze am Zeitpunkt des Commits und bucht. Das Fenster wird neu
 /// geprüft, weil der Commit nach Berliner Mitternacht an einem anderen Tag liegen kann als die
 /// Vorschau (ledger-b7k2q, ADR 0068 Punkt 3). Ein `now` für Prüfung, Zählung und Buchung.
-let private bookWithinLimit (deps: BotDeps) (p: BotPreview) (entryId: Ledger.Events.EntryId) : Async<BotCommitOutcome> =
+let private bookWithinBotLimits (deps: BotDeps) (p: BotPreview) (entryId: Ledger.Events.EntryId) : Async<BotCommitOutcome> =
     async {
         let now = deps.Now()
         match checkBotBookingDate (berlinDayOf deps.BerlinZone now) p.Date with
@@ -452,7 +452,7 @@ let private bookPreview (deps: BotDeps) (p: BotPreview) (entryId: Ledger.Events.
         try
             match! bookedFromLedger entryId with
             | Some booked -> return BotBooked booked
-            | None -> return! bookWithinLimit deps p entryId
+            | None -> return! bookWithinBotLimits deps p entryId
         finally
             bookingGate.Release() |> ignore
     }
