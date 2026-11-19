@@ -89,7 +89,6 @@ let init () : Model * Cmd<Msg> =
         TotalCount = 0
         TotalAmount = { Amount = 0m; Currency = "EUR" }
         HasMoreEntries = false
-        LoadingMore = false
         IncludeDeleted = false
         DeletedCount = 0
         OnlyNeedsReview = false
@@ -146,7 +145,7 @@ let init () : Model * Cmd<Msg> =
         FocusedRow = None
         CategoryPickerFor = None
         SplitEditor = None
-        QuickAddAccountId = None
+        QuickAddAccount = NotAsked
         TransferTargets = NotAsked
         Capture = None
         DiscardingCaptured = Set.empty
@@ -165,7 +164,7 @@ let init () : Model * Cmd<Msg> =
         OrderStale = false
         EntriesGeneration = 0
         RefreshGeneration = 0
-        Refresh = RefreshIdle
+        ListActivity = ListIdle
         Review = None
         ReviewGeneration = 0
         RestoringDuplicates = Set.empty
@@ -184,7 +183,6 @@ let private resetEntries (model: Model) : Model = {
         TotalCount = 0
         TotalAmount = { model.TotalAmount with Amount = 0m }
         HasMoreEntries = false
-        LoadingMore = false
         SwipedAway = Map.empty
         Selection = NoSelection
         SelectionAnchor = None
@@ -194,11 +192,23 @@ let private resetEntries (model: Model) : Model = {
         FilteredOut = Set.empty
         OrderStale = false
         // Laufende Abfragen der alten Liste verlieren hier ihre Gültigkeit (infrastructure-r3tw7).
-        // `LoadingMore` endet oben mit ihnen, die Antwort der neuen Liste läuft unabhängig davon.
+        // Die Antwort der neuen Liste läuft unabhängig davon.
         EntriesGeneration = model.EntriesGeneration + 1
-        // Ein laufendes oder wartendes Nachladen gehört zur alten Liste (ledger-ct3cx).
-        Refresh = RefreshIdle
+        // „Weitere laden“ und ein laufendes oder wartendes Nachladen gehören zur alten Liste (ledger-ct3cx).
+        ListActivity = ListIdle
 }
+
+/// Die Antwort von „Weitere laden“ beendet es; ein Nachladen im Hintergrund läuft weiter.
+let private afterPage (activity: ListActivity) : ListActivity =
+    match activity with
+    | LoadingMorePage | LoadingMoreThenRefresh -> ListIdle
+    | ListIdle | Refreshing _ -> activity
+
+/// Wartete ein Nachladen auf die Seite, startet es jetzt (ledger-ct3cx).
+let private refreshAfterPage (activity: ListActivity) : Cmd<Msg> =
+    match activity with
+    | LoadingMoreThenRefresh -> Cmd.ofMsg RefreshEntries
+    | ListIdle | LoadingMorePage | Refreshing _ -> Cmd.none
 
 /// Neuaufbau der Liste (ledger-ct3cx): Seite 0, Auswahl leer, Skeleton, genau eine Abfrage der
 /// Seite 0. Nur bei geänderter Abfrage (Konto, Filter, Chip, Sortierung, „Gelöschte zeigen“), ohne
@@ -1574,7 +1584,7 @@ let private applyEntriesRefresh (page: LedgerEntryPage) (model: Model) : Model *
             FilteredOut = Set.empty
             OrderStale = false
             LocallyRemoved = 0
-            Refresh = RefreshIdle }
+            ListActivity = ListIdle }
     let history =
         match model.Review, detail with
         | None, Some d -> afterEntryChange d.Id refreshed
@@ -1782,21 +1792,21 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             NeedsReviewCount = entryPage.NeedsReviewCount
             AskLenaCount = entryPage.AskLenaCount
             WithoutCategoryCount = entryPage.WithoutCategoryCount
-            LoadingMore = false },
+            ListActivity = afterPage model.ListActivity },
         // Ein Nachladen, das auf diese Seite gewartet hat, holt jetzt den ganzen Ausschnitt (ledger-ct3cx).
-        (if model.Refresh = RefreshAfterPage then Cmd.ofMsg RefreshEntries else Cmd.none),
+        refreshAfterPage model.ListActivity,
         NoOp
 
     | EntriesPageLoaded (_, 0, Error message) ->
         // Der Fehler bleibt an der Liste stehen (ErrorDisplay), statt als Toast
         // wegzublenden — die Seite waere sonst still leer.
-        { model with Entries = Failure message; LoadingMore = false }, Cmd.none, NoOp
+        { model with Entries = Failure message; ListActivity = afterPage model.ListActivity }, Cmd.none, NoOp
 
     | EntriesPageLoaded (_, _, Error message) ->
         // Ein Fehler beim Nachladen loescht die bereits sichtbare Liste nicht: sie
         // bleibt stehen, nur der Hinweis erscheint als Toast.
-        { model with LoadingMore = false },
-        (if model.Refresh = RefreshAfterPage then Cmd.ofMsg RefreshEntries else Cmd.none),
+        { model with ListActivity = afterPage model.ListActivity },
+        refreshAfterPage model.ListActivity,
         ShowToast ($"Weitere Buchungen konnten nicht geladen werden: {message}", ToastError)
 
     | LoadMoreEntries ->
@@ -1804,19 +1814,19 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         // ohne weitere Seiten, keiner ohne eine erfolgreich geladene erste Seite.
         // Bei veralteter Reihenfolge ruht das Nachladen, bis "Neu laden" die Liste neu aufsetzt.
         // Während eines Nachladens im Hintergrund ruht es auch: die Seite gehörte zum alten Ausschnitt.
-        if model.LoadingMore || refreshRunning model || model.OrderStale || not model.HasMoreEntries || not (RemoteData.isSuccess model.Entries) then
+        if model.ListActivity <> ListIdle || model.OrderStale || not model.HasMoreEntries || not (RemoteData.isSuccess model.Entries) then
             model, Cmd.none, NoOp
         else
-            { model with LoadingMore = true }, Cmd.ofMsg (RunLoadEntriesPage model.NextPage), NoOp
+            { model with ListActivity = LoadingMorePage }, Cmd.ofMsg (RunLoadEntriesPage model.NextPage), NoOp
 
     | RefreshEntries ->
         match model.SelectedFilter, model.Entries with
         | None, _ -> model, Cmd.none, NoOp
-        | Some _, Success _ when model.LoadingMore ->
+        | Some _, Success _ when nextPageLoading model ->
             // Erst die laufende Seite abwarten, dann den ganzen Ausschnitt samt ihr holen.
-            { model with Refresh = RefreshAfterPage }, Cmd.none, NoOp
+            { model with ListActivity = LoadingMoreThenRefresh }, Cmd.none, NoOp
         | Some _, Success rows ->
-            { model with RefreshGeneration = model.RefreshGeneration + 1; Refresh = RefreshRunning rows },
+            { model with RefreshGeneration = model.RefreshGeneration + 1; ListActivity = Refreshing rows },
             Cmd.ofMsg RunRefreshEntries,
             NoOp
         | Some _, _ ->
@@ -1843,8 +1853,8 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
     // Ein Einzelbefehl hat seit dem Start eine Zeile geändert (ledger-ct3cx, Review a3f7eb1d..982bdf79):
     // die Antwort kann ihn noch nicht kennen und setzte Zeile, Detail und Zähler auf den alten Stand.
     // Verworfen und neu gefragt, statt Zeilen und Zähler aus zwei Ständen zu mischen.
-    | EntriesRefreshed (_, _, Ok _) when (match model.Refresh with RefreshRunning basis -> model.Entries <> Success basis | _ -> false) ->
-        { model with Refresh = RefreshIdle }, Cmd.ofMsg RefreshEntries, NoOp
+    | EntriesRefreshed (_, _, Ok _) when (match model.ListActivity with Refreshing basis -> model.Entries <> Success basis | _ -> false) ->
+        { model with ListActivity = ListIdle }, Cmd.ofMsg RefreshEntries, NoOp
 
     | EntriesRefreshed (_, _, Ok page) ->
         let refreshed, cmd = applyEntriesRefresh page model
@@ -1852,7 +1862,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
 
     | EntriesRefreshed (_, _, Error message) ->
         // Die Liste bleibt mit Auswahl stehen, nur der Hinweis erscheint.
-        { model with Refresh = RefreshIdle },
+        { model with ListActivity = ListIdle },
         Cmd.none,
         ShowToast ($"Liste konnte nicht aktualisiert werden: {message}", ToastWarning)
 
@@ -2034,11 +2044,9 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
     // Filterleiste und Summenzeile (ledger-j8xq4)
     // ============================================
 
-    | LoadCategories ->
-        // Der eigentliche Aufruf braucht das konfigurierte YNAB-Budget und läuft
-        // deshalb im Haupt-`State.fs` (analog zu `Components.Rules.State`s
-        // `LoadCategories`), nicht hinter dem Proxy dieses Moduls.
-        { model with Categories = Loading }, Cmd.none, NoOp
+    // Kommt nie an: der Root (`src/Client/State.fs`) fängt `LedgerMsg LoadCategories` ab, setzt den
+    // Ladezustand und ruft mit dem Budget aus seinen Settings ab.
+    | LoadCategories -> model, Cmd.none, NoOp
 
     | CategoriesLoaded (generation, result) ->
         // Die Antwort beendet den laufenden Abruf, wenn sie zu ihm gehört. Den Stand setzt sie nur, wenn
@@ -2058,9 +2066,9 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
                 // Ein vorhandener Stand bleibt sichtbar (ledger-kwwxz); nur ohne Stand wird der Fehler zum Zustand.
                 { finished with Categories = RemoteData.lateFailure message model.Categories }, Cmd.none, NoOp
 
-    | EnsureCategoriesFresh ->
-        // Die Entscheidung und der Abruf liegen im Haupt-`State.fs`.
-        model, Cmd.none, NoOp
+    // Kommt nie an: der Root (`src/Client/State.fs`) fängt `LedgerMsg EnsureCategoriesFresh` ab und leitet bei
+    // altem Stand auf `LoadCategories` um.
+    | EnsureCategoriesFresh -> model, Cmd.none, NoOp
 
     | OpenFilterPopover chip ->
         let model' =
@@ -3448,11 +3456,13 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         Cmd.OfAsync.either
             (Retry.reading Api.ledger.getBookingCategoryForPayee)
             payee
-            (fun category -> CapturePayeeCategoryLoaded (payee, category))
-            (fun _ -> CapturePayeeCategoryLoaded (payee, None)),
+            (fun category -> CapturePayeeCategoryLoaded (payee, Ok category))
+            (fun ex -> CapturePayeeCategoryLoaded (payee, Error ex.Message)),
         NoOp
 
-    | CapturePayeeCategoryLoaded (payee, category) ->
+    | CapturePayeeCategoryLoaded (payee, result) ->
+        // Ein Fehler beim Nachschlagen gilt als „keine Kategorie gefunden“: das Anlegen geht ohne Kategorie weiter.
+        let category = match result with Ok found -> found | Error _ -> None
         match model.Capture with
         | Some capture ->
             let lookup = if capture.PayeeLookup = Some payee then None else capture.PayeeLookup
@@ -3676,18 +3686,9 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         let cmd = if target.IsNone then Cmd.ofMsg EnsureCategoriesFresh else Cmd.none
         editSplit (SplitEditor.startCashback target) model, cmd, NoOp
 
-    | LoadQuickAddAccount ->
-        model,
-        Cmd.OfAsync.either
-            (Retry.reading Api.settings.getSettings)
-            ()
-            (fun settings -> QuickAddAccountLoaded (Ok (settings.Ynab |> Option.bind (fun y -> y.QuickAddAccountId))))
-            (fun ex -> QuickAddAccountLoaded (Error ex.Message)),
-        NoOp
-
-    | QuickAddAccountLoaded (Ok id) -> { model with QuickAddAccountId = id }, Cmd.none, NoOp
-    // Ohne das Konto bleibt das Ziel der Übertrag-Zeile leer und wählbar; ein Fehler ist keinen Toast wert.
-    | QuickAddAccountLoaded (Error _) -> model, Cmd.none, NoOp
+    // Kommt nie an: der Root (`src/Client/State.fs`) fängt `LedgerMsg LoadQuickAddAccount` ab und füllt
+    // `QuickAddAccount` aus seinen Settings.
+    | LoadQuickAddAccount -> model, Cmd.none, NoOp
 
     | OpenSplitTargetPicker index ->
         editSplit (fun e -> { e with Picker = SplitEditor.SplitTargetPickerFor index }) model, Cmd.ofMsg EnsureCategoriesFresh, NoOp
@@ -4488,11 +4489,13 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         Cmd.OfAsync.either
             (Retry.reading (Api.ledger.getPayeeCategorySuggestions payee))
             None
-            (fun ids -> ReviewSuggestionsLoaded (entryId, ids))
-            (fun _ -> ReviewSuggestionsLoaded (entryId, [])),
+            (fun ids -> ReviewSuggestionsLoaded (entryId, Ok ids))
+            (fun ex -> ReviewSuggestionsLoaded (entryId, Error ex.Message)),
         NoOp
 
-    | ReviewSuggestionsLoaded (entryId, ids) when isReviewCard model entryId ->
+    // Ohne Antwort bleiben die Vorschläge leer, die Karte geht ohne sie weiter.
+    | ReviewSuggestionsLoaded (entryId, result) when isReviewCard model entryId ->
+        let ids = match result with Ok ids -> ids | Error _ -> []
         editReview (fun r -> { r with Suggestions = ids }) model, Cmd.none, NoOp
 
     | ReviewSuggestionsLoaded _ -> model, Cmd.none, NoOp
@@ -4502,12 +4505,12 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         Cmd.OfAsync.either
             (Retry.reading Api.ledger.getLedgerEntry)
             matchId
-            (fun found -> ReviewMatchLoaded (matchId, found))
-            (fun _ -> ReviewMatchLoaded (matchId, None)),
+            (fun found -> ReviewMatchLoaded (matchId, Ok found))
+            (fun ex -> ReviewMatchLoaded (matchId, Error ex.Message)),
         NoOp
 
-    // Ohne Antwort bleibt der Schnappschuss aus dem Ereignis.
-    | ReviewMatchLoaded (matchId, Some found) ->
+    // Ohne Antwort (Fehler oder keine Buchung) bleibt der Schnappschuss aus dem Ereignis.
+    | ReviewMatchLoaded (matchId, Ok (Some found)) ->
         editReview (fun r -> { r with Matches = r.Matches |> Map.add matchId found }) model, Cmd.none, NoOp
 
     | ReviewMatchLoaded _ -> model, Cmd.none, NoOp

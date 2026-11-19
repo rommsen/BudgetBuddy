@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-19 10:51 -- Task verified and completed: ledger-pz028 - "Kassenbuch-State aufräumen: drei Antworten tragen Result, das Quick-Add-Konto kommt aus den Settings des Root statt aus einem eigenen Abruf, die toten Kategorien-Zweige fallen weg, „Weitere laden“ und Nachladen teilen einen Zustand statt LoadingMore (Components/Ledger/State.fs, Types.fs)"
+
+**Type:** Work / Task completion
+**Task:** ledger-pz028 - "Kassenbuch-State aufräumen: drei Antworten tragen Result, das Quick-Add-Konto kommt aus den Settings des Root statt aus einem eigenen Abruf, die toten Kategorien-Zweige fallen weg, „Weitere laden“ und Nachladen teilen einen Zustand statt LoadingMore (Components/Ledger/State.fs, Types.fs)"
+**Summary:** Kassenbuch-State aufgeräumt: Antworten mit Result, Quick-Add-Konto aus Root-Settings, tote Zweige, ListActivity statt LoadingMore
+**Duration:** 45m
+**Verification:** PASS (iteration 1)
+**Files changed:** 12
+**Tests added:** 7
+**ADRs written:** none
+
+---
+
 ## 2026-11-19 10:47 -- Task verified and completed: ledger-zf6zg - "„Neue Buchung“ nach DS: Kontowahl als Money.accountChoiceRow wie im Sheet „Konto“, Kopf des Panels wie der Kopf des Details, „Abbrechen“ ohne Füllung, Payee-Feld sagt „optional“"
 
 **Type:** Work / Task completion

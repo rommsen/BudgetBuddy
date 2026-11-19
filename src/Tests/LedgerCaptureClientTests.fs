@@ -267,7 +267,7 @@ let fillTests =
                 |> step (SetCapturePayee "Tankstelle")
             let _, sent, _ = run CommitCapturePayee model
             Expect.equal sent [ RunLoadCapturePayeeCategory "Tankstelle" ] "Abfrage"
-            let form = formOf (step (CapturePayeeCategoryLoaded ("Tankstelle", Some fuel)) model)
+            let form = formOf (step (CapturePayeeCategoryLoaded ("Tankstelle", Ok (Some fuel))) model)
             Expect.equal form.Target (Some (BookOnCategory fuel)) "vorbelegt"
 
         testCase "ein gewähltes Ziel überschreibt die Kategorie zum Payee nicht" <| fun () ->
@@ -277,12 +277,12 @@ let fillTests =
                 |> step (SetCapturePayee "Tankstelle")
             let _, sent, _ = run CommitCapturePayee model
             Expect.isEmpty sent "keine Abfrage"
-            let form = formOf (step (CapturePayeeCategoryLoaded ("Tankstelle", Some fuel)) model)
+            let form = formOf (step (CapturePayeeCategoryLoaded ("Tankstelle", Ok (Some fuel))) model)
             Expect.equal form.Target (Some (BookAsTransfer barY)) "Ziel bleibt"
 
         testCase "eine Antwort zu einem alten Payee wird verworfen" <| fun () ->
             let model = opened None |> step (SetCapturePayee "Bäckerei")
-            let form = formOf (step (CapturePayeeCategoryLoaded ("Tankstelle", Some fuel)) model)
+            let form = formOf (step (CapturePayeeCategoryLoaded ("Tankstelle", Ok (Some fuel))) model)
             Expect.isNone form.Target "kein Ziel"
     ]
 
@@ -564,7 +564,7 @@ let payeeLookupOrderTests =
                 |> step (SetCaptureAmount "8,60")
                 |> step (SetCapturePayee "Tankstelle")
                 |> step CommitCapturePayee
-            let ways = permutations [ SubmitCapture; SubmitCapture; CapturePayeeCategoryLoaded ("Tankstelle", Some fuel) ] |> List.distinct
+            let ways = permutations [ SubmitCapture; SubmitCapture; CapturePayeeCategoryLoaded ("Tankstelle", Ok (Some fuel)) ] |> List.distinct
             for way in ways do
                 let mutable model, requests = start, []
                 for msg in way do
@@ -575,6 +575,19 @@ let payeeLookupOrderTests =
                 | [ request ] -> Expect.equal request.Target (Some (BookOnCategory fuel)) $"Kategorie im Aufruf bei {way}"
                 | other -> failtest $"genau ein Aufruf erwartet bei {way}: {other}"
                 Expect.isTrue (captureOf model).Saving $"läuft bei {way}"
+
+        testCase "scheitert die Abfrage der Kategorie zum Payee, startet das wartende Anlegen ohne Kategorie (ledger-pz028)" <| fun () ->
+            let waiting =
+                opened (Some (OneAccount bar))
+                |> step (SetCaptureAmount "8,60")
+                |> step (SetCapturePayee "Tankstelle")
+                |> step CommitCapturePayee
+                |> step SubmitCapture
+            let model, sent, _ = run (CapturePayeeCategoryLoaded ("Tankstelle", Error "x")) waiting
+            match submitCalls sent with
+            | [ request ] -> Expect.isNone request.Target "ohne Kategorie, wie bei keinem Treffer"
+            | other -> failtest $"genau ein Aufruf erwartet: {other}"
+            Expect.isTrue (captureOf model).Saving "läuft"
 
         testCase "solange die Kategorie zum Payee lädt, ist Buchung anlegen belegt, aber startet nichts" <| fun () ->
             let model =

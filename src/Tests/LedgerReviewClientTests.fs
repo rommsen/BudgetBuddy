@@ -460,10 +460,10 @@ let caseTests =
                 { model with
                     DetailFor = None
                     Review = model.Review |> Option.map (fun r -> { r with Queue = Success [ unknown; idOf cardC ]; Snapshots = r.Snapshots |> Map.remove (idOf cardA) }) }
-            let after, msgs, _ = run (ReviewSuggestionsLoaded (Guid.NewGuid (), [])) broken
+            let after, msgs, _ = run (ReviewSuggestionsLoaded (Guid.NewGuid (), Ok [])) broken
             Expect.equal (cardId after) (Some (idOf cardC)) "weiter zur nächsten bekannten Karte"
             Expect.isEmpty (msgs |> List.filter (function RunReviewRefresh id -> id = unknown | _ -> false)) "die unbekannte wird nicht gelesen"
-            let _, again, _ = run (ReviewSuggestionsLoaded (Guid.NewGuid (), [])) after
+            let _, again, _ = run (ReviewSuggestionsLoaded (Guid.NewGuid (), Ok [])) after
             Expect.isEmpty (again |> List.filter (function RunReviewRefresh _ -> true | _ -> false)) "kein Neulesen ohne Anlass"
 
         testCase "Rückgängig nach dem Verwerfen meldet sich mit einem Toast und schickt nur einmal" <| fun () ->
@@ -708,3 +708,25 @@ let lenaWalkTests =
         Expect.isGreaterThan visited 100 "die Aufzählung läuft wirklich"
         Expect.isGreaterThan fromEnd 0 "der Fehler kommt auch in der Endansicht an"
         Expect.isGreaterThan heldByMemo 0 "der Fehler kommt auch bei offenem Memo auf B an"
+
+/// ledger-pz028: Vorschläge und Treffer kommen als `Result`, ein Fehler entscheidet sich im `update`.
+[<Tests>]
+let answerResultTests =
+    testList "Durchgehen: Antworten mit Result (ledger-pz028)" [
+        testCase "scheitern die Vorschläge, bleiben sie leer" <| fun () ->
+            let model = reviewing [ cardA ]
+            let suggestionsOf (m: Model) = m.Review |> Option.map (fun r -> r.Suggestions)
+            let loaded = model |> step (ReviewSuggestionsLoaded (idOf cardA, Ok [ YnabCategoryId food ]))
+            Expect.equal (suggestionsOf loaded) (Some [ YnabCategoryId food ]) "Ok übernimmt die Vorschläge"
+            let failed = loaded |> step (ReviewSuggestionsLoaded (idOf cardA, Error "x"))
+            Expect.equal (suggestionsOf failed) (Some []) "Error: leer"
+
+        testCase "scheitert das Lesen des Treffers, bleibt der Schnappschuss aus dem Ereignis" <| fun () ->
+            let model = reviewing [ dupD; cardA ]
+            let matchId = idOf cardC
+            let matchesOf (m: Model) = m.Review |> Option.map (fun r -> r.Matches |> Map.tryFind matchId)
+            let failed = model |> step (ReviewMatchLoaded (matchId, Error "x"))
+            Expect.equal (matchesOf failed) (Some None) "kein gelesener Treffer, die Karte zeigt das Ereignis"
+            let found = model |> step (ReviewMatchLoaded (matchId, Ok (Some cardC)))
+            Expect.equal (matchesOf found) (Some (Some cardC)) "Ok übernimmt den Treffer"
+    ]

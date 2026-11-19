@@ -1990,7 +1990,7 @@ let private splitEditorBody
               (not saving)
               (fun () ->
                   dispatch (
-                      StartSplitCashback (SplitLogic.cashbackTarget model.QuickAddAccountId (transferTargetsFor model entry))
+                      StartSplitCashback (SplitLogic.cashbackTarget (quickAddAccountOf model) (transferTargetsFor model entry))
                   )) ]
 
 /// Der Editor im offenen Detail dieser Buchung, sonst `None`.
@@ -3029,7 +3029,7 @@ let private entryList
                     sort
                     entries
 
-            if model.LoadingMore then
+            if nextPageLoading model then
                 Html.div [
                     prop.className "mt-2"
                     prop.children [
@@ -3039,7 +3039,7 @@ let private entryList
                 ]
 
             if model.HasMoreEntries then
-                ScrollSentinel (fun () -> dispatch LoadMoreEntries) (model.HasMoreEntries && not model.LoadingMore && not (refreshRunning model))
+                ScrollSentinel (fun () -> dispatch LoadMoreEntries) (model.HasMoreEntries && model.ListActivity = ListIdle)
         ]
 
 // ============================================

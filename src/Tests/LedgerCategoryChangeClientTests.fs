@@ -632,10 +632,33 @@ let viewTests =
             Expect.equal (notice (Failure categoriesNoBudget)) (failedWith "Kein Standard-Budget in den Settings gewählt") "Budget fehlt"
             Expect.equal (notice (Failure "Http error (500)")) (failedWith "Kategorien konnten nicht geladen werden") "sonstiger Fehler"
 
+        // Der Root fängt `LoadCategories` ab (ledger-pz028): der Test läuft über sein `update`.
         testCase "LoadCategories nach einem Fehlschlag schaltet auf Loading (dmw83)" <| fun () ->
+            let settingsModel, _ = Components.Settings.State.init ()
+            let rulesModel, _ = Components.Rules.State.init ()
+            let settings : AppSettingsView =
+                { Comdirect = None
+                  Ynab = Some { HasToken = true; DefaultBudgetId = Some (YnabBudgetId "budget"); DefaultAccountId = None; QuickAddAccountId = None }
+                  Sync = { DaysToFetch = 30; AutoFetchEnabled = true; AutoFetchIntervalMinutes = 360 } }
+            let root : State.Model =
+                { CurrentPage = Page.Ledger
+                  Toasts = []
+                  Pwa = Pwa.initialState
+                  Settings = { settingsModel with Settings = Success settings }
+                  Fetch = Components.Fetch.Types.init
+                  Rules = rulesModel
+                  Ledger = { defaultModel () with Categories = Failure "x" }
+                  Budget = Components.Budget.State.init ()
+                  Overview = Components.Overview.Types.init
+                  SettingsReturn = Page.Overview }
+            let model, _ = State.update (State.LedgerMsg LoadCategories) root
+            Expect.equal model.Ledger.Categories Loading "der Abruf beginnt, der Picker zeigt den Ladehinweis"
+
+        testCase "im Kassenbuch-update setzen LoadCategories und EnsureCategoriesFresh keinen Zustand (ledger-pz028)" <| fun () ->
             let failed = { defaultModel () with Categories = Failure "x" }
-            let model, _, _ = update LoadCategories failed
-            Expect.equal model.Categories Loading "der Abruf beginnt, der Picker zeigt den Ladehinweis"
+            for msg in [ LoadCategories; EnsureCategoriesFresh ] do
+                let model, _, _ = update msg failed
+                Expect.equal model failed $"{msg}: der Root leitet sie, hier bleibt alles"
     ]
 
 // ============================================

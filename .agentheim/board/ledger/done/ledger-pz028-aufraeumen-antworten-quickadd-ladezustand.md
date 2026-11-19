@@ -1,7 +1,7 @@
 ---
 id: ledger-pz028
 title: "Kassenbuch-State aufräumen: drei Antworten tragen Result, das Quick-Add-Konto kommt aus den Settings des Root statt aus einem eigenen Abruf, die toten Kategorien-Zweige fallen weg, „Weitere laden“ und Nachladen teilen einen Zustand statt LoadingMore (Components/Ledger/State.fs, Types.fs)"
-status: doing
+status: done
 type: refactor
 context: ledger
 created: 2026-11-19
@@ -93,3 +93,14 @@ Urteile (geprüft an HEAD f98a8ce6):
   hier mit `Refresh` zusammengelegt. `MirrorRunning` entfällt: anderer Aufruf als `LastMirrorRun`, eine Befehlssperre
   (siehe Entscheidungen).
 - Befund 8 erledigt ledger-pfhdq.
+
+## Outcome
+
+Refactor nach Bestandsreview G3, Teil 3. Sichtbares Verhalten bleibt, bis auf den genannten Fehlerfall des Quick-Add-Kontos.
+
+- **Antworten mit Result**: `CapturePayeeCategoryLoaded`, `ReviewSuggestionsLoaded` und `ReviewMatchLoaded` tragen `Result<_, string>` (`src/Client/Components/Ledger/Types.fs`), der Fehlerzweig im `Cmd` reicht `Error ex.Message` durch. Im `update` (`src/Client/Components/Ledger/State.fs`) gilt `Error` als „keine Kategorie“ (das wartende Anlegen startet ohne Kategorie), als leere Vorschläge und als stehender Schnappschuss aus dem Ereignis. Tests: `LedgerCaptureClientTests.fs` („scheitert die Abfrage der Kategorie zum Payee …“), `LedgerReviewClientTests.fs` (`answerResultTests`); bestehende Tests auf `Ok …` umgezogen.
+- **Quick-Add-Konto aus einer Quelle**: `Model.QuickAddAccount: RemoteData<YnabAccountId option>`, gelesen über `quickAddAccountOf` (Types.fs) in der View (`SplitLogic.cashbackTarget`). Der Root (`src/Client/State.fs`) fängt `LedgerMsg LoadQuickAddAccount` ab: mit geladenen Settings sofort `Success`, sonst `Loading` und ein `LoadSettings`, wenn keines läuft; `SettingsLoaded` füllt ein wartendes Konto (`quickAddAccountFrom`), ein Fehler wird `Failure`. `getSettings` und `QuickAddAccountLoaded` sind aus dem Kassenbuch verschwunden. Tests im Root-`update`: `LedgerSplitEditorClientTests.fs` (drei Fälle „Root: …“). Abweichung vom alten Verhalten: früher ließ ein Fehler einen alten Wert stehen, jetzt ist der Zustand `Failure` und die Übertrag-Zeile ohne Ziel, so wie die Task es verlangt. `RetryTests.fs` (Inventar ohne `getSettings`) und `scripts/ledger-split-cashback.test.mjs` (wartet nur noch auf `getBudgetAccounts`) zogen mit.
+- **Tote Zweige**: `LoadCategories`, `EnsureCategoriesFresh` und `LoadQuickAddAccount` sind im Kassenbuch-`update` Zweige ohne Zustandsänderung mit Kommentar, wohin der Root sie leitet. Der Test „LoadCategories nach einem Fehlschlag schaltet auf Loading (dmw83)“ läuft jetzt über das Root-`update` (`LedgerCategoryChangeClientTests.fs`), dazu ein Test, dass beide im Kassenbuch-`update` nichts ändern (Kriterium 4).
+- **Ladezustand der Liste**: `ListActivity = ListIdle | LoadingMorePage | LoadingMoreThenRefresh | Refreshing of basis` ersetzt `LoadingMore: bool` und `RefreshState` (Feld `ListActivity`). `refreshRunning`, das neue `nextPageLoading`, `resetEntries`, `afterPage` und `refreshAfterPage` (State.fs) lesen bzw. setzen ihn; `LoadMoreEntries` und der Scroll-Sentinel verlangen `ListIdle`. Die Tests in `LedgerBackgroundRefreshTests.fs` und `LedgerPageTests.fs` sind inhaltlich gleich, nur auf die neuen Namen umgestellt.
+- README-Delta (Barabhebung, Nachladen im Hintergrund) mit `npm run check:readme-delta -- --bc ledger` geprüft: Exit 0, „Ganz nachlesen: keine Einträge“.
+- `./verify.sh`: `VERIFY: PASS` (dotnet 5211, node 351). Ein früherer Lauf hatte eine rote Stelle in `[layout] Sweep` bei `regeln-panel @ 1440 px` (Regeln-Seite, von dieser Task nicht angefasst). Einzeln wiederholt war sie grün, im nächsten vollen Lauf auch. Sie ist also flaky.

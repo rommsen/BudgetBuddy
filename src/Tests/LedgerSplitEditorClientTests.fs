@@ -744,6 +744,35 @@ let viewTests =
             Expect.equal (splitActionLabel (splitEntry 1)) "Ändern" "aufgeteilt"
     ]
 
+/// Ein Root-Modell mit gegebenem Stand der Settings, für das Quick-Add-Konto (ledger-pz028).
+let private rootWith (settings: RemoteData<AppSettingsView>) : State.Model =
+    let settingsModel, _ = Components.Settings.State.init ()
+    let rulesModel, _ = Components.Rules.State.init ()
+    let ledgerModel, _ = Components.Ledger.State.init ()
+    { CurrentPage = Page.Ledger
+      Toasts = []
+      Pwa = Pwa.initialState
+      Settings = { settingsModel with Settings = settings }
+      Fetch = Components.Fetch.Types.init
+      Rules = rulesModel
+      Ledger = ledgerModel
+      Budget = Components.Budget.State.init ()
+      Overview = Components.Overview.Types.init
+      SettingsReturn = Page.Overview }
+
+let private settingsWithQuickAdd (account: YnabAccountId option) : AppSettingsView =
+    { Comdirect = None
+      Ynab = Some { HasToken = true; DefaultBudgetId = Some (YnabBudgetId "budget"); DefaultAccountId = None; QuickAddAccountId = account }
+      Sync = { DaysToFetch = 30; AutoFetchEnabled = true; AutoFetchIntervalMinutes = 360 } }
+
+let private quickAddMsg = State.LedgerMsg LoadQuickAddAccount
+
+/// Nur für `Cmd.ofMsg`/`Cmd.batch`/`Cmd.map`, kein `Cmd.OfAsync`.
+let private rootSent (cmd: Elmish.Cmd<State.Msg>) : State.Msg list =
+    let collected = ResizeArray<State.Msg>()
+    cmd |> List.iter (fun effect -> effect collected.Add)
+    List.ofSeq collected
+
 // ledger-s8t3s: Knopf "Barabhebung" im Split-Editor des Kassenbuchs.
 [<Tests>]
 let cashbackTests =
@@ -831,13 +860,34 @@ let cashbackTests =
             let _, sentWithTarget, _ = run (StartSplitCashback toCash) model
             Expect.isEmpty sentWithTarget "mit Ziel kein Picker"
 
-        testCase "Reducer: das Öffnen des Editors holt das Quick-Add-Konto, die Antwort landet im Modell" <| fun () ->
+        testCase "Reducer: das Öffnen des Editors fragt nach dem Quick-Add-Konto" <| fun () ->
             let _, sent, _ = run (OpenSplitEditor (idOf 1)) (modelWith [ entryOf 1; entryOf 2 ])
-            Expect.contains sent LoadQuickAddAccount "Abruf beim Öffnen"
-            let loaded, _, _ = update (QuickAddAccountLoaded (Ok (Some cashAccountId))) (modelWith [ entryOf 1 ])
-            Expect.equal loaded.QuickAddAccountId (Some cashAccountId) "gemerkt"
-            let failed, _, _ = update (QuickAddAccountLoaded (Error "weg")) loaded
-            Expect.equal failed.QuickAddAccountId (Some cashAccountId) "ein Fehler lässt den Stand"
+            Expect.contains sent LoadQuickAddAccount "beim Öffnen"
+
+        // ledger-pz028: das Konto kommt aus den Settings des Root, kein eigener Abruf.
+        testCase "Root: mit geladenen Settings steht das Quick-Add-Konto sofort fest, ohne Aufruf" <| fun () ->
+            let model, cmd = State.update quickAddMsg (rootWith (Success (settingsWithQuickAdd (Some cashAccountId))))
+            Expect.equal model.Ledger.QuickAddAccount (Success (Some cashAccountId)) "aus den Settings"
+            Expect.isEmpty cmd "kein Aufruf"
+
+        testCase "Root: laden die Settings noch, wartet das Konto auf ihre Antwort, mit genau einem LoadSettings" <| fun () ->
+            let asked, firstCmd = State.update quickAddMsg (rootWith NotAsked)
+            Expect.equal asked.Ledger.QuickAddAccount Loading "wartet"
+            Expect.equal (rootSent firstCmd) [ State.SettingsMsg Components.Settings.Types.LoadSettings ] "die Settings laden"
+            let loading = { asked with Settings = { asked.Settings with Settings = Loading } }
+            let again, secondCmd = State.update quickAddMsg loading
+            Expect.isEmpty (rootSent secondCmd) "kein zweites LoadSettings, solange eines läuft"
+            let loaded, _ =
+                State.update
+                    (State.SettingsMsg (Components.Settings.Types.SettingsLoaded (Ok (settingsWithQuickAdd (Some cashAccountId)))))
+                    again
+            Expect.equal loaded.Ledger.QuickAddAccount (Success (Some cashAccountId)) "aus der Antwort"
+
+        testCase "Root: scheitern die Settings, ist das Konto Failure und die Übertrag-Zeile hat kein Ziel" <| fun () ->
+            let asked, _ = State.update quickAddMsg (rootWith NotAsked)
+            let failed, _ = State.update (State.SettingsMsg (Components.Settings.Types.SettingsLoaded (Error "weg"))) asked
+            Expect.equal failed.Ledger.QuickAddAccount (Failure "weg") "der Fehler ist der Zustand"
+            Expect.isNone (cashbackTarget (quickAddAccountOf failed.Ledger) [ cashAccount; otherAccount ]) "leer und wählbar"
     ]
 
 // ledger-ng110: Ein abgelehntes Speichern stand nur im Toast, während der Editor offen blieb (§7.13: blockierende

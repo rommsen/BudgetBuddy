@@ -690,7 +690,7 @@ let reducerTests =
                     (freshModel ())
             let updated, _, external = Components.Ledger.State.update (EntriesPageLoaded (0, 1, Error "Netzwerkfehler")) loaded
             Expect.equal updated.Entries loaded.Entries "Die bereits geladene Liste bleibt stehen"
-            Expect.isFalse updated.LoadingMore "Das Nachladen ist beendet, auch bei einem Fehler"
+            Expect.isFalse (nextPageLoading updated) "Das Nachladen ist beendet, auch bei einem Fehler"
             match external with
             | ShowToast (message, ToastError) -> Expect.stringContains message "Netzwerkfehler" "Der Fehler wird genannt"
             | other -> failtestf "Erwartet Fehler-Toast, war %A" other
@@ -702,7 +702,7 @@ let reducerTests =
                     (EntriesPageLoaded (0, 0, Ok (page [ entryView 1 -1m false ] 5)))
                     (freshModel ())
             let updated, cmd, _ = Components.Ledger.State.update LoadMoreEntries loaded
-            Expect.isTrue updated.LoadingMore "Das Nachladen laeuft"
+            Expect.isTrue (nextPageLoading updated) "Das Nachladen laeuft"
             let msgs = dispatched cmd
             Expect.contains msgs (RunLoadEntriesPage loaded.NextPage) "Die naechste Seite wird angefordert"
         }
@@ -712,7 +712,7 @@ let reducerTests =
                 Components.Ledger.State.update
                     (EntriesPageLoaded (0, 0, Ok (page [ entryView 1 -1m false ] 5)))
                     (freshModel ())
-            let alreadyLoading = { loaded with LoadingMore = true }
+            let alreadyLoading = { loaded with ListActivity = LoadingMorePage }
             let updated, cmd, _ = Components.Ledger.State.update LoadMoreEntries alreadyLoading
             Expect.equal updated alreadyLoading "Kein zweiter Nachlade-Aufruf waehrend einer laeuft"
             Expect.isEmpty (dispatched cmd) "Kein Kommando"
@@ -3666,21 +3666,21 @@ let private staleAnswerTests =
 
         testCase "Das Scheitern einer alten Nachlade-Seite meldet nichts und lässt das laufende Nachladen stehen" <| fun () ->
             let shown = update (EntriesPageLoaded ((rebuilt (loaded ())).EntriesGeneration, 0, Ok newPage)) (rebuilt (loaded ()))
-            let running = { shown with LoadingMore = true }
+            let running = { shown with ListActivity = LoadingMorePage }
             let after, _, external =
                 Components.Ledger.State.update (EntriesPageLoaded (shown.EntriesGeneration - 1, 1, Error "Http error (0)")) running
             Expect.equal external NoOp "kein Toast"
-            Expect.isTrue after.LoadingMore "die aktuelle Nachlade-Seite läuft noch"
+            Expect.isTrue (nextPageLoading after) "die aktuelle Nachlade-Seite läuft noch"
 
         testCase "Nach einem Neuaufbau mit laufendem Nachladen hängt kein Ladezustand, das Nachladen geht weiter" <| fun () ->
             let running = update LoadMoreEntries (loaded ())
-            Expect.isTrue running.LoadingMore "Nachladen läuft"
+            Expect.isTrue (nextPageLoading running) "Nachladen läuft"
             let next = rebuilt running
             let shown = update (EntriesPageLoaded (next.EntriesGeneration, 0, Ok { newPage with TotalCount = 9 })) next
             let after = update (EntriesPageLoaded (running.EntriesGeneration, 1, Ok oldPage)) shown
-            Expect.isFalse after.LoadingMore "kein Spinner"
+            Expect.isFalse (nextPageLoading after) "kein Spinner"
             let again, cmd, _ = Components.Ledger.State.update LoadMoreEntries after
-            Expect.isTrue again.LoadingMore "die nächste Seite startet"
+            Expect.isTrue (nextPageLoading again) "die nächste Seite startet"
             Expect.equal (dispatched cmd) [ RunLoadEntriesPage 1 ] "ab Seite 1 der neuen Liste"
 
         testCase "Die Antwort der aktuellen Generation gilt weiter, Erfolg und Scheitern" <| fun () ->
@@ -3696,10 +3696,10 @@ let private staleAnswerTests =
             Expect.isGreaterThan (rebuilt start).EntriesGeneration start.EntriesGeneration "Filterwechsel"
             Expect.isGreaterThan (update (SetSort SortByAmount) start).EntriesGeneration start.EntriesGeneration "Sortierung"
             let empty = { Accounts = []; DefaultAccountId = None }
-            let gone = update (AccountsLoaded (Ok empty)) { start with LoadingMore = true }
+            let gone = update (AccountsLoaded (Ok empty)) { start with ListActivity = LoadingMorePage }
             Expect.isGreaterThan gone.EntriesGeneration start.EntriesGeneration "kein Konto mehr"
             Expect.equal gone.Entries NotAsked "keine Liste"
-            Expect.isFalse gone.LoadingMore "kein Spinner"
+            Expect.isFalse (nextPageLoading gone) "kein Spinner"
 
         testCase "Summen einer alten Liste erreichen die neue Liste nicht, auch wenn sie veraltet ist" <| fun () ->
             let before = { rebuilt (loaded ()) with OrderStale = true; TotalCount = 5 }

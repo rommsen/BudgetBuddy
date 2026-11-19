@@ -109,11 +109,9 @@ test("[flow:barabhebung-aufteilen] Handy (390x844): Barabhebung im Editor-Sheet,
   await page.getByText("Bauhaus s8t3s").first().tap();
   const sheet = page.locator(".bottom-sheet.active").first();
   await sheet.waitFor();
-  // Das Öffnen des Editors holt Quick-Add-Konto und Konten; der Knopf löst das Ziel erst beim Tipp auf.
-  const loaded = Promise.all([
-    page.waitForResponse("**/api/SettingsApi/getSettings"),
-    page.waitForResponse("**/api/LedgerApi/getBudgetAccounts"),
-  ]);
+  // Das Öffnen des Editors holt die Konten; das Quick-Add-Konto kommt aus den schon geladenen Settings des Root
+  // (ledger-pz028). Der Knopf löst das Ziel erst beim Tipp auf.
+  const loaded = page.waitForResponse("**/api/LedgerApi/getBudgetAccounts");
   await sheet.locator('[data-testid="detail-split-action"]').tap();
   await sheet.locator('[data-testid="split-summary"]').waitFor();
   await loaded;

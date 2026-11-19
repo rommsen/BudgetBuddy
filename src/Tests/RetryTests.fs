@@ -155,7 +155,8 @@ let tests =
                     "getEntryHistory"; "getPayeeCategorySuggestions"
                     // ledger-fxt09: die Payees des ganzen Kassenbuchs für die Payee-Auswahl.
                     "getLedgerPayeeSuggestions"
-                    "getBudgetAccounts"; "getSettings"; "getLedgerEntry"; "getLedgerEntry"
+                    // ledger-pz028: das Quick-Add-Konto kommt aus den Settings des Root, kein eigenes getSettings.
+                    "getBudgetAccounts"; "getLedgerEntry"; "getLedgerEntry"
                     // ledger-at63w: Vorbelegung und Kategorie zum Payee beim Erfassen.
                     "getLedgerBookingDefaults"; "getBookingCategoryForPayee"
                     // ledger-v6s7c: Schlange, Neulesen der Karte, Vorschläge und Treffer des Durchgehens.

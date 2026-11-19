@@ -527,6 +527,12 @@ let rulesCategoriesDue (categories: RemoteData<YnabCategory list>) : bool =
     | Success _ -> false
 
 /// Die Kassenbuch-Kategorien als Fehler mit Grund; das Warten auf die Settings endet.
+/// Das Quick-Add-Konto aus einer Antwort der Settings; ihr Fehler wird zum Zustand (ledger-pz028).
+let private quickAddAccountFrom (result: Result<AppSettingsView, string>) : RemoteData<YnabAccountId option> =
+    match result with
+    | Ok settings -> Success (settings.Ynab |> Option.bind (fun ynab -> ynab.QuickAddAccountId))
+    | Error message -> Failure message
+
 let private ledgerCategoriesFailed (reason: string) (ledger: Components.Ledger.Types.Model) =
     { ledger with Categories = Failure reason; CategoriesAwaitSettings = false }
 
@@ -756,6 +762,13 @@ let rec updateWith (ports: UpdatePorts) (msg: Msg) (model: Model) : Model * Cmd<
                 | None -> model.Ledger
             | _ -> model.Ledger
 
+        // Wartet das Quick-Add-Konto auf die Settings (`Loading`, ledger-pz028), füllt ihre Antwort es.
+        let ledgerAfterSettings =
+            match settingsMsg, ledgerAfterSettings.QuickAddAccount with
+            | Components.Settings.Types.SettingsLoaded result, Loading ->
+                { ledgerAfterSettings with QuickAddAccount = quickAddAccountFrom result }
+            | _ -> ledgerAfterSettings
+
         { model with Settings = settingsModel'; Ledger = ledgerAfterSettings }, Cmd.batch [ Cmd.map SettingsMsg settingsCmd; externalCmd; syncCategoriesCmd ]
 
     // ============================================
@@ -817,6 +830,18 @@ let rec updateWith (ports: UpdatePorts) (msg: Msg) (model: Model) : Model * Cmd<
     // ============================================
     // Ledger Component (Kassenbuch)
     // ============================================
+    // Das Quick-Add-Konto steht in den Settings, die der Root schon hält (ledger-pz028). Sind sie noch nicht da,
+    // wartet es als `Loading` auf `SettingsLoaded`; ein `LoadSettings` nur, wenn keines läuft.
+    | LedgerMsg Components.Ledger.Types.LoadQuickAddAccount ->
+        match model.Settings.Settings with
+        | Success settings ->
+            { model with Ledger = { model.Ledger with QuickAddAccount = quickAddAccountFrom (Ok settings) } }, Cmd.none
+        | settings ->
+            let cmd =
+                if RemoteData.isLoading settings then Cmd.none
+                else Cmd.map SettingsMsg (Cmd.ofMsg Components.Settings.Types.LoadSettings)
+            { model with Ledger = { model.Ledger with QuickAddAccount = Loading } }, cmd
+
     | LedgerMsg Components.Ledger.Types.EnsureCategoriesFresh ->
         if Components.Ledger.Types.categoriesReloadDue model.Ledger DateTime.Now then
             updateWith ports (LedgerMsg Components.Ledger.Types.LoadCategories) model

@@ -314,7 +314,7 @@ let refreshTests =
 
         test "Läuft „Weitere laden“, wartet das Nachladen auf dessen Antwort" {
             let rows = [ for n in 1..100 -> entry n ]
-            let model = { loadedModel rows 250 1 with LoadingMore = true }
+            let model = { loadedModel rows 250 1 with ListActivity = LoadingMorePage }
             let waiting, cmd, _ = update RefreshEntries model
             Expect.isEmpty (dispatched cmd) "noch keine Abfrage"
             let page = pageOf [ for n in 101..200 -> entry n ] 250 -1m
@@ -328,7 +328,7 @@ let refreshTests =
             let started, _ = startRefresh model
             let after, cmd, _ = update LoadMoreEntries started
             Expect.isEmpty (dispatched cmd) "keine weitere Seite aus dem alten Ausschnitt"
-            Expect.isFalse after.LoadingMore "nichts läuft"
+            Expect.isFalse (nextPageLoading after) "nichts läuft"
         }
 
         // Regression ledger-k4n2s Punkt 63: „Rückgängig“ auf ein Verwerfen außerhalb des Durchgehens lud
@@ -557,12 +557,12 @@ let ownActionTests =
 
         test "Läuft „Weitere laden“, wartet das Nachladen nach dem Löschen und dem Anlegen auf dessen Antwort" {
             for label, msg in [ ownActions[0]; ownActions[2] ] do
-                let model = { twoPages () with LoadingMore = true }
+                let model = { twoPages () with ListActivity = LoadingMorePage }
                 let waiting, cmd, _ = update msg model
                 let msgs = dispatched cmd
                 Expect.contains msgs RefreshEntries $"{label}: nachladen"
                 let waited, waitCmd, _ = update RefreshEntries waiting
-                Expect.equal waited.Refresh RefreshAfterPage $"{label}: wartet auf die Seite"
+                Expect.equal waited.ListActivity LoadingMoreThenRefresh $"{label}: wartet auf die Seite"
                 Expect.isEmpty (dispatched waitCmd) $"{label}: keine Abfrage, solange die Seite läuft"
         }
     ]

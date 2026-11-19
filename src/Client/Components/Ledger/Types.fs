@@ -1367,20 +1367,23 @@ type BatchRun =
     | CategoryBatchRun
     | LenaBatchRun
 
-/// Das Nachladen im Hintergrund (ledger-ct3cx).
-type RefreshState =
+/// Was an der Liste gerade lädt: „Weitere laden“ oder das Nachladen im Hintergrund (ledger-ct3cx). Beides
+/// läuft nie zugleich, ein Zustand statt zweier Felder kennt nur die gültigen Kombinationen (ledger-pz028).
+type ListActivity =
     /// Nichts läuft und nichts wartet.
-    | RefreshIdle
-    /// Die Abfrage läuft. `basis` sind die Zeilen beim Start: ändert ein Einzelbefehl (Kategorie,
+    | ListIdle
+    /// „Weitere laden“ läuft: die bisherige Liste bleibt stehen, nur ein Skeleton steht am Ende (AC5).
+    | LoadingMorePage
+    /// Das Nachladen kam, während „Weitere laden“ lief: es wartet auf dessen Antwort und holt danach
+    /// den ganzen Ausschnitt samt der neuen Seite.
+    | LoadingMoreThenRefresh
+    /// Das Nachladen im Hintergrund läuft. `basis` sind die Zeilen beim Start: ändert ein Einzelbefehl (Kategorie,
     /// Prüfvermerk, Memo, Lena, Betrag, Payee, Split, Übertrag) bis zur Antwort eine Zeile, ist die
     /// Antwort älter als die Liste und wird verworfen. Solange ruht „Weitere laden“: eine angehängte
     /// Seite aus dem alten Ausschnitt passte nicht zur neuen Liste.
-    | RefreshRunning of basis: LedgerEntryView list
-    /// Das Nachladen kam, während „Weitere laden“ lief: es wartet auf dessen Antwort und holt danach
-    /// den ganzen Ausschnitt samt der neuen Seite.
-    | RefreshAfterPage
+    | Refreshing of basis: LedgerEntryView list
 
-/// Der Abruf der Kategorien (ledger-pfhdq, Vorbild `RefreshState`).
+/// Der Abruf der Kategorien (ledger-pfhdq, Vorbild `ListActivity`).
 type CategoriesFetch =
     /// Kein Abruf läuft.
     | CategoriesIdle
@@ -1469,11 +1472,6 @@ type Model = {
     /// Die Zahl der zu prüfenden Buchungen im aktiven Filter, wie die zuletzt
     /// geladene Seite sie gemeldet hat (unabhängig von `OnlyNeedsReview`).
     NeedsReviewCount: int
-
-    /// Laeuft gerade das Nachladen einer weiteren Seite? Anders als `Entries = Loading`
-    /// (Erstladen): waehrend des Nachladens bleibt die bisherige Liste stehen, nur ein
-    /// Skeleton steht am Ende (AC5).
-    LoadingMore: bool
 
     /// Die Buchung, deren Detail gerade offen steht (Panel am PC, Sheet am Handy und in der
     /// Kompaktliste, ledger-q1hw2, ADR 0053). Eine Momentaufnahme: die Ansicht liest den
@@ -1673,8 +1671,9 @@ type Model = {
     SplitEditor: Components.Ledger.SplitEditor.SplitEditorState option
 
     /// Das Quick-Add-Konto aus den Einstellungen (ADR 0004), Ziel des Übertrags bei "Barabhebung" im
-    /// Split-Editor (ledger-s8t3s). `None`, solange nicht geladen oder nicht eingestellt.
-    QuickAddAccountId: YnabAccountId option
+    /// Split-Editor (ledger-s8t3s). Der Root füllt es aus seinen Settings (ledger-pz028); `Success None`, wenn
+    /// keins eingestellt ist.
+    QuickAddAccount: RemoteData<YnabAccountId option>
 
     /// Die Konten des Budgets für das Übertrag-Ziel je Zeile; der Editor zeigt davon die offenen
     /// Budget-Konten (`openOnBudgetAccounts`).
@@ -1746,8 +1745,9 @@ type Model = {
     /// Hochzählen der Generation laufende Summen- und Payee-Abfragen verwerfen würde.
     RefreshGeneration: int
 
-    /// Wo das Nachladen im Hintergrund steht (ledger-ct3cx).
-    Refresh: RefreshState
+    /// Was an der Liste lädt: „Weitere laden“ oder das Nachladen im Hintergrund (ledger-ct3cx, ledger-pz028).
+    /// Anders als `Entries = Loading` (Erstladen) bleibt die bisherige Liste dabei stehen.
+    ListActivity: ListActivity
 
     /// Das laufende Durchgehen (ledger-v6s7c), `None` außerhalb der Seite.
     Review: ReviewSession option
@@ -2618,7 +2618,7 @@ type Msg =
     /// Das Payee-Feld verliert den Fokus: die Kategorie zum Payee wird geholt.
     | CommitCapturePayee
     | RunLoadCapturePayeeCategory of payee: string
-    | CapturePayeeCategoryLoaded of payee: string * YnabCategoryId option
+    | CapturePayeeCategoryLoaded of payee: string * Result<YnabCategoryId option, string>
     | SetCaptureDate of DateTime
     | SetCaptureMemo of string
     | ApplyCaptureTemplate of LedgerBookingTemplate
@@ -2654,8 +2654,8 @@ type Msg =
     /// Knopf "Barabhebung": belegt die erste Zeile ohne Ziel mit dem Übertrag aufs Bar-Konto
     /// oder hängt eine an. Das Ziel löst die Ansicht aus Quick-Add-Konto und Konto-Liste auf.
     | StartSplitCashback of SplitTarget option
+    /// Das Quick-Add-Konto aus den Settings des Root übernehmen (der Root fängt die Nachricht ab).
     | LoadQuickAddAccount
-    | QuickAddAccountLoaded of Result<YnabAccountId option, string>
     | OpenSplitTargetPicker of int
     | CloseSplitPicker
     /// Wahl im Kategorie-Picker einer Zeile; `None` ist "Ohne Kategorie".
@@ -2829,10 +2829,10 @@ type Msg =
     | RunReviewRefresh of Guid
     | ReviewEntryRefreshed of Guid * basis: LedgerEntryView option * Result<LedgerEntryView option, string>
     | RunReviewSuggestions of Guid * string
-    | ReviewSuggestionsLoaded of Guid * YnabCategoryId list
+    | ReviewSuggestionsLoaded of Guid * Result<YnabCategoryId list, string>
     /// Die schon vorhandene Buchung zur Duplikat-Karte wird gelesen.
     | RunReviewMatch of Guid
-    | ReviewMatchLoaded of Guid * LedgerEntryView option
+    | ReviewMatchLoaded of Guid * Result<LedgerEntryView option, string>
     /// „Passt, weiter“: der Prüfvermerk, danach die nächste Karte.
     | ReviewConfirm
     | RunReviewConfirm of Guid
@@ -3123,8 +3123,21 @@ let transferCategoryLabel (model: Model) (entry: LedgerEntryView) : string optio
         | Some name -> Some $"Übertrag → {name}"
         | None -> Some "Übertrag"
 
+/// Das Quick-Add-Konto, wenn es bekannt ist. Solange es lädt oder gescheitert ist, hat die Übertrag-Zeile der
+/// Barabhebung kein Ziel und bleibt wählbar (ledger-pz028).
+let quickAddAccountOf (model: Model) : YnabAccountId option =
+    match model.QuickAddAccount with
+    | Success account -> account
+    | NotAsked | Loading | Failure _ -> None
+
 /// Läuft ein Nachladen im Hintergrund (ledger-ct3cx)? Solange ruht „Weitere laden“.
 let refreshRunning (model: Model) : bool =
-    match model.Refresh with
-    | RefreshRunning _ -> true
-    | RefreshIdle | RefreshAfterPage -> false
+    match model.ListActivity with
+    | Refreshing _ -> true
+    | ListIdle | LoadingMorePage | LoadingMoreThenRefresh -> false
+
+/// Läuft „Weitere laden“ (auch mit wartendem Nachladen)? Solange steht das Skeleton am Ende der Liste.
+let nextPageLoading (model: Model) : bool =
+    match model.ListActivity with
+    | LoadingMorePage | LoadingMoreThenRefresh -> true
+    | ListIdle | Refreshing _ -> false
