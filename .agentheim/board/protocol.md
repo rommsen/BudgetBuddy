@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-19 23:05 -- Batch started: [design-system-ytgnc, design-system-x045q, ledger-s2cg3]
+
+**Type:** Work / Batch start
+**Tasks:** design-system-ytgnc - "Rückmeldung am Handy ohne Toast (Regel R3), Teil 1: DS-Baustein `Feedback` (Meldungsleiste mit „+ Buchung“, Zeile im Sheet, Rückgängig am Feld, Zeile „gelöscht“) auf `/styleguide`, Styleguide §7.13, §5 und §6 neu, ADR 0098", design-system-x045q - "Detail: Memo als Block mit Bezeichnung darüber und ganzem Text, Memo-Editor mehrzeilig und am Handy als Inhalt des Detail-Sheets", ledger-s2cg3 - "Durchgehen am Handy: Wischen mit Fläche darunter (A1), Karte füllt den Platz bis zu den Knöpfen, Seite ohne Scrollen"
+**Parallel:** yes (3 workers; styles.css, Styleguide und layout-states.mjs gemeinsam, Merge nacheinander)
+
+---
+
 ## 2026-11-19 22:33 -- Modeling / Promoted: ledger-s2cg3 - "Durchgehen am Handy: Wischen mit Fläche darunter (A1), Karte füllt den Platz bis zu den Knöpfen, Seite ohne Scrollen"
 
 **Type:** Modeling / Promote

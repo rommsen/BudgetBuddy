@@ -1,7 +1,7 @@
 ---
 id: design-system-x045q
 title: "Detail: Memo als Block mit Bezeichnung darüber und ganzem Text, Memo-Editor mehrzeilig und am Handy als Inhalt des Detail-Sheets"
-status: todo
+status: doing
 type: feature
 context: design-system
 created: 2026-11-19

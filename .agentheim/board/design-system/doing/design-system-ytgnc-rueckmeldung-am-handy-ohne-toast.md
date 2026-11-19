@@ -1,7 +1,7 @@
 ---
 id: design-system-ytgnc
 title: "Rückmeldung am Handy ohne Toast (Regel R3), Teil 1: DS-Baustein `Feedback` (Meldungsleiste mit „+ Buchung“, Zeile im Sheet, Rückgängig am Feld, Zeile „gelöscht“) auf `/styleguide`, Styleguide §7.13, §5 und §6 neu, ADR 0098"
-status: todo
+status: doing
 type: feature
 context: design-system
 created: 2026-11-19

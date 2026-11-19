@@ -1,7 +1,7 @@
 ---
 id: ledger-s2cg3
 title: "Durchgehen am Handy: Wischen mit Fläche darunter (A1), Karte füllt den Platz bis zu den Knöpfen, Seite ohne Scrollen"
-status: todo
+status: doing
 type: feature
 context: ledger
 created: 2026-11-19
