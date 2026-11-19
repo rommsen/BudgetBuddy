@@ -5,6 +5,16 @@ Newest entries on top.
 
 ---
 
+## 2026-11-19 07:46 -- Bestandsreview: ledger
+
+**Type:** Review / Bestandsreview
+**Befunde:** hoch 2, mittel 29, niedrig 48
+**Gruppen:** 7
+**Bericht:** .agentheim/knowledge/reviews/2026-11-19-ledger.md
+**Tasks:** offen
+
+---
+
 ## 2026-11-19 00:25 -- Review-Lauf: cae73bff..649d0799
 
 **Type:** Review / Review-Lauf
