@@ -143,7 +143,7 @@ let transitionTests =
             let accounts : LedgerAccountsView = { Accounts = []; DefaultAccountId = None }
             let balances : LedgerAccountBalanceView list = [ { AccountId = accountId; Balance = eur 5m } ]
             let model, _ = State.update (State.LedgerMsg (Components.Ledger.Types.AccountsLoaded (Ok accounts))) (rootModel Ledger)
-            let model, _ = State.update (State.LedgerMsg (Components.Ledger.Types.BalancesLoaded (Ok balances))) model
+            let model, _ = State.update (State.LedgerMsg (Components.Ledger.Types.BalancesLoaded (0, Ok balances))) model
             Expect.equal model.Overview.Accounts (Success accounts) "Konten"
             Expect.equal model.Overview.Balances (Success balances) "Stände"
 
@@ -152,7 +152,7 @@ let transitionTests =
         testCase "Scheitert das Kassenbuch beim Laden, zeigt die Seitenleiste den Fehler statt ewig zu laden" <| fun () ->
             let loading = { rootModel Ledger with Overview = Components.Overview.State.beginEnter (DateTime(2026, 11, 7)) Components.Overview.Types.init }
             let model, _ = State.update (State.LedgerMsg (Components.Ledger.Types.AccountsLoaded (Error "weg"))) loading
-            let model, _ = State.update (State.LedgerMsg (Components.Ledger.Types.BalancesLoaded (Error "weg"))) model
+            let model, _ = State.update (State.LedgerMsg (Components.Ledger.Types.BalancesLoaded (0, Error "weg"))) model
             Expect.equal model.Overview.Accounts (Failure "weg") "Konten"
             Expect.equal model.Overview.Balances (Failure "weg") "Stände"
             let accounts : LedgerAccountsView = { Accounts = []; DefaultAccountId = None }

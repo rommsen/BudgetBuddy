@@ -78,6 +78,8 @@ let init () : Model * Cmd<Msg> =
     let model = {
         Accounts = NotAsked
         Balances = NotAsked
+        BalancesGeneration = 0
+        BalancesRefreshError = None
         SelectedFilter = None
         RememberedFilter = readRememberedFilter ()
         AccountSheetOpen = false
@@ -110,11 +112,13 @@ let init () : Model * Cmd<Msg> =
         HistoryGeneration = 0
         HistoryOpenFor = None
         LastMirrorRun = NotAsked
+        MirrorStatusGeneration = 0
         MirrorRunning = false
         BookingsScroll = None
         Categories = NotAsked
         CategoriesLoadedAt = None
-        CategoriesRefreshing = false
+        CategoriesFetch = CategoriesIdle
+        CategoriesGeneration = 0
         CategoriesAwaitSettings = false
         Filters = noFilters
         OpenPopover = None
@@ -646,13 +650,17 @@ let private applyCategoryResult
             match cleared.Categories with
             | Success categories when showCard -> categoryChangeHint args categories
             | _ -> []
-        let categories =
+        // Eine Fortschreibung macht jede vorher gestartete Antwort alt (ledger-pfhdq): sie fällt weg.
+        let shifted =
             match cleared.Categories with
-            | Success list -> Success (shiftAvailable args list)
-            | other -> other
+            | Success list ->
+                { cleared with
+                    Categories = Success (shiftAvailable args list)
+                    CategoriesGeneration = cleared.CategoriesGeneration + 1 }
+            | _ -> cleared
         let version = cleared.CategoryCardVersion + 1
         let hasCard = showCard && not (List.isEmpty lines)
-        let withEntry = replaceEntry updated { cleared with Categories = categories }
+        let withEntry = replaceEntry updated shifted
         let withCard =
             { withEntry with
                 CategoryCard = (if hasCard then Some { EntryId = entryId; Lines = lines; Version = version } else None)
@@ -1643,26 +1651,41 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
     // ============================================
     | LoadBalances ->
         // Der Aufruf liegt hinter einem Lambda, damit `update` auch unter .NET läuft, wo der
-        // Proxy beim ersten Zugriff wirft.
+        // Proxy beim ersten Zugriff wirft. Die Antwort trägt die Nummer dieses Starts (ledger-pfhdq).
+        let generation = model.BalancesGeneration + 1
         let cmd =
             Cmd.OfAsync.either
                 (fun () -> Retry.reading Api.ledger.getLedgerAccountBalances ())
                 ()
-                (Ok >> BalancesLoaded)
-                (fun ex -> BalancesLoaded (Error ex.Message))
+                (fun balances -> BalancesLoaded (generation, Ok balances))
+                (fun ex -> BalancesLoaded (generation, Error ex.Message))
         // Geladene Stände bleiben stehen, bis die neuen da sind (wie die Kategorien, ledger-kwwxz):
-        // sonst flackern nach "Jetzt spiegeln" alle Kontostände zu Platzhaltern.
+        // sonst flackern nach "Jetzt spiegeln" alle Kontostände zu Platzhaltern. Ein Hinweis auf ein
+        // gescheitertes Nachladen bleibt bis zur Antwort stehen.
         let balances =
             match model.Balances with
             | Success _ -> model.Balances
             | _ -> Loading
-        { model with Balances = balances }, cmd, NoOp
+        { model with Balances = balances; BalancesGeneration = generation }, cmd, NoOp
 
-    | BalancesLoaded (Ok balances) ->
-        { model with Balances = Success balances }, Cmd.none, NoOp
+    | BalancesLoaded (generation, _) when generation <> model.BalancesGeneration ->
+        // Antwort auf einen älteren Start (ledger-pfhdq): fällt weg, Erfolg wie Fehler.
+        model, Cmd.none, NoOp
 
-    | BalancesLoaded (Error message) ->
-        { model with Balances = RemoteData.lateFailure message model.Balances }, Cmd.none, NoOp
+    | BalancesLoaded (_, Ok balances) ->
+        { model with Balances = Success balances; BalancesRefreshError = None }, Cmd.none, NoOp
+
+    | BalancesLoaded (_, Error message) ->
+        // Stehen Stände, bleiben sie, und der Grund wird zum Hinweis über der Leiste (ledger-pfhdq).
+        let refreshError =
+            match model.Balances with
+            | Success _ -> Some message
+            | _ -> None
+        { model with
+            Balances = RemoteData.lateFailure message model.Balances
+            BalancesRefreshError = refreshError },
+        Cmd.none,
+        NoOp
 
     // ============================================
     // Konto-Filter
@@ -1931,15 +1954,26 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
     // Spiegel
     // ============================================
     | LoadMirrorStatus ->
+        // Hinter einem Lambda, damit `update` unter .NET läuft. Ein gelesener Stand bleibt beim Nachlesen
+        // stehen, „Gespiegelt …“ verschwindet nicht (ledger-pfhdq).
+        let generation = model.MirrorStatusGeneration + 1
         let cmd =
             Cmd.OfAsync.either
-                (Retry.reading Api.ledger.getLastMirrorRun)
+                (fun () -> Retry.reading Api.ledger.getLastMirrorRun ())
                 ()
-                (Ok >> MirrorStatusLoaded)
-                (fun ex -> MirrorStatusLoaded (Error ex.Message))
-        { model with LastMirrorRun = Loading }, cmd, NoOp
+                (fun status -> MirrorStatusLoaded (generation, Ok status))
+                (fun ex -> MirrorStatusLoaded (generation, Error ex.Message))
+        let lastRun =
+            match model.LastMirrorRun with
+            | Success _ -> model.LastMirrorRun
+            | _ -> Loading
+        { model with LastMirrorRun = lastRun; MirrorStatusGeneration = generation }, cmd, NoOp
 
-    | MirrorStatusLoaded (Ok status) ->
+    | MirrorStatusLoaded (generation, _) when generation <> model.MirrorStatusGeneration ->
+        // Antwort auf einen älteren Abruf (ledger-pfhdq): fällt weg und startet keinen Spiegel-Lauf.
+        model, Cmd.none, NoOp
+
+    | MirrorStatusLoaded (_, Ok status) ->
         // Frische-Kriterium (ADR 0014): ist der geladene Lauf-Status älter als die
         // Schwelle (oder gab es noch nie einen), stößt dieselbe Seite denselben
         // Hintergrund-Lauf an wie der manuelle Knopf, nur ohne den zusätzlichen
@@ -1953,8 +1987,10 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         else
             model', Cmd.none, NoOp
 
-    | MirrorStatusLoaded (Error message) ->
-        { model with LastMirrorRun = Failure message }, Cmd.none, NoOp
+    | MirrorStatusLoaded (_, Error message) ->
+        // Ein gelesener Stand bleibt ohne Hinweis stehen: „Gespiegelt …“ ist eine Auskunft, ein
+        // gescheiterter Lauf meldet sich selbst per Toast und Lauf-Status (ADR 0014).
+        { model with LastMirrorRun = RemoteData.lateFailure message model.LastMirrorRun }, Cmd.none, NoOp
 
     | StartMirror ->
         // Doppeldruck-Sperre: ein zweiter Druck waehrend eines Laufs tut nichts.
@@ -2004,22 +2040,23 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         // `LoadCategories`), nicht hinter dem Proxy dieses Moduls.
         { model with Categories = Loading }, Cmd.none, NoOp
 
-    | CategoriesLoaded (Ok categories) ->
-        { model with
-            Categories = Success categories
-            CategoriesLoadedAt = Some DateTime.Now
-            CategoriesRefreshing = false },
-        Cmd.none,
-        NoOp
-
-    | CategoriesLoaded (Error message) ->
-        // Ein vorhandener Stand bleibt sichtbar (ledger-kwwxz); nur ohne Stand
-        // wird der Fehler zum Zustand.
-        let categories =
-            match model.Categories with
-            | Success _ -> model.Categories
-            | _ -> Failure message
-        { model with Categories = categories; CategoriesRefreshing = false }, Cmd.none, NoOp
+    | CategoriesLoaded (generation, result) ->
+        // Die Antwort beendet den laufenden Abruf, wenn sie zu ihm gehört. Den Stand setzt sie nur, wenn
+        // seit ihrem Start weder ein neuer Abruf noch eine Fortschreibung kam (ledger-pfhdq).
+        let fetch =
+            match model.CategoriesFetch with
+            | CategoriesFetching running when running = generation -> CategoriesIdle
+            | other -> other
+        let finished = { model with CategoriesFetch = fetch }
+        if generation <> model.CategoriesGeneration then
+            finished, Cmd.none, NoOp
+        else
+            match result with
+            | Ok categories ->
+                { finished with Categories = Success categories; CategoriesLoadedAt = Some DateTime.Now }, Cmd.none, NoOp
+            | Error message ->
+                // Ein vorhandener Stand bleibt sichtbar (ledger-kwwxz); nur ohne Stand wird der Fehler zum Zustand.
+                { finished with Categories = RemoteData.lateFailure message model.Categories }, Cmd.none, NoOp
 
     | EnsureCategoriesFresh ->
         // Die Entscheidung und der Abruf liegen im Haupt-`State.fs`.

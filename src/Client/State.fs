@@ -531,15 +531,22 @@ let private ledgerCategoriesFailed (reason: string) (ledger: Components.Ledger.T
     { ledger with Categories = Failure reason; CategoriesAwaitSettings = false }
 
 /// Lädt das Kassenbuch Konten oder Stände neu, ziehen Seitenleiste und Übersicht mit (design-system-k6kfw).
-let syncNavAccounts (ledgerMsg: Components.Ledger.Types.Msg) (overview: Components.Overview.Types.Model) =
+/// `ledger` ist das Kassenbuch vor der Nachricht: Stände zählen nur als Antwort auf den zuletzt gestarteten
+/// Abruf, eine ältere fällt auch hier weg (ledger-pfhdq).
+let syncNavAccounts
+    (ledger: Components.Ledger.Types.Model)
+    (ledgerMsg: Components.Ledger.Types.Msg)
+    (overview: Components.Overview.Types.Model)
+    =
     match ledgerMsg with
     | Components.Ledger.Types.AccountsLoaded (Ok accounts)
     | Components.Ledger.Types.AccountsRefreshed (Ok accounts) -> { overview with Accounts = Success accounts }
-    | Components.Ledger.Types.BalancesLoaded (Ok balances) -> { overview with Balances = Success balances }
+    | Components.Ledger.Types.BalancesLoaded (generation, _) when generation <> ledger.BalancesGeneration -> overview
+    | Components.Ledger.Types.BalancesLoaded (_, Ok balances) -> { overview with Balances = Success balances }
     // Ein Fehler zählt nur, solange nichts geladen ist: sonst bliebe die Seitenleiste beim Platzhalter stehen.
     | Components.Ledger.Types.AccountsLoaded (Error message) ->
         { overview with Accounts = RemoteData.lateFailure message overview.Accounts }
-    | Components.Ledger.Types.BalancesLoaded (Error message) ->
+    | Components.Ledger.Types.BalancesLoaded (_, Error message) ->
         { overview with Balances = RemoteData.lateFailure message overview.Balances }
     | _ -> overview
 
@@ -831,18 +838,28 @@ let rec updateWith (ports: UpdatePorts) (msg: Msg) (model: Model) : Model * Cmd<
             | Some ynab ->
                 match ynab.DefaultBudgetId with
                 | Some budgetId ->
+                    // Jeder Start bekommt eine neue Nummer und ersetzt einen laufenden Abruf: dessen
+                    // Antwort fällt weg (ledger-pfhdq).
+                    let generation = model.Ledger.CategoriesGeneration + 1
                     let cmd =
                         Cmd.OfAsync.either
                             ports.GetCategories
                             budgetId
-                            (fun result -> LedgerMsg (Components.Ledger.Types.CategoriesLoaded (result |> Result.mapError ynabErrorText)))
-                            (fun ex -> LedgerMsg (Components.Ledger.Types.CategoriesLoaded (Error ex.Message)))
+                            (fun result ->
+                                LedgerMsg (Components.Ledger.Types.CategoriesLoaded (generation, result |> Result.mapError ynabErrorText)))
+                            (fun ex -> LedgerMsg (Components.Ledger.Types.CategoriesLoaded (generation, Error ex.Message)))
                     // Ein vorhandener Stand bleibt sichtbar, bis der neue da ist (ledger-kwwxz).
                     let categories =
                         match model.Ledger.Categories with
                         | Success _ -> model.Ledger.Categories
                         | _ -> Loading
-                    { model with Ledger = { model.Ledger with Categories = categories; CategoriesRefreshing = true; CategoriesAwaitSettings = false } }, cmd
+                    let ledger =
+                        { model.Ledger with
+                            Categories = categories
+                            CategoriesFetch = Components.Ledger.Types.CategoriesFetching generation
+                            CategoriesGeneration = generation
+                            CategoriesAwaitSettings = false }
+                    { model with Ledger = ledger }, cmd
                 | None -> { model with Ledger = ledgerCategoriesFailed ledgerCategoriesNoBudget model.Ledger }, Cmd.none
             | None -> { model with Ledger = ledgerCategoriesFailed ledgerCategoriesNoYnab model.Ledger }, Cmd.none
         | settings ->
@@ -919,7 +936,7 @@ let rec updateWith (ports: UpdatePorts) (msg: Msg) (model: Model) : Model * Cmd<
             Ledger = ledgerModel'
             // Das Regel-Formular aus einer Buchung schließt, wenn das Kassenbuch sie nicht mehr zeigt (ledger-hg5m5).
             Rules = Components.Rules.State.followEntry (detailId ledgerModel') model.Rules
-            Overview = syncNavAccounts ledgerMsg model.Overview },
+            Overview = syncNavAccounts model.Ledger ledgerMsg model.Overview },
         Cmd.batch [ Cmd.map LedgerMsg ledgerCmd; externalCmd; routeCmd; overviewCmd ]
 
     | OverviewMsg overviewMsg ->

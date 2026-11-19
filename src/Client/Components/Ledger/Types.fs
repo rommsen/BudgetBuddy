@@ -1361,6 +1361,13 @@ type RefreshState =
     /// den ganzen Ausschnitt samt der neuen Seite.
     | RefreshAfterPage
 
+/// Der Abruf der Kategorien (ledger-pfhdq, Vorbild `RefreshState`).
+type CategoriesFetch =
+    /// Kein Abruf läuft.
+    | CategoriesIdle
+    /// Ein Abruf läuft, gestartet mit dieser `CategoriesGeneration`. Ein neuer Start ersetzt ihn.
+    | CategoriesFetching of generation: int
+
 type Model = {
     /// Die Konten samt Vorauswahl des Servers.
     Accounts: RemoteData<LedgerAccountsView>
@@ -1368,6 +1375,15 @@ type Model = {
     /// Die Kontostaende aller Konten in einem Aufruf (ledger-b1xwe AC2). Unabhaengig
     /// von `Entries`: sie kommen nie aus der geladenen Liste.
     Balances: RemoteData<LedgerAccountBalanceView list>
+
+    /// Zählt die Starts von `LoadBalances` (ledger-pfhdq). `BalancesLoaded` trägt die Nummer seines
+    /// Starts; eine Antwort auf einen älteren Start fällt weg, Erfolg wie Fehler.
+    BalancesGeneration: int
+
+    /// Das Nachladen der Kontostände ist gescheitert, während Stände standen (ledger-pfhdq). Die Beträge
+    /// bleiben, darüber steht „Kontostände konnten nicht aktualisiert werden“. Die nächste erfolgreiche
+    /// Antwort löscht den Grund, ein neuer Start nicht (sonst blinkt der Hinweis bei „Erneut laden“).
+    BalancesRefreshError: string option
 
     /// Der gerade aktive Filter. `None`, solange nichts geladen ist oder das
     /// Kassenbuch leer ist (kein Konto zum Filtern).
@@ -1495,6 +1511,10 @@ type Model = {
     /// Zeitpunkt und Ergebnis des zuletzt gelaufenen Spiegels.
     LastMirrorRun: RemoteData<MirrorRunStatus option>
 
+    /// Zählt die Starts von `LoadMirrorStatus` (ledger-pfhdq). Nur die Antwort auf den zuletzt
+    /// gestarteten Abruf gilt; eine ältere fällt weg und startet keinen Spiegel-Lauf.
+    MirrorStatusGeneration: int
+
     /// Laeuft gerade ein Spiegel-Lauf? Die Liste bleibt waehrenddessen stehen:
     /// Roman wartet nie auf den Spiegel (ADR 0014).
     MirrorRunning: bool
@@ -1520,9 +1540,15 @@ type Model = {
     /// Nachladen lässt ihn und `Categories` stehen.
     CategoriesLoadedAt: DateTime option
 
-    /// Läuft gerade ein Abruf der Kategorien? Hält den alten Stand sichtbar
-    /// (`Categories` bleibt `Success`) und verhindert einen zweiten Abruf.
-    CategoriesRefreshing: bool
+    /// Der laufende Abruf der Kategorien samt Nummer seines Starts. Während er läuft, bleibt der
+    /// alte Stand sichtbar (`Categories` bleibt `Success`), und `shouldReloadCategories` startet
+    /// keinen zweiten (ledger-pfhdq).
+    CategoriesFetch: CategoriesFetch
+
+    /// Steigt bei jedem Start eines Kategorien-Abrufs und bei jeder lokalen Fortschreibung von
+    /// Available (`shiftAvailable`, ledger-pfhdq). `CategoriesLoaded` trägt die Nummer seines Starts;
+    /// eine Antwort mit anderer Nummer setzt weder `Categories` noch `CategoriesLoadedAt`.
+    CategoriesGeneration: int
 
     /// `LoadCategories` kam, als die Settings noch nicht da waren (`NotAsked`,
     /// `Loading` oder `Failure`, ledger-k9tq7). `Categories` steht dann auf `Loading`;
@@ -2251,7 +2277,8 @@ type Msg =
 
     // Kontostaende
     | LoadBalances
-    | BalancesLoaded of Result<LedgerAccountBalanceView list, string>
+    /// Antwort auf `LoadBalances` mit der `BalancesGeneration` ihres Starts (ledger-pfhdq).
+    | BalancesLoaded of int * Result<LedgerAccountBalanceView list, string>
 
     // Konto-Filter
     | SelectFilter of AccountFilter
@@ -2396,7 +2423,8 @@ type Msg =
 
     // Spiegel
     | LoadMirrorStatus
-    | MirrorStatusLoaded of Result<MirrorRunStatus option, string>
+    /// Antwort auf `LoadMirrorStatus` mit der `MirrorStatusGeneration` ihres Starts (ledger-pfhdq).
+    | MirrorStatusLoaded of int * Result<MirrorRunStatus option, string>
     /// "Jetzt spiegeln" gedrueckt: setzt den Hinweis, stoesst den Lauf an.
     | StartMirror
     | RunMirror
@@ -2416,7 +2444,8 @@ type Msg =
     /// braucht das konfigurierte Budget und steckt deshalb im Haupt-`State.fs`,
     /// analog zu `Rules`s `LoadCategories`).
     | LoadCategories
-    | CategoriesLoaded of Result<YnabCategory list, string>
+    /// Antwort eines Abrufs mit der `CategoriesGeneration` seines Starts (ledger-pfhdq).
+    | CategoriesLoaded of int * Result<YnabCategory list, string>
     /// Lädt die Kategorien nur, wenn der Stand älter als zwei Minuten ist
     /// (`shouldReloadCategories`). Auslöser: Öffnen des Pickers (ledger-kwwxz,
     /// verdrahtet in `ledger-sfab0`).
@@ -2979,11 +3008,15 @@ let categoriesFreshness = TimeSpan.FromMinutes 2.0
 /// einem Stand älter als zwei Minuten.
 let shouldReloadCategories
     (categories: RemoteData<YnabCategory list>)
-    (refreshing: bool)
+    (fetch: CategoriesFetch)
     (loadedAt: DateTime option)
     (now: DateTime)
     : bool =
-    if refreshing || RemoteData.isLoading categories then false
+    let fetching =
+        match fetch with
+        | CategoriesFetching _ -> true
+        | CategoriesIdle -> false
+    if fetching || RemoteData.isLoading categories then false
     else
         match loadedAt with
         | None -> true
@@ -2991,7 +3024,7 @@ let shouldReloadCategories
 
 /// Nachlade-Entscheidung über dem Kassenbuch-Modell.
 let categoriesReloadDue (model: Model) (now: DateTime) : bool =
-    shouldReloadCategories model.Categories model.CategoriesRefreshing model.CategoriesLoadedAt now
+    shouldReloadCategories model.Categories model.CategoriesFetch model.CategoriesLoadedAt now
 
 let private sameMonth (a: DateTime) (b: DateTime) = a.Year = b.Year && a.Month = b.Month
 

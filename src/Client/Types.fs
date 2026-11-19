@@ -45,9 +45,9 @@ module RemoteData =
         | NotAsked -> NotAsked
         | Failure err -> Failure err
 
-    /// Der Zustand nach einer gescheiterten Abfrage. Jede Abfrage setzt vorher `Loading`:
-    /// steht schon ein `Success`, hat eine neuere Abfrage geliefert, und das späte Scheitern
-    /// der älteren ersetzt ihn nicht (infrastructure-r3tw7).
+    /// Der Zustand nach einer gescheiterten Abfrage: ein vorhandener Stand (`Success`) bleibt
+    /// stehen, sonst wird der Fehler zum Zustand (infrastructure-r3tw7). Ob der Fehler trotz
+    /// stehendem Stand sichtbar wird, entscheidet der Aufrufer (etwa die Kontostände, ledger-pfhdq).
     let lateFailure (message: string) (rd: RemoteData<'a>) : RemoteData<'a> =
         match rd with
         | Success _ -> rd

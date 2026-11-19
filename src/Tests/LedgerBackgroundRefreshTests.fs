@@ -400,7 +400,7 @@ let accountsTests =
         }
 
         test "Die Seitenleiste zieht die Konten nach dem Spiegel-Lauf mit" {
-            let overview = State.syncNavAccounts (AccountsRefreshed (Ok accountsView)) Components.Overview.Types.init
+            let overview = State.syncNavAccounts (loadedModel [ entry 1 ] 1 1) (AccountsRefreshed (Ok accountsView)) Components.Overview.Types.init
             Expect.equal overview.Accounts (Success accountsView) "Konten"
         }
     ]

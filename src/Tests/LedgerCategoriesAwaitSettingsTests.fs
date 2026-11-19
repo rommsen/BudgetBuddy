@@ -120,7 +120,7 @@ let ledgerCategoriesAwaitSettingsTests =
             Expect.isFalse m.Ledger.CategoriesAwaitSettings "Warten endet mit dem Abruf"
             Expect.equal m.Ledger.Categories Loading "Kategorien laden"
             let msg, _ = Tests.CmdTiming.firstDispatchedAfter 3000 cmd
-            Expect.equal msg (LedgerMsg (Components.Ledger.Types.CategoriesLoaded (Ok [ category ]))) "die Antwort des Abrufs kommt an"
+            Expect.equal msg (LedgerMsg (Components.Ledger.Types.CategoriesLoaded (1, Ok [ category ]))) "die Antwort des Abrufs kommt an"
             Expect.equal (List.ofSeq calls) [ YnabBudgetId "fake-budget-id" ] "getCategories genau einmal mit dem Standard-Budget"
         }
 

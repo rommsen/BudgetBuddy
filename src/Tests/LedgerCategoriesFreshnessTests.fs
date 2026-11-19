@@ -62,21 +62,21 @@ let tests =
         testList "Reducer" [
             test "CategoriesLoaded Ok setzt Stand und Zeitstempel" {
                 let before = DateTime.Now
-                let m = { model () with CategoriesRefreshing = true } |> update (CategoriesLoaded (Ok categories))
+                let m = { model () with CategoriesFetch = CategoriesFetching 0 } |> update (CategoriesLoaded (0, Ok categories))
                 Expect.equal m.Categories (Success categories) "Stand gesetzt"
-                Expect.isFalse m.CategoriesRefreshing "Abruf beendet"
+                Expect.equal m.CategoriesFetch CategoriesIdle "Abruf beendet"
                 Expect.isTrue (m.CategoriesLoadedAt.Value >= before) "Zeitstempel gesetzt"
             }
             test "Ein Fehler beim Nachladen lässt Stand und Zeitstempel unverändert" {
                 let stamp = DateTime(2026, 10, 24, 9, 0, 0)
-                let m = { model () with Categories = Success categories; CategoriesLoadedAt = Some stamp; CategoriesRefreshing = true }
-                let m' = update (CategoriesLoaded (Error "offline")) m
+                let m = { model () with Categories = Success categories; CategoriesLoadedAt = Some stamp; CategoriesFetch = CategoriesFetching 0 }
+                let m' = update (CategoriesLoaded (0, Error "offline")) m
                 Expect.equal m'.Categories (Success categories) "Stand bleibt"
                 Expect.equal m'.CategoriesLoadedAt (Some stamp) "Zeitstempel bleibt"
-                Expect.isFalse m'.CategoriesRefreshing "Abruf beendet"
+                Expect.equal m'.CategoriesFetch CategoriesIdle "Abruf beendet"
             }
             test "Ein Fehler ohne vorhandenen Stand wird zum Zustand" {
-                let m = update (CategoriesLoaded (Error "offline")) { model () with Categories = Loading }
+                let m = update (CategoriesLoaded (0, Error "offline")) { model () with Categories = Loading }
                 Expect.equal m.Categories (Failure "offline") "Failure"
                 Expect.isNone m.CategoriesLoadedAt "kein Zeitstempel"
             }
@@ -86,17 +86,17 @@ let tests =
             let now = DateTime(2026, 10, 24, 12, 0, 0)
             let ok = Success categories
             test "Stand jünger als zwei Minuten lädt nicht" {
-                Expect.isFalse (shouldReloadCategories ok false (Some (now.AddSeconds -90.0)) now) "jung"
+                Expect.isFalse (shouldReloadCategories ok CategoriesIdle (Some (now.AddSeconds -90.0)) now) "jung"
             }
             test "Stand älter als zwei Minuten lädt" {
-                Expect.isTrue (shouldReloadCategories ok false (Some (now.AddSeconds -121.0)) now) "alt"
+                Expect.isTrue (shouldReloadCategories ok CategoriesIdle (Some (now.AddSeconds -121.0)) now) "alt"
             }
             test "Ohne Stand lädt es" {
-                Expect.isTrue (shouldReloadCategories NotAsked false None now) "nie geladen"
+                Expect.isTrue (shouldReloadCategories NotAsked CategoriesIdle None now) "nie geladen"
             }
             test "Ein laufender Abruf wird nicht doppelt angestoßen" {
-                Expect.isFalse (shouldReloadCategories ok true (Some (now.AddMinutes -10.0)) now) "Refreshing"
-                Expect.isFalse (shouldReloadCategories Loading false None now) "Loading"
+                Expect.isFalse (shouldReloadCategories ok (CategoriesFetching 1) (Some (now.AddMinutes -10.0)) now) "Refreshing"
+                Expect.isFalse (shouldReloadCategories Loading CategoriesIdle None now) "Loading"
             }
         ]
 
@@ -198,4 +198,198 @@ let tests =
                 Expect.equal (availableAgeLabel at (at.AddMinutes 90.0)) "Stand 10:42" "Uhrzeit"
             }
         ]
+    ]
+
+// ============================================
+// Späte Antworten der Kategorien (ledger-pfhdq)
+// ============================================
+
+let private lebensmittelId = YnabCategoryId (Guid.Parse "44444444-4444-4444-4444-444444444444")
+
+let private lebensmittelWith (amount: decimal) =
+    [ category lebensmittelId "Alltag" "Lebensmittel" (Some (eur amount)) ]
+
+let private expense : LedgerEntryView =
+    { Id = Guid.Parse "0195f500-0000-7000-8000-00000000f001"
+      AccountId = Guid.Parse "0195e500-0000-7000-8000-000000000001"
+      Date = DateTime.Today
+      Amount = eur -30m
+      Payee = Some "Markt"
+      Memo = None
+      CategoryName = None
+      CategoryId = None
+      CategoryGroupName = None
+      Reconciled = false
+      SplitCategoryGroupNames = Map.empty
+      Splits = []
+      Origin = MirroredFromYnab
+      DeletedInYnab = false
+      NeedsReview = false
+      Flag = NoFlag
+      IsTransfer = false
+      TransferAccountId = None
+      ReviewMarkWriteBackFailure = None
+      CategorizationWriteBackFailure = None
+      FlagWriteBackFailure = None
+      MemoWriteBackFailure = None
+      AmountWriteBackFailure = None
+      AmountLockReason = None
+      PayeeWriteBackFailure = None
+      LinkedToYnab = true
+      PushToYnabFailure = None; SplitLocks = None; ExternalLinks = []
+      PossibleDuplicate = None; CategoryFromOrderId = false }
+
+let private settingsWithBudget : AppSettingsView =
+    { Comdirect = None
+      Ynab =
+        Some
+            { HasToken = true
+              DefaultBudgetId = Some (YnabBudgetId "pfhdq-budget")
+              DefaultAccountId = None
+              QuickAddAccountId = None }
+      Sync = { DaysToFetch = 30; AutoFetchEnabled = true; AutoFetchIntervalMinutes = 360 } }
+
+let private loadedStamp = DateTime(2026, 11, 19, 9, 0, 0)
+
+/// Kassenbuch mit geladenen Kategorien (Lebensmittel 100 €) und einer Ausgabe von 30 € ohne Kategorie im
+/// laufenden Monat, Settings mit Budget.
+let private freshnessRoot () : State.Model =
+    let root = rootModel (Some loadedStamp) Page.Ledger
+    let ledger =
+        { root.Ledger with
+            Categories = Success (lebensmittelWith 100m)
+            Entries = Success [ expense ]
+            TotalCount = 1
+            TotalAmount = eur -30m }
+    { root with
+        Ledger = ledger
+        Settings = { root.Settings with Settings = Success settingsWithBudget } }
+
+/// Ports, deren `getCategories` nacheinander die Werte aus `answers` liefert.
+let private portsAnswering (answers: Result<YnabCategory list, YnabError> list) : State.UpdatePorts =
+    let queue = System.Collections.Concurrent.ConcurrentQueue<Result<YnabCategory list, YnabError>>(answers)
+    { GetCategories =
+        fun _ ->
+            async {
+                match queue.TryDequeue() with
+                | true, answer -> return answer
+                | _ -> return Error (YnabError.NetworkError "keine Antwort vorgesehen")
+            } }
+
+/// Startet einen Abruf über das Root-`update` und liefert das Modell samt der Antwort, die der Port bringt.
+let private startFetch (ports: State.UpdatePorts) (m: State.Model) : State.Model * State.Msg =
+    let m', cmd = State.updateWith ports (State.LedgerMsg LoadCategories) m
+    let answer, _ = Tests.CmdTiming.firstDispatchedAfter 3000 cmd
+    m', answer
+
+let private confirmChange (ports: State.UpdatePorts) (m: State.Model) : State.Model =
+    let outcome : CategoryChangeOutcome =
+        { Previous = None; Change = CategoryChanged; WriteBack = CategorySent; PreviousTransferAccountId = None }
+    fst (State.updateWith ports (State.LedgerMsg (EntryCategorySet (expense.Id, Some lebensmittelId, Ok outcome))) m)
+
+let private lebensmittelAvailable (m: State.Model) =
+    match m.Ledger.Categories with
+    | Success list -> availableOf lebensmittelId list
+    | other -> failtestf "Kategorien erwartet, war %A" other
+
+let private fetchRunning (m: State.Model) = m.Ledger.CategoriesFetch <> CategoriesIdle
+
+/// Ein Schritt der Aufzählung: Abruf-Start A oder B, die Kategorieänderung (Fortschreibung), die Antwort auf A oder B.
+type private CategoriesStep =
+    | StartA
+    | StartB
+    | Shift
+    | AnswerA
+    | AnswerB
+
+let rec private orderings (xs: 'a list) : 'a list list =
+    match xs with
+    | [] -> [ [] ]
+    | _ ->
+        xs
+        |> List.indexed
+        |> List.collect (fun (i, x) ->
+            let rest = xs |> List.indexed |> List.filter (fun (j, _) -> j <> i) |> List.map snd
+            orderings rest |> List.map (fun p -> x :: p))
+
+/// Alle zulässigen Reihenfolgen: A ist der zuerst gestartete Abruf, jede Antwort kommt nach ihrem Start.
+let private categoriesOrders =
+    orderings [ StartA; Shift; StartB; AnswerA; AnswerB ]
+    |> List.filter (fun order ->
+        let at step = List.findIndex ((=) step) order
+        at StartA < at StartB && at StartA < at AnswerA && at StartB < at AnswerB)
+
+/// Orakel aus der Nachrichtenfolge: eine erfolgreiche Antwort gilt, wenn nach ihrem Start weder ein neuer Start
+/// noch eine Fortschreibung kam; die Fortschreibung senkt Lebensmittel um 30 €; ein Fehler ändert nichts.
+let private expectedAvailable (order: CategoriesStep list) (answerA: Result<decimal, string>) (answerB: Result<decimal, string>) =
+    let _, value =
+        order
+        |> List.fold
+            (fun (latest, value) step ->
+                match step with
+                | StartA | StartB | Shift -> step, (if step = Shift then value - 30m else value)
+                | AnswerA ->
+                    match answerA with
+                    | Ok v when latest = StartA -> latest, v
+                    | _ -> latest, value
+                | AnswerB ->
+                    match answerB with
+                    | Ok v when latest = StartB -> latest, v
+                    | _ -> latest, value)
+            (Shift, 100m)
+    value
+
+[<Tests>]
+let lateAnswerTests =
+    testList "Kassenbuch: späte Antworten der Kategorien (ledger-pfhdq)" [
+
+        // Regression ledger-pfhdq: die Antwort eines vor der Kategorieänderung gestarteten Abrufs setzte das
+        // fortgeschriebene Available zurück; Roman sah in der Karte und im Picker alte Zahlen.
+        test "Eine vor der Fortschreibung gestartete Antwort setzt Available nicht zurück" {
+            let ports = portsAnswering [ Ok (lebensmittelWith 100m) ]
+            let started, answer = startFetch ports (freshnessRoot ())
+            let shifted = confirmChange ports started
+            Expect.equal (lebensmittelAvailable shifted) (Some 70m) "fortgeschrieben"
+            let after, _ = State.updateWith ports answer shifted
+            Expect.equal (lebensmittelAvailable after) (Some 70m) "die alte Antwort fällt weg"
+            Expect.equal after.Ledger.CategoriesLoadedAt (Some loadedStamp) "Zeitstempel unverändert"
+            Expect.isFalse (fetchRunning after) "kein Abruf läuft mehr"
+        }
+
+        test "Ein nach der Fortschreibung gestarteter Abruf gilt" {
+            for amount in [ 70m; 65m ] do
+                let ports = portsAnswering [ Ok (lebensmittelWith amount) ]
+                let shifted = confirmChange ports (freshnessRoot ())
+                let started, answer = startFetch ports shifted
+                let after, _ = State.updateWith ports answer started
+                Expect.equal (lebensmittelAvailable after) (Some amount) $"die Antwort gilt ({amount})"
+                Expect.isTrue (after.Ledger.CategoriesLoadedAt > Some loadedStamp) "Zeitstempel neu"
+                Expect.isFalse (fetchRunning after) "kein Abruf läuft mehr"
+        }
+
+        test "Reihenfolgen von zwei Abrufen und einer Fortschreibung" {
+            let cases : (Result<decimal, string> * Result<decimal, string>) list =
+                [ Ok 80m, Ok 60m; Ok 80m, Error "weg"; Error "weg", Ok 60m; Error "weg", Error "weg" ]
+            Expect.hasLength categoriesOrders 15 "fünfzehn zulässige Reihenfolgen"
+            for order in categoriesOrders do
+                for answerA, answerB in cases do
+                    let toPort = function
+                        | Ok v -> Ok (lebensmittelWith v)
+                        | Error e -> Error (YnabError.NetworkError e)
+                    let ports = portsAnswering [ toPort answerA; toPort answerB ]
+                    let final, _ =
+                        order
+                        |> List.fold
+                            (fun (m, answers: Map<CategoriesStep, State.Msg>) step ->
+                                match step with
+                                | StartA | StartB ->
+                                    let m', answer = startFetch ports m
+                                    m', answers |> Map.add (if step = StartA then AnswerA else AnswerB) answer
+                                | Shift -> confirmChange ports m, answers
+                                | AnswerA | AnswerB -> fst (State.updateWith ports answers[step] m), answers)
+                            (freshnessRoot (), Map.empty)
+                    let label = $"{order} {answerA} {answerB}"
+                    Expect.equal (lebensmittelAvailable final) (Some (expectedAvailable order answerA answerB)) $"{label}: Available"
+                    Expect.isFalse (fetchRunning final) $"{label}: kein Abruf läuft mehr"
+        }
     ]

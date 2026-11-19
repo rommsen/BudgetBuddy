@@ -1840,6 +1840,27 @@ export const STATES = [
       await hint.waitFor({ state: "detached" });
     },
   },
+  // ledger-pfhdq: scheitert das Nachladen der Kontostände nach dem Spiegel-Lauf, bleiben die alten Beträge stehen,
+  // darüber der Hinweis „Kontostände konnten nicht aktualisiert werden“ mit „Erneut laden“ (Variante A, Roman 2026-11-19).
+  {
+    name: "kassenbuch-kontostaende-veraltet",
+    route: "/ledger",
+    widths: [412, 1280],
+    mock: async (page) => {
+      await mockLedger(page);
+      let balanceCalls = 0;
+      await page.route("**/api/LedgerApi/getLedgerAccountBalances", (route) => {
+        balanceCalls += 1;
+        return balanceCalls === 1 ? route.fallback() : route.fulfill({ status: 500, body: "Fehler" });
+      });
+      page.sweepMirror = await mockRunningMirror(page);
+    },
+    open: async (page) => {
+      await openLedger(page);
+      await page.sweepMirror.finishMirror();
+      await page.getByText("Kontostände konnten nicht aktualisiert werden").locator("visible=true").first().waitFor();
+    },
+  },
   // ledger-y54gr: die Auswahl-Leiste am Handy mit beiden Lena-Aktionen und dem Grund als Zeile. Bei 320 px bricht
   // sie um und wird höher: am Ende der Liste liegt die letzte Buchung trotzdem über ihr (Invariante 5, am Ende
   // gescrollt).

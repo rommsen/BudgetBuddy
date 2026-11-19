@@ -213,9 +213,17 @@ type BalancesNotice = {
 
 let balancesFailedText = "Kontostände konnten nicht geladen werden"
 
-let balancesNotice (balances: RemoteData<LedgerAccountBalanceView list>) : BalancesNotice option =
-    match balances with
-    | Failure _ -> Some { Text = balancesFailedText; RetryLabel = "Erneut laden"; Retry = LoadBalances }
+/// Das Nachladen scheiterte, die alten Beträge stehen weiter (ledger-pfhdq, Entscheidung Roman 2026-11-19, Variante A).
+let balancesRefreshFailedText = "Kontostände konnten nicht aktualisiert werden"
+
+/// `refreshError` ist `BalancesRefreshError` des Modells: gesetzt, wenn das Nachladen bei stehenden Ständen scheiterte.
+let balancesNotice
+    (balances: RemoteData<LedgerAccountBalanceView list>)
+    (refreshError: string option)
+    : BalancesNotice option =
+    match balances, refreshError with
+    | Failure _, _ -> Some { Text = balancesFailedText; RetryLabel = "Erneut laden"; Retry = LoadBalances }
+    | Success _, Some _ -> Some { Text = balancesRefreshFailedText; RetryLabel = "Erneut laden"; Retry = LoadBalances }
     | _ -> None
 
 // ============================================
@@ -947,8 +955,12 @@ let private cardBalanceElement (isActive: bool) (balance: CardBalance) : ReactEl
 
 /// „Erneut laden“ bei gescheiterten Kontoständen, über der Liste auf allen Breiten (ledger-d9z3n). Der Aufrufer legt
 /// den Rahmen fest.
-let private balancesNoticeView (dispatch: Msg -> unit) (balances: RemoteData<LedgerAccountBalanceView list>) =
-    balancesNotice balances
+let private balancesNoticeView
+    (dispatch: Msg -> unit)
+    (balances: RemoteData<LedgerAccountBalanceView list>)
+    (refreshError: string option)
+    =
+    balancesNotice balances refreshError
     |> Option.map (fun n -> ErrorDisplay.cardCompactWith n.RetryLabel n.Text (Some (fun () -> dispatch n.Retry)))
 
 /// Der Untertitel der Seite nach einem Spiegel-Lauf, kurz (`ledger-n4vte`):
@@ -4989,7 +5001,7 @@ let view (model: Model) (dispatch: Msg -> unit) (tabs: LedgerTabs) (ruleForm: En
             | NotAsked | Success _ ->
                 // Unter 1024 px gibt es keine Konten-Spalte mehr (ledger-d9z3n): die Kontowahl steht als Feld
                 // in der Spalte, ab 1024 px in der Seitenleiste. Der Hinweis zu gescheiterten Ständen steht oben.
-                match balancesNoticeView dispatch balances with
+                match balancesNoticeView dispatch balances model.BalancesRefreshError with
                 | Some card when not (List.isEmpty accounts) -> Html.div [ prop.className "pb-3"; prop.children [ card ] ]
                 | _ -> ()
                 Html.div [

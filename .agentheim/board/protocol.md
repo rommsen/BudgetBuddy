@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-19 10:13 -- Task verified and completed: ledger-pfhdq - "Späte und gescheiterte Antworten im Kassenbuch: Available, Kontostände und Spiegel-Status tragen eine Lade-Nummer, ältere Antworten fallen weg, ein gescheitertes Nachladen der Kontostände bleibt mit Hinweis sichtbar (Components/Ledger/State.fs CategoriesLoaded, BalancesLoaded, MirrorStatusLoaded)"
+
+**Type:** Work / Task completion
+**Task:** ledger-pfhdq - "Späte und gescheiterte Antworten im Kassenbuch: Available, Kontostände und Spiegel-Status tragen eine Lade-Nummer, ältere Antworten fallen weg, ein gescheitertes Nachladen der Kontostände bleibt mit Hinweis sichtbar (Components/Ledger/State.fs CategoriesLoaded, BalancesLoaded, MirrorStatusLoaded)"
+**Summary:** Späte und gescheiterte Antworten: Lade-Nummern für Available, Kontostände, Spiegel-Status; alte Kontostände bleiben mit Hinweis
+**Duration:** 50m
+**Verification:** PASS (iteration 1)
+**Files changed:** 12
+**Tests added:** 7
+**ADRs written:** none
+
+---
+
 ## 2026-11-19 09:53 -- Task verified and completed: ledger-awf5b - "Ein übernommener Betragsfilter mit Komma („12,50“) gilt nicht mehr als laufende Eingabe: isInputActive vergleicht die Betragsentwürfe als Wert statt als Text, der Update-Neustart beim Öffnen wird nicht mehr zurückgehalten (src/Client/State.fs isInputActive)"
 
 **Type:** Work / Task completion

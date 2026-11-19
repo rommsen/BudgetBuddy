@@ -629,14 +629,14 @@ let private accountCardsTests =
         }
 
         test "Nur ein gescheiterter Abruf bringt die Zeile mit Erneut laden, die LoadBalances schickt" {
-            match balancesNotice (Failure "x") with
+            match balancesNotice (Failure "x") None with
             | Some notice ->
                 Expect.equal notice.Text "Kontostände konnten nicht geladen werden" "Text"
                 Expect.equal notice.RetryLabel "Erneut laden" "Knopf"
                 Expect.equal notice.Retry LoadBalances "Erneut laden lädt die Kontostände"
             | None -> failtest "Hinweis erwartet"
             for balances in [ Success []; Loading; NotAsked ] do
-                Expect.isNone (balancesNotice balances) $"{balances}: kein Hinweis"
+                Expect.isNone (balancesNotice balances None) $"{balances}: kein Hinweis"
         }
     ]
 

@@ -1,7 +1,7 @@
 ---
 id: ledger-pfhdq
 title: "Späte und gescheiterte Antworten im Kassenbuch: Available, Kontostände und Spiegel-Status tragen eine Lade-Nummer, ältere Antworten fallen weg, ein gescheitertes Nachladen der Kontostände bleibt mit Hinweis sichtbar (Components/Ledger/State.fs CategoriesLoaded, BalancesLoaded, MirrorStatusLoaded)"
-status: doing
+status: done
 type: bug
 context: ledger
 created: 2026-11-19
@@ -136,3 +136,30 @@ Entschieden (Roman, 2026-11-19): jeweils die Empfehlung.
   C) alte Beträge bleiben, nur ein Toast (Warnung) „Kontostände konnten nicht aktualisiert werden: <Grund>“. Nach fünf
   Sekunden ist der Hinweis weg, die Zahlen stehen wieder ohne Hinweis da.
   Empfehlung A. Roman hat A gewählt.
+
+## Outcome
+
+Drei Abrufe im Kassenbuch tragen jetzt je eine eigene Lade-Nummer (eine je Abruf, Vorbild `HistoryGeneration`).
+
+- **Kategorien**: `CategoriesGeneration` steigt bei jedem Start (Root-Zweig `LedgerMsg LoadCategories` in `src/Client/State.fs`) und bei jeder Fortschreibung durch `shiftAvailable` (`applyCategoryResult` in `src/Client/Components/Ledger/State.fs`). `CategoriesRefreshing` ist ersetzt durch `CategoriesFetch = CategoriesIdle | CategoriesFetching of generation` (`src/Client/Components/Ledger/Types.fs`). Ein neuer Start ersetzt den laufenden Abruf. `CategoriesLoaded of int * Result` setzt Stand und `CategoriesLoadedAt` nur bei passender Nummer und beendet den Abruf nur, wenn sie zu ihm gehört. Der Fehlerzweig nimmt `RemoteData.lateFailure`. `grep -rn CategoriesRefreshing src/` ist leer.
+- **Kontostände**: `BalancesGeneration` und `BalancesLoaded of int * Result`. Eine ältere Antwort fällt weg, Erfolg wie Fehler. Scheitert die aktuelle Antwort, während Stände stehen, bleiben die Beträge und `BalancesRefreshError` merkt sich den Grund. Ein neuer Start löscht ihn nicht, die nächste erfolgreiche Antwort schon. `balancesNotice balances refreshError` (`src/Client/Components/Ledger/View.fs`) liefert dann `balancesRefreshFailedText` „Kontostände konnten nicht aktualisiert werden“ mit „Erneut laden“ (`LoadBalances`), über `ErrorDisplay.cardCompactWith` an derselben Stelle wie der Hinweis zum ersten Laden. `syncNavAccounts` bekommt das Kassenbuch-Modell vor der Nachricht und lässt ältere Antworten auch für Seitenleiste und Übersicht weg.
+- **Spiegel-Status**: `MirrorStatusGeneration` und `MirrorStatusLoaded of int * Result`. Beim Start bleibt ein `Success` stehen (nur ohne Stand `Loading`), ein Fehler ersetzt den gelesenen Stand nicht (`lateFailure`), eine ältere Antwort fällt weg und startet keinen `RunMirror`. Der Aufruf liegt jetzt hinter einem Lambda, damit `update` unter .NET läuft (vorher warf der Proxy schon im Reducer).
+- `RemoteData.lateFailure` (`src/Client/Types.fs`): Kommentar neu formuliert (der Helfer lässt einen Stand stehen, ob der Fehler sichtbar wird, entscheidet der Aufrufer).
+
+Tests (Expecto):
+- `src/Tests/LedgerCategoriesFreshnessTests.fs`, Liste „späte Antworten der Kategorien (ledger-pfhdq)“: Regression über das echte Root-`updateWith` mit `GetCategories` als Port (Antwort ist die Nachricht, die der Port wirklich schickt). Vor dem Fix rot (`expected Some 70M, actual Some 100M`). Dazu der Intakt-Fall (nach der Änderung gestartet, 70 € und 65 €) und die Aufzählung aller 15 zulässigen Reihenfolgen von Start A, Fortschreibung, Start B, Antwort A, Antwort B mit je `Ok`/`Error` (60 Läufe), Orakel aus der Nachrichtenfolge.
+- `src/Tests/LedgerPageTests.fs`: Regression Kontostände (vor dem Fix rot: kein Hinweis) samt Intakt-Fällen (erstes Laden bleibt bei „konnten nicht geladen werden“, Erfolg nimmt den Hinweis weg, ein neuer Start lässt ihn stehen). Regression Spiegel-Status (vor dem Fix rot: der Reducer setzte `Loading` und warf unter .NET am Proxy). Liste „Reihenfolgen der Kontostände und des Spiegel-Status“: drei zulässige Reihenfolgen zweier Starts und Antworten mal vier Ergebnis-Paare über das Root-`update` (Leiste und Übersicht nach `syncNavAccounts`, Hinweis genau nach gescheiterter letzter Antwort), Spiegel-Status mit zwei Starts, beiden Antwort-Reihenfolgen und beiden Zuordnungen von „vor 10 Minuten“/„vor 1 Minute“ (RunMirror genau, wenn die Antwort des zuletzt gestarteten Abrufs älter als 5 Minuten ist).
+- Bestehende Tests auf die neuen Signaturen umgezogen, inhaltlich gleich: `LedgerCategoriesFreshnessTests`, `LedgerCategoriesAwaitSettingsTests`, `LedgerPageTests`, `LedgerViewTests`, `OverviewTests`, `LedgerBackgroundRefreshTests`.
+- Layout-Sweep: neuer Zustand `kassenbuch-kontostaende-veraltet` (412 und 1280 px) in `scripts/layout-states.mjs`. Erste Antwort der Stände kommt, der automatische Spiegel-Lauf endet, das Nachladen scheitert mit 500. Keine Verletzung.
+
+Bilder für Romans Blick (aus dem Sweep-Zustand): /private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/4b5cf62e-3174-40e3-90f3-4b5312280eb9/scratchpad/shots/ledger-pfhdq/kontostaende-veraltet-412.png und /private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/4b5cf62e-3174-40e3-90f3-4b5312280eb9/scratchpad/shots/ledger-pfhdq/kontostaende-veraltet-1280.png. Die alten Beträge stehen (Seitenleiste und Kontofeld), darüber der rote Hinweis mit „Erneut laden“.
+
+Kein Skizzenvergleich: es gibt keine Skizze, Ort und Baustein sind die des bestehenden Hinweises.
+
+README-Delta (Kontostand, Available frisch halten) mit `npm run check:readme-delta -- --bc ledger` geprüft: Exit 0, „Ganz nachlesen: keine Einträge“, kein `--keep`.
+
+Kein ADR: die Lade-Nummer folgt dem Standard „Späte Antworten“ (`standards/frontend/overview.md`) und dem Vorbild `HistoryGeneration`. Die sichtbare Variante A hat Roman am 2026-11-19 in der Task entschieden, sie steht im README.
+
+Orakel der Kategorien-Reihenfolgen: „die letzte erfolgreiche Antwort, deren Start nach der letzten Fortschreibung lag“ ist so gelesen, dass nach ihrem Start auch kein neuer Start kam. Das folgt aus der Regel „ein neuer Start ersetzt den laufenden Abruf“ in „What“.
+
+`./verify.sh`: VERIFY: PASS (dotnet 5189 grün, node 351 grün, dotnet build, npm run build, guard:classes, guard:tokens grün).

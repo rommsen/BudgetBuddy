@@ -860,7 +860,7 @@ let reducerTests =
             let entries = [ entryView 1 -42.5m false ]
             let withEntries, _, _ =
                 Components.Ledger.State.update (EntriesPageLoaded (0, 0, Ok (page entries 1))) (freshModel ())
-            let updated, cmd, _ = Components.Ledger.State.update (MirrorStatusLoaded (Ok (Some staleStatus))) withEntries
+            let updated, cmd, _ = Components.Ledger.State.update (MirrorStatusLoaded (0, Ok (Some staleStatus))) withEntries
             Expect.isTrue updated.MirrorRunning "der Hintergrund-Lauf ist gestartet"
             Expect.contains (dispatched cmd) RunMirror "genau ein Auslöser für den Hintergrund-Lauf"
             Expect.equal updated.Entries (Success entries) "die Liste bleibt stehen, während der Hintergrund-Lauf läuft (ADR 0014)"
@@ -872,13 +872,13 @@ let reducerTests =
                 Outcome = MirrorRunSucceeded summary
             }
             let updated, cmd, _ =
-                Components.Ledger.State.update (MirrorStatusLoaded (Ok (Some freshStatus))) (freshModel ())
+                Components.Ledger.State.update (MirrorStatusLoaded (0, Ok (Some freshStatus))) (freshModel ())
             Expect.isFalse updated.MirrorRunning "kein Hintergrund-Lauf nötig"
             Expect.isEmpty (dispatched cmd) "kein Kommando"
         }
 
         test "Noch nie ein Lauf-Status löst einen Hintergrund-Lauf aus" {
-            let updated, cmd, _ = Components.Ledger.State.update (MirrorStatusLoaded (Ok None)) (freshModel ())
+            let updated, cmd, _ = Components.Ledger.State.update (MirrorStatusLoaded (0, Ok None)) (freshModel ())
             Expect.isTrue updated.MirrorRunning "der erste Lauf überhaupt zählt als 'nicht frisch'"
             Expect.contains (dispatched cmd) RunMirror "genau ein Auslöser"
         }
@@ -894,7 +894,7 @@ let reducerTests =
                 Outcome = MirrorRunSucceeded summary
             }
             let running = { freshModel () with MirrorRunning = true }
-            let updated, cmd, _ = Components.Ledger.State.update (MirrorStatusLoaded (Ok (Some staleStatus))) running
+            let updated, cmd, _ = Components.Ledger.State.update (MirrorStatusLoaded (0, Ok (Some staleStatus))) running
             Expect.isTrue updated.MirrorRunning "der laufende Lauf bleibt unverändert stehen"
             Expect.isEmpty (dispatched cmd) "kein zweiter Auslöser während eines laufenden Spiegels"
         }
@@ -1301,7 +1301,7 @@ let reducerTests =
                 { Id = catId 9; Name = "Umzug 2023"; GroupName = "Alltag"; Available = None; Hidden = true }
             let visible : YnabCategory =
                 { Id = catId 1; Name = "Lebensmittel"; GroupName = "Alltag"; Available = Some (eur -12.5m); Hidden = false }
-            let updated, _, _ = Components.Ledger.State.update (CategoriesLoaded (Ok [ hidden; visible ])) (freshModel ())
+            let updated, _, _ = Components.Ledger.State.update (CategoriesLoaded (0, Ok [ hidden; visible ])) (freshModel ())
             match updated.Categories with
             | Success cats ->
                 Expect.isTrue (cats |> List.find (fun c -> c.Name = "Umzug 2023") |> fun c -> c.Hidden) "Versteckt bleibt versteckt"
@@ -3729,8 +3729,8 @@ let private staleAnswerTests =
 
         testCase "Ein spätes Scheitern ersetzt fertige Kontostände nicht" <| fun () ->
             let shown = { freshModel () with Balances = Success [] }
-            Expect.equal (update (BalancesLoaded (Error "x")) shown).Balances (Success []) "bleibt"
-            Expect.equal (update (BalancesLoaded (Error "x")) { shown with Balances = Loading }).Balances (Failure "x") "ohne Stand gilt der Fehler"
+            Expect.equal (update (BalancesLoaded (0, Error "x")) shown).Balances (Success []) "bleibt"
+            Expect.equal (update (BalancesLoaded (0, Error "x")) { shown with Balances = Loading }).Balances (Failure "x") "ohne Stand gilt der Fehler"
 
         // Regression (Review 2026-11): `LoadBalances` setzte immer `Loading`, nach "Jetzt spiegeln"
         // flackerten alle geladenen Kontostände zu Platzhaltern.
@@ -3739,6 +3739,40 @@ let private staleAnswerTests =
             Expect.equal (update LoadBalances shown).Balances (Success []) "bleibt"
             Expect.equal (update LoadBalances { shown with Balances = NotAsked }).Balances Loading "erster Abruf lädt"
             Expect.equal (update LoadBalances { shown with Balances = Failure "x" }).Balances Loading "nach Fehler lädt"
+
+        // Regression ledger-pfhdq: scheiterte das Nachladen der Kontostände, schluckte `lateFailure` den Fehler,
+        // die Leiste zeigte alte Stände ohne Hinweis.
+        testCase "Ein gescheitertes Nachladen lässt die Beträge stehen und meldet es" <| fun () ->
+            let shown = { freshModel () with Balances = Success [ { AccountId = Guid.Empty; Balance = { Amount = 5m; Currency = "EUR" } } ] }
+            let started = update LoadBalances shown
+            let failed = update (BalancesLoaded (started.BalancesGeneration, Error "Http error (500)")) started
+            Expect.equal failed.Balances shown.Balances "die Beträge bleiben"
+            match Components.Ledger.View.balancesNotice failed.Balances failed.BalancesRefreshError with
+            | Some notice ->
+                Expect.equal notice.Text "Kontostände konnten nicht aktualisiert werden" "Text"
+                Expect.equal notice.RetryLabel "Erneut laden" "Knopf"
+                Expect.equal notice.Retry LoadBalances "lädt neu"
+            | None -> failtest "Hinweis erwartet"
+            let noticeOf (m: Model) = Components.Ledger.View.balancesNotice m.Balances m.BalancesRefreshError
+            let again = update LoadBalances failed
+            Expect.equal (noticeOf again |> Option.map (fun n -> n.Text)) (Some "Kontostände konnten nicht aktualisiert werden") "ein neuer Start lässt den Hinweis bis zur Antwort stehen"
+            let fixedUp = update (BalancesLoaded (again.BalancesGeneration, Ok [])) again
+            Expect.isNone (noticeOf fixedUp) "die nächste erfolgreiche Antwort nimmt den Hinweis weg"
+            Expect.equal fixedUp.Balances (Success []) "neue Beträge"
+            let first = update LoadBalances (freshModel ())
+            let firstFailed = update (BalancesLoaded (first.BalancesGeneration, Error "Http error (500)")) first
+            Expect.equal (noticeOf firstFailed |> Option.map (fun n -> n.Text)) (Some "Kontostände konnten nicht geladen werden") "ein gescheitertes erstes Laden bleibt beim alten Satz"
+
+        // Regression ledger-pfhdq: `LoadMirrorStatus` setzte `Loading`, „Gespiegelt …“ verschwand bei jedem Laden,
+        // und ein Fehler ersetzte den gelesenen Stand.
+        testCase "Nachlesen des Spiegel-Status lässt den gelesenen Stand stehen, auch nach einem Fehler" <| fun () ->
+            let status : MirrorRunStatus = { RanAt = DateTime.UtcNow - TimeSpan.FromMinutes 1.0; Outcome = MirrorRunSucceeded summary }
+            let shown = { freshModel () with LastMirrorRun = Success (Some status) }
+            let started = update LoadMirrorStatus shown
+            Expect.equal started.LastMirrorRun (Success (Some status)) "Stand bleibt beim Start"
+            let failed = update (MirrorStatusLoaded (started.MirrorStatusGeneration, Error "Http error (500)")) started
+            Expect.equal failed.LastMirrorRun (Success (Some status)) "Stand bleibt nach dem Fehler"
+            Expect.equal (update LoadMirrorStatus (freshModel ())).LastMirrorRun Loading "ohne Stand lädt es"
 
         testCase "Ein spätes Scheitern ersetzt die fertige Historie derselben Buchung nicht" <| fun () ->
             let shown = withDetail { freshModel () with History = Success [] }
@@ -3808,6 +3842,114 @@ let private rulesTabTests =
         }
     ]
 
+// ============================================
+// Reihenfolgen der Kontostände und des Spiegel-Status (ledger-pfhdq, Doktrin Punkt 20)
+// ============================================
+
+let rec private orderings (xs: 'a list) : 'a list list =
+    match xs with
+    | [] -> [ [] ]
+    | _ ->
+        xs
+        |> List.indexed
+        |> List.collect (fun (i, x) ->
+            let rest = xs |> List.indexed |> List.filter (fun (j, _) -> j <> i) |> List.map snd
+            orderings rest |> List.map (fun p -> x :: p))
+
+/// Ein Schritt der Aufzählung: Start Nummer `n` (1 oder 2) oder die Antwort auf Start `n`.
+type private FetchStep =
+    | Start of int
+    | Answer of int
+
+/// Alle zulässigen Reihenfolgen zweier Starts und ihrer Antworten: Start 1 vor Start 2, jede Antwort nach ihrem Start.
+let private fetchOrders =
+    orderings [ Start 1; Start 2; Answer 1; Answer 2 ]
+    |> List.filter (fun order ->
+        let at step = List.findIndex ((=) step) order
+        at (Start 1) < at (Start 2) && at (Start 1) < at (Answer 1) && at (Start 2) < at (Answer 2))
+    |> List.distinct
+
+let private balancesOf (amount: decimal) : LedgerAccountBalanceView list =
+    [ { AccountId = Guid.Parse "0195e500-0000-7000-8000-0000000000b1"; Balance = { Amount = amount; Currency = "EUR" } } ]
+
+/// Orakel aus der Nachrichtenfolge: eine Antwort zählt, wenn nach ihrem Start kein weiterer Start kam; ein Erfolg
+/// setzt die Beträge, ein Fehler lässt sie stehen.
+let private expectedBalances (order: FetchStep list) (results: Map<int, Result<decimal, string>>) (initial: decimal) =
+    let _, shown =
+        order
+        |> List.fold
+            (fun (latest, shown) step ->
+                match step with
+                | Start n -> n, shown
+                | Answer n when n = latest ->
+                    match results[n] with
+                    | Ok amount -> latest, amount
+                    | Error _ -> latest, shown
+                | Answer _ -> latest, shown)
+            (0, initial)
+    shown
+
+let private orderTests =
+    let resultsCases : (Result<decimal, string> * Result<decimal, string>) list =
+        [ Ok 10m, Ok 20m; Ok 10m, Error "Http error (500)"; Error "Http error (500)", Ok 20m
+          Error "Http error (500)", Error "Http error (502)" ]
+    testList "Reihenfolgen der Kontostände und des Spiegel-Status (ledger-pfhdq)" [
+
+        testCase "Kontostände: es gilt die Antwort auf den zuletzt gestarteten Abruf, in Leiste und Übersicht" <| fun () ->
+            Expect.hasLength fetchOrders 3 "drei zulässige Reihenfolgen"
+            for order in fetchOrders do
+                for first, second in resultsCases do
+                    let results = Map [ 1, first; 2, second ]
+                    let initialLedger = { (rootModel Types.Page.Ledger).Ledger with Balances = Success (balancesOf 5m) }
+                    let initial =
+                        { rootModel Types.Page.Ledger with
+                            Ledger = initialLedger
+                            Overview = { Components.Overview.Types.init with Balances = Success (balancesOf 5m) } }
+                    let final, _ =
+                        order
+                        |> List.fold
+                            (fun (m: State.Model, generations: Map<int, int>) step ->
+                                match step with
+                                | Start n ->
+                                    let m', _ = State.update (State.LedgerMsg LoadBalances) m
+                                    m', generations |> Map.add n m'.Ledger.BalancesGeneration
+                                | Answer n ->
+                                    let result = results[n] |> Result.map balancesOf
+                                    let m', _ = State.update (State.LedgerMsg (BalancesLoaded (generations[n], result))) m
+                                    m', generations)
+                            (initial, Map.empty)
+                    let label = $"{order} {first} {second}"
+                    let expected = Success (balancesOf (expectedBalances order results 5m))
+                    Expect.equal final.Ledger.Balances expected $"{label}: Leiste"
+                    Expect.equal final.Overview.Balances expected $"{label}: Übersicht"
+                    let notice = Components.Ledger.View.balancesNotice final.Ledger.Balances final.Ledger.BalancesRefreshError
+                    Expect.equal notice.IsSome (Result.isError second) $"{label}: Hinweis genau nach gescheiterter letzter Antwort"
+
+        testCase "Spiegel-Status: es steht die Antwort des zuletzt gestarteten Abrufs, nur sie startet einen Lauf" <| fun () ->
+            let statusAgo (minutes: float) : MirrorRunStatus =
+                { RanAt = DateTime.UtcNow - TimeSpan.FromMinutes minutes; Outcome = MirrorRunSucceeded summary }
+            let tenAgo = statusAgo 10.0
+            let oneAgo = statusAgo 1.0
+            for firstStatus, secondStatus in [ tenAgo, oneAgo; oneAgo, tenAgo ] do
+                for answerOrder in [ [ 1; 2 ]; [ 2; 1 ] ] do
+                    let s1, _, _ = Components.Ledger.State.update LoadMirrorStatus (freshModel ())
+                    let s2, _, _ = Components.Ledger.State.update LoadMirrorStatus s1
+                    let generations = Map [ 1, s1.MirrorStatusGeneration; 2, s2.MirrorStatusGeneration ]
+                    let statuses = Map [ 1, firstStatus; 2, secondStatus ]
+                    let final, sent =
+                        answerOrder
+                        |> List.fold
+                            (fun (m, sent) n ->
+                                let m', cmd, _ = Components.Ledger.State.update (MirrorStatusLoaded (generations[n], Ok (Some statuses[n]))) m
+                                m', sent @ dispatched cmd)
+                            (s2, [])
+                    let label = $"zuerst gestartet {firstStatus.RanAt:t}, Antworten {answerOrder}"
+                    Expect.equal final.LastMirrorRun (Success (Some secondStatus)) $"{label}: der zuletzt gestartete Abruf gilt"
+                    let stale = DateTime.UtcNow - secondStatus.RanAt > TimeSpan.FromMinutes 5.0
+                    Expect.equal (List.contains RunMirror sent) stale $"{label}: RunMirror genau bei altem Stand"
+                    Expect.isLessThanOrEqual (sent |> List.filter ((=) RunMirror) |> List.length) 1 $"{label}: höchstens ein Lauf"
+    ]
+
 [<Tests>]
 let ledgerPageTests =
     testList
@@ -3822,4 +3964,5 @@ let ledgerPageTests =
           routeTests
           rulesTabTests
           staleAnswerTests
+          orderTests
           isTransferTests ]
