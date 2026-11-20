@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-20 18:47 -- Batch started: [infrastructure-x7p2e]
+
+**Type:** Work / Batch start
+**Tasks:** infrastructure-x7p2e - "Expecto wieder schnell: testSequenced nur bei geteiltem Zustand, lange Aufzählungen teilen, Ziel höchstens 30 s"
+**Parallel:** no (1 worker; banking-import-y7m4r ist ready, aber laut Task owner-run und nicht per work zu starten)
+
+---
+
 ## 2026-11-20 18:01 -- Modeling / Promoted: infrastructure-x7p2e - "Expecto wieder schnell: testSequenced nur bei geteiltem Zustand, lange Aufzählungen teilen, Ziel höchstens 30 s"
 
 **Type:** Modeling / Promote

@@ -1,7 +1,7 @@
 ---
 id: infrastructure-x7p2e
 title: "Expecto wieder schnell: testSequenced nur bei geteiltem Zustand, lange Aufzählungen teilen, Ziel höchstens 30 s"
-status: todo
+status: doing
 type: chore
 context: infrastructure
 created: 2026-11-20
