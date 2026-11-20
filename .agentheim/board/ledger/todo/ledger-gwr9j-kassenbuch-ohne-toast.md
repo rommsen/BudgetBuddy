@@ -1,7 +1,7 @@
 ---
 id: ledger-gwr9j
 title: "Kassenbuch am Handy ohne Toast (R3), Teil 1 Liste: Texte der Leiste für Wische, Spiegeln, Neue Buchung, Mehrfachauswahl und Ladefehler, „Spiegeln läuft“, Rückgängig nach n Wischen ohne Sprung der Liste"
-status: backlog
+status: todo
 type: feature
 context: ledger
 created: 2026-11-19
