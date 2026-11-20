@@ -231,7 +231,8 @@ test("[layout] Handy (412): Kategorie ändern im Sheet, Bestätigung am Feld ohn
   assert.ok(onTop, "nichts liegt über der Bestätigung");
   // Eine Meldung ohne Bezug (nicht gemockte Einstellungen) darf in der Leiste stehen, keine zur Kategorie.
   assert.doesNotMatch(await page.locator('[data-testid="feedback-bar"]').textContent(), /Kategorie|Rückgängig/, "nicht in der Leiste");
-  assert.equal(await page.locator(".toast-layer > *").filter({ visible: true }).count(), 0, "kein Toast");
+  // Gezählt ohne Sichtbarkeit: unter 1024 px ist der Behälter `hidden`, ein sichtbares Kind gäbe es nie.
+  assert.equal(await page.locator(".toast-layer > *").filter({ hasText: /Kategorie|Rückgängig/ }).count(), 0, "kein Toast");
   // Wie `closeLedgerSheet` (layout-states.mjs): `Viewport.swallowNextClick` schluckt einen Tipp innerhalb von 350 ms
   // nach der Wahl im Picker; dann gilt der nächste.
   for (let attempt = 0; attempt < 5 && state.setCalls.length < 2; attempt += 1) {

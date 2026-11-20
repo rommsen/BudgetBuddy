@@ -103,7 +103,7 @@ let memoBuildingBlockTests =
             Expect.isTrue (memoDraftChangesEntry "" (withMemo 1 "Lampe")) "Leeren ist eine Änderung"
             Expect.isFalse (memoDraftChangesEntry (String('a', ynabMemoMaxLength + 1)) (entryOf 1)) "zu lang zählt nicht"
 
-        testCase "Toast-Texte: gesetzt, geändert, entfernt" <| fun () ->
+        testCase "Meldungstexte zum Memo: gesetzt, geändert, entfernt" <| fun () ->
             Expect.equal (memoToastText None (Some "x")) "Memo gesetzt" "gesetzt"
             Expect.equal (memoToastText (Some "a") (Some "b")) "Memo geändert" "geändert"
             Expect.equal (memoToastText (Some "a") None) "Memo entfernt" "entfernt"

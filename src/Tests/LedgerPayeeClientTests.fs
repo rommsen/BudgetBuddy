@@ -309,7 +309,7 @@ let reducerTests =
             Expect.isNone after.PayeeEdit "zu"
             Expect.equal msgs [ RestorePayeeRowFocus ] "kein Aufruf"
 
-        testCase "Payee entfernen mit gescheitertem Versand: Fehlschlag an der Buchung, Warn-Toast, die Buchung bleibt ohne Payee" <| fun () ->
+        testCase "Payee entfernen mit gescheitertem Versand: Fehlschlag an der Buchung, gelb unter „Payee“, die Buchung bleibt ohne Payee" <| fun () ->
             let model, _, external = run (PayeeSet (idOf 1, Ok (outcomeTo (Some "REWE SAGT DANKE 4711") None (PayeeSendFailed "YNAB weg")))) (opened ())
             Expect.equal (rowOf 1 model).PayeeWriteBackFailure (Some "YNAB weg") "Grund"
             Expect.equal (rowOf 1 model).Payee None "ohne Payee"
@@ -319,7 +319,7 @@ let reducerTests =
                 (Some (FeedbackWarning, "Entfernt, nicht in YNAB: YNAB weg", true))
                 "gelb unter „Payee“"
 
-        testCase "PayeeSet mit gescheitertem Versand: Fehlschlag an der Buchung, Warn-Toast, der Payee bleibt in BB" <| fun () ->
+        testCase "PayeeSet mit gescheitertem Versand: Fehlschlag an der Buchung, gelb unter „Payee“, der Payee bleibt in BB" <| fun () ->
             let model, _, external = run (PayeeSet (idOf 1, Ok (outcome (Some "REWE SAGT DANKE 4711") "Rewe" (PayeeSendFailed "YNAB weg")))) (opened ())
             Expect.equal (rowOf 1 model).PayeeWriteBackFailure (Some "YNAB weg") "Grund"
             Expect.equal (rowOf 1 model).Payee (Some "Rewe") "Payee bleibt in BB"

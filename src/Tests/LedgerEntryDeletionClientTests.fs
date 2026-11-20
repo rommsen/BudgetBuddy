@@ -303,6 +303,7 @@ let deleteWithDetailNoteTests =
             let after, _, external = run (EntryDeleteFinished (idOf 9, Ok ())) model
             Expect.isNone after.DetailNote "Bestätigung ersetzt"
             match external with
-            | PostFeedback feedback -> Expect.notEqual feedback (detailNoteBar note) "die Meldung des Löschens, nicht die Bestätigung"
+            | PostFeedback feedback ->
+                Expect.equal feedback (Components.Ledger.State.entryDeletedFeedback (entryOf 9).Payee (idOf 9)) "die Meldung des Löschens, nicht die Bestätigung"
             | other -> failtestf "Meldung „gelöscht“ erwartet: %A" other
     ]

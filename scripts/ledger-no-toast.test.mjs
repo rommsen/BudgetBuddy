@@ -2,7 +2,7 @@
 //
 // Schlussprüfung der Reihe „Kassenbuch ohne Toast“ (ledger-enjex, Regel R3, ADR 0098): am Handy kommt im Kassenbuch
 // kein Toast mehr. Ein Lauf löst nacheinander Wisch, Spiegeln, Neue Buchung, Kategorie, Memo und Löschen aus. Ein
-// Beobachter im Browser hält fest, ob je ein Element im Behälter des Toasts sichtbar wurde. Dazu prüft der Lauf je
+// Beobachter im Browser hält fest, ob der Behälter des Toasts je mit Inhalt sichtbar wurde. Dazu prüft der Lauf je
 // Schritt den Platz der Rückmeldung: Leiste (Wisch, Spiegeln, Neue Buchung), Feld im Detail (Kategorie, Memo, ohne
 // Meldung in Leiste oder Toast-Behälter), Zeile am Platz (Löschen). Gemessen am echten, per Vite gestarteten
 // Fable-Client gegen gemockte Antworten, nie die echte Entwicklungsdatenbank.
@@ -65,12 +65,15 @@ async function open(context) {
     removed.add("Markt Löschen");
     return json(r, { Ok: null });
   });
-  // Hält fest, ob je ein Element im Behälter des Toasts sichtbar wurde (auch kurz, zwischen zwei Prüfungen).
+  // Hält fest, ob je ein Toast sichtbar wurde (auch kurz, zwischen zwei Prüfungen). Die Meldungen der Leiste (Wisch,
+  // Spiegeln, Neue Buchung) stehen aus demselben Wert auch im Behälter des Toasts, unter 1024 px `hidden`; geprüft wird
+  // deshalb der Behälter selbst, sobald er etwas trägt. Kinder eines verborgenen Behälters sind nie sichtbar, eine
+  // Prüfung je Kind schlüge nie an.
   await page.addInitScript(() => {
     window.__visibleToasts = [];
     const check = () => {
-      for (const el of document.querySelectorAll(".toast-layer > *")) {
-        if (el.checkVisibility()) window.__visibleToasts.push(el.textContent.trim());
+      for (const layer of document.querySelectorAll(".toast-layer")) {
+        if (layer.childElementCount > 0 && layer.checkVisibility()) window.__visibleToasts.push(layer.textContent.trim());
       }
     };
     new MutationObserver(check).observe(document, { childList: true, subtree: true, attributes: true });
