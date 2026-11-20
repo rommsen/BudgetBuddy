@@ -1127,13 +1127,15 @@ let lastLineTests =
             let _, msgs, _ = run ReviewRetryLast closed
             Expect.contains msgs (RunSetPayee (idOf cardA, Some "Bäckerei Lange")) "Erneut schickt denselben Payee"
 
-        testCase "der Payee in „Details“ schreibt keine Zeile, der Toast bleibt dort bis ledger-p5y9s" <| fun () ->
+        // ledger-enjex: in „Details“ gilt die Bestätigung am Feld, kein Toast und keine Zeile der Karte.
+        testCase "der Payee in „Details“ schreibt keine Zeile, die Bestätigung steht unter „Payee“" <| fun () ->
             let editing = reviewing [ cardA; cardC ] |> step ReviewShowDetails |> step (OpenPayeeEdit (idOf cardA))
             let sending = editing |> step (StartSavePayee (idOf cardA, Some "Bäckerei Lange"))
             let outcome = { PreviousPayee = cardA.Payee; CurrentPayee = Some "Bäckerei Lange"; PayeeChange = PayeeChanged; PayeeWriteBack = PayeeSent }
             let saved, _, external = run (PayeeSet (idOf cardA, Ok outcome)) sending
             Expect.isNone (lineOf saved) "keine Zeile"
-            Expect.notEqual external NoOp "die Meldung des Details bleibt"
+            Expect.equal external NoOp "kein Toast"
+            Expect.equal (saved.DetailNote |> Option.map (fun n -> n.Field, n.Text)) (Some (AtPayee, "Geändert")) "am Feld im Detail"
 
         testCase "außerhalb des Durchgehens bleibt der Toast nach Lena fragen (Gegentest Flag)" <| fun () ->
             let model, _ = Components.Ledger.State.init ()

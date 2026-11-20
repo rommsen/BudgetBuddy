@@ -323,44 +323,56 @@ let amountReducerTests =
             | PostFeedback note -> Expect.equal (note.Action, note.Act) ("Betrag geändert", None) "Detail zu: Leiste ohne Rückgängig"
             | other -> failtest $"erwartet Leiste, war {other}"
 
-        testCase "AmountSet Ok: Betrag in Zeile und Detail, Sheet zu, Toast mit Rückgängig, Historie und Kontostände neu" <| fun () ->
+        testCase "AmountSet Ok: Betrag in Zeile und Detail, Sheet zu, „✓ Geändert“ mit Rückgängig am Betrag, Historie und Kontostände neu" <| fun () ->
             let before, _, _ = run (StartSaveAmount (idOf 1)) (typed [ entryOf 1 ] "45")
             let model, msgs, external = run (AmountSet (idOf 1, Ok (outcome -42.80m -45m AmountSent))) before
             Expect.equal (rowOf 1 model).Amount (eur -45m) "Zeile"
             Expect.equal (model.DetailFor |> Option.map (fun d -> d.Amount)) (Some (eur -45m)) "Detail zieht mit"
             Expect.isNone model.AmountEdit "Sheet zu"
             Expect.isEmpty model.AmountRows "Sperre gelöst"
-            Expect.equal msgs [ LoadHistory (idOf 1); LoadBalances ] "Historie und Kontostände"
-            match external with
-            | ShowToastWithAction (text, ToastSuccess, { Kind = UndoAmount (id, previous) }) ->
-                Expect.equal text (amountToastText (eur -45m)) "Text"
-                Expect.stringStarts text "Betrag geändert · " "Prototyp-Satz"
-                Expect.equal (id, previous) (idOf 1, -42.80m) "Rückgängig kennt den alten Betrag"
-            | other -> failtest $"erwartet Toast mit Rückgängig, war {other}"
+            Expect.equal (msgs |> List.take 2) [ LoadHistory (idOf 1); LoadBalances ] "Historie und Kontostände"
+            Expect.equal external NoOp "kein Toast (ledger-enjex)"
+            let note = model.DetailNote |> Option.get
+            Expect.equal (note.Field, note.Tone, note.Text) (AtAmount, FeedbackOk, "Geändert") "unter dem Betrag oben im Detail"
+            Expect.equal note.Undo (Some (UndoAmount (idOf 1, -42.80m))) "Rückgängig kennt den alten Betrag"
+            Expect.equal (note.BarAction, note.BarDetail) ("Betrag geändert", Some (Client.DesignSystem.Money.formatAmountText false true -45m "EUR")) "Leiste nach dem Schließen: der neue Betrag"
 
-        testCase "AmountSet mit gescheitertem Versand: Fehlschlag an der Buchung, Warn-Toast, Betrag bleibt in BB" <| fun () ->
+        testCase "AmountSet mit gescheitertem Versand: Fehlschlag an der Buchung, gelb am Betrag mit Rückgängig, Betrag bleibt in BB" <| fun () ->
             let model, _, external =
                 run (AmountSet (idOf 1, Ok (outcome -42.80m -45m (AmountSendFailed "YNAB weg")))) (modelWith [ entryOf 1 ])
             Expect.equal (rowOf 1 model).AmountWriteBackFailure (Some "YNAB weg") "Grund"
             Expect.equal (rowOf 1 model).Amount (eur -45m) "Betrag bleibt in BB"
-            match external with
-            | ShowToastWithAction (_, ToastWarning, { Kind = UndoAmount _ }) -> ()
-            | other -> failtest $"erwartet Warn-Toast, war {other}"
+            Expect.equal external NoOp "kein Toast"
+            Expect.equal
+                (model.DetailNote |> Option.map (fun n -> n.Tone, n.Text, n.Undo))
+                (Some (FeedbackWarning, "Geändert, nicht in YNAB: YNAB weg", Some (UndoAmount (idOf 1, -42.80m))))
+                "gelb am Betrag"
 
-        testCase "AmountSet Error: das Sheet bleibt offen, Fehler-Toast" <| fun () ->
+        testCase "AmountSet Error: das Sheet bleibt offen, der Grund steht im Sheet über dem Fuß, kein Toast" <| fun () ->
             let before, _, _ = run (StartSaveAmount (idOf 1)) (typed [ entryOf 1 ] "45")
             let model, _, external = run (AmountSet (idOf 1, Error "Abgeglichen")) before
             Expect.isSome model.AmountEdit "Entwurf bleibt"
-            Expect.equal (model.AmountRows |> Map.tryFind (idOf 1)) (Some (AmountCommandFailed "Abgeglichen")) "Befehlsfehler"
-            Expect.equal external (ShowToast ("Betrag nicht geändert: Abgeglichen", ToastError)) "Toast"
+            Expect.equal (model.AmountRows |> Map.tryFind (idOf 1)) (Some (AmountCommandFailed "Abgeglichen")) "Befehlsfehler für die Zeile im Sheet"
+            Expect.equal external NoOp "kein Toast (ledger-enjex)"
+            Expect.isNone model.DetailNote "nicht zusätzlich am Betrag"
+            let retyped, _, _ = run (AmountDraftChanged "46") model
+            Expect.isEmpty retyped.AmountRows "eine neue Eingabe nimmt die rote Zeile weg"
+            let switched, _, _ = run (AmountDirectionChanged false) model
+            Expect.isEmpty switched.AmountRows "auch die Richtung"
+            let _, _, closedExternal = run (AmountSet (idOf 1, Error "Abgeglichen")) { before with AmountEdit = None; DetailFor = None }
+            match closedExternal with
+            | PostFeedback note -> Expect.equal (note.Tone, note.Action) (FeedbackError, "Betrag nicht geändert") "Detail zu: Leiste rot"
+            | other -> failtest $"erwartet Leiste, war {other}"
 
-        testCase "Rückgängig ruft den Befehl mit dem alten Betrag, der Rücknahme-Toast hat kein Rückgängig" <| fun () ->
+        testCase "Rückgängig ruft den Befehl mit dem alten Betrag; im offenen Detail kein Rücknahme-Toast" <| fun () ->
             let started, msgs, _ = run (StartUndoAmount (idOf 1, -42.80m)) (modelWith [ { entryOf 1 with Amount = eur -45m } ])
             Expect.equal msgs [ RunUndoAmount (idOf 1, -42.80m) ] "Aufruf mit altem Betrag"
             Expect.equal (started.AmountRows |> Map.tryFind (idOf 1)) (Some AmountSending) "läuft"
             let restored, _, external = run (AmountRestored (idOf 1, Ok (outcome -45m -42.80m AmountSent))) started
             Expect.equal (rowOf 1 restored).Amount (eur -42.80m) "alter Betrag"
-            Expect.equal external (ShowToast (amountRestoredToastText, ToastSuccess)) "Toast ohne Aktion"
+            Expect.equal external NoOp "kein Toast"
+            let _, _, closedExternal = run (AmountRestored (idOf 1, Ok (outcome -45m -42.80m AmountSent))) { started with DetailFor = None }
+            Expect.equal closedExternal (ShowToast (amountRestoredToastText, ToastSuccess)) "Detail zu: Toast ohne Aktion"
 
         // Bug: bei offenem Split-Editor setzte der Betrags-Knopf `AmountEdit`, ohne dass ein Dialog erschien;
         // die Liste war gesperrt, nach dem Schließen des Editors sprang der Dialog auf, im Sheet ersetzte
@@ -384,14 +396,47 @@ let amountReducerTests =
         // Die Sperre je Buchung (Rückgängig und Erneut senden neben laufendem Speichern, Doppeltipp) prüft
         // die Aufzählung, Gruppe Betrag in LedgerRowLockWaysTests.fs (ledger-smv1s).
 
-        testCase "Rückgängig gescheitert: Sperre frei mit dem Grund, Fehler-Toast, Betrag unverändert" <| fun () ->
+        testCase "Rückgängig gescheitert: Sperre frei, rot am Betrag, kein Toast, Betrag unverändert" <| fun () ->
             let started, _, _ = run (StartUndoAmount (idOf 1, -42.80m)) (modelWith [ { entryOf 1 with Amount = eur -45m } ])
-            let model, msgs, external = run (AmountRestored (idOf 1, Error "YNAB weg")) started
-            Expect.equal (model.AmountRows |> Map.tryFind (idOf 1)) (Some (AmountCommandFailed "YNAB weg")) "nicht mehr AmountSending"
+            let model, _, external = run (AmountRestored (idOf 1, Error "YNAB weg")) started
+            Expect.isNone (model.AmountRows |> Map.tryFind (idOf 1)) "nicht mehr AmountSending, keine zweite rote Zeile"
             Expect.isSome (Components.Ledger.View.amountEditMsg model (rowOf 1 model)) "Knopf wieder frei"
-            Expect.isEmpty msgs "kein Aufruf"
-            Expect.equal external (ShowToast ("Rückgängig nicht möglich: YNAB weg", ToastError)) "Toast mit Grund"
+            Expect.equal external NoOp "kein Toast (ledger-enjex)"
+            Expect.equal
+                (model.DetailNote |> Option.map (fun n -> n.Field, n.Tone, n.Text))
+                (Some (AtAmount, FeedbackError, "Rückgängig nicht möglich: YNAB weg"))
+                "rot am Betrag"
             Expect.equal (rowOf 1 model).Amount (eur -45m) "Betrag unverändert"
+            let closed, _, closedExternal = run (AmountRestored (idOf 1, Error "YNAB weg")) { started with DetailFor = None }
+            Expect.equal (closed.AmountRows |> Map.tryFind (idOf 1)) (Some (AmountCommandFailed "YNAB weg")) "Detail zu: der Grund an der Zeile"
+            match closedExternal with
+            | PostFeedback note -> Expect.equal (note.Tone, note.Action) (FeedbackError, "Rückgängig nicht möglich") "Leiste rot"
+            | other -> failtest $"erwartet Leiste, war {other}"
+
+        testCase "Sheet und Panel gleich; Schließen übergibt „Betrag geändert“ mit Rückgängig an die Leiste" <| fun () ->
+            let save form =
+                let before, _, _ = run (StartSaveAmount (idOf 1)) { typed [ entryOf 1 ] "45" with DetailForm = form }
+                let m, _, _ = run (AmountSet (idOf 1, Ok (outcome -42.80m -45m AmountSent))) before
+                m
+            Expect.equal (save DetailSheet).DetailNote (save DetailPanel).DetailNote "gleich"
+            let closed, _, external = run CloseDetail (save DetailSheet)
+            Expect.isNone closed.DetailNote "am Feld weg"
+            match external with
+            | PostFeedback note ->
+                Expect.equal (note.Action, note.Detail) ("Betrag geändert", Some (Client.DesignSystem.Money.formatAmountText false true -45m "EUR")) "Leiste"
+                Expect.equal
+                    (note.Act |> Option.map (fun a -> State.toastActionMsg a.Kind))
+                    (Some (State.LedgerMsg (StartUndoAmount (idOf 1, -42.80m))))
+                    "Rückgängig wie früher im Toast"
+            | other -> failtest $"erwartet Leiste, war {other}"
+
+        testCase "Speichern eines neuen Betrags nimmt die stehende Bestätigung weg" <| fun () ->
+            let before, _, _ = run (StartSaveAmount (idOf 1)) (typed [ entryOf 1 ] "45")
+            let saved, _, _ = run (AmountSet (idOf 1, Ok (outcome -42.80m -45m AmountSent))) before
+            let reopened, _, _ = run (OpenAmountEdit (idOf 1)) saved
+            let retyped, _, _ = run (AmountDraftChanged "46") reopened
+            let saving, _, _ = run (StartSaveAmount (idOf 1)) retyped
+            Expect.isNone saving.DetailNote "weg"
 
         testCase "Erneut senden: Erfolg löscht den Fehlschlag, ein erneuter Fehlschlag ersetzt den Grund" <| fun () ->
             let failing = { entryOf 1 with AmountWriteBackFailure = Some "weg" }

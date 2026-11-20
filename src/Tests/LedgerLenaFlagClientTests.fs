@@ -191,7 +191,7 @@ let lenaReducerTests =
             let deleted = modelWith [ { entryOf 1 with DeletedInYnab = true } ]
             noop (StartSetLenaFlag (idOf 1, AssignLena)) deleted
 
-        testCase "LenaFlagSet Ok: Kennzeichen, Zähler, Toast mit Rückgängig" <| fun () ->
+        testCase "LenaFlagSet Ok: Kennzeichen, Zähler; im offenen Detail wechselt nur der Knopf, kein Toast" <| fun () ->
             let model = modelWith [ entryOf 1; entryOf 2 ]
             let model', _, external = run (LenaFlagSet (idOf 1, AssignLena, Ok (changed none FlagSent))) model
             Expect.equal (rowOf 1 model').Flag AskLena "Rückfrage Lena"
@@ -199,20 +199,28 @@ let lenaReducerTests =
             Expect.equal model'.AskLenaCount 1 "Zähler steigt"
             Expect.equal (model'.DetailFor |> Option.map (fun d -> d.Flag)) (Some AskLena) "Detail zieht mit"
             Expect.isEmpty model'.FilteredOut "nichts ausgegraut ohne Chip"
+            Expect.equal external NoOp "kein Toast (ledger-enjex)"
+            Expect.equal (lenaActionFor model'.LenaFlagColor (rowOf 1 model')).Label "Rückfrage zurücknehmen" "der Knopf wechselt"
+
+        testCase "LenaFlagSet Ok bei geschlossenem Detail: der Toast mit Rückgängig wie bisher (unter 1024 px die Leiste)" <| fun () ->
+            let model = { modelWith [ entryOf 1; entryOf 2 ] with DetailFor = None }
+            let _, _, external = run (LenaFlagSet (idOf 1, AssignLena, Ok (changed none FlagSent))) model
             match external with
             | ShowToastWithAction ("Lena gefragt", ToastSuccess, { Kind = UndoFlag (id, previous) }) ->
                 Expect.equal id (idOf 1) "Buchung"
                 Expect.equal previous none "Vorzustand"
             | other -> failtest $"erwartet Toast mit Rückgängig, war {other}"
 
-        testCase "LenaFlagSet mit gescheitertem Versand: Fehlschlag an der Buchung, Warn-Toast" <| fun () ->
+        testCase "LenaFlagSet mit gescheitertem Versand: Fehlschlag an der Buchung, gelb unter dem Knopf, kein Toast" <| fun () ->
             let model', _, external =
                 run (LenaFlagSet (idOf 1, AssignLena, Ok (changed none (FlagSendFailed "YNAB weg")))) (modelWith [ entryOf 1 ])
             Expect.equal (rowOf 1 model').FlagWriteBackFailure (Some "YNAB weg") "Grund"
             Expect.equal (rowOf 1 model').Flag AskLena "Flag bleibt in BB"
-            match external with
-            | ShowToastWithAction (text, ToastWarning, _) -> Expect.stringContains text "YNAB weg" "Grund im Toast"
-            | other -> failtest $"erwartet Warn-Toast, war {other}"
+            Expect.equal external NoOp "kein Toast"
+            Expect.equal
+                (model'.DetailNote |> Option.map (fun n -> n.Field, n.Tone, n.Text, n.Undo))
+                (Some (AtLena, FeedbackWarning, "Lena gefragt, nicht in YNAB: YNAB weg", None))
+                "gelb unter dem Knopf, ohne Rückgängig (der Knopf ist es)"
 
         testCase "NoChange: kein Toast, Zähler und Kennzeichen bleiben" <| fun () ->
             let outcome : FlagOutcome = { Previous = lenaState; Change = FlagUnchanged; WriteBack = FlagNotSent }
@@ -221,10 +229,20 @@ let lenaReducerTests =
             Expect.equal model'.AskLenaCount 1 "Zähler gleich"
             Expect.equal (rowOf 1 model').Flag AskLena "Kennzeichen gleich"
 
-        testCase "LenaFlagSet Error: der Befehlsfehler steht an der Zeile, Flag unverändert" <| fun () ->
+        testCase "LenaFlagSet Error im offenen Detail: rot unter dem Knopf, Flag unverändert, kein Toast" <| fun () ->
             let model', _, external = run (LenaFlagSet (idOf 1, AssignLena, Error "Buchung nicht gefunden")) (modelWith [ entryOf 1 ])
-            Expect.equal (model'.FlagRows |> Map.tryFind (idOf 1)) (Some (FlagCommandFailed "Buchung nicht gefunden")) "Zeilenzustand"
+            Expect.isNone (model'.FlagRows |> Map.tryFind (idOf 1)) "keine zweite rote Zeile in der Hinweisleiste"
             Expect.equal (rowOf 1 model').Flag NoFlag "Flag unverändert"
+            Expect.equal external NoOp "kein Toast"
+            Expect.equal
+                (model'.DetailNote |> Option.map (fun n -> n.Field, n.Tone, n.Text))
+                (Some (AtLena, FeedbackError, "Nicht geändert: Buchung nicht gefunden"))
+                "rot unter dem Knopf"
+
+        testCase "LenaFlagSet Error bei geschlossenem Detail: der Befehlsfehler steht an der Zeile, Fehler-Toast" <| fun () ->
+            let model', _, external =
+                run (LenaFlagSet (idOf 1, AssignLena, Error "Buchung nicht gefunden")) { modelWith [ entryOf 1 ] with DetailFor = None }
+            Expect.equal (model'.FlagRows |> Map.tryFind (idOf 1)) (Some (FlagCommandFailed "Buchung nicht gefunden")) "Zeilenzustand"
             match external with
             | ShowToast (_, ToastError) -> ()
             | other -> failtest $"erwartet Fehler-Toast, war {other}"
@@ -259,8 +277,10 @@ let lenaReducerTests =
             let model', _, external = run (FlagRestored (idOf 1, previous, Ok (changed lenaState FlagSent))) model
             Expect.equal (rowOf 1 model').Flag Marked "Markiert"
             Expect.equal model'.AskLenaCount 0 "kein Lena mehr"
-            match external with
-            | ShowToast (text, ToastSuccess) -> Expect.equal text flagRestoredToastText "Toast ohne Rückgängig"
+            Expect.equal external NoOp "im offenen Detail kein Rücknahme-Toast (ledger-enjex)"
+            let _, _, closedExternal = run (FlagRestored (idOf 1, previous, Ok (changed lenaState FlagSent))) { model with DetailFor = None }
+            match closedExternal with
+            | ShowToast (text, ToastSuccess) -> Expect.equal text flagRestoredToastText "Detail zu: Toast ohne Rückgängig"
             | other -> failtest $"erwartet Toast, war {other}"
 
         testCase "StartUndoFlag sperrt die Zeile und stößt RunUndoFlag an" <| fun () ->
@@ -280,9 +300,11 @@ let lenaReducerTests =
             Expect.equal okExternal NoOp "kein Toast"
             let again, _, againExternal = run (FlagRetried (idOf 1, Ok (FlagSendFailed "neu"))) sending
             Expect.equal (rowOf 1 again).FlagWriteBackFailure (Some "neu") "neuer Grund"
-            match againExternal with
+            Expect.equal againExternal NoOp "im offenen Detail zeigt die Hinweisleiste den Grund (ledger-enjex)"
+            let _, _, closedExternal = run (FlagRetried (idOf 1, Ok (FlagSendFailed "neu"))) { sending with DetailFor = None }
+            match closedExternal with
             | ShowToast (_, ToastWarning) -> ()
-            | other -> failtest $"erwartet Warn-Toast, war {other}"
+            | other -> failtest $"Detail zu: erwartet Warn-Toast, war {other}"
 
         testCase "ToggleOnlyAskLena kippt den Filter und lädt ab Seite 0 neu; die Anfrage trägt OnlyAskLena" <| fun () ->
             let model = modelWith [ entryOf 1 ]
@@ -322,6 +344,82 @@ let lenaReducerTests =
         testCase "LenaFlagSettingsLoaded übernimmt die gespeicherte Farbe" <| fun () ->
             let model, _, _ = run (LenaFlagSettingsLoaded (Ok { SavedColor = Some "blue"; SuggestedColor = Some "red" })) (modelWith [])
             Expect.equal model.LenaFlagColor (Success (Some "blue")) "gespeichert, nicht der Vorschlag"
+    ]
+
+let private marked : FlagState = { Color = Some "red"; Name = None }
+
+[<Tests>]
+let lenaButtonNoteTests =
+    testList "Lena fragen: der Knopf ist die Bestätigung (ledger-enjex)" [
+
+        testCase "rein: ohne vorheriges Flag kein Text und kein Rückgängig, mit fremdem Flag „Lena gefragt“ mit Rückgängig auf das alte Flag" <| fun () ->
+            let plain = lenaFlagNote (idOf 1) AssignLena none (Some "Rewe") None
+            Expect.equal (plain.Field, plain.Tone, plain.Text, plain.Undo) (AtLena, FeedbackOk, "", None) "ohne Flag: nur der Knopf"
+            Expect.isTrue plain.Flashing "der Knopf leuchtet"
+            let foreign = lenaFlagNote (idOf 1) AssignLena marked (Some "Rewe") None
+            Expect.equal
+                (foreign.Tone, foreign.Text, foreign.Undo)
+                (FeedbackOk, "Lena gefragt", Some (UndoFlag (idOf 1, marked)))
+                "fremdes Flag: ✓ Lena gefragt · Rückgängig"
+            let withdrawn = lenaFlagNote (idOf 1) WithdrawLena lenaState None None
+            Expect.equal (withdrawn.Text, withdrawn.Undo) ("", None) "Zurücknehmen: nur der Knopf"
+            Expect.isTrue (hadForeignFlag AssignLena { Color = None; Name = Some "Markiert" }) "auch ein Flag nur mit Namen"
+            Expect.isFalse (hadForeignFlag WithdrawLena marked) "nie beim Zurücknehmen"
+
+        testCase "Lena fragen auf einer Buchung mit fremdem Flag: „✓ Lena gefragt“ unter dem Knopf, Rückgängig stellt das alte Flag her" <| fun () ->
+            let model = modelWith [ { entryOf 1 with Flag = Marked } ]
+            let asked, _, external = run (LenaFlagSet (idOf 1, AssignLena, Ok (changed marked FlagSent))) model
+            Expect.equal external NoOp "kein Toast"
+            let note = asked.DetailNote |> Option.get
+            Expect.equal (note.Field, note.Tone, note.Text) (AtLena, FeedbackOk, "Lena gefragt") "unter dem Knopf"
+            let undo = note.Undo |> Option.bind detailNoteUndoMsg
+            Expect.equal undo (Some (StartUndoFlag (idOf 1, marked))) "Rückgängig schickt das alte Flag"
+            Expect.equal
+                (note.Undo |> Option.map State.toastActionMsg)
+                (Some (State.LedgerMsg (StartUndoFlag (idOf 1, marked))))
+                "dieselbe Nachricht wie früher im Toast"
+            let restoring, msgs, _ = run undo.Value asked
+            Expect.equal msgs [ RunUndoFlag (idOf 1, marked) ] "Aufruf mit dem alten Flag"
+            let restored, _, restoredExternal = run (FlagRestored (idOf 1, marked, Ok (changed lenaState FlagSent))) restoring
+            Expect.equal (rowOf 1 restored).Flag Marked "das alte Flag steht wieder"
+            Expect.isNone restored.DetailNote "Bestätigung weg"
+            Expect.equal restoredExternal NoOp "kein Rücknahme-Toast"
+
+        testCase "Lena fragen ohne vorheriges Flag: nur der Knopf wechselt und leuchtet, kein Text, kein Toast" <| fun () ->
+            let asked, _, external = run (LenaFlagSet (idOf 1, AssignLena, Ok (changed none FlagSent))) (modelWith [ entryOf 1 ])
+            Expect.equal external NoOp "kein Toast"
+            Expect.equal (asked.DetailNote |> Option.map (fun n -> n.Text, n.Undo, n.Flashing)) (Some ("", None, true)) "nur Leuchten"
+            let ended, _, _ = run (DetailNoteFlashEnded asked.DetailNote.Value.Version) asked
+            Expect.isFalse ended.DetailNote.Value.Flashing "das Leuchten endet"
+
+        testCase "Sheet am Handy und Panel am PC zeigen dasselbe" <| fun () ->
+            let run' form =
+                let m, _, ext = run (LenaFlagSet (idOf 1, AssignLena, Ok (changed marked FlagSent))) { modelWith [ entryOf 1 ] with DetailForm = form }
+                m.DetailNote, ext
+            Expect.equal (run' DetailSheet) (run' DetailPanel) "gleich"
+
+        testCase "Schließen: mit fremdem Flag wandert „Lena gefragt · Rückgängig“ in die Leiste, ohne endet die Bestätigung still" <| fun () ->
+            let foreign, _, _ = run (LenaFlagSet (idOf 1, AssignLena, Ok (changed marked FlagSent))) (modelWith [ entryOf 1 ])
+            let closed, _, external = run CloseDetail foreign
+            Expect.isNone closed.DetailNote "am Knopf weg"
+            match external with
+            | PostFeedback note ->
+                Expect.equal (note.Action, note.Act |> Option.map (fun a -> a.Kind)) ("Lena gefragt", Some (UndoFlag (idOf 1, marked))) "Leiste mit Rückgängig"
+            | other -> failtest $"erwartet Leiste, war {other}"
+            let plain, _, _ = run (LenaFlagSet (idOf 1, AssignLena, Ok (changed none FlagSent))) (modelWith [ entryOf 1 ])
+            let _, _, plainExternal = run CloseDetail plain
+            Expect.equal plainExternal NoOp "ohne fremdes Flag nichts in der Leiste"
+
+        testCase "Lena fragen nimmt eine stehende Bestätigung weg; Rückgängig gescheitert steht rot unter dem Knopf" <| fun () ->
+            let foreign, _, _ = run (LenaFlagSet (idOf 1, AssignLena, Ok (changed marked FlagSent))) (modelWith [ { entryOf 1 with Flag = Marked } ])
+            let failed, _, external = run (FlagRestored (idOf 1, marked, Error "YNAB weg")) foreign
+            Expect.equal external NoOp "kein Toast"
+            Expect.equal
+                (failed.DetailNote |> Option.map (fun n -> n.Field, n.Tone, n.Text))
+                (Some (AtLena, FeedbackError, "Rückgängig nicht möglich: YNAB weg"))
+                "rot unter dem Knopf"
+            let started, _, _ = run (StartSetLenaFlag (idOf 1, WithdrawLena)) { foreign with FlagRows = Map.empty }
+            Expect.isNone started.DetailNote "die neue Aktion nimmt die Bestätigung weg"
     ]
 
 [<Tests>]

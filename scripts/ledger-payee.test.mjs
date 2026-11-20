@@ -3,8 +3,8 @@
 // Wächter für `ledger-fxt09`: Payee ändern im Kassenbuch-Detail. Gemessen am echten, per Vite
 // gestarteten Fable-Client gegen gemockte Ledger-Antworten (nie die echte Entwicklungsdatenbank).
 // Nur, was der Browser allein zeigen kann: der eine Happy Path am Handy mit Touch (die Auswahl
-// ersetzt den Inhalt des Sheets, die Tastatur bleibt beim Tippen und Übernehmen offen, Rückgängig im
-// Toast, dazu „Payee entfernen“ mit Toast und Rückgängig, ledger-pkrwd) und der Fokus am PC (Fokus in der Suche, Esc zurück auf die Payee-Zeile). Texte, Sperren und
+// ersetzt den Inhalt des Sheets, die Tastatur bleibt beim Tippen und Übernehmen offen, Rückgängig am
+// Feld (ledger-enjex), dazu „Payee entfernen“ mit Rückgängig, ledger-pkrwd) und der Fokus am PC (Fokus in der Suche, Esc zurück auf die Payee-Zeile). Texte, Sperren und
 // Zustände prüfen `src/Tests/LedgerPayeeClientTests.fs` und `src/Tests/LedgerPayeeTests.fs`.
 //
 // Ausführen: node --test scripts/ledger-payee.test.mjs
@@ -113,7 +113,7 @@ const detailTitle = (scope) => scope.locator('[data-testid="detail-title"]');
 // ledger-zfj78: im Sheet steht der Payee als Titel im Kopf des Sheets, der Inhalt beginnt mit dem Betrag.
 const detailContent = (scope) => scope.locator('[data-testid="detail-payee"]');
 
-test("[flow:payee-aendern] Handy: Payee im Detail ändern und entfernen, beides in der Meldungsleiste rückgängig machen, die Tastatur bleibt bis zum Schließen offen", async () => {
+test("[flow:payee-aendern] Handy: Payee im Detail ändern und entfernen, beides am Feld rückgängig machen, die Tastatur bleibt bis zum Schließen offen", async () => {
   const context = await browser.newContext({ viewport: { width: 412, height: 915 }, hasTouch: true, isMobile: true });
   const page = await open(context);
   await page.getByText(BANK_PAYEE, { exact: true }).first().tap();
@@ -144,24 +144,25 @@ test("[flow:payee-aendern] Handy: Payee im Detail ändern und entfernen, beides 
     "Rewe Markt"
   );
   assert.deepEqual(state.setCalls[0], { entryId: idOf(1), text: "Rewe Markt" }, "der neue Payee geht an den Befehl");
-  // Regel R3 (design-system-gkded): am Handy steht die Rückmeldung in der Leiste, die bis ledger-gwr9j unter dem
-  // offenen Sheet liegt; „Rückgängig“ ist nach dem Schließen erreichbar.
-  const closeAndUndo = async (action, detail) => {
-    await sheet.getByRole("button", { name: "Schließen" }).tap();
-    await page.waitForFunction(() => document.querySelectorAll(".bottom-sheet.active").length === 0);
-    const bar = page.getByTestId("feedback-bar");
-    await bar.getByTestId("feedback-action").filter({ hasText: action }).waitFor();
-    if (detail) await bar.getByTestId("feedback-detail").filter({ hasText: detail }).waitFor();
+  // ledger-enjex (R3 Platz 1): „✓ Geändert“ mit „Rückgängig“ unter „Payee“ im Sheet, kein Toast und nichts in der Leiste.
+  const undoAtField = async (text) => {
+    const note = sheet.locator('[data-testid="detail-note"][data-note-field="payee"]');
+    await note.getByText(text, { exact: true }).waitFor();
+    assert.equal(await page.locator(".toast-layer > *").count(), 0, "kein Toast");
+    assert.equal(await page.getByTestId("feedback-bar").getByTestId("feedback-action").count(), 0, "nichts in der Leiste");
     const before = state.setCalls.length;
-    await bar.locator('[data-feedback-action="true"]', { hasText: "Rückgängig" }).tap();
+    await note.locator('[data-feedback-action="true"]', { hasText: "Rückgängig" }).tap();
     for (let i = 0; i < 200 && state.setCalls.length === before; i++) await new Promise((done) => setTimeout(done, 50));
+    await note.waitFor({ state: "detached" });
   };
-  await closeAndUndo("Payee geändert", "Rewe Markt");
+  await undoAtField("Geändert");
   assert.deepEqual(state.setCalls[1], { entryId: idOf(1), text: BANK_PAYEE }, "Rückgängig schickt den alten Payee über denselben Befehl");
+  await page.waitForFunction(
+    (p) => document.querySelector('.bottom-sheet.active .sheet-header h3')?.textContent === p,
+    BANK_PAYEE
+  );
 
-  // ledger-pkrwd: „Payee entfernen“ antippen übernimmt sofort, die Rückmeldung bietet Rückgängig.
-  await page.getByText(BANK_PAYEE, { exact: true }).first().tap();
-  await detailContent(sheet).waitFor();
+  // ledger-pkrwd: „Payee entfernen“ antippen übernimmt sofort, die Bestätigung bietet Rückgängig.
   await sheet.locator('[data-testid="detail-payee-arrow"]').tap();
   const remove = picker.locator('[data-testid="payee-picker-remove"]');
   await remove.waitFor();
@@ -171,7 +172,7 @@ test("[flow:payee-aendern] Handy: Payee im Detail ändern und entfernen, beides 
     "ohne Payee"
   );
   assert.deepEqual(state.setCalls[2], { entryId: idOf(1), text: null }, "entfernen schickt den Befehl ohne Payee");
-  await closeAndUndo("Payee entfernt", null);
+  await undoAtField("Entfernt");
   assert.deepEqual(state.setCalls[3], { entryId: idOf(1), text: BANK_PAYEE }, "Rückgängig setzt den alten Payee mit demselben Befehl");
   await context.close();
 });

@@ -179,3 +179,6 @@ Sammelstelle für Befunde, die stimmen, aber die Schwelle der Backlog-Disziplin 
 156. **Work-Lauf 2026-11-20 (ledger-p5y9s)**: die Zeile der Bestätigung am Feld trägt `border-b` wie die Feldzeilen; unter „Kategorie“ entstehen zwei Linien knapp übereinander, ohne Rahmen wäre sie näher an Skizze 06.
 157. **Work-Lauf 2026-11-20 (Verifier ledger-p5y9s)**: in `Components/Ledger/View.fs` hängt der Doc-Kommentar „Die Betragszeile …“ jetzt an `noteTone`, `detailAmountRow` hat keine Doku mehr.
 158. **Work-Lauf 2026-11-20 (ledger-mf2bg)**: der Mock `setEntryCategory` in `mockReview` (`scripts/layout-states.mjs`) setzt immer den Namen „Lebensmittel“, auch bei einer anderen Kategorie.
+159. **Work-Lauf 2026-11-20 (ledger-enjex)**: `Feedback.sheetLine` mit Ton Fehler zeigt Aktion und Grund ohne Trenner („Nicht geändert YNAB nicht erreichbar“); ein Doppelpunkt wäre lesbarer (betrifft alle Zeilen im Sheet).
+160. **Work-Lauf 2026-11-20 (ledger-enjex)**: die Styleguide-Demo „Feld mit Leuchten und Bestätigung“ zeigt die Knopfzeile mit Bestätigung unter „Lena fragen“ (`Detail.actionRowWith`) noch nicht.
+161. **Work-Lauf 2026-11-20 (ledger-enjex)**: am PC steht ein vom Server abgelehnter Betrag rot im Dialog und zusätzlich in der Hinweisleiste des Panels dahinter („Betrag nicht geändert“, `AmountCommandFailed`).

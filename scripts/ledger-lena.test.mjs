@@ -3,7 +3,7 @@
 // Wächter für `ledger-xfjcp` (ADR 0056): Lena fragen im Kassenbuch-Detail. Gemessen am echten, per
 // Vite gestarteten Fable-Client gegen gemockte Ledger-Antworten (nie die echte Entwicklungsdatenbank):
 // der Knopf "Lena fragen" bzw. "Rückfrage zurücknehmen" in der Knopfzeile (ledger-zfj78), die gesperrte Aktion ohne Farbe,
-// der Toast mit Rückgängig, die Hinweisleiste "Flag nicht in YNAB" mit Erneut senden, der Chip
+// der gewechselte Knopf ohne Toast (ledger-enjex), die Hinweisleiste "Flag nicht in YNAB" mit Erneut senden, der Chip
 // "Rückfrage Lena (n)" samt ausgegrauter Zeile nach dem Zurücknehmen und die Einstellung.
 //
 // Ausführen: node --test scripts/ledger-lena.test.mjs
@@ -12,7 +12,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
-import { getFreePort, startFrontend, stopServer, waitForPageLoaded, pollUntil } from "./screenshot-route.mjs";
+import { getFreePort, startFrontend, stopServer, waitForPageLoaded } from "./screenshot-route.mjs";
 import {
   buildAccountsFixture,
   buildBalancesFixture,
@@ -170,7 +170,7 @@ async function openDetail(page, payee) {
   await page.waitForFunction((p) => document.querySelector('[data-testid="detail-title"]')?.textContent === p, payee);
 }
 
-test("[flow:lena-fragen] PC: Lena fragen setzt das Kennzeichen, der Knopf wechselt, der Toast bietet Rückgängig", async () => {
+test("[flow:lena-fragen] PC: Lena fragen setzt das Kennzeichen, der Knopf wechselt und nimmt die Rückfrage zurück, kein Toast", async () => {
   resetState();
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const page = await open(context);
@@ -191,14 +191,18 @@ test("[flow:lena-fragen] PC: Lena fragen setzt das Kennzeichen, der Knopf wechse
   const mark = row(page, "Rewe Lena").getByTestId("lena-mark");
   await mark.getByRole("img", { name: "Flag" }).waitFor();
   assert.ok((await mark.textContent()).includes("Lena"), "Name am Flag");
-  // Der eine Toast am PC; die Meldungsleiste mit demselben Text ist ab 1024 px ausgeblendet (design-system-gkded).
-  const toast = page.locator(".toast-layer").getByText("Lena gefragt", { exact: true });
-  await toast.waitFor();
+  // ledger-enjex (ADR 0098, Entscheidung Roman 3): der gewechselte Knopf ist die Bestätigung, kein Text, kein Toast.
+  // Ohne vorheriges Flag gibt es kein eigenes „Rückgängig“: „Rückfrage zurücknehmen“ ist es.
+  assert.equal(await panel(page).locator('[data-testid="detail-note"]').count(), 0, "kein Text unter dem Knopf");
+  assert.equal(await page.locator(".toast-layer > *").count(), 0, "kein Toast");
 
-  await page.getByRole("button", { name: "Rückgängig" }).click();
-  await pollUntil(() => state.restoreCalls.length > 0);
-  assert.equal(state.restoreCalls.length, 1, "restoreFlag aufgerufen");
-  assert.deepEqual(state.restoreCalls[0][0], idOf(1));
+  await flagAction(panel(page)).click();
+  await page.waitForFunction(() =>
+    document.querySelector('[data-testid="detail-flag-action"]')?.textContent?.trim() === "Lena fragen"
+  );
+  assert.deepEqual(state.setCalls[1], { entryId: idOf(1), flagTarget: "WithdrawLena" }, "der Knopf nimmt die Rückfrage zurück");
+  assert.equal(await page.locator(".toast-layer > *").count(), 0, "auch danach kein Toast");
+  assert.equal(state.restoreCalls.length, 0, "kein restoreFlag ohne fremdes Flag");
   await context.close();
 });
 

@@ -269,7 +269,7 @@ let reducerTests =
             let _, again, _ = run (StartSavePayee (idOf 1, Some "Edeka")) model
             Expect.isEmpty again "gesperrt"
 
-        testCase "PayeeSet Ok: Payee in Zeile und Detail, Auswahl zu, Toast „Payee geändert · Rewe“ mit Rückgängig, Historie neu" <| fun () ->
+        testCase "PayeeSet Ok: Payee in Zeile und Detail, Auswahl zu, „✓ Geändert“ mit Rückgängig unter „Payee“, Historie neu" <| fun () ->
             let sending, _, _ = run (StartSavePayee (idOf 1, Some "Rewe")) (opened ())
             let model, msgs, external = run (PayeeSet (idOf 1, Ok (outcome (Some "REWE SAGT DANKE 4711") "Rewe" PayeeSent))) sending
             Expect.equal (rowOf 1 model).Payee (Some "Rewe") "Zeile"
@@ -277,24 +277,27 @@ let reducerTests =
             Expect.isNone model.PayeeEdit "zu"
             Expect.isEmpty model.PayeeRows "Sperre gelöst"
             Expect.equal model.PayeeChoices NotAsked "die Payees laden beim nächsten Öffnen neu"
-            Expect.equal msgs [ RestorePayeeRowFocus; LoadHistory (idOf 1) ] "Fokus und Historie"
-            match external with
-            | ShowToastWithAction ("Payee geändert · Rewe", ToastSuccess, { Kind = UndoPayee (id, previous) }) ->
-                Expect.equal (id, previous) (idOf 1, Some "REWE SAGT DANKE 4711") "Rückgängig kennt den alten Payee"
-            | other -> failtest $"erwartet Toast mit Rückgängig, war {other}"
+            Expect.equal (msgs |> List.take 2) [ RestorePayeeRowFocus; LoadHistory (idOf 1) ] "Fokus und Historie"
+            Expect.equal external NoOp "kein Toast (ledger-enjex)"
+            Expect.equal
+                (model.DetailNote |> Option.map (fun n -> n.Field, n.Tone, n.Text, n.Undo))
+                (Some (AtPayee, FeedbackOk, "Geändert", Some (UndoPayee (idOf 1, Some "REWE SAGT DANKE 4711"))))
+                "Rückgängig kennt den alten Payee"
+            Expect.equal (model.DetailNote |> Option.map (fun n -> n.BarAction, n.BarDetail)) (Some ("Payee geändert", Some "Rewe")) "Leiste nach dem Schließen"
 
-        // ledger-pkrwd: Payee entfernen über dieselbe Nachricht, Toast „Payee entfernt“ mit Rückgängig.
-        testCase "Payee entfernen stößt den Befehl ohne Payee an; die Antwort leert Zeile und Detail, Toast „Payee entfernt“ mit Rückgängig auf den alten Payee" <| fun () ->
+        // ledger-pkrwd: Payee entfernen über dieselbe Nachricht, „✓ Entfernt“ mit Rückgängig (ledger-enjex).
+        testCase "Payee entfernen stößt den Befehl ohne Payee an; die Antwort leert Zeile und Detail, „✓ Entfernt“ mit Rückgängig auf den alten Payee" <| fun () ->
             let sending, msgs, _ = run (StartSavePayee (idOf 1, None)) (opened ())
             Expect.equal msgs [ RunSetPayee (idOf 1, None) ] "Aufruf ohne Payee"
             let model, _, external = run (PayeeSet (idOf 1, Ok (outcomeTo (Some "REWE SAGT DANKE 4711") None PayeeSent))) sending
             Expect.equal (rowOf 1 model).Payee None "Zeile ohne Payee"
             Expect.equal (model.DetailFor |> Option.bind (fun d -> d.Payee)) None "Detail zieht mit"
             Expect.isNone model.PayeeEdit "zu"
-            match external with
-            | ShowToastWithAction ("Payee entfernt", ToastSuccess, { Label = "Rückgängig"; Kind = UndoPayee (id, previous) }) ->
-                Expect.equal (id, previous) (idOf 1, Some "REWE SAGT DANKE 4711") "Rückgängig setzt den alten Payee"
-            | other -> failtest $"erwartet Toast mit Rückgängig, war {other}"
+            Expect.equal external NoOp "kein Toast"
+            Expect.equal
+                (model.DetailNote |> Option.map (fun n -> n.Text, n.Undo, n.BarAction, n.BarDetail))
+                (Some ("Entfernt", Some (UndoPayee (idOf 1, Some "REWE SAGT DANKE 4711")), "Payee entfernt", None))
+                "Rückgängig setzt den alten Payee"
             let undo, undoMsgs, _ = run (StartUndoPayee (idOf 1, Some "REWE SAGT DANKE 4711")) model
             Expect.equal undoMsgs [ RunUndoPayee (idOf 1, Some "REWE SAGT DANKE 4711") ] "derselbe Befehl mit dem alten Payee"
             let restored, _, _ = run (PayeeRestored (idOf 1, Ok (outcome None "REWE SAGT DANKE 4711" PayeeSent))) undo
@@ -310,26 +313,39 @@ let reducerTests =
             let model, _, external = run (PayeeSet (idOf 1, Ok (outcomeTo (Some "REWE SAGT DANKE 4711") None (PayeeSendFailed "YNAB weg")))) (opened ())
             Expect.equal (rowOf 1 model).PayeeWriteBackFailure (Some "YNAB weg") "Grund"
             Expect.equal (rowOf 1 model).Payee None "ohne Payee"
-            match external with
-            | ShowToastWithAction (text, ToastWarning, { Kind = UndoPayee _ }) -> Expect.equal text "Payee entfernt. Payee nicht in YNAB: YNAB weg" "Grund im Toast"
-            | other -> failtest $"erwartet Warn-Toast, war {other}"
+            Expect.equal external NoOp "kein Toast"
+            Expect.equal
+                (model.DetailNote |> Option.map (fun n -> n.Tone, n.Text, n.Undo.IsSome))
+                (Some (FeedbackWarning, "Entfernt, nicht in YNAB: YNAB weg", true))
+                "gelb unter „Payee“"
 
         testCase "PayeeSet mit gescheitertem Versand: Fehlschlag an der Buchung, Warn-Toast, der Payee bleibt in BB" <| fun () ->
             let model, _, external = run (PayeeSet (idOf 1, Ok (outcome (Some "REWE SAGT DANKE 4711") "Rewe" (PayeeSendFailed "YNAB weg")))) (opened ())
             Expect.equal (rowOf 1 model).PayeeWriteBackFailure (Some "YNAB weg") "Grund"
             Expect.equal (rowOf 1 model).Payee (Some "Rewe") "Payee bleibt in BB"
-            match external with
-            | ShowToastWithAction (text, ToastWarning, { Kind = UndoPayee _ }) -> Expect.stringContains text "Payee nicht in YNAB: YNAB weg" "Grund im Toast"
-            | other -> failtest $"erwartet Warn-Toast, war {other}"
+            Expect.equal external NoOp "kein Toast"
+            Expect.equal
+                (model.DetailNote |> Option.map (fun n -> n.Tone, n.Text))
+                (Some (FeedbackWarning, "Geändert, nicht in YNAB: YNAB weg"))
+                "gelb unter „Payee“"
 
         // Review ledger-pkrwd: Bekam eine Buchung ohne Payee einen Payee, fehlte im Toast „Rückgängig“, obwohl
         // `setEntryPayee` seit ledger-pkrwd auch `None` nimmt (§7.13).
         testCase "ohne alten Payee nimmt Rückgängig den Payee wieder weg" <| fun () ->
-            let _, _, external = run (PayeeSet (idOf 1, Ok (outcome None "Rewe" PayeeSent))) (opened ())
+            let model, _, _ = run (PayeeSet (idOf 1, Ok (outcome None "Rewe" PayeeSent))) (opened ())
             Expect.equal
-                external
-                (ShowToastWithAction ("Payee geändert · Rewe", ToastSuccess, { Label = "Rückgängig"; Kind = UndoPayee (idOf 1, None) }))
+                (model.DetailNote |> Option.bind (fun n -> n.Undo))
+                (Some (UndoPayee (idOf 1, None)))
                 "Rückgängig ohne alten Payee"
+            let _, _, closedExternal = run (PayeeSet (idOf 1, Ok (outcome None "Rewe" PayeeSent))) { opened () with DetailFor = None }
+            Expect.equal
+                closedExternal
+                (PostFeedback
+                    { Tone = FeedbackOk
+                      Action = "Payee geändert"
+                      Detail = Some "Rewe"
+                      Act = Some { Label = "Rückgängig"; Kind = UndoPayee (idOf 1, None) } })
+                "Detail zu: in der Leiste, Rückgängig ohne alten Payee"
             let changed = { entryOf 1 with Payee = Some "Rewe" }
             let _, msgs, _ = run (StartUndoPayee (idOf 1, None)) (modelWith [ changed ])
             Expect.equal msgs [ RunUndoPayee (idOf 1, None) ] "derselbe Befehl ohne Payee"
@@ -341,7 +357,7 @@ let reducerTests =
             Expect.isEmpty model.PayeeRows "Sperre gelöst"
             Expect.equal external NoOp "kein Toast"
 
-        testCase "Rückgängig im Toast schickt den alten Payee über denselben Befehl" <| fun () ->
+        testCase "Rückgängig schickt den alten Payee über denselben Befehl; im offenen Detail kein Rücknahme-Toast" <| fun () ->
             let changed = { entryOf 1 with Payee = Some "Rewe" }
             let model, msgs, _ = run (StartUndoPayee (idOf 1, Some "REWE SAGT DANKE 4711")) (modelWith [ changed ])
             Expect.equal (model.PayeeRows |> Map.tryFind (idOf 1)) (Some PayeeSending) "läuft"
@@ -350,7 +366,10 @@ let reducerTests =
             Expect.isEmpty twice "ein zweiter Tipp schickt nichts"
             let restored, _, external = run (PayeeRestored (idOf 1, Ok (outcome (Some "Rewe") "REWE SAGT DANKE 4711" PayeeSent))) model
             Expect.equal (rowOf 1 restored).Payee (Some "REWE SAGT DANKE 4711") "alter Payee"
-            Expect.equal external (ShowToast (payeeRestoredToastText, ToastSuccess)) "Toast ohne Rückgängig"
+            Expect.equal external NoOp "kein Toast (ledger-enjex)"
+            let _, _, closedExternal =
+                run (PayeeRestored (idOf 1, Ok (outcome (Some "Rewe") "REWE SAGT DANKE 4711" PayeeSent))) { model with DetailFor = None }
+            Expect.equal closedExternal (ShowToast (payeeRestoredToastText, ToastSuccess)) "Detail zu: Toast ohne Rückgängig"
 
         testCase "Erneut senden: StartRetryPayee sperrt; PayeeRetried löst den Fehlschlag oder ersetzt den Grund" <| fun () ->
             let failing = { entryOf 1 with PayeeWriteBackFailure = Some "weg" }
@@ -361,9 +380,11 @@ let reducerTests =
             Expect.equal external NoOp "kein Toast bei Erfolg"
             let again, _, warn = run (PayeeRetried (idOf 1, Ok (PayeeSendFailed "immer noch"))) model
             Expect.equal (rowOf 1 again).PayeeWriteBackFailure (Some "immer noch") "neuer Grund"
-            match warn with
+            Expect.equal warn NoOp "im offenen Detail zeigt die Hinweisleiste den Grund (ledger-enjex)"
+            let _, _, closedWarn = run (PayeeRetried (idOf 1, Ok (PayeeSendFailed "immer noch"))) { model with DetailFor = None }
+            match closedWarn with
             | ShowToast (_, ToastWarning) -> ()
-            | other -> failtest $"erwartet Warn-Toast, war {other}"
+            | other -> failtest $"Detail zu: erwartet Warn-Toast, war {other}"
             let failed, _, _ = run (PayeeRetried (idOf 1, Error "Netz")) model
             match Components.Ledger.View.detailNoticeWithPayee None None None None None (failed.PayeeRows |> Map.tryFind (idOf 1)) NotAsked (rowOf 1 failed) with
             | Some (Components.Ledger.View.PayeeNotice (hint, _)) -> Expect.equal hint.Reason "Netz" "der Befehlsfehler steht in der Leiste"
@@ -375,13 +396,22 @@ let reducerTests =
 
         // Review-Fund zu ledger-fxt09: Schloss das Detail während des Speicherns, ging ein Fehler von
         // setEntryPayee still verloren (kein Feldfehler mehr da, kein Toast).
-        testCase "PayeeSet Error bei geschlossener Auswahl: ein Fehler-Toast nennt den Grund" <| fun () ->
+        testCase "PayeeSet Error bei geschlossenem Detail: die Leiste nennt den Grund rot; bei geschlossener Auswahl rot unter „Payee“" <| fun () ->
             let sending, _, _ = run (StartSavePayee (idOf 1, Some "Rewe")) (opened ())
             let closed, _, _ = run CloseDetail sending
             let model, _, external = run (PayeeSet (idOf 1, Error "YNAB weg")) closed
-            Expect.equal external (ShowToast ("Payee nicht geändert: YNAB weg", ToastError)) "Toast mit Grund"
+            Expect.equal
+                external
+                (PostFeedback { Tone = FeedbackError; Action = "Payee nicht geändert"; Detail = Some "YNAB weg"; Act = None })
+                "Leiste mit Grund (am PC der Toast)"
             Expect.isEmpty model.PayeeRows "Sperre gelöst"
             Expect.equal (rowOf 1 model).Payee (Some "REWE SAGT DANKE 4711") "Payee unverändert"
+            let pickerClosed, _, pickerExternal = run (PayeeSet (idOf 1, Error "YNAB weg")) { sending with PayeeEdit = None }
+            Expect.equal pickerExternal NoOp "Detail offen: kein Toast"
+            Expect.equal
+                (pickerClosed.DetailNote |> Option.map (fun n -> n.Field, n.Tone, n.Text))
+                (Some (AtPayee, FeedbackError, "Nicht geändert: YNAB weg"))
+                "rot unter „Payee“"
 
         // Review-Fund zu ledger-fxt09: Die Ladeantwort der Auswahl war ungebunden. Kam sie nach einer
         // Änderung an, stand wieder die alte Payee-Liste da.
@@ -402,6 +432,49 @@ let reducerTests =
             Expect.equal loaded.PayeeChoices (Success fresh) "die neue Antwort gilt"
             let intact, _, _ = run (oldAnswer (Ok oldList)) opening
             Expect.equal intact.PayeeChoices (Success oldList) "ohne Änderung gilt die Antwort"
+    ]
+
+[<Tests>]
+let payeeDetailNoteTests =
+    testList "Payee: Bestätigung am Feld im Detail (ledger-enjex)" [
+
+        testCase "Sheet am Handy und Panel am PC zeigen dasselbe, ohne Toast" <| fun () ->
+            let save form =
+                let sending, _, _ = run (StartSavePayee (idOf 1, Some "Rewe")) { opened () with DetailForm = form }
+                let m, _, ext = run (PayeeSet (idOf 1, Ok (outcome (Some "REWE SAGT DANKE 4711") "Rewe" PayeeSent))) sending
+                m.DetailNote, ext
+            Expect.equal (save DetailSheet) (save DetailPanel) "gleich"
+            Expect.equal (snd (save DetailSheet)) NoOp "kein Toast"
+
+        testCase "Rückgängig am Feld ist StartUndoPayee wie früher im Toast; Schließen übergibt „Payee geändert“ an die Leiste" <| fun () ->
+            let sending, _, _ = run (StartSavePayee (idOf 1, Some "Rewe")) (opened ())
+            let model, _, _ = run (PayeeSet (idOf 1, Ok (outcome (Some "REWE SAGT DANKE 4711") "Rewe" PayeeSent))) sending
+            let kind = model.DetailNote.Value.Undo.Value
+            Expect.equal (detailNoteUndoMsg kind) (Some (StartUndoPayee (idOf 1, Some "REWE SAGT DANKE 4711"))) "am Feld"
+            Expect.equal (State.toastActionMsg kind) (State.LedgerMsg (StartUndoPayee (idOf 1, Some "REWE SAGT DANKE 4711"))) "wie der Toast"
+            let _, _, external = run CloseDetail model
+            match external with
+            | PostFeedback note -> Expect.equal (note.Action, note.Detail, note.Act.IsSome) ("Payee geändert", Some "Rewe", true) "Leiste"
+            | other -> failtest $"erwartet Leiste, war {other}"
+            let undone, _, _ = run (StartUndoPayee (idOf 1, Some "REWE SAGT DANKE 4711")) model
+            let restored, _, _ = run (PayeeRestored (idOf 1, Ok (outcome (Some "Rewe") "REWE SAGT DANKE 4711" PayeeSent))) undone
+            Expect.isNone restored.DetailNote "Bestätigung weg"
+
+        testCase "Rückgängig gescheitert: rot unter „Payee“; mit YNAB-Fehler gelb „Zurückgesetzt, nicht in YNAB“" <| fun () ->
+            let changed = modelWith [ { entryOf 1 with Payee = Some "Rewe" } ]
+            let undoing, _, _ = run (StartUndoPayee (idOf 1, Some "REWE SAGT DANKE 4711")) changed
+            let failed, _, external = run (PayeeRestored (idOf 1, Error "weg")) undoing
+            Expect.equal external NoOp "kein Toast"
+            Expect.equal (failed.DetailNote |> Option.map (fun n -> n.Field, n.Text)) (Some (AtPayee, "Rückgängig nicht möglich: weg")) "rot"
+            let warned, _, _ = run (PayeeRestored (idOf 1, Ok (outcome (Some "Rewe") "REWE SAGT DANKE 4711" (PayeeSendFailed "weg")))) undoing
+            Expect.equal (warned.DetailNote |> Option.map (fun n -> n.Tone, n.Text)) (Some (FeedbackWarning, "Zurückgesetzt, nicht in YNAB: weg")) "gelb"
+
+        testCase "ein neues Übernehmen nimmt die stehende Bestätigung weg" <| fun () ->
+            let sending, _, _ = run (StartSavePayee (idOf 1, Some "Rewe")) (opened ())
+            let model, _, _ = run (PayeeSet (idOf 1, Ok (outcome (Some "REWE SAGT DANKE 4711") "Rewe" PayeeSent))) sending
+            let reopened, _, _ = run (OpenPayeeEdit (idOf 1)) model
+            let again, _, _ = run (StartSavePayee (idOf 1, Some "Edeka")) reopened
+            Expect.isNone again.DetailNote "weg"
     ]
 
 // ============================================
@@ -480,9 +553,14 @@ let payeeLockTests =
                             failtest $"ruhend startet {name} nicht: {shown}"
                     if name = "Fehler" then
                         let fieldError = after.PayeeEdit |> Option.exists (fun e -> e.PayeeFieldError.IsSome)
-                        let toast = match external with ShowToast (_, ToastError) -> true | _ -> false
+                        let toast =
+                            match external with
+                            | ShowToast (_, ToastError) | PostFeedback { Tone = FeedbackError } -> true
+                            | _ -> false
                         let notice = (after.PayeeRows |> Map.tryFind (idOf 1)) = Some (PayeeCommandFailed "weg")
-                        Expect.isTrue (fieldError || toast || notice) $"Fehler ohne Spur: {shown}"
+                        // ledger-enjex: im offenen Detail steht der Fehler rot unter „Payee“.
+                        let atField = after.DetailNote |> Option.exists (fun n -> n.Field = AtPayee && n.Tone = FeedbackError)
+                        Expect.isTrue (fieldError || toast || notice || atField) $"Fehler ohne Spur: {shown}"
                     let answered = name = "Antwort" || name = "Fehler"
                     let pending' = if answered then None else Option.orElse call pending
                     if left > 1 then go (left - 1) path' after pending'

@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-20 06:36 -- Task verified and completed: ledger-enjex - "Kassenbuch am Handy ohne Toast (R3), Teil 3 Detail II: Memo, Betrag und Payee mit Rückgängig am Feld, Lena-Knopf wechselt ohne Text, Erneut senden ohne Meldung; Schlussprüfung kein Toast im Kassenbuch am Handy"
+
+**Type:** Work / Task completion
+**Task:** ledger-enjex - "Kassenbuch am Handy ohne Toast (R3), Teil 3 Detail II: Memo, Betrag und Payee mit Rückgängig am Feld, Lena-Knopf wechselt ohne Text, Erneut senden ohne Meldung; Schlussprüfung kein Toast im Kassenbuch am Handy"
+**Summary:** Kassenbuch ohne Toast, Teil 3: Memo, Betrag, Payee und Lena am Feld im Detail, Schlussprüfung kein Toast am Handy
+**Duration:** 100m
+**Verification:** PASS (iteration 1, nach Merge-Konflikt-Auflösung mit pz5wv und mf2bg)
+**Files changed:** 15
+**Tests added:** 22
+**ADRs written:** none
+
+---
+
 ## 2026-11-20 05:51 -- Task verified and completed: ledger-mf2bg - "Durchgehen: Kategorie und Übertrag auf der Karte am Feld bestätigt (Feld leuchtet, „<Name> · <Betrag> verfügbar“ mit Rückgängig), ohne Toast"
 
 **Type:** Work / Task completion

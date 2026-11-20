@@ -76,9 +76,26 @@ let retryPushTests =
             Expect.isNone (detailNoticeFor None NotAsked updated) "keine Leiste mehr"
             Expect.equal (rowStatusMark updated) RowOtherStates "kein Kennzeichen mehr"
             Expect.equal (model.DetailFor |> Option.map (fun d -> d.LinkedToYnab)) (Some true) "Detail folgt"
-            match external with
-            | ShowToast (text, ToastSuccess) -> Expect.equal text "Buchung an YNAB gesendet" "Toast"
+            // ledger-enjex: im offenen Detail entfällt „Buchung an YNAB gesendet“, Hinweisleiste und Marke verschwinden.
+            Expect.equal external NoOp "kein Toast"
+            let _, _, closedExternal = run (PushRetried (e.Id, Ok PushToYnabSent)) { sending with DetailFor = None }
+            match closedExternal with
+            | ShowToast (text, ToastSuccess) -> Expect.equal text "Buchung an YNAB gesendet" "Detail zu: Toast"
             | other -> failtestf "Erwartet Erfolgs-Toast, war %A" other
+
+        testCase "im offenen Detail meldet ein neuer Fehlschlag nichts: die Hinweisleiste zeigt den neuen Grund (ledger-enjex)" <| fun () ->
+            let e = { entry 1 false with PushToYnabFailure = Some { Reason = "alter Grund"; FailedAt = failedAt } }
+            let start = { modelWith [ e ] with DetailFor = Some e }
+            let sending, _, _ = run (StartRetryPush e.Id) start
+            let failed, _, external = run (PushRetried (e.Id, Ok (PushToYnabFailed "Timeout"))) sending
+            Expect.equal external NoOp "kein Toast"
+            Expect.equal ((entryOf failed e.Id).PushToYnabFailure |> Option.map (fun f -> f.Reason)) (Some "Timeout") "neuer Grund"
+            let rejected, _, rejectedExternal = run (PushRetried (e.Id, Error "Die Buchung ist schon in YNAB")) sending
+            Expect.equal rejectedExternal NoOp "auch ein abgelehnter Befehl ohne Toast"
+            Expect.isEmpty rejected.PushRetryRows "Sende-Zustand weg"
+            match detailNoticeFor None NotAsked (entryOf rejected e.Id) with
+            | Some (NotInYnabNotice reason) -> Expect.stringContains reason "schon in YNAB" "der Grund steht in der Hinweisleiste"
+            | other -> failtestf "Erwartet NotInYnabNotice, war %A" other
 
         testCase "Fehlschlag zeigt den neuen Grund in der Leiste" <| fun () ->
             let e = { entry 1 false with PushToYnabFailure = Some { Reason = "alter Grund"; FailedAt = failedAt } }

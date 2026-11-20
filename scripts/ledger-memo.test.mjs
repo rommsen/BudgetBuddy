@@ -138,7 +138,7 @@ async function openDetail(page, payee) {
   await page.waitForFunction((p) => document.querySelector('[data-testid="detail-title"]')?.textContent === p, payee);
 }
 
-test("[flow:memo-setzen] PC: Memo hinzufügen setzt das Memo, Detail und Liste zeigen es, der Toast bietet Rückgängig", async () => {
+test("[flow:memo-setzen] PC: Memo hinzufügen setzt das Memo, Detail und Liste zeigen es, „✓ Gesetzt“ mit Rückgängig unter dem Memo, kein Toast", async () => {
   resetState();
   // Die Spalte Memo steht erst ab 1500 px Fensterbreite (ledger-cnaz3).
   const context = await browser.newContext({ viewport: { width: 1600, height: 900 } });
@@ -160,19 +160,20 @@ test("[flow:memo-setzen] PC: Memo hinzufügen setzt das Memo, Detail und Liste z
   assert.deepEqual(state.setCalls, [{ entryId: idOf(1), text: "  Werkzeug + Lampe " }], "der Client schickt den Entwurf, der Server trimmt");
   assert.ok((await memoRow(panel(page)).textContent()).includes("Werkzeug + Lampe"), "Detail zeigt das neue Memo");
   assert.equal(await memoAction(panel(page)).getAttribute("aria-label"), "Bearbeiten");
-  await page.locator(".toast-layer").getByText("Memo gesetzt", { exact: true }).waitFor();
-
-  // Esc schließt das Detail, das Panel bleibt leer stehen (ledger-cnaz3); die Liste zeigt das neue Memo.
-  await page.keyboard.press("Escape");
-  await page.getByTestId("ledger-panel-empty").waitFor();
+  // ledger-enjex (R3, Entscheidung Roman 2): die Bestätigung steht unter dem Memo im Panel, kein Toast.
+  const note = panel(page).locator('[data-testid="detail-note"][data-note-field="memo"]');
+  await note.getByText("Gesetzt", { exact: true }).waitFor();
+  assert.equal(await page.locator(".toast-layer > *").count(), 0, "kein Toast");
   assert.ok((await row(page, "Rewe Memo").textContent()).includes("Werkzeug + Lampe"), "Liste zeigt das neue Memo");
 
-  await page.locator('[data-toast-action="true"]', { hasText: "Rückgängig" }).click();
+  await note.locator('[data-feedback-action="true"]', { hasText: "Rückgängig" }).click();
   for (let i = 0; i < 50 && state.setCalls.length < 2; i += 1) await new Promise((r) => setTimeout(r, 40));
   assert.deepEqual(state.setCalls[1], { entryId: idOf(1), text: "" }, "Rückgängig schickt das alte Memo (keins)");
   await page.waitForFunction(
     () => !document.querySelector("table tbody tr")?.textContent?.includes("Werkzeug + Lampe")
   );
+  await note.waitFor({ state: "detached" });
+  assert.equal(await page.locator(".toast-layer > *").count(), 0, "auch nach Rückgängig kein Toast");
   await context.close();
 });
 

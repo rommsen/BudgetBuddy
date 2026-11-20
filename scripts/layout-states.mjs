@@ -514,9 +514,23 @@ const expectNoToast = async (page, where) => {
   if (toasts !== 0) throw new Error(`${where}: ${toasts} Toast statt der Bestätigung am Feld`);
 };
 
+/// Öffnet das Detail einer Buchung (ledger-enjex): am Handy das Sheet, am PC das Panel neben der Liste.
+const openDetailScope = async (page, mobile, payee = "Bauhaus") => {
+  if (mobile) return openLedgerDetail(page, payee);
+  const row = page.locator("table tbody tr", { hasText: payee }).first();
+  await row.waitFor();
+  await row.locator("td").nth(2).click();
+  const panel = page.locator('[data-testid="ledger-detail-panel"]');
+  await panel.waitFor();
+  return panel;
+};
+
+/// Tipp am Handy, Klick am PC.
+const press = (locator, mobile) => (mobile ? locator.tap() : locator.click());
+
 /// Wischt per Touch nach rechts über die Zeile eines Payees (CDP, wie `scripts/ledger-review-mark.test.mjs`): der
 /// Wisch prüft die Buchung.
-const swipeReviewed = async (page, payee) => {
+export const swipeReviewed = async (page, payee) => {
   const row = page.locator("button", { hasText: payee }).filter({ visible: true }).first();
   await row.waitFor();
   // Mitten ins Bild, damit keine feste Leiste unten über der Zeile liegt.
@@ -545,7 +559,7 @@ const ledgerSheet = (page) => page.locator(".bottom-sheet.active").first();
 /// Schließt das offene Sheet über „Schließen“. Nach einer Wahl im Picker schluckt `Viewport.swallowNextClick` den
 /// nächsten Klick innerhalb von 350 ms (Schutz vor dem Geisterklick, ADR 0005); seit am Handy kein Toast mehr
 /// einblendet (design-system-gkded), ist die Seite davor schon ruhig. Deshalb wird erneut geklickt, bis das Sheet zu ist.
-const closeLedgerSheet = async (page) => {
+export const closeLedgerSheet = async (page) => {
   for (let attempt = 0; attempt < 5; attempt++) {
     await ledgerSheet(page).getByRole("button", { name: "Schließen" }).click();
     const closed = await page
@@ -1692,8 +1706,48 @@ export const STATES = [
   // beim Speichern zurück, und es verweist per
   // `aria-describedby` auf die Meldung. Geht die Tastatur danach auf, rollt die Meldung ins Bild, auch bei 320 px,
   // wo sie in zwei Zeilen umbricht.
+  // ledger-enjex (R3 Platz 2): lehnt der Server das Speichern ab, steht der Grund rot im Sheet über dem Fuß, das Sheet
+  // bleibt mit dem Entwurf offen, kein Toast, nichts in der Leiste.
   {
     name: "kassenbuch-betrag-feldfehler",
+    route: "/ledger",
+    widths: HANDY_WIDTHS,
+    mock: async (page) => {
+      await mockLedger(page);
+      await page.route("**/api/LedgerApi/setEntryAmount", (r) => json(r, { Error: "YNAB nicht erreichbar" }));
+    },
+    open: async (page) => {
+      const sheet = await openLedgerDetail(page, "Bauhaus");
+      await sheet.locator('[data-testid="detail-amount-edit"]').tap();
+      const field = page.locator('.bottom-sheet.active [data-testid="amount-input"] input');
+      const save = page.locator(".bottom-sheet.active").first().getByRole("button", { name: "Speichern", exact: true });
+      await field.fill("45");
+      await save.tap();
+      const line = page.locator('.bottom-sheet.active [data-testid="feedback-sheet-line"][data-tone="error"]');
+      await line.getByText("YNAB nicht erreichbar").waitFor();
+      if ((await field.inputValue()) !== "45") throw new Error("der Entwurf ging verloren");
+      const lineBox = await line.boundingBox();
+      const saveBox = await save.boundingBox();
+      if (lineBox.y + lineBox.height > saveBox.y) throw new Error("der Fehler steht nicht über dem Fuß");
+      await expectNoToast(page, "Betrag nicht geändert");
+      const inBar = await page.locator('[data-testid="feedback-bar"] [data-testid="feedback-action"]').filter({ visible: true }).count();
+      if (inBar !== 0) throw new Error("Fehler im Sheet steht zusätzlich in der Leiste");
+      await page.waitForFunction((el) => !el.matches(":active"), await save.elementHandle());
+    },
+    primary: (page) => page.locator(".bottom-sheet.active").first().getByRole("button", { name: "Speichern", exact: true }),
+    reach: (page) => page.locator('.bottom-sheet.active [data-testid="feedback-sheet-line"]'),
+    keyboard: {
+      focus: (page) => page.locator('.bottom-sheet.active [data-testid="amount-input"] input'),
+      reach: (page) =>
+        page
+          .locator('.bottom-sheet.active [data-testid="feedback-sheet-line"]')
+          .or(page.locator(".bottom-sheet.active").first().getByRole("button", { name: "Speichern", exact: true })),
+    },
+  },
+  // ledger-q42pg (bis ledger-enjex `kassenbuch-betrag-feldfehler`): Speichern mit leerem Betrag zeigt den Feldfehler
+  // unter dem Feld.
+  {
+    name: "kassenbuch-betrag-eingabefehler",
     route: "/ledger",
     widths: HANDY_WIDTHS,
     mock: mockLedger,
@@ -2152,6 +2206,108 @@ export const STATES = [
       if (inBar !== 0) throw new Error("Fehler am Feld steht zusätzlich in der Leiste");
     },
     reach: (page) => page.locator('[data-testid="detail-note"] [data-tone="error"]').filter({ visible: true }).first(),
+  },
+  // ledger-enjex (R3 Platz 1, Entscheidung Roman 2): nach dem Speichern des Memos steht „✓ Gesetzt“ mit „Rückgängig“
+  // unter dem Memo-Block, im Sheet am Handy wie im Panel am PC, ohne Toast.
+  {
+    name: "kassenbuch-memo-rueckgaengig",
+    route: "/ledger",
+    widths: [...HANDY_WIDTHS, 1280],
+    mock: async (page) => {
+      await mockLedger(page);
+      await page.route("**/api/LedgerApi/setEntryMemo", (r) =>
+        json(r, { Ok: { PreviousMemo: null, CurrentMemo: "Schrauben und Dübel", MemoChange: "MemoChanged", MemoWriteBack: "MemoSent" } })
+      );
+    },
+    open: async (page, { mobile }) => {
+      const scope = await openDetailScope(page, mobile);
+      await press(scope.locator('[data-testid="detail-memo-action"]'), mobile);
+      const editor = page.locator('[data-testid="detail-memo-editor"]').filter({ visible: true });
+      await editor.locator("textarea").fill("Schrauben und Dübel");
+      await press(editor.getByRole("button", { name: "Speichern", exact: true }), mobile);
+      const note = page.locator('[data-testid="detail-note"][data-note-field="memo"]').filter({ visible: true });
+      await note.getByText("Gesetzt", { exact: true }).waitFor();
+      await fieldUndo(page).waitFor();
+      await expectNoToast(page, "Memo gesetzt");
+    },
+    reach: (page) => fieldUndo(page),
+  },
+  // ledger-enjex: das Sheet „Betrag“ (am PC der Dialog) schließt nach dem Speichern, unter dem Betrag oben im Detail
+  // steht „✓ Geändert“ mit „Rückgängig“, ohne Toast.
+  {
+    name: "kassenbuch-betrag-rueckgaengig",
+    route: "/ledger",
+    widths: [...HANDY_WIDTHS, 1280],
+    mock: async (page) => {
+      await mockLedger(page);
+      await page.route("**/api/LedgerApi/setEntryAmount", (r) =>
+        json(r, { Ok: { PreviousAmount: eur(-81.9), CurrentAmount: eur(-45), AmountChange: "AmountChanged", AmountWriteBack: "AmountSent" } })
+      );
+    },
+    open: async (page, { mobile }) => {
+      const scope = await openDetailScope(page, mobile);
+      await press(scope.locator('[data-testid="detail-amount-edit"]'), mobile);
+      const form = page.locator('[data-testid="amount-form"]').filter({ visible: true });
+      await form.locator('[data-testid="amount-input"] input').fill("45");
+      const footer = mobile ? page.locator(".bottom-sheet.active").first() : page.locator('[data-layer="dialog"]');
+      await press(footer.getByRole("button", { name: "Speichern", exact: true }), mobile);
+      const note = page.locator('[data-testid="detail-note"][data-note-field="amount"]').filter({ visible: true });
+      await note.getByText("Geändert", { exact: true }).waitFor();
+      await fieldUndo(page).waitFor();
+      await expectNoToast(page, "Betrag geändert");
+    },
+    reach: (page) => fieldUndo(page),
+  },
+  // ledger-enjex (Entscheidung Roman 3, ADR 0098): nach „Lena fragen“ wechselt nur der Knopf und leuchtet kurz, kein
+  // Text darunter, kein Toast. Er ist selbst das Rückgängig.
+  {
+    name: "kassenbuch-lena-gewechselt",
+    route: "/ledger",
+    widths: [...HANDY_WIDTHS, 1280],
+    mock: async (page) => {
+      await mockLedger(page);
+      await page.route("**/api/LedgerApi/setLenaFlag", (r) =>
+        json(r, { Ok: { Previous: { Color: null, Name: null }, Change: "FlagChanged", WriteBack: "FlagSent" } })
+      );
+    },
+    open: async (page, { mobile }) => {
+      const scope = await openDetailScope(page, mobile);
+      const knob = scope.locator('[data-testid="detail-flag-action"]');
+      if ((await knob.textContent()).trim() !== "Lena fragen") throw new Error("vorher steht nicht „Lena fragen“");
+      await press(knob, mobile);
+      await page.waitForFunction(
+        () =>
+          [...document.querySelectorAll('[data-testid="detail-flag-action"]')].some(
+            (el) => el.offsetParent !== null && el.textContent.trim() === "Rückfrage zurücknehmen"
+          )
+      );
+      const notes = await page.locator('[data-testid="detail-note"]').filter({ visible: true }).count();
+      if (notes !== 0) throw new Error(`${notes} Text unter dem Knopf, erwartet nur den Wechsel`);
+      await expectNoToast(page, "Lena gefragt");
+    },
+    reach: (page) => page.locator('[data-testid="detail-flag-action"]').filter({ visible: true }).first(),
+  },
+  // ledger-enjex (Entscheidung Roman 1): hatte die Buchung ein fremdes Flag, steht unter dem Knopf „✓ Lena gefragt“ mit
+  // „Rückgängig“, das das alte Flag wiederherstellt.
+  {
+    name: "kassenbuch-lena-fremdes-flag",
+    route: "/ledger",
+    widths: [...HANDY_WIDTHS, 1280],
+    mock: async (page) => {
+      await mockLedger(page);
+      await page.route("**/api/LedgerApi/setLenaFlag", (r) =>
+        json(r, { Ok: { Previous: { Color: "red", Name: null }, Change: "FlagChanged", WriteBack: "FlagSent" } })
+      );
+    },
+    open: async (page, { mobile }) => {
+      const scope = await openDetailScope(page, mobile, "Markiert und zu prüfen");
+      await press(scope.locator('[data-testid="detail-flag-action"]'), mobile);
+      const note = page.locator('[data-testid="detail-note"][data-note-field="lena"]').filter({ visible: true });
+      await note.getByText("Lena gefragt", { exact: true }).waitFor();
+      await fieldUndo(page).waitFor();
+      await expectNoToast(page, "Lena gefragt");
+    },
+    reach: (page) => fieldUndo(page),
   },
   // design-system-gkded (Regel R3, ADR 0098): nach einem Wisch (bei 900 px nach einer Kategorieänderung) steht die
   // Meldung in der Leiste über der Navigation bzw. der Tastenleiste,

@@ -226,7 +226,7 @@ let memoReducerTests =
             Expect.isEmpty msgs "kein Aufruf"
             Expect.isEmpty model.MemoRows "keine Sperre"
 
-        testCase "MemoSet Ok: Memo in Zeile und Detail, Feld zu, Toast mit Rückgängig, Historie neu" <| fun () ->
+        testCase "MemoSet Ok: Memo in Zeile und Detail, Feld zu, „✓ Gesetzt“ mit Rückgängig unter „Memo“, Historie neu" <| fun () ->
             let opened, _, _ = run (StartMemoEdit (idOf 1)) (modelWith [ entryOf 1 ])
             let model', msgs, external = run (MemoSet (idOf 1, Ok (outcome None (Some "Werkzeug") MemoSent))) opened
             Expect.equal (rowOf 1 model').Memo (Some "Werkzeug") "Zeile"
@@ -234,28 +234,34 @@ let memoReducerTests =
             Expect.isNone model'.MemoEdit "Feld zu"
             Expect.isEmpty model'.MemoRows "Sperre gelöst"
             Expect.isNone (rowOf 1 model').MemoWriteBackFailure "kein Fehlschlag"
-            Expect.equal msgs [ LoadHistory (idOf 1) ] "die Historie holt die neue Zeile"
-            match external with
-            | ShowToastWithAction ("Memo gesetzt", ToastSuccess, { Kind = UndoMemo (id, previous) }) ->
-                Expect.equal (id, previous) (idOf 1, None) "Rückgängig kennt das alte Memo"
-            | other -> failtest $"erwartet Toast mit Rückgängig, war {other}"
+            Expect.contains msgs (LoadHistory (idOf 1)) "die Historie holt die neue Zeile"
+            Expect.equal external NoOp "kein Toast (ledger-enjex)"
+            Expect.equal
+                (model'.DetailNote |> Option.map (fun n -> n.Field, n.Tone, n.Text, n.Undo))
+                (Some (AtMemo, FeedbackOk, "Gesetzt", Some (UndoMemo (idOf 1, None))))
+                "unter „Memo“, Rückgängig kennt das alte Memo"
 
-        testCase "MemoSet Ok beim Leeren: Memo weg, Toast Memo entfernt mit dem alten Text zum Zurückholen" <| fun () ->
+        testCase "MemoSet Ok beim Leeren: Memo weg, „✓ Entfernt“ mit dem alten Text zum Zurückholen; Ändern heißt „✓ Geändert“" <| fun () ->
             let model', _, external = run (MemoSet (idOf 1, Ok (outcome (Some "Lampe") None MemoSent))) (modelWith [ withMemo 1 "Lampe" ])
             Expect.isNone (rowOf 1 model').Memo "kein Memo"
-            match external with
-            | ShowToastWithAction ("Memo entfernt", ToastSuccess, { Kind = UndoMemo (_, previous) }) ->
-                Expect.equal previous (Some "Lampe") "altes Memo"
-            | other -> failtest $"{other}"
+            Expect.equal external NoOp "kein Toast"
+            Expect.equal
+                (model'.DetailNote |> Option.map (fun n -> n.Text, n.Undo))
+                (Some ("Entfernt", Some (UndoMemo (idOf 1, Some "Lampe"))))
+                "altes Memo"
+            let edited, _, _ = run (MemoSet (idOf 1, Ok (outcome (Some "Lampe") (Some "Kabel") MemoSent))) (modelWith [ withMemo 1 "Lampe" ])
+            Expect.equal (edited.DetailNote |> Option.map (fun n -> n.Text)) (Some "Geändert") "geändert"
 
-        testCase "MemoSet mit gescheitertem Versand: Fehlschlag an der Buchung, Warn-Toast, Memo bleibt in BB" <| fun () ->
+        testCase "MemoSet mit gescheitertem Versand: Fehlschlag an der Buchung, gelb unter „Memo“ mit Rückgängig, Memo bleibt in BB" <| fun () ->
             let model', _, external =
                 run (MemoSet (idOf 1, Ok (outcome None (Some "Notiz") (MemoSendFailed "YNAB weg")))) (modelWith [ entryOf 1 ])
             Expect.equal (rowOf 1 model').MemoWriteBackFailure (Some "YNAB weg") "Grund"
             Expect.equal (rowOf 1 model').Memo (Some "Notiz") "Memo bleibt in BB"
-            match external with
-            | ShowToastWithAction (text, ToastWarning, _) -> Expect.stringContains text "YNAB weg" "Grund im Toast"
-            | other -> failtest $"erwartet Warn-Toast, war {other}"
+            Expect.equal external NoOp "kein Toast"
+            Expect.equal
+                (model'.DetailNote |> Option.map (fun n -> n.Tone, n.Text, n.Undo.IsSome))
+                (Some (FeedbackWarning, "Gesetzt, nicht in YNAB: YNAB weg", true))
+                "gelb am Feld"
 
         testCase "MemoSet ohne Änderung: kein Toast, kein Historie-Abruf" <| fun () ->
             let unchanged = { PreviousMemo = Some "x"; CurrentMemo = Some "x"; MemoChange = MemoUnchanged; MemoWriteBack = MemoNotSent }
@@ -271,9 +277,8 @@ let memoReducerTests =
             Expect.equal (model'.MemoRows |> Map.tryFind (idOf 1)) (Some (MemoCommandFailed "Buchung nicht gefunden")) "Zeilenzustand"
             Expect.equal (model'.MemoEdit |> Option.map (fun e -> e.MemoDraft)) (Some "Entwurf") "Entwurf bleibt"
             Expect.isNone (rowOf 1 model').Memo "Memo unverändert"
-            match external with
-            | ShowToast (_, ToastError) -> ()
-            | other -> failtest $"erwartet Fehler-Toast, war {other}"
+            Expect.equal external NoOp "nur im Editor (`Problem`), kein Toast (ledger-enjex)"
+            Expect.isNone model'.DetailNote "keine zweite Meldung unter dem Feld"
 
         testCase "Weitertippen nach einem Befehlsfehler nimmt den Hinweis zurück" <| fun () ->
             let opened, _, _ = run (StartMemoEdit (idOf 1)) (modelWith [ entryOf 1 ])
@@ -288,9 +293,12 @@ let memoReducerTests =
             let restored, _, external = run (MemoRestored (idOf 1, Ok (outcome (Some "neu") (Some "alt") MemoSent))) model
             Expect.equal (rowOf 1 restored).Memo (Some "alt") "altes Memo"
             Expect.isEmpty restored.MemoRows "Sperre gelöst"
-            match external with
+            Expect.equal external NoOp "im offenen Detail kein Rücknahme-Toast (ledger-enjex)"
+            let _, _, closedExternal =
+                run (MemoRestored (idOf 1, Ok (outcome (Some "neu") (Some "alt") MemoSent))) { model with DetailFor = None }
+            match closedExternal with
             | ShowToast ("Memo zurückgesetzt", ToastSuccess) -> ()
-            | other -> failtest $"erwartet Toast ohne Rückgängig, war {other}"
+            | other -> failtest $"Detail zu: erwartet Toast ohne Rückgängig, war {other}"
 
         testCase "Rückgängig auf kein Memo: das Memo ist danach weg" <| fun () ->
             let restored, _, _ = run (MemoRestored (idOf 1, Ok (outcome (Some "neu") None MemoSent))) (modelWith [ withMemo 1 "neu" ])
@@ -309,9 +317,11 @@ let memoReducerTests =
             Expect.isEmpty sent.MemoRows "Sperre gelöst"
             let again, _, warn = run (MemoRetried (idOf 1, Ok (MemoSendFailed "immer noch"))) model
             Expect.equal (rowOf 1 again).MemoWriteBackFailure (Some "immer noch") "neuer Grund"
-            match warn with
+            Expect.equal warn NoOp "im offenen Detail zeigt die Hinweisleiste den Grund (ledger-enjex)"
+            let _, _, closedWarn = run (MemoRetried (idOf 1, Ok (MemoSendFailed "immer noch"))) { model with DetailFor = None }
+            match closedWarn with
             | ShowToast (_, ToastWarning) -> ()
-            | other -> failtest $"erwartet Warn-Toast, war {other}"
+            | other -> failtest $"Detail zu: erwartet Warn-Toast, war {other}"
 
         testCase "die Tastatur der Liste ist gesperrt, solange das Memo-Feld offen ist" <| fun () ->
             let opened, _, _ = run (StartMemoEdit (idOf 1)) (modelWith [ entryOf 1; entryOf 2 ])
@@ -323,6 +333,78 @@ let memoReducerTests =
 // ============================================
 // Ansicht: Kategorie am Handy kurz, Fußtext im Picker, Styleguide
 // ============================================
+
+[<Tests>]
+let memoDetailNoteTests =
+    let saved (model: Model) =
+        let m, _, _ = run (MemoSet (idOf 1, Ok (outcome None (Some "Werkzeug") MemoSent))) model
+        m
+    testList "Memo: Bestätigung am Feld im Detail (ledger-enjex)" [
+
+        testCase "Sheet am Handy und Panel am PC zeigen dieselbe Bestätigung, ohne Toast" <| fun () ->
+            let panel = saved (modelWith [ entryOf 1 ])
+            let sheet = saved { modelWith [ entryOf 1 ] with DetailForm = DetailSheet }
+            Expect.isSome panel.DetailNote "Panel"
+            Expect.equal sheet.DetailNote panel.DetailNote "Sheet gleich"
+
+        testCase "Rückgängig am Feld ist dieselbe Nachricht wie früher im Toast; Schließen übergibt an die Leiste" <| fun () ->
+            let model = saved { modelWith [ entryOf 1 ] with DetailForm = DetailSheet }
+            let kind = model.DetailNote.Value.Undo.Value
+            Expect.equal (detailNoteUndoMsg kind) (Some (StartUndoMemo (idOf 1, None))) "am Feld"
+            Expect.equal (State.toastActionMsg kind) (State.LedgerMsg (StartUndoMemo (idOf 1, None))) "wie der Toast"
+            let closed, _, external = update CloseDetail model
+            Expect.isNone closed.DetailNote "am Feld weg"
+            match external with
+            | PostFeedback note ->
+                Expect.equal (note.Tone, note.Action, note.Detail) (FeedbackOk, "Memo gesetzt", Some "Payee fa1fp 1") "Leiste"
+                Expect.equal (note.Act |> Option.map (fun a -> a.Kind)) (Some kind) "Rückgängig in der Leiste"
+            | other -> failtest $"erwartet Leiste, war {other}"
+
+        testCase "Rückgängig gelingt: Bestätigung weg, kein Toast; mit YNAB-Fehler gelb am Feld" <| fun () ->
+            let model = saved (modelWith [ entryOf 1 ])
+            let restoring, _, _ = run (StartUndoMemo (idOf 1, None)) model
+            let restored, _, external = run (MemoRestored (idOf 1, Ok (outcome (Some "Werkzeug") None MemoSent))) restoring
+            Expect.isNone restored.DetailNote "Bestätigung weg"
+            Expect.equal external NoOp "kein Toast"
+            let warned, _, warnExternal = run (MemoRestored (idOf 1, Ok (outcome (Some "Werkzeug") None (MemoSendFailed "weg")))) restoring
+            Expect.equal warnExternal NoOp "kein Toast"
+            Expect.equal
+                (warned.DetailNote |> Option.map (fun n -> n.Field, n.Tone, n.Text))
+                (Some (AtMemo, FeedbackWarning, "Zurückgesetzt, nicht in YNAB: weg"))
+                "gelb am Feld"
+
+        testCase "Rückgängig gescheitert: rot unter „Memo“, ohne Zeile in der Hinweisleiste und ohne Toast" <| fun () ->
+            let model = saved (modelWith [ entryOf 1 ])
+            let restoring, _, _ = run (StartUndoMemo (idOf 1, None)) model
+            let failed, _, external = run (MemoRestored (idOf 1, Error "YNAB weg")) restoring
+            Expect.equal external NoOp "kein Toast"
+            Expect.isEmpty failed.MemoRows "keine zweite rote Zeile"
+            Expect.equal
+                (failed.DetailNote |> Option.map (fun n -> n.Field, n.Tone, n.Text))
+                (Some (AtMemo, FeedbackError, "Rückgängig nicht möglich: YNAB weg"))
+                "rot am Feld"
+            let _, _, closedExternal = run (MemoRestored (idOf 1, Error "YNAB weg")) { restoring with DetailFor = None }
+            match closedExternal with
+            | PostFeedback note -> Expect.equal (note.Tone, note.Action) (FeedbackError, "Rückgängig nicht möglich") "Detail zu: Leiste rot"
+            | other -> failtest $"erwartet Leiste, war {other}"
+
+        testCase "Memo nicht geändert bei schon geschlossenem Editor: rot unter „Memo“; bei geschlossenem Detail rot in der Leiste" <| fun () ->
+            let failed, _, external = run (MemoSet (idOf 1, Error "Netz")) (modelWith [ entryOf 1 ])
+            Expect.equal external NoOp "kein Toast"
+            Expect.equal (failed.DetailNote |> Option.map (fun n -> n.Tone, n.Text)) (Some (FeedbackError, "Nicht geändert: Netz")) "rot am Feld"
+            let _, _, closedExternal = run (MemoSet (idOf 1, Error "Netz")) { modelWith [ entryOf 1 ] with DetailFor = None }
+            match closedExternal with
+            | PostFeedback note ->
+                Expect.equal (note.Tone, note.Action, note.Detail) (FeedbackError, "Memo nicht geändert", Some "Netz") "Leiste rot"
+            | other -> failtest $"erwartet Leiste, war {other}"
+
+        testCase "Speichern eines neuen Memos nimmt die stehende Bestätigung weg" <| fun () ->
+            let model = saved (modelWith [ entryOf 1 ])
+            let opened, _, _ = run (StartMemoEdit (idOf 1)) model
+            let typed, _, _ = run (MemoEditChanged "Lampe") opened
+            let saving, _, _ = run (StartSaveMemo (idOf 1)) typed
+            Expect.isNone saving.DetailNote "weg"
+    ]
 
 [<Tests>]
 let detailFeinschliffTests =

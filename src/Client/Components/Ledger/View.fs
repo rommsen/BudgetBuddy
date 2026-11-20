@@ -1422,20 +1422,34 @@ let private noteTone (tone: FeedbackTone) : Feedback.Tone =
 
 /// Die Bestätigung unter einem Feld des Details (ledger-p5y9s, R3 Platz 1): „✓ Geändert · Rückgängig“, gelb bei
 /// einer YNAB-Warnung, rot bei einem Fehler. „Rückgängig“ schickt dieselbe Nachricht wie früher der Toast.
+let private noteFieldName (field: DetailNoteField) : string =
+    match field with
+    | AtCategory -> "category"
+    | AtSplits -> "splits"
+    | AtAmount -> "amount"
+    | AtMemo -> "memo"
+    | AtPayee -> "payee"
+    | AtLena -> "lena"
+
+/// Text und „Rückgängig“ der Bestätigung (`Feedback.fieldNoteWith`), mit `data-testid="detail-note"` und dem Feld.
+/// `asRow`: als eigene Zeile unter einem Feld (mit Einzug und Linie), sonst in der Knopfzeile unter dem Knopf.
+let private detailNoteLine (dispatch: Msg -> unit) (asRow: bool) (note: DetailNote) : ReactElement =
+    let act =
+        note.Undo
+        |> Option.bind detailNoteUndoMsg
+        |> Option.map (fun msg -> ({ Label = undoToastLabel; OnClick = fun () -> dispatch msg } : Feedback.Act))
+    Html.div [
+        prop.custom ("data-testid", "detail-note")
+        prop.custom ("data-note-field", noteFieldName note.Field)
+        if asRow then prop.className $"px-4 detail-inset py-1.5 border-b {Tokens.Borders.subtle}"
+        prop.children [ Feedback.fieldNoteWith (noteTone note.Tone) note.Text act ]
+    ]
+
 let private detailNoteView (dispatch: Msg -> unit) (model: Model) (entry: LedgerEntryView) (field: DetailNoteField) : ReactElement =
     match detailNoteAt model entry.Id field with
-    | Some note ->
-        let act =
-            note.Undo
-            |> Option.bind detailNoteUndoMsg
-            |> Option.map (fun msg -> ({ Label = undoToastLabel; OnClick = fun () -> dispatch msg } : Feedback.Act))
-        Html.div [
-            prop.custom ("data-testid", "detail-note")
-            prop.custom ("data-note-field", (match field with AtCategory -> "category" | AtSplits -> "splits" | AtAmount -> "amount"))
-            prop.className $"px-4 detail-inset py-1.5 border-b {Tokens.Borders.subtle}"
-            prop.children [ Feedback.fieldNoteWith (noteTone note.Tone) note.Text act ]
-        ]
-    | None -> Html.none
+    | Some note when note.Text <> "" ->
+        detailNoteLine dispatch true note
+    | _ -> Html.none
 
 /// Leuchtet das Feld der Bestätigung gerade (`Feedback.flash`)?
 let private noteFlashing (model: Model) (entry: LedgerEntryView) (field: DetailNoteField) : bool =
@@ -1679,7 +1693,7 @@ let private detailActionRow
     let lena = lenaActionFor model.LenaFlagColor entry
     // Die Flagge in der Farbe aus den Einstellungen (`Badge.lenaFlagScope` an der Hülle, ADR 0087 Punkt 8).
     let flagIcon = Some (Icons.flag Icons.SM Icons.LenaFlag)
-    Detail.actionRow
+    Detail.actionRowWith
         (Badge.lenaFlagScope (lenaColorOf model.LenaFlagColor))
         [ Detail.rowAction
               "detail-split-action"
@@ -1688,19 +1702,32 @@ let private detailActionRow
               splitLock
               false
               (fun () -> splitActionMsg entry |> Option.iter dispatch)
-          Detail.rowAction
-              "detail-flag-action"
-              lena.Label
-              flagIcon
-              lena.DisabledReason
-              (flagRow = Some FlagSending)
-              (fun () -> lenaActionMsg model entry |> Option.iter dispatch) ]
+          // Nach „Lena fragen“ wechselt der Knopf die Beschriftung und leuchtet kurz (ledger-enjex): er ist selbst die
+          // Bestätigung und das Rückgängig. Die Hülle trägt das Leuchten, der Knopf bleibt derselbe (Fokus).
+          Html.div [
+              prop.custom ("data-testid", "detail-flag-action-wrap")
+              prop.className ("flex rounded-lg" + (if noteFlashing model entry AtLena then " " + Feedback.flash else ""))
+              prop.children [
+                  Detail.rowAction
+                      "detail-flag-action"
+                      lena.Label
+                      flagIcon
+                      lena.DisabledReason
+                      (flagRow = Some FlagSending)
+                      (fun () -> lenaActionMsg model entry |> Option.iter dispatch)
+              ]
+          ] ]
         [ match splitLock with
           | Some text -> "detail-split-lock-hint", text
           | None -> ()
           match lena.DisabledReason with
           | Some reason -> "detail-flag-lock-hint", reason
           | None -> () ]
+        // Unter dem Knopf nur bei vorherigem fremdem Flag „✓ Lena gefragt · Rückgängig“, gelb bei einem YNAB-Fehler,
+        // rot bei einem abgelehnten Befehl (wie die Sperrgründe).
+        [ match detailNoteAt model entry.Id AtLena with
+          | Some note when note.Text <> "" -> detailNoteLine dispatch false note
+          | _ -> () ]
 
 /// Die Nachricht der Memo-Aktion ("Memo hinzufügen" bzw. "Bearbeiten"): `None`, wenn sie
 /// gesperrt ist oder gerade ein Aufruf läuft (ledger-fa1fp, ADR 0062).
@@ -1893,29 +1920,42 @@ let private detailContent (dispatch: Msg -> unit) (model: Model) (entry: LedgerE
               | Some payee -> ruleOfferRow dispatch entry payee
               | None -> ()
 
-              memoField dispatch model memoRow entry textColor
+              // Memo und Payee leuchten nach einer Änderung, darunter steht die Bestätigung (ledger-enjex).
+              Html.div [
+                  prop.className (if noteFlashing model entry AtMemo then Feedback.flash else "")
+                  prop.children [ memoField dispatch model memoRow entry textColor ]
+              ]
+
+              detailNoteView dispatch model entry AtMemo
 
               // Payee: Name, „alle zeigen“ (setzt die Suche, ledger-d9z3n) und der Pfeil zur Payee-Auswahl
               // (ledger-fxt09). Ein Tipp auf die Zeile öffnet ebenfalls die Auswahl.
-              Detail.fieldRowWith
-                  (payeeOpenMsg |> Option.map (fun msg -> fun () -> dispatch msg))
-                  "detail-payee"
-                  "Payee"
-                  (Detail.valueText
-                      (if muted || payeeMissing entry then Tokens.Colors.textMuted else Tokens.Colors.textPrimary)
-                      (payeeLabel entry))
-                  (Some (
-                      React.fragment [
-                          match payeeFilterLabel entry, entry.Payee with
-                          | Some label, Some payee -> Detail.showAllLink label (fun () -> dispatch (FilterByRowPayee payee))
-                          | _ -> ()
-                          Detail.forwardArrow
-                              "detail-payee-arrow"
-                              payeeEditLabel
-                              (if payeeOpenMsg.IsSome then None else Some (payeeLockFor entry |> Option.defaultValue payeeEditLabel))
-                              (fun () -> payeeOpenMsg |> Option.iter dispatch)
-                      ]
-                  ))
+              Html.div [
+                  prop.className (if noteFlashing model entry AtPayee then Feedback.flash else "")
+                  prop.children [
+                      Detail.fieldRowWith
+                          (payeeOpenMsg |> Option.map (fun msg -> fun () -> dispatch msg))
+                          "detail-payee"
+                          "Payee"
+                          (Detail.valueText
+                              (if muted || payeeMissing entry then Tokens.Colors.textMuted else Tokens.Colors.textPrimary)
+                              (payeeLabel entry))
+                          (Some (
+                              React.fragment [
+                                  match payeeFilterLabel entry, entry.Payee with
+                                  | Some label, Some payee -> Detail.showAllLink label (fun () -> dispatch (FilterByRowPayee payee))
+                                  | _ -> ()
+                                  Detail.forwardArrow
+                                      "detail-payee-arrow"
+                                      payeeEditLabel
+                                      (if payeeOpenMsg.IsSome then None else Some (payeeLockFor entry |> Option.defaultValue payeeEditLabel))
+                                      (fun () -> payeeOpenMsg |> Option.iter dispatch)
+                              ]
+                          ))
+                  ]
+              ]
+
+              detailNoteView dispatch model entry AtPayee
 
               yield! externalLinksField entry
 
@@ -2163,8 +2203,7 @@ let private amountFormBody (dispatch: Msg -> unit) (entry: LedgerEntryView) (edi
       Html.p [ prop.className $"{Tokens.FontSizes.xs} {Tokens.Colors.textMuted}"; prop.text amountYnabNote ] ]
 
 /// "Abbrechen" und "Speichern" des Sheets "Betrag", nebeneinander in voller Breite.
-let private amountFooter (dispatch: Msg -> unit) (model: Model) (entry: LedgerEntryView) : ReactElement =
-    let busy = (model.AmountRows |> Map.tryFind entry.Id) = Some AmountSending
+let private amountButtons (dispatch: Msg -> unit) (busy: bool) (entry: LedgerEntryView) : ReactElement =
     Html.div [
         prop.className "grid w-full grid-cols-2 gap-3"
         prop.children [
@@ -2186,6 +2225,21 @@ let private amountFooter (dispatch: Msg -> unit) (model: Model) (entry: LedgerEn
                     ClassName = Some "w-full"
                     KeepsFocus = true
                     OnClick = fun () -> dispatch (StartSaveAmount entry.Id) }
+        ]
+    ]
+
+/// Der Fuß des Sheets "Betrag". Lehnt der Server das Speichern ab, steht der Grund rot über den Knöpfen (R3 Platz 2,
+/// `Feedback.sheetLine`, ledger-enjex), ohne Toast; das Sheet bleibt mit dem Entwurf offen.
+let private amountFooter (dispatch: Msg -> unit) (model: Model) (entry: LedgerEntryView) : ReactElement =
+    let row = model.AmountRows |> Map.tryFind entry.Id
+    Html.div [
+        prop.className "flex w-full flex-col gap-2"
+        prop.children [
+            match row with
+            | Some (AmountCommandFailed message) ->
+                Feedback.sheetLine { Tone = Feedback.Tone.Error; Action = "Nicht geändert"; Detail = Some message; Act = None }
+            | _ -> ()
+            amountButtons dispatch (row = Some AmountSending) entry
         ]
     ]
 

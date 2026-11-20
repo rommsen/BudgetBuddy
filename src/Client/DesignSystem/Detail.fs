@@ -773,7 +773,14 @@ let rowAction
 /// Die Knopfzeile (Prototyp `.btnrow`): Knöpfe gleich breit nebeneinander, darunter die Gründe gesperrter Knöpfe.
 /// `extra`: Eigenschaften der Hülle, etwa `Badge.lenaFlagScope` für die Farbe der Flagge.
 /// `hints`: (testId, Grund) je gesperrtem Knopf, gedämpft unter der Zeile.
-let actionRow (extra: IReactProperty list) (actions: ReactElement list) (hints: (string * string) list) : ReactElement =
+/// `notes`: weitere Zeilen unter den Gründen, etwa die Bestätigung unter „Lena fragen“ (`Feedback.fieldNoteWith`,
+/// ledger-enjex), je mit demselben Abstand.
+let actionRowWith
+    (extra: IReactProperty list)
+    (actions: ReactElement list)
+    (hints: (string * string) list)
+    (notes: ReactElement list)
+    : ReactElement =
     block "detail-actions" extra [
         yield Html.div [
             prop.className "grid auto-cols-fr grid-flow-col gap-2"
@@ -786,7 +793,13 @@ let actionRow (extra: IReactProperty list) (actions: ReactElement list) (hints: 
                 prop.className $"mt-1.5 {ListRoles.muted}"
                 prop.text text
             ]
+        for note in notes do
+            yield Html.div [ prop.className "mt-1.5"; prop.children [ note ] ]
     ]
+
+/// Die Knopfzeile ohne weitere Zeilen (`actionRowWith`).
+let actionRow (extra: IReactProperty list) (actions: ReactElement list) (hints: (string * string) list) : ReactElement =
+    actionRowWith extra actions hints []
 
 /// Die Herkunft als kleine gedämpfte Zeile („Herkunft: YNAB-Spiegel“, Prototyp Version 17).
 let originLine (text: string) : ReactElement =

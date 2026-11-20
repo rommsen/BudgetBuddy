@@ -664,8 +664,14 @@ type DetailNoteField =
     | AtCategory
     /// Unter den Zeilen der Aufteilung (`Detail.splitCard`).
     | AtSplits
-    /// Am Betrag oben im Detail (Aufteilung mit neuem Betrag, ADR 0092).
+    /// Am Betrag oben im Detail (Sheet „Betrag“, Aufteilung mit neuem Betrag, ADR 0092).
     | AtAmount
+    /// Unter dem Memo-Block (ledger-enjex).
+    | AtMemo
+    /// Unter der Zeile „Payee“ (ledger-enjex).
+    | AtPayee
+    /// Unter dem Knopf „Lena fragen“ in der Knopfzeile (ledger-enjex). Ohne Text leuchtet nur der Knopf.
+    | AtLena
 
 /// Die eine Bestätigung im offenen Detail (Sheet am Handy, Panel am PC): sie steht unter dem Feld, das sich geändert
 /// hat, ohne Zeitlimit, bis die nächste Aktion im Detail sie ersetzt oder das Detail schließt. Schließt es mit
@@ -756,17 +762,22 @@ let splitSavedNote
     : DetailNote =
     changedNote entryId (if unsplit then AtCategory else AtSplits) text text payee sendFailure undo
 
-/// Betrag mit Aufteilung geändert (Zeile 3785/3786): „✓ Geändert“ am Betrag, ohne Rückgängig (ADR 0092). In der
-/// Leiste „Betrag geändert“ mit dem neuen Betrag.
-let amountChangedNote (entryId: Guid) (amountText: string) (sendFailure: string option) : DetailNote =
+/// Betrag geändert: „✓ Geändert“ am Betrag. Aus dem Sheet „Betrag“ mit „Rückgängig“ (`UndoAmount`, ledger-enjex),
+/// mit Aufteilung ohne (ADR 0092). In der Leiste „Betrag geändert“ mit dem neuen Betrag.
+let amountChangedNote (entryId: Guid) (amountText: string) (sendFailure: string option) (undo: ToastActionKind option) : DetailNote =
     match sendFailure with
-    | Some reason -> changeNote entryId AtAmount FeedbackWarning $"Geändert, nicht in YNAB: {reason}" None "Betrag geändert, nicht in YNAB" (Some reason)
-    | None -> changeNote entryId AtAmount FeedbackOk "Geändert" None "Betrag geändert" (Some amountText)
+    | Some reason -> changeNote entryId AtAmount FeedbackWarning $"Geändert, nicht in YNAB: {reason}" undo "Betrag geändert, nicht in YNAB" (Some reason)
+    | None -> changeNote entryId AtAmount FeedbackOk "Geändert" undo "Betrag geändert" (Some amountText)
 
-/// Nach „Rückgängig“ mit gescheitertem Versand (Zeile 2612, 3818): gelb am Feld, ohne neues Rückgängig.
-let restoredNotInYnabNote (entryId: Guid) (field: DetailNoteField) (reason: string) : DetailNote =
-    { changeNote entryId field FeedbackWarning $"Zurückgesetzt, nicht in YNAB: {reason}" None categoryHintTitle (Some reason) with
+/// Nach „Rückgängig“ mit gescheitertem Versand: gelb am Feld, ohne neues Rückgängig. `hintTitle` ist die obere Zeile
+/// der Leiste, falls das Detail zur Antwort schon zu ist („Memo nicht in YNAB“).
+let restoredNotInYnabNoteFor (hintTitle: string) (entryId: Guid) (field: DetailNoteField) (reason: string) : DetailNote =
+    { changeNote entryId field FeedbackWarning $"Zurückgesetzt, nicht in YNAB: {reason}" None hintTitle (Some reason) with
         Flashing = true }
+
+/// Nach „Rückgängig“ an Kategorie, Übertrag oder Aufteilung mit gescheitertem Versand (Zeile 2612, 3818).
+let restoredNotInYnabNote (entryId: Guid) (field: DetailNoteField) (reason: string) : DetailNote =
+    restoredNotInYnabNoteFor categoryHintTitle entryId field reason
 
 // ============================================
 // Lena fragen im Detail (ledger-xfjcp, ADR 0056)
@@ -869,6 +880,25 @@ let lenaFlagToastText (target: LenaFlagTarget) : string =
 
 /// Der Toast nach "Rückgängig".
 let flagRestoredToastText : string = "Flag zurückgesetzt"
+
+/// Hatte die Buchung vor „Lena fragen“ ein fremdes Flag (etwa rot aus YNAB)? Nur dann braucht es ein eigenes
+/// „Rückgängig“: „Rückfrage zurücknehmen“ ließe die Buchung ohne Flag (Entscheidung Roman 2026-11-19, Punkt 1).
+let hadForeignFlag (target: LenaFlagTarget) (previous: FlagState) : bool =
+    target = AssignLena && (previous.Color.IsSome || previous.Name.IsSome)
+
+/// Lena fragen bzw. Rückfrage zurücknehmen im Detail (ledger-enjex): der Knopf wechselt die Beschriftung und leuchtet,
+/// er ist selbst das Rückgängig, darunter steht kein Text (`Text` leer). Bei einem vorherigen fremden Flag steht unter
+/// dem Knopf „✓ Lena gefragt“ mit „Rückgängig“, das das alte Flag wiederherstellt (`UndoFlag` mit `Previous`). Gelb
+/// bei gescheitertem Versand: „Lena gefragt, nicht in YNAB: Grund“.
+let lenaFlagNote
+    (entryId: Guid) (target: LenaFlagTarget) (previous: FlagState) (payee: string option) (sendFailure: string option)
+    : DetailNote =
+    let undo = if hadForeignFlag target previous then Some (UndoFlag (entryId, previous)) else None
+    let text = lenaFlagToastText target
+    match sendFailure, undo with
+    | Some reason, _ -> changeNote entryId AtLena FeedbackWarning $"{text}, nicht in YNAB: {reason}" undo $"{text}, nicht in YNAB" (Some reason)
+    | None, Some _ -> changeNote entryId AtLena FeedbackOk text undo text (notePayee payee)
+    | None, None -> changeNote entryId AtLena FeedbackOk "" None text (notePayee payee)
 
 // ============================================
 // Memo bearbeiten im Detail (ledger-fa1fp, ADR 0062)
@@ -1135,6 +1165,34 @@ let payeeRemovedToastText : string = "Payee entfernt"
 
 /// Der Toast nach "Rückgängig".
 let payeeRestoredToastText : string = "Payee zurückgesetzt"
+
+// ============================================
+// Bestätigung am Feld für Memo, Payee und Lena (ledger-enjex, R3 Platz 1, ADR 0098)
+// ============================================
+
+/// Memo gespeichert: unter „Memo“ „✓ Gesetzt“, „✓ Geändert“ oder „✓ Entfernt“ mit „Rückgängig“ (`UndoMemo`); gelb
+/// „…, nicht in YNAB: Grund“. In der Leiste „Memo gesetzt“ usw. mit dem Payee.
+let memoChangedNote
+    (entryId: Guid) (previous: string option) (current: string option) (payee: string option) (sendFailure: string option)
+    : DetailNote =
+    let okText =
+        match previous, current with
+        | None, Some _ -> "Gesetzt"
+        | Some _, None -> "Entfernt"
+        | _ -> "Geändert"
+    changedNote entryId AtMemo okText (memoToastText previous current) payee sendFailure (Some (UndoMemo (entryId, previous)))
+
+/// Payee geändert oder entfernt: unter „Payee“ „✓ Geändert“ bzw. „✓ Entfernt“ mit „Rückgängig“ (`UndoPayee`, auch
+/// ohne alten Payee, ledger-pkrwd). In der Leiste „Payee geändert“ mit dem neuen Payee bzw. „Payee entfernt“.
+let payeeChangedNote
+    (entryId: Guid) (previous: string option) (current: string option) (sendFailure: string option)
+    : DetailNote =
+    let undo = Some (UndoPayee (entryId, previous))
+    let okText, barAction = if current.IsSome then "Geändert", "Payee geändert" else "Entfernt", payeeRemovedToastText
+    match sendFailure with
+    | Some reason ->
+        changeNote entryId AtPayee FeedbackWarning $"{okText}, nicht in YNAB: {reason}" undo $"{barAction}, nicht in YNAB" (Some reason)
+    | None -> changeNote entryId AtPayee FeedbackOk okText undo barAction current
 
 /// Der Pfeil der Payee-Zeile im Detail: dorthin kehrt der Fokus zurück, wenn die Auswahl schließt.
 let payeeRowSelector = "[data-testid='detail-payee-arrow']"
@@ -3617,7 +3675,7 @@ let nextPageLoading (model: Model) : bool =
 // Bestätigung am Feld: wohin und was beim Schließen (ledger-p5y9s, ADR 0098)
 // ============================================
 
-/// Wohin die Rückmeldung einer Aktion auf Kategorie, Übertrag oder Aufteilung geht.
+/// Wohin die Rückmeldung einer Aktion im Detail geht (Kategorie, Übertrag, Aufteilung, Memo, Betrag, Payee, Lena).
 type DetailNoteRoute =
     /// Das Detail dieser Buchung steht offen (Sheet oder Panel, im Durchgehen mit „Details“): unter dem Feld.
     | NoteAtField
@@ -3661,4 +3719,8 @@ let detailNoteUndoMsg (kind: ToastActionKind) : Msg option =
     | UndoCategory (entryId, previous) -> Some (StartUndoCategory (entryId, previous))
     | UndoTransfer (entryId, account) -> Some (StartSetEntryTransfer (entryId, account, true))
     | UndoSplit (entryId, restore) -> Some (StartUndoSplit (entryId, restore))
+    | UndoMemo (entryId, previous) -> Some (StartUndoMemo (entryId, previous))
+    | UndoAmount (entryId, previous) -> Some (StartUndoAmount (entryId, previous))
+    | UndoPayee (entryId, previous) -> Some (StartUndoPayee (entryId, previous))
+    | UndoFlag (entryId, previous) -> Some (StartUndoFlag (entryId, previous))
     | _ -> None

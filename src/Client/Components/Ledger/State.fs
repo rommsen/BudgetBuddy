@@ -1053,6 +1053,15 @@ let private whenRowIdle
     : Model * Cmd<Msg> * ExternalMsg =
     if rowBusy lock model entryId then model, Cmd.none, NoOp else start ()
 
+/// Nimmt den abgelehnten Speicherversuch des offenen Sheets „Betrag“ zurück; ein laufender Aufruf bleibt.
+let private clearAmountSaveFailure (model: Model) : Model =
+    match model.AmountEdit with
+    | Some edit ->
+        match model.AmountRows |> Map.tryFind edit.AmountEntryId with
+        | Some (AmountCommandFailed _) -> { model with AmountRows = model.AmountRows |> Map.remove edit.AmountEntryId }
+        | _ -> model
+    | None -> model
+
 /// Ändert den Entwurf des offenen Editors. Jede Eingabe nimmt einen Speicherfehler zurück (ledger-ng110).
 let private editSplit (f: SplitEditor.SplitEditorState -> SplitEditor.SplitEditorState) (model: Model) : Model =
     match model.SplitEditor with
@@ -1121,6 +1130,50 @@ let private categoryCommandFailed (entryId: Guid) (reason: string) (note: Detail
     | NoteOnReviewCard -> failedRow, Cmd.none, ShowToast ($"{note.BarAction}: {reason}", ToastError)
     | NoteInBar -> failedRow, Cmd.none, PostFeedback (detailNoteBar note)
 
+/// Nach einer gelungenen Rücknahme (Kategorie, Memo, Betrag, Payee, Lena): im offenen Detail steht der alte Wert im
+/// Feld, die Bestätigung ist weg und der Rücknahme-Toast entfällt; eine YNAB-Warnung bleibt gelb am Feld (`hintTitle`
+/// ist ihre obere Zeile in der Leiste). Ist das Detail zu oder steht die Karte des Durchgehens, meldet es wie bisher
+/// (`closedText`, ledger-enjex).
+let private restoredAtField
+    (route: DetailNoteRoute)
+    (entryId: Guid)
+    (field: DetailNoteField)
+    (hintTitle: string)
+    (sendFailure: string option)
+    (changed: bool)
+    (closedText: string)
+    (model: Model, cmd: Cmd<Msg>)
+    : Model * Cmd<Msg> * ExternalMsg =
+    match sendFailure with
+    | Some reason ->
+        reportDetailNote
+            route
+            (restoredNotInYnabNoteFor hintTitle entryId field reason)
+            (ShowToast ($"{hintTitle}: {reason}", ToastWarning))
+            (model, cmd)
+    | None when not changed -> model, cmd, NoOp
+    | None when route = NoteAtField -> model, cmd, NoOp
+    | None -> model, cmd, ShowToast (closedText, ToastSuccess)
+
+/// Ein Befehl auf Memo, Betrag, Payee oder Lena scheiterte (ledger-enjex, Muster `categoryCommandFailed`). Im offenen
+/// Detail steht der rote Fehler `note` unter dem Feld, ohne Toast und ohne zweite Zeile in der Hinweisleiste
+/// (`clearRow`). Sonst trägt die Zeile den Fehler (`failRow`) und die Leiste meldet ihn (am PC der Toast); die Karte des
+/// Durchgehens ohne „Details“ meldet wie bisher (`onCard`, ledger-pz5wv).
+let private fieldCommandFailed
+    (entryId: Guid)
+    (note: DetailNote)
+    (failRow: Model -> Model)
+    (clearRow: Model -> Model)
+    (onCard: ExternalMsg)
+    (model: Model)
+    : Model * Cmd<Msg> * ExternalMsg =
+    match detailNoteRoute model entryId with
+    | NoteAtField ->
+        let model', timer = postDetailNote note (clearRow model)
+        model', timer, NoOp
+    | NoteOnReviewCard -> failRow model, Cmd.none, onCard
+    | NoteInBar -> failRow model, Cmd.none, PostFeedback (detailNoteBar note)
+
 /// Nach einer gelungenen Rücknahme: im offenen Detail steht der alte Wert im Feld und die Bestätigung ist weg (die
 /// Rücknahme-Toasts entfallen); eine YNAB-Warnung bleibt gelb am Feld. Ist das Detail zu, meldet die Leiste wie
 /// bisher (`closedText`).
@@ -1132,16 +1185,8 @@ let private restoredReport
     (closedText: string)
     (model: Model, cmd: Cmd<Msg>)
     : Model * Cmd<Msg> * ExternalMsg =
-    match outcome.WriteBack with
-    | CategorySendFailed reason ->
-        reportDetailNote
-            route
-            (restoredNotInYnabNote entryId field reason)
-            (ShowToast ($"{categoryHintTitle}: {reason}", ToastWarning))
-            (model, cmd)
-    | _ when outcome.Change = CategoryUnchanged -> model, cmd, NoOp
-    | _ when route = NoteAtField -> model, cmd, NoOp
-    | _ -> model, cmd, ShowToast (closedText, ToastSuccess)
+    let failure = match outcome.WriteBack with CategorySendFailed reason -> Some reason | _ -> None
+    restoredAtField route entryId field categoryHintTitle failure (outcome.Change = CategoryChanged) closedText (model, cmd)
 
 /// Der Name eines Übertrag-Ziels aus der Kontenliste.
 let private accountNameOf (model: Model) (id: YnabAccountId) : string option =
@@ -2679,13 +2724,20 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
                 (fun ex -> PushRetried (entryId, Error ex.Message))
         model, cmd, NoOp
 
+    // Im offenen Detail meldet „Erneut senden“ nichts (ledger-enjex): nach dem Erfolg verschwinden die Hinweisleiste
+    // „Noch nicht in YNAB“ und die Marke, ein neuer Grund steht in der Hinweisleiste (Zustand, keine Meldung).
     | PushRetried (entryId, Ok result) ->
         let toast =
             match result with
+            | _ when detailShows model entryId -> NoOp
             | PushToYnabSent -> ShowToast (pushRetrySentToastText, ToastSuccess)
             | PushToYnabFailed reason -> ShowToast ($"{pushRetryFailedToastTitle}: {reason}", ToastError)
         let model' = applyPushRetryResult entryId DateTime.UtcNow result model
         model', afterEntryChange entryId model', toast
+
+    // Ein abgelehnter Befehl im offenen Detail: der Grund steht als neuer Grund in der Hinweisleiste.
+    | PushRetried (entryId, Error message) when detailShows model entryId ->
+        applyPushRetryResult entryId DateTime.UtcNow (PushToYnabFailed message) model, Cmd.none, NoOp
 
     | PushRetried (entryId, Error message) ->
         { model with PushRetryRows = model.PushRetryRows |> Map.remove entryId },
@@ -3083,6 +3135,8 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             match findEntry model entryId with
             | Some entry when (lenaActionFor model.LenaFlagColor entry).DisabledReason.IsNone
                               && (lenaActionFor model.LenaFlagColor entry).Target = target ->
+                // Die neue Aktion nimmt eine stehende Bestätigung im Detail weg (ledger-enjex).
+                let model = clearDetailNote entryId model
                 { model with FlagRows = model.FlagRows |> Map.add entryId FlagSending },
                 Cmd.ofMsg (RunSetLenaFlag (entryId, target)),
                 NoOp
@@ -3120,21 +3174,38 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             model', afterEntryChange entryId model', NoOp
         | None ->
             let model' = applyFlagResult entryId newState outcome model
-            let external =
-                match outcome.Change, outcome.WriteBack with
-                | FlagUnchanged, _ -> NoOp
-                | FlagChanged, writeBack ->
+            let cmd = afterEntryChange entryId model'
+            match outcome.Change, outcome.WriteBack with
+            | FlagUnchanged, _ -> model', cmd, NoOp
+            | FlagChanged, writeBack ->
+                let failure = match writeBack with FlagSendFailed reason -> Some reason | _ -> None
+                // Im offenen Detail wechselt nur der Knopf und leuchtet; bei vorherigem fremdem Flag steht darunter
+                // „✓ Lena gefragt · Rückgängig“ (ledger-enjex). Sonst (Detail zu, Taste L) meldet der Toast wie
+                // bisher, unter 1024 px in der Leiste.
+                if detailShows model entryId then
+                    let payee = findEntry model entryId |> Option.bind (fun e -> e.Payee)
+                    let model'', timer = postDetailNote (lenaFlagNote entryId target outcome.Previous payee failure) model'
+                    model'', Cmd.batch [ cmd; timer ], NoOp
+                else
                     let text = lenaFlagToastText target
                     let action = { Label = undoToastLabel; Kind = UndoFlag (entryId, outcome.Previous) }
-                    match writeBack with
-                    | FlagSendFailed reason -> ShowToastWithAction ($"{text}. {flagHintTitle}: {reason}", ToastWarning, action)
-                    | _ -> ShowToastWithAction (text, ToastSuccess, action)
-            model', afterEntryChange entryId model', external
+                    match failure with
+                    | Some reason -> model', cmd, ShowToastWithAction ($"{text}. {flagHintTitle}: {reason}", ToastWarning, action)
+                    | None -> model', cmd, ShowToastWithAction (text, ToastSuccess, action)
 
     // Im Durchgehen ist die Karte nach „Lena fragen“ schon weiter: der Fehler holt sie zurück, damit Roman
     // ihn an der Buchung sieht (ledger-nc708). Außerhalb des Durchgehens bleibt alles, wo es ist. Steht auf
     // der gezeigten Karte eine Eingabe offen, bleibt die Karte: der Sprung schlösse sie samt Entwurf
     // (Review a3f7eb1d..982bdf79). Fehler an der Zeile und Toast bleiben.
+    // Im offenen Detail steht der Fehler rot unter dem Knopf, ohne Toast (ledger-enjex).
+    | LenaFlagSet (entryId, _, Error message) when detailShows model entryId
+                                                   && model.Review |> Option.forall (fun r -> not (r.Awaiting.Contains (AwaitLena entryId))) ->
+        let model', timer =
+            postDetailNote
+                (failedDetailNote entryId AtLena "Nicht geändert" "Flag nicht geändert" message)
+                { model with FlagRows = model.FlagRows |> Map.remove entryId }
+        model', timer, NoOp
+
     | LenaFlagSet (entryId, _, Error message) ->
         let returned, showCmd =
             if reviewCardEditing model then model, Cmd.none else returnToReviewCard entryId model
@@ -3176,24 +3247,36 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
                 | _ -> model'
             model', afterEntryChange entryId model', NoOp
         | None ->
-            // Der Rücknahme-Toast hat kein "Rückgängig" (eine Aktion, ein Toast, eine Rücknahme).
+            // Der Rücknahme-Toast hat kein "Rückgängig" (eine Aktion, ein Toast, eine Rücknahme); im offenen Detail
+            // entfällt er, eine YNAB-Warnung steht gelb unter dem Knopf (ledger-enjex).
             let model' = applyFlagResult entryId previous outcome model
-            let external =
-                match outcome.WriteBack with
-                | FlagSendFailed reason -> ShowToast ($"{flagHintTitle}: {reason}", ToastWarning)
-                | _ when outcome.Change = FlagUnchanged -> NoOp
-                | _ -> ShowToast (flagRestoredToastText, ToastSuccess)
-            model', afterEntryChange entryId model', external
+            let failure = match outcome.WriteBack with FlagSendFailed reason -> Some reason | _ -> None
+            restoredAtField
+                (detailNoteRoute model entryId)
+                entryId
+                AtLena
+                flagHintTitle
+                failure
+                (outcome.Change = FlagChanged)
+                flagRestoredToastText
+                (clearDetailNote entryId model', afterEntryChange entryId model')
 
     | FlagRestored (entryId, previous, Error message) ->
-        let failed = { model with FlagRows = model.FlagRows |> Map.add entryId (FlagCommandFailed message) }
         let undo = UndoLenaAsked (entryId, previous)
-        match takeAwait ((=) (AwaitUndo undo)) failed with
+        match takeAwait ((=) (AwaitUndo undo)) model with
         | Some (_, settled) ->
-            setReviewLast (Some (reviewLastFor settled entryId LastUndone (LastFailed message) (Some (LastRetry (RetryUndo undo))))) settled,
+            let failed = { settled with FlagRows = settled.FlagRows |> Map.add entryId (FlagCommandFailed message) }
+            setReviewLast (Some (reviewLastFor failed entryId LastUndone (LastFailed message) (Some (LastRetry (RetryUndo undo))))) failed,
             Cmd.none,
             NoOp
-        | None -> failed, Cmd.none, ShowToast ($"Rückgängig nicht möglich: {message}", ToastError)
+        | None ->
+            fieldCommandFailed
+                entryId
+                (undoFailedDetailNote entryId AtLena message)
+                (fun m -> { m with FlagRows = m.FlagRows |> Map.add entryId (FlagCommandFailed message) })
+                (fun m -> { m with FlagRows = m.FlagRows |> Map.remove entryId })
+                (ShowToast ($"Rückgängig nicht möglich: {message}", ToastError))
+                model
 
     | StartRetryFlag entryId ->
         whenRowIdle FlagLock entryId model (fun () ->
@@ -3220,8 +3303,10 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             match findEntry cleared entryId with
             | Some entry -> replaceEntry { entry with FlagWriteBackFailure = failure } cleared
             | None -> cleared
+        // Im offenen Detail zeigt die Hinweisleiste „Flag nicht in YNAB“ den neuen Grund (ledger-enjex).
         let external =
             match writeBack with
+            | FlagSendFailed _ when detailShows model entryId -> NoOp
             | FlagSendFailed reason -> ShowToast ($"{flagHintTitle}: {reason}", ToastWarning)
             | _ -> NoOp
         model', afterEntryChange entryId model', external
@@ -3269,6 +3354,8 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
                                          && (memoActionFor entry).DisabledReason.IsNone
                                          && (memoDraftProblem edit.MemoDraft).IsNone ->
                 if memoDraftChangesEntry edit.MemoDraft entry then
+                    // Die neue Aktion nimmt eine stehende Bestätigung im Detail weg (ledger-enjex).
+                    let model = clearDetailNote entryId model
                     { model with MemoRows = model.MemoRows |> Map.add entryId MemoSending },
                     Cmd.ofMsg (RunSetMemo (entryId, edit.MemoDraft)),
                     NoOp
@@ -3288,25 +3375,42 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
 
     | MemoSet (entryId, Ok outcome) ->
         let model' = applyMemoResult entryId outcome model
-        let history = afterEntryChange entryId model'
-        let external =
-            match outcome.MemoChange, outcome.MemoWriteBack with
-            | MemoUnchanged, _ -> NoOp
-            | MemoChanged, writeBack ->
+        match outcome.MemoChange with
+        | MemoUnchanged -> model', Cmd.none, NoOp
+        | MemoChanged ->
+            let cmd = afterEntryChange entryId model'
+            let failure = match outcome.MemoWriteBack with MemoSendFailed reason -> Some reason | _ -> None
+            // Die Karte des Durchgehens ohne „Details“ meldet wie bisher (ledger-pz5wv).
+            let onCard =
                 let text =
                     if isReviewCard model' entryId then reviewMemoToastText outcome.CurrentMemo
                     else memoToastText outcome.PreviousMemo outcome.CurrentMemo
                 let action = { Label = undoToastLabel; Kind = UndoMemo (entryId, outcome.PreviousMemo) }
-                match writeBack with
-                | MemoSendFailed reason -> ShowToastWithAction ($"{text}. {memoHintTitle}: {reason}", ToastWarning, action)
-                | _ -> ShowToastWithAction (text, ToastSuccess, action)
-        model', (if outcome.MemoChange = MemoChanged then history else Cmd.none), external
+                match failure with
+                | Some reason -> ShowToastWithAction ($"{text}. {memoHintTitle}: {reason}", ToastWarning, action)
+                | None -> ShowToastWithAction (text, ToastSuccess, action)
+            let payee = findEntry model entryId |> Option.bind (fun e -> e.Payee)
+            reportDetailNote
+                (detailNoteRoute model entryId)
+                (memoChangedNote entryId outcome.PreviousMemo outcome.CurrentMemo payee failure)
+                onCard
+                (model', cmd)
 
-    // Das Eingabefeld bleibt mit dem Entwurf offen, der Hinweis nennt den Grund.
+    // Das Eingabefeld bleibt mit dem Entwurf offen, der Grund steht im Editor (`Problem`), kein Toast (ledger-enjex).
+    // Ist der Editor zur Antwort schon zu, steht er rot unter „Memo“, bei geschlossenem Detail in der Leiste.
     | MemoSet (entryId, Error message) ->
-        { model with MemoRows = model.MemoRows |> Map.add entryId (MemoCommandFailed message) },
-        Cmd.none,
-        ShowToast ($"Memo nicht geändert: {message}", ToastError)
+        let failRow (m: Model) = { m with MemoRows = m.MemoRows |> Map.add entryId (MemoCommandFailed message) }
+        let editorOpen = model.MemoEdit |> Option.exists (fun e -> e.MemoEntryId = entryId)
+        if editorOpen && detailShows model entryId then
+            failRow model, Cmd.none, NoOp
+        else
+            fieldCommandFailed
+                entryId
+                (failedDetailNote entryId AtMemo "Nicht geändert" "Memo nicht geändert" message)
+                failRow
+                (fun m -> { m with MemoRows = m.MemoRows |> Map.remove entryId })
+                (ShowToast ($"Memo nicht geändert: {message}", ToastError))
+                model
 
     | StartUndoMemo (entryId, previous) ->
         whenRowIdle MemoLock entryId model (fun () ->
@@ -3324,19 +3428,29 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         model, cmd, NoOp
 
     | MemoRestored (entryId, Ok outcome) ->
-        // Der Rücknahme-Toast hat kein "Rückgängig" (eine Aktion, ein Toast, eine Rücknahme).
+        // Der Rücknahme-Toast hat kein "Rückgängig" (eine Aktion, ein Toast, eine Rücknahme); im offenen Detail entfällt
+        // er (ledger-enjex).
         let model' = applyMemoResult entryId outcome model
-        let external =
-            match outcome.MemoWriteBack with
-            | MemoSendFailed reason -> ShowToast ($"{memoHintTitle}: {reason}", ToastWarning)
-            | _ when outcome.MemoChange = MemoUnchanged -> NoOp
-            | _ -> ShowToast (memoRestoredToastText, ToastSuccess)
-        model', (if outcome.MemoChange = MemoChanged then afterEntryChange entryId model' else Cmd.none), external
+        let failure = match outcome.MemoWriteBack with MemoSendFailed reason -> Some reason | _ -> None
+        let changed = outcome.MemoChange = MemoChanged
+        restoredAtField
+            (detailNoteRoute model entryId)
+            entryId
+            AtMemo
+            memoHintTitle
+            failure
+            changed
+            memoRestoredToastText
+            (clearDetailNote entryId model', (if changed then afterEntryChange entryId model' else Cmd.none))
 
     | MemoRestored (entryId, Error message) ->
-        { model with MemoRows = model.MemoRows |> Map.add entryId (MemoCommandFailed message) },
-        Cmd.none,
-        ShowToast ($"Rückgängig nicht möglich: {message}", ToastError)
+        fieldCommandFailed
+            entryId
+            (undoFailedDetailNote entryId AtMemo message)
+            (fun m -> { m with MemoRows = m.MemoRows |> Map.add entryId (MemoCommandFailed message) })
+            (fun m -> { m with MemoRows = m.MemoRows |> Map.remove entryId })
+            (ShowToast ($"Rückgängig nicht möglich: {message}", ToastError))
+            model
 
     | StartRetryMemo entryId ->
         whenRowIdle MemoLock entryId model (fun () ->
@@ -3363,8 +3477,10 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             match findEntry cleared entryId with
             | Some entry -> replaceEntry { entry with MemoWriteBackFailure = failure } cleared
             | None -> cleared
+        // Im offenen Detail zeigt die Hinweisleiste „Memo nicht in YNAB“ den neuen Grund (ledger-enjex).
         let external =
             match writeBack with
+            | MemoSendFailed _ when detailShows model entryId -> NoOp
             | MemoSendFailed reason -> ShowToast ($"{memoHintTitle}: {reason}", ToastWarning)
             | _ -> NoOp
         model', afterEntryChange entryId model', external
@@ -3391,13 +3507,17 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             NoOp
         | _ -> model, Cmd.none, NoOp
 
+    // Jede Eingabe nimmt einen abgelehnten Speicherversuch zurück: die rote Zeile über dem Fuß verschwindet bis zum
+    // nächsten Speichern (ledger-enjex, wie `MemoEditChanged`).
     | AmountDirectionChanged isOutflow ->
-        { model with AmountEdit = model.AmountEdit |> Option.map (fun e -> { e with AmountIsOutflow = isOutflow }) },
+        { clearAmountSaveFailure model with
+            AmountEdit = model.AmountEdit |> Option.map (fun e -> { e with AmountIsOutflow = isOutflow }) },
         Cmd.none,
         NoOp
 
     | AmountDraftChanged text ->
-        { model with AmountEdit = model.AmountEdit |> Option.map (fun e -> { e with AmountDraft = text; AmountFieldError = None }) },
+        { clearAmountSaveFailure model with
+            AmountEdit = model.AmountEdit |> Option.map (fun e -> { e with AmountDraft = text; AmountFieldError = None }) },
         Cmd.none,
         NoOp
 
@@ -3434,6 +3554,8 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
                     Cmd.batch [ Cmd.ofMsg EnsureCategoriesFresh; loadTargets; Cmd.ofMsg LoadQuickAddAccount ],
                     NoOp
                 | AmountSaveSends request ->
+                    // Die neue Aktion nimmt eine stehende Bestätigung im Detail weg (ledger-enjex).
+                    let model = clearDetailNote entryId model
                     { model with AmountRows = model.AmountRows |> Map.add entryId AmountSending },
                     Cmd.ofMsg (RunSetAmount (entryId, request)),
                     NoOp
@@ -3455,22 +3577,37 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
 
     | AmountSet (entryId, Ok outcome) ->
         let model' = applyAmountResult entryId outcome model
-        let external =
-            match outcome.AmountChange, outcome.AmountWriteBack with
-            | AmountUnchanged, _ -> NoOp
-            | AmountChanged, writeBack ->
+        match outcome.AmountChange with
+        | AmountUnchanged -> model', Cmd.none, NoOp
+        | AmountChanged ->
+            let cmd = afterAmountChange entryId model'
+            let failure = match outcome.AmountWriteBack with AmountSendFailed reason -> Some reason | _ -> None
+            let undo = UndoAmount (entryId, outcome.PreviousAmount.Amount)
+            // Die Karte des Durchgehens ohne „Details“ meldet wie bisher (ledger-pz5wv).
+            let onCard =
                 let text = amountToastText outcome.CurrentAmount
-                let action = { Label = undoToastLabel; Kind = UndoAmount (entryId, outcome.PreviousAmount.Amount) }
-                match writeBack with
-                | AmountSendFailed reason -> ShowToastWithAction ($"{text}. {amountHintTitle}: {reason}", ToastWarning, action)
-                | _ -> ShowToastWithAction (text, ToastSuccess, action)
-        model', (if outcome.AmountChange = AmountChanged then afterAmountChange entryId model' else Cmd.none), external
+                let action = { Label = undoToastLabel; Kind = undo }
+                match failure with
+                | Some reason -> ShowToastWithAction ($"{text}. {amountHintTitle}: {reason}", ToastWarning, action)
+                | None -> ShowToastWithAction (text, ToastSuccess, action)
+            let amountText =
+                Client.DesignSystem.Money.formatAmountText false true outcome.CurrentAmount.Amount outcome.CurrentAmount.Currency
+            reportDetailNote (detailNoteRoute model entryId) (amountChangedNote entryId amountText failure (Some undo)) onCard (model', cmd)
 
-    // Das Sheet bleibt mit dem Entwurf offen, der Toast nennt den Grund.
+    // Das Sheet bleibt mit dem Entwurf offen, der Grund steht rot im Sheet über dem Fuß (R3 Platz 2), kein Toast
+    // (ledger-enjex). Ist das Sheet zur Antwort schon zu, steht er rot am Betrag, bei geschlossenem Detail in der Leiste.
     | AmountSet (entryId, Error message) ->
-        { model with AmountRows = model.AmountRows |> Map.add entryId (AmountCommandFailed message) },
-        Cmd.none,
-        ShowToast ($"Betrag nicht geändert: {message}", ToastError)
+        let failRow (m: Model) = { m with AmountRows = m.AmountRows |> Map.add entryId (AmountCommandFailed message) }
+        if model.AmountEdit |> Option.exists (fun e -> e.AmountEntryId = entryId) then
+            failRow model, Cmd.none, NoOp
+        else
+            fieldCommandFailed
+                entryId
+                (failedDetailNote entryId AtAmount "Nicht geändert" "Betrag nicht geändert" message)
+                failRow
+                (fun m -> { m with AmountRows = m.AmountRows |> Map.remove entryId })
+                (ShowToast ($"Betrag nicht geändert: {message}", ToastError))
+                model
 
     | StartUndoAmount (entryId, previous) ->
         whenRowIdle AmountLock entryId model (fun () ->
@@ -3488,19 +3625,29 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         model, cmd, NoOp
 
     | AmountRestored (entryId, Ok outcome) ->
-        // Der Rücknahme-Toast hat kein "Rückgängig" (eine Aktion, ein Toast, eine Rücknahme).
+        // Der Rücknahme-Toast hat kein "Rückgängig" (eine Aktion, ein Toast, eine Rücknahme); im offenen Detail entfällt
+        // er (ledger-enjex).
         let model' = applyAmountResult entryId outcome model
-        let external =
-            match outcome.AmountWriteBack with
-            | AmountSendFailed reason -> ShowToast ($"{amountHintTitle}: {reason}", ToastWarning)
-            | _ when outcome.AmountChange = AmountUnchanged -> NoOp
-            | _ -> ShowToast (amountRestoredToastText, ToastSuccess)
-        model', (if outcome.AmountChange = AmountChanged then afterAmountChange entryId model' else Cmd.none), external
+        let failure = match outcome.AmountWriteBack with AmountSendFailed reason -> Some reason | _ -> None
+        let changed = outcome.AmountChange = AmountChanged
+        restoredAtField
+            (detailNoteRoute model entryId)
+            entryId
+            AtAmount
+            amountHintTitle
+            failure
+            changed
+            amountRestoredToastText
+            (clearDetailNote entryId model', (if changed then afterAmountChange entryId model' else Cmd.none))
 
     | AmountRestored (entryId, Error message) ->
-        { model with AmountRows = model.AmountRows |> Map.add entryId (AmountCommandFailed message) },
-        Cmd.none,
-        ShowToast ($"Rückgängig nicht möglich: {message}", ToastError)
+        fieldCommandFailed
+            entryId
+            (undoFailedDetailNote entryId AtAmount message)
+            (fun m -> { m with AmountRows = m.AmountRows |> Map.add entryId (AmountCommandFailed message) })
+            (fun m -> { m with AmountRows = m.AmountRows |> Map.remove entryId })
+            (ShowToast ($"Rückgängig nicht möglich: {message}", ToastError))
+            model
 
     | StartRetryAmount entryId ->
         whenRowIdle AmountLock entryId model (fun () ->
@@ -3527,8 +3674,10 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             match findEntry cleared entryId with
             | Some entry -> replaceEntry { entry with AmountWriteBackFailure = failure } cleared
             | None -> cleared
+        // Im offenen Detail zeigt die Hinweisleiste „Betrag nicht in YNAB“ den neuen Grund (ledger-enjex).
         let external =
             match writeBack with
+            | AmountSendFailed _ when detailShows model entryId -> NoOp
             | AmountSendFailed reason -> ShowToast ($"{amountHintTitle}: {reason}", ToastWarning)
             | _ -> NoOp
         // Eine aufgeteilte Buchung geht als Ersatz: der Abruf zeigt die neue Lage (Sperren, Kategorie-Hinweis).
@@ -3620,11 +3769,14 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             | PayeeSaveUnchanged -> { model with PayeeEdit = None }, Cmd.ofMsg RestorePayeeRowFocus, NoOp
             | PayeeSaveSends payee ->
                 // Der Payee auf der Karte (nicht in „Details“) meldet sich in der Zeile unter „Passt, weiter“
-                // (ledger-pz5wv); er ist eine neue Aktion, die vorige Zeile geht.
+                // (ledger-pz5wv); er ist eine neue Aktion, die vorige Zeile geht. Im Detail nimmt die neue Aktion eine
+                // stehende Bestätigung weg (ledger-enjex).
                 let onCard =
                     isReviewCard model entryId
                     && model.Review |> Option.exists (fun r -> reviewEditorPlace r = ReviewEditorPlace.OverCard)
-                let marked = if onCard then model |> awaitReview (AwaitPayee (entryId, payee)) |> setReviewLast None else model
+                let marked =
+                    if onCard then model |> awaitReview (AwaitPayee (entryId, payee)) |> setReviewLast None
+                    else clearDetailNote entryId model
                 { marked with
                     PayeeRows = model.PayeeRows |> Map.add entryId PayeeSending
                     PayeeEdit = Some { edit with PayeeFieldError = None } },
@@ -3644,46 +3796,48 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
     | PayeeSet (entryId, Ok outcome) ->
         let awaited = takeAwait (function AwaitPayee (id, _) -> id = entryId | _ -> false) model
         let model' = applyPayeeResult entryId outcome (awaited |> Option.map snd |> Option.defaultValue model)
-        let model' =
-            match awaited, outcome.PayeeChange with
-            | Some _, PayeeChanged ->
-                let result =
-                    match outcome.PayeeWriteBack with
-                    | PayeeSendFailed reason -> LastNotInYnab reason
-                    | _ -> LastDone
-                let line =
-                    { reviewLastFor model' entryId LastPayeeChanged result (Some (LastUndo (UndoPayeeChanged (entryId, outcome.PreviousPayee))))
-                        with Payee = outcome.CurrentPayee }
-                setReviewLast (Some line) model'
-            | _ -> model'
-        let external =
-            match outcome.PayeeChange with
-            // Von der Karte aus steht die Bestätigung in der Zeile (ledger-pz5wv).
-            | _ when awaited.IsSome -> NoOp
-            | PayeeChanged ->
-                let text =
-                    match outcome.CurrentPayee with
-                    | Some current -> payeeToastText current
-                    | None -> payeeRemovedToastText
-                // Auch ohne alten Payee gibt es „Rückgängig“: es nimmt den Payee wieder weg (ledger-pkrwd, §7.13).
-                let toast toastText toastType =
-                    ShowToastWithAction (toastText, toastType, { Label = undoToastLabel; Kind = UndoPayee (entryId, outcome.PreviousPayee) })
-                match outcome.PayeeWriteBack with
-                | PayeeSendFailed reason -> toast $"{text}. {payeeHintTitle}: {reason}" ToastWarning
-                | _ -> toast text ToastSuccess
-            | PayeeUnchanged -> NoOp
         let cmd =
             Cmd.batch [
                 Cmd.ofMsg RestorePayeeRowFocus
                 if outcome.PayeeChange = PayeeChanged then afterEntryChange entryId model'
             ]
-        model', cmd, external
+        match outcome.PayeeChange with
+        | PayeeUnchanged -> model', cmd, NoOp
+        // Von der Karte aus steht die Bestätigung in der Zeile unter „Passt, weiter“ (ledger-pz5wv).
+        | PayeeChanged when awaited.IsSome ->
+            let result =
+                match outcome.PayeeWriteBack with
+                | PayeeSendFailed reason -> LastNotInYnab reason
+                | _ -> LastDone
+            let line =
+                { reviewLastFor model' entryId LastPayeeChanged result (Some (LastUndo (UndoPayeeChanged (entryId, outcome.PreviousPayee))))
+                    with Payee = outcome.CurrentPayee }
+            setReviewLast (Some line) model', cmd, NoOp
+        | PayeeChanged ->
+            let failure = match outcome.PayeeWriteBack with PayeeSendFailed reason -> Some reason | _ -> None
+            // Die Karte des Durchgehens ohne „Details“ meldet wie bisher (ledger-pz5wv).
+            let onCard =
+                let text =
+                    match outcome.CurrentPayee with
+                    | Some current -> payeeToastText current
+                    | None -> payeeRemovedToastText
+                // Auch ohne alten Payee gibt es „Rückgängig“: es nimmt den Payee wieder weg (ledger-pkrwd, §7.13).
+                let action = { Label = undoToastLabel; Kind = UndoPayee (entryId, outcome.PreviousPayee) }
+                match failure with
+                | Some reason -> ShowToastWithAction ($"{text}. {payeeHintTitle}: {reason}", ToastWarning, action)
+                | None -> ShowToastWithAction (text, ToastSuccess, action)
+            reportDetailNote
+                (detailNoteRoute model entryId)
+                (payeeChangedNote entryId outcome.PreviousPayee outcome.CurrentPayee failure)
+                onCard
+                (model', cmd)
 
-    // Die Auswahl bleibt offen, der Grund steht als Feldfehler unter dem Suchfeld. Ist sie inzwischen
-    // zu (Detail geschlossen oder gewechselt), nennt ein Toast den Grund (Muster MemoSet).
+    // Die Auswahl bleibt offen, der Grund steht als Feldfehler unter dem Suchfeld. Ist sie inzwischen zu, steht er rot
+    // unter „Payee“ im Detail, bei geschlossenem Detail in der Leiste (ledger-enjex).
     | PayeeSet (entryId, Error message) ->
         let awaited = takeAwait (function AwaitPayee (id, _) -> id = entryId | _ -> false) model
-        let cleared = { (awaited |> Option.map snd |> Option.defaultValue model) with PayeeRows = model.PayeeRows |> Map.remove entryId }
+        let clearRow (m: Model) = { m with PayeeRows = m.PayeeRows |> Map.remove entryId }
+        let cleared = clearRow (awaited |> Option.map snd |> Option.defaultValue model)
         match model.PayeeEdit, awaited with
         | Some edit, _ when edit.PayeeEntryId = entryId ->
             { cleared with PayeeEdit = Some { edit with PayeeFieldError = Some message } }, Cmd.none, NoOp
@@ -3691,7 +3845,14 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         | _, Some (AwaitPayee (_, payee), _) ->
             let line = reviewLastFor cleared entryId LastPayeeChanged (LastFailed message) (Some (LastRetry (RetryPayee (entryId, payee))))
             setReviewLast (Some line) cleared, Cmd.none, NoOp
-        | _ -> cleared, Cmd.none, ShowToast ($"Payee nicht geändert: {message}", ToastError)
+        | _ ->
+            fieldCommandFailed
+                entryId
+                (failedDetailNote entryId AtPayee "Nicht geändert" "Payee nicht geändert" message)
+                clearRow
+                clearRow
+                (ShowToast ($"Payee nicht geändert: {message}", ToastError))
+                model
 
     | StartUndoPayee (entryId, previous) ->
         // Ein zweiter Tipp auf "Rückgängig" schickt nichts, solange ein Aufruf zum Payee läuft.
@@ -3713,29 +3874,46 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
 
     | PayeeRestored (entryId, Ok outcome) ->
         let awaited = takeAwait (function AwaitUndo (UndoPayeeChanged (id, _)) -> id = entryId | _ -> false) model
-        // Der Rücknahme-Toast hat kein "Rückgängig" (eine Aktion, ein Toast, eine Rücknahme). Aus der Zeile im
-        // Durchgehen kein Toast, eine YNAB-Warnung steht gelb in der Zeile (ledger-pz5wv).
-        let model' = applyPayeeResult entryId outcome (awaited |> Option.map snd |> Option.defaultValue model)
-        let model' =
-            match awaited, outcome.PayeeWriteBack with
-            | Some _, PayeeSendFailed reason -> setReviewLast (Some (reviewLastFor model' entryId LastUndone (LastNotInYnab reason) None)) model'
-            | _ -> model'
-        let external =
-            match outcome.PayeeWriteBack with
-            | _ when awaited.IsSome -> NoOp
-            | PayeeSendFailed reason -> ShowToast ($"{payeeHintTitle}: {reason}", ToastWarning)
-            | _ when outcome.PayeeChange = PayeeUnchanged -> NoOp
-            | _ -> ShowToast (payeeRestoredToastText, ToastSuccess)
-        model', (if outcome.PayeeChange = PayeeChanged then afterEntryChange entryId model' else Cmd.none), external
+        match awaited with
+        // „Rückgängig“ aus der Zeile im Durchgehen (ledger-pz5wv): kein Toast, eine YNAB-Warnung steht gelb in der Zeile.
+        | Some (_, settled) ->
+            let model' = applyPayeeResult entryId outcome settled
+            let model' =
+                match outcome.PayeeWriteBack with
+                | PayeeSendFailed reason -> setReviewLast (Some (reviewLastFor model' entryId LastUndone (LastNotInYnab reason) None)) model'
+                | _ -> model'
+            model', (if outcome.PayeeChange = PayeeChanged then afterEntryChange entryId model' else Cmd.none), NoOp
+        | None ->
+            // Der Rücknahme-Toast hat kein "Rückgängig" (eine Aktion, ein Toast, eine Rücknahme); im offenen Detail
+            // entfällt er (ledger-enjex).
+            let model' = applyPayeeResult entryId outcome model
+            let failure = match outcome.PayeeWriteBack with PayeeSendFailed reason -> Some reason | _ -> None
+            let changed = outcome.PayeeChange = PayeeChanged
+            restoredAtField
+                (detailNoteRoute model entryId)
+                entryId
+                AtPayee
+                payeeHintTitle
+                failure
+                changed
+                payeeRestoredToastText
+                (clearDetailNote entryId model', (if changed then afterEntryChange entryId model' else Cmd.none))
 
     | PayeeRestored (entryId, Error message) ->
-        let cleared = { model with PayeeRows = model.PayeeRows |> Map.remove entryId }
-        match takeAwait (function AwaitUndo (UndoPayeeChanged (id, _)) -> id = entryId | _ -> false) cleared with
+        let clearRow (m: Model) = { m with PayeeRows = m.PayeeRows |> Map.remove entryId }
+        match takeAwait (function AwaitUndo (UndoPayeeChanged (id, _)) -> id = entryId | _ -> false) (clearRow model) with
         | Some (AwaitUndo undo, settled) ->
             setReviewLast (Some (reviewLastFor settled entryId LastUndone (LastFailed message) (Some (LastRetry (RetryUndo undo))))) settled,
             Cmd.none,
             NoOp
-        | _ -> cleared, Cmd.none, ShowToast ($"Rückgängig nicht möglich: {message}", ToastError)
+        | _ ->
+            fieldCommandFailed
+                entryId
+                (undoFailedDetailNote entryId AtPayee message)
+                clearRow
+                clearRow
+                (ShowToast ($"Rückgängig nicht möglich: {message}", ToastError))
+                model
 
     | StartRetryPayee entryId ->
         // Ein Tipp auf "Erneut senden" schickt nichts, solange ein Aufruf zum Payee läuft.
@@ -3765,8 +3943,10 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             match findEntry cleared entryId with
             | Some entry -> replaceEntry { entry with PayeeWriteBackFailure = failure } cleared
             | None -> cleared
+        // Im offenen Detail zeigt die Hinweisleiste „Payee nicht in YNAB“ den neuen Grund (ledger-enjex).
         let external =
             match writeBack with
+            | PayeeSendFailed _ when detailShows model entryId -> NoOp
             | PayeeSendFailed reason -> ShowToast ($"{payeeHintTitle}: {reason}", ToastWarning)
             | _ -> NoOp
         model', afterEntryChange entryId model', external
@@ -4243,11 +4423,11 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         | CategorySendFailed reason ->
             reportDetailNote
                 route
-                (amountChangedNote entryId amountText (Some reason))
+                (amountChangedNote entryId amountText (Some reason) None)
                 (ShowToast ($"{amountToastText amount}. {amountHintTitle}: {reason}", ToastWarning))
                 (model'', cmd)
         | _ when changed ->
-            reportDetailNote route (amountChangedNote entryId amountText None) (ShowToast (amountToastText amount, ToastSuccess)) (model'', cmd)
+            reportDetailNote route (amountChangedNote entryId amountText None None) (ShowToast (amountToastText amount, ToastSuccess)) (model'', cmd)
         | _ -> model'', cmd, NoOp
 
     // Der Editor bleibt offen: der Entwurf geht nicht verloren.
