@@ -891,7 +891,7 @@ let reducerTests =
             let updated, cmd, external = Components.Ledger.State.update (MirrorStatusLoaded (0, Ok (Some staleStatus))) withEntries
             Expect.isTrue updated.MirrorRunning "der Hintergrund-Lauf ist gestartet"
             Expect.contains (dispatched cmd) RunMirror "genau ein Auslöser für den Hintergrund-Lauf"
-            Expect.equal external (PostFeedback mirrorRunningFeedback) "auch er meldet „Spiegeln läuft …“ (ledger-gwr9j)"
+            Expect.equal external (PostFeedbackIfFree mirrorRunningFeedback) "auch er meldet „Spiegeln läuft …“, nur auf freien Platz (ledger-gwr9j)"
             Expect.equal updated.Entries (Success entries) "die Liste bleibt stehen, während der Hintergrund-Lauf läuft (ADR 0014)"
         }
 

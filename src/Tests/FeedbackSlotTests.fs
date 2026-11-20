@@ -51,6 +51,21 @@ let private dispatchedNow (cmd: Elmish.Cmd<State.Msg>) : State.Msg list =
     cmd |> List.iter (fun effect -> effect (fun msg -> sent <- msg :: sent))
     List.rev sent
 
+let private mirrorSummary : Shared.Domain.MirrorRunSummary =
+    { NewEntries = 1; ChangedEntries = 0; DeletedEntries = 0; ServerKnowledge = 1L }
+
+/// Ein Lauf-Status älter als die Frische-Schwelle (ADR 0014): `MirrorStatusLoaded` startet den Lauf im Hintergrund.
+let private staleMirror : Shared.Domain.MirrorRunStatus =
+    { RanAt = DateTime.UtcNow - TimeSpan.FromMinutes 6.0; Outcome = Shared.Domain.MirrorRunSucceeded mirrorSummary }
+
+/// Eine Nachricht des Kassenbuchs durch die Wurzel; was sie an den Meldungsplatz schickt, läuft gleich mit. Die
+/// Folgenachrichten des Kassenbuchs selbst (Aufrufe) bleiben liegen.
+let private mirrorStep (msg: Components.Ledger.Types.Msg) (model: State.Model) : State.Model =
+    let after, cmd = State.update (State.LedgerMsg msg) model
+    dispatchedNow cmd
+    |> List.filter (fun m -> match m with State.LedgerMsg _ -> false | _ -> true)
+    |> List.fold (fun m next -> fst (State.update next m)) after
+
 [<Tests>]
 let postTests =
     testList "FeedbackSlot.post" [
@@ -239,6 +254,30 @@ let rootTests =
             let left, _ = State.update (State.UrlChanged [ "styleguide" ]) shown
             Expect.isFalse left.Pwa.NoticeShown "geschlossen"
             Expect.isNone left.Feedback "leer"
+
+        // Review-Fund zu ledger-gwr9j: der Spiegellauf im Hintergrund (Vordergrund holen, `VisibilityChanged`) ersetzte
+        // eine stehende Meldung mit „Rückgängig“. Die Meldung bleibt bis zur nächsten Aktion; Vordergrund holen ist keine.
+        testCase "Der Spiegellauf im Hintergrund ersetzt keine Meldung mit Rückgängig, „Gespiegelt“ danach auch nicht" <| fun () ->
+            let busy = rootModel Page.Ledger |> withFeedback (swipe idA entry1 "REWE")
+            let afterStart = mirrorStep (Components.Ledger.Types.MirrorStatusLoaded (0, Ok (Some staleMirror))) busy
+            Expect.isTrue afterStart.Ledger.MirrorRunning "der Lauf ist gestartet"
+            Expect.equal afterStart.Feedback busy.Feedback "„Spiegeln läuft …“ ersetzt sie nicht"
+            let afterDone = mirrorStep (Components.Ledger.Types.MirrorFinished (Ok mirrorSummary)) afterStart
+            Expect.equal afterDone.Feedback busy.Feedback "„Gespiegelt“ ersetzt sie nicht"
+
+        testCase "Ist der Platz frei oder steht eine Meldung ohne Knopf, meldet sich der Hintergrund-Lauf bis zum Ergebnis" <| fun () ->
+            for start in [ rootModel Page.Ledger; rootModel Page.Ledger |> withFeedback (plain idA "Gespeichert") ] do
+                let running = mirrorStep (Components.Ledger.Types.MirrorStatusLoaded (0, Ok (Some staleMirror))) start
+                Expect.equal (running.Feedback |> Option.map (fun m -> m.Action)) (Some "Spiegeln läuft …") "läuft"
+                let finished = mirrorStep (Components.Ledger.Types.MirrorFinished (Ok mirrorSummary)) running
+                Expect.equal (finished.Feedback |> Option.map (fun m -> m.Action)) (Some "Gespiegelt") "Ergebnis"
+
+        testCase "„Jetzt spiegeln“ ist eine Aktion und ersetzt die Meldung mit Rückgängig" <| fun () ->
+            let busy = rootModel Page.Ledger |> withFeedback (swipe idA entry1 "REWE")
+            let running = mirrorStep Components.Ledger.Types.StartMirror busy
+            Expect.equal (running.Feedback |> Option.map (fun m -> m.Action)) (Some "Spiegeln läuft …") "läuft"
+            let finished = mirrorStep (Components.Ledger.Types.MirrorFinished (Ok mirrorSummary)) running
+            Expect.equal (finished.Feedback |> Option.map (fun m -> m.Action)) (Some "Gespiegelt") "Ergebnis"
 
         testCase "Erneut senden über die Meldung bei laufender Schlange meldet die Sperre" <| fun () ->
             // budgeting-c5w2n, Verifier-Fund Iteration 4: der Klick schloss den Toast und nichts geschah.

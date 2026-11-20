@@ -506,6 +506,11 @@ module FeedbackSlot =
           ToastHidden = false
           ToastExiting = false }
 
+    /// Ist der Platz frei für eine Meldung ohne Aktion des Nutzers (`ShowFeedbackIfFree`)? Leer oder ohne Knopf: eine
+    /// Meldung mit „Rückgängig“ oder „Erneut“ bleibt bis zur nächsten Aktion (ledger-gwr9j).
+    let isFree (current: FeedbackMessage option) : bool =
+        current |> Option.forall (fun message -> message.Act.IsNone)
+
     /// Text einer zusammengefassten Gruppe.
     let groupText (group: FeedbackGroup) (count: int) : string =
         match group with

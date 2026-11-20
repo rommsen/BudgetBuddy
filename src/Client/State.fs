@@ -62,6 +62,8 @@ type Msg =
     | ShowToastWithAction of string * ToastType * ToastAction  // mit Schaltfläche (ledger-th36h)
     /// Eine Meldung mit getrennter Aktion und Detail (ohne `FeedbackSlot.splitText`), für die Folge-Tasks.
     | ShowFeedback of FeedbackMessage
+    /// Dieselbe Meldung, aber nur auf freien Platz (`FeedbackSlot.isFree`), etwa der Spiegel im Hintergrund.
+    | ShowFeedbackIfFree of FeedbackMessage
     /// Klick auf die Aktion der Meldung mit dieser Id: nur die aktuelle leert den Platz und führt die Aktion aus.
     | FeedbackActClicked of Guid
     // Toast am PC, zweistufiger Abgang: StartDismissToast markiert den Abgang, ToastExited blendet ihn aus.
@@ -682,6 +684,9 @@ let rec updateWith (ports: UpdatePorts) (msg: Msg) (model: Model) : Model * Cmd<
     | ShowFeedback message ->
         postFeedback message model
 
+    | ShowFeedbackIfFree message ->
+        if FeedbackSlot.isFree model.Feedback then postFeedback message model else model, Cmd.none
+
     | FeedbackActClicked id ->
         // Nur die aktuelle Meldung löst ihre Aktion aus und leert den Platz. Eine ältere Id (schon ersetzt oder
         // ausgeführt) tut nichts: ein zweiter Klick darf nicht zweimal rückgängig machen.
@@ -919,6 +924,8 @@ let rec updateWith (ports: UpdatePorts) (msg: Msg) (model: Model) : Model * Cmd<
             | Components.Ledger.Types.ShowToastWithAction (message, toastType, action) ->
                 Cmd.ofMsg (ShowToastWithAction (message, toastType, action))
             | Components.Ledger.Types.PostFeedback note -> Cmd.ofMsg (ShowFeedback (FeedbackSlot.ofNote (Guid.NewGuid()) note))
+            | Components.Ledger.Types.PostFeedbackIfFree note ->
+                Cmd.ofMsg (ShowFeedbackIfFree (FeedbackSlot.ofNote (Guid.NewGuid()) note))
             | Components.Ledger.Types.LeaveReview -> Cmd.ofMsg (NavigateTo Overview)
             // „Regel anlegen“ an einer Buchung (ledger-hg5m5): das Formular des Tabs „Regeln“, vorbelegt; die Auswahl
             // der Kategorie braucht die Kategorien des Tabs.
