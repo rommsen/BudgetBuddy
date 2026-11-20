@@ -191,7 +191,7 @@ test("[layout] Am Handy scrollt das Durchgehen nicht, langer Inhalt scrollt in d
   }
 });
 
-test("[tastatur] Am PC passen Enter, S, K, L, Z und Esc; Esc schließt erst den Picker, dann die Ansicht, Z holt die letzte Karte zurück, nur nicht aus der Endansicht", async () => {
+test("[tastatur] Am PC passen Enter, S, K, L, Z und Esc; Esc schließt erst den Picker, dann die Ansicht, Z holt die letzte Karte zurück", async () => {
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
   const page = await context.newPage();
   page.setDefaultTimeout(20000);
@@ -236,10 +236,6 @@ test("[tastatur] Am PC passen Enter, S, K, L, Z und Esc; Esc schließt erst den 
     await page.keyboard.press("s");
     const end = page.locator('[data-testid="review-end"]');
     await end.waitFor();
-    // In der Endansicht nimmt Z nichts mehr zurück (Romans Prüfung am 20.11.): die Endansicht bleibt.
-    await page.keyboard.press("z");
-    await end.getByText("Alles geprüft").waitFor();
-    assert.equal(await page.locator('[data-testid="review-card"]').count(), 0, "keine Karte zurück");
 
     await page.keyboard.press("Escape");
     await page.waitForURL(/#\/$/);

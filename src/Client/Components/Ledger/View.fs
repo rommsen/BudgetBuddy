@@ -5253,10 +5253,8 @@ let reviewSwipeHintText = "Wischen: rechts „Passt“, links „Später“"
 /// Während eines Wischs nach rechts ohne Kategorie in der Zeile unter dem Knopf (ledger-s2cg3, statt eines Toasts).
 let reviewNeedsTargetFootText = "Erst Kategorie wählen"
 
-/// Die Zeile der letzten Aktion als Meldung des DS (`Feedback.line`, ledger-pz5wv): Text aus `reviewLastLine`, der
-/// Knopf schickt „Rückgängig“ bzw. „Erneut“ der Zeile.
-let reviewLastMessage (dispatch: Msg -> unit) (last: ReviewLast) : Feedback.Message =
-    let line = reviewLastLine last
+/// Eine Zeile aus `reviewLastLine` als Meldung des DS (`Feedback.line`, ledger-pz5wv), ohne Knopf.
+let private reviewLineMessage (line: ReviewLastLine) : Feedback.Message =
     { Tone =
         (match line.Tone with
          | FeedbackOk -> Feedback.Tone.Ok
@@ -5266,15 +5264,22 @@ let reviewLastMessage (dispatch: Msg -> unit) (last: ReviewLast) : Feedback.Mess
          | FeedbackInfo -> Feedback.Tone.Info)
       Action = line.Action
       Detail = Some line.Detail
-      Act =
-        line.Button
-        |> Option.map (fun label ->
-            { Label = label
-              OnClick =
-                fun () ->
-                    match last.Act with
-                    | Some (LastRetry _) -> dispatch ReviewRetryLast
-                    | _ -> dispatch ReviewUndoLast }) }
+      Act = None }
+
+/// Die Zeile der letzten Aktion unter dem Hauptknopf: Text aus `reviewLastLine`, der Knopf schickt „Rückgängig“ bzw.
+/// „Erneut“ der Zeile.
+let reviewLastMessage (dispatch: Msg -> unit) (last: ReviewLast) : Feedback.Message =
+    let line = reviewLastLine last
+    { reviewLineMessage line with
+        Act =
+            line.Button
+            |> Option.map (fun label ->
+                { Label = label
+                  OnClick =
+                    fun () ->
+                        match last.Act with
+                        | Some (LastRetry _) -> dispatch ReviewRetryLast
+                        | _ -> dispatch ReviewUndoLast }) }
 
 /// Was unter dem Hauptknopf steht: während eines Wischs ohne Ziel „Erst Kategorie wählen“, sonst die letzte Aktion,
 /// ohne sie `idle` (Wisch-Hinweis am Handy, leer am PC und unter der Duplikat-Karte).
@@ -5610,23 +5615,21 @@ let private reviewEditors (dispatch: Msg -> unit) (model: Model) (entry: LedgerE
     ]
 
 /// Die Endansicht: „Alles geprüft“ in Grün, die Zahl der durchgegangenen Buchungen, „Zur Übersicht“. Ein Rückgängig
-/// gibt es hier nicht (Skizze 13 hatte „Letzte rückgängig“, Roman hat es am 20.11. gestrichen). War die letzte Aktion
-/// eine Warnung oder ein Fehler, steht ihre Zeile ohne Knopf darunter, sonst ginge sie verloren.
-let private reviewEnd (dispatch: Msg -> unit) (review: ReviewSession) (count: int) (onBack: unit -> unit) =
+/// gibt es hier nicht (Skizze 13 hatte „Letzte rückgängig“, Roman hat es am 20.11. gestrichen). Ist der Ton der letzten
+/// Aktion nicht grün, steht ihre Zeile ohne Knopf darunter (`reviewEndLine`), sonst ginge sie verloren. Ein Fehler kommt
+/// hier praktisch nicht an, weil nach jedem gescheiterten Befehl wieder eine Karte mit „Erneut“ steht; praktisch bleibt
+/// die gelbe Warnung „nicht in YNAB“.
+let private reviewEnd (review: ReviewSession) (count: int) (onBack: unit -> unit) =
     Html.div [
         prop.custom ("data-testid", "review-end")
         prop.className "flex flex-col items-center gap-3"
         prop.children [
             Card.sheetMessage "review-end-message" true "Alles geprüft" (reviewDoneText count)
             Button.view { Button.defaultProps with Text = "Zur Übersicht"; Variant = Button.Primary; OnClick = onBack }
-            match review.Last with
-            | Some last when (reviewLastLine last).Tone <> FeedbackOk ->
-                Html.div [
-                    prop.className "w-full max-w-[420px] px-4"
-                    // Ohne Knopf: in der Endansicht wird nichts mehr zurückgenommen oder wiederholt.
-                    prop.children [ Feedback.line { reviewLastMessage dispatch last with Act = None } ]
-                ]
-            | _ -> ()
+            match reviewEndLine review with
+            | Some line ->
+                Html.div [ prop.className "w-full max-w-[420px] px-4"; prop.children [ Feedback.line (reviewLineMessage line) ] ]
+            | None -> ()
         ]
     ]
 
@@ -5673,7 +5676,7 @@ let ReviewPage (model: Model) (dispatch: Msg -> unit) (onBack: unit -> unit) (ru
                       if reviewEditorPlace review = ReviewEditorPlace.OverCard then reviewEditors dispatch model entry desk
                   // Ohne Karte steht die Endansicht: `update` zeigt nach jedem Schritt eine Karte oder überspringt
                   // eine Buchung ohne Stand bis hinter die letzte (`showReviewCardAt`).
-                  | None -> reviewEnd dispatch review count onBack ]
+                  | None -> reviewEnd review count onBack ]
         let detail =
             match card with
             | Some entry when desk && review.DetailShown -> detailPanelOrRuleForm today dispatch model ruleForm entry

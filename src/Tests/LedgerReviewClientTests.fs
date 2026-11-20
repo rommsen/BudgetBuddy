@@ -969,6 +969,17 @@ let lastLineTests =
             let noPayee = reviewLastLine { EntryId = id; Kind = LastConfirmed; Payee = None; Outcome = LastDone; Act = undo }
             Expect.equal noPayee.Detail "ohne Payee" "ohne Payee"
 
+        testCase "die Endansicht zeigt eine gelbe oder rote letzte Aktion ohne Knopf, eine grüne gar nicht" <| fun () ->
+            let id = idOf cardA
+            let endLine outcome act =
+                reviewEndLine { reviewStarting with Last = Some { EntryId = id; Kind = LastConfirmed; Payee = Some "REWE"; Outcome = outcome; Act = act } }
+                |> Option.map (fun line -> line.Tone, line.Action, line.Detail, line.Button)
+            let undo = Some (LastUndo (UndoSkipped id))
+            Expect.equal (endLine (LastNotInYnab "Timeout") undo) (Some (FeedbackWarning, "Passt, nicht in YNAB", "Timeout", None)) "gelb ohne Rückgängig"
+            Expect.equal (endLine (LastFailed "Netz") (Some (LastRetry (RetryConfirm id)))) (Some (FeedbackError, "Nicht geprüft", "Netz", None)) "rot ohne Erneut"
+            Expect.isNone (endLine LastDone undo) "grün nicht"
+            Expect.isNone (reviewEndLine reviewStarting) "ohne letzte Aktion nichts"
+
         testCase "Z nimmt die letzte Aktion zurück, nur mit Rückgängig und nicht in der Endansicht" <| fun () ->
             let normal = Some (NormalCard, true)
             Expect.equal (reviewKeyAction normal true "z") (Some KeyUndo) "mit Rückgängig"

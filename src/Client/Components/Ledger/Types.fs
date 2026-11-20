@@ -1642,6 +1642,15 @@ let reviewLastLine (last: ReviewLast) : ReviewLastLine =
     | _, LastFailed reason ->
         { Tone = FeedbackError; Action = failedText; Detail = reason; Button = button }
 
+/// Die Zeile der letzten Aktion in der Endansicht „Alles geprüft“: ohne Knopf, weil dort nichts mehr zurückgenommen
+/// oder wiederholt wird (Roman am 20.11.), und nur, wenn ihr Ton nicht grün ist, damit eine Warnung nicht verloren geht.
+/// Grün oder ohne letzte Aktion `None`. Rein.
+let reviewEndLine (review: ReviewSession) : ReviewLastLine option =
+    review.Last
+    |> Option.map reviewLastLine
+    |> Option.filter (fun line -> line.Tone <> FeedbackOk)
+    |> Option.map (fun line -> { line with Button = None })
+
 /// Die Art der Karte: die normale oder die Duplikat-Karte einer wartenden Buchung (ADR 0093).
 type ReviewCardKind =
     | NormalCard
