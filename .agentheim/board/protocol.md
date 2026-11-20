@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-20 01:43 -- Modeling / Promoted: categorization-t6j00 - "Regeln ohne Toast (R3): gelöschte Regel als gestrichelte Zeile am Platz mit Rückgängig, gespeicherte Regel leuchtet kurz, Fehler an der Regel oder als Hinweis der Seite"
+
+**Type:** Modeling / Promote
+**BC:** categorization
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-20 01:43 -- Modeling / Promoted: budgeting-p3sk0 - "Angepinnt ohne Meldung (R3): Anpinnen und Lösen im Kategorie-Detail ohne Toast, die Kategorie leuchtet auf der Übersicht im Bereich „Angepinnt“ kurz, ein Fehler beim Speichern steht am Ort"
 
 **Type:** Modeling / Promote

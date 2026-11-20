@@ -10,14 +10,15 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 2
-- **Todo:** 0
+- **Backlog:** 1
+- **Todo:** 1
 - **Doing:** 0
 - **Done:** 10
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **categorization-t6j00** — "Regeln ohne Toast (R3): gelöschte Regel als gestrichelte Zeile am Platz mit Rückgängig, gespeicherte Regel leuchtet kurz, Fehler an der Regel oder als Hinweis der Seite" (feature) — `todo/categorization-t6j00-regeln-ohne-toast.md`
 <!-- todo-list:end -->
 
 ### Doing
@@ -40,7 +41,6 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
-- **categorization-t6j00** — "Regeln am Handy ohne Toast (R3): gelöschte Regel als Zeile am Platz mit Rückgängig, gespeichert am Ort" (feature) — `backlog/categorization-t6j00-regeln-ohne-toast.md`
 - **categorization-m5k2c** — "Kann-Sammlung categorization" (chore) — `backlog/categorization-m5k2c-kann-sammlung-categorization.md`
 <!-- backlog-list:end -->
 
