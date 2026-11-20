@@ -5,6 +5,25 @@ Newest entries on top.
 
 ---
 
+## 2026-11-20 03:12 -- Batch started: [ledger-p5y9s]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-p5y9s - "Kassenbuch am Handy ohne Toast (R3), Teil 2 Detail I: Rückgängig am Feld im Detail-Sheet als Mechanik, Kategorie, Übertrag und Aufteilen bestätigen am Feld, Fehler am Feld, Übergang beim Schließen"
+**Parallel:** yes (neben p3sk0, ns4re, vwhfm iter 2; k68sd, pz5wv, sx9v5 bereit, gehalten wegen MAX_PARALLEL 3)
+
+---
+
+## 2026-11-20 03:08 -- Verification failed: banking-import-vwhfm - Einstellungen ohne Toast
+
+**Type:** Work / Verification failure
+**Task:** banking-import-vwhfm
+**Iteration:** 1 of 3
+**Reasons:** Fehlerzustand von Input.select nie rot (.select-field schlägt border-error), Lena-Wert ohne ⚑ und Farbe gegen Skizze 34
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-11-20 02:55 -- Modeling / Promoted: ledger-pz5wv - "Durchgehen ohne Toast (B3): letzte Aktion unter „Passt, weiter“ mit Rückgängig für jede Aktion, Fehler rot an derselben Stelle"
 
 **Type:** Modeling / Promote
