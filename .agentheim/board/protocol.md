@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-20 03:27 -- Batch started: [ledger-k68sd]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-k68sd - "Kassenbuch am Handy ohne Toast (R3), Teil 4: gelöschte Buchung hinterlässt eine Zeile am Platz „… gelöscht · Rückgängig“ statt Toast, Fehler beim Löschen unter dem Knopf"
+**Parallel:** yes (neben p5y9s und p3sk0; pz5wv und sx9v5 bereit, gehalten)
+
+---
+
 ## 2026-11-20 03:12 -- Batch started: [ledger-p5y9s]
 
 **Type:** Work / Batch start
