@@ -6,12 +6,12 @@ type: feature
 context: banking-import
 created: 2026-11-13
 completed:
-depends_on: []
+depends_on: [banking-import-y7m4r]
 blocks: []
-tags: [captured]
+tags: [captured, fints, ing]
 related_adrs: [0093]
 related_research: [ing-fints-anbindung-2026-11-06]
-prior_art: []
+prior_art: [banking-import-d0fey, banking-import-pknvp]
 ---
 
 ## Why
@@ -24,7 +24,7 @@ Abruf der ING (und weiterer Konten) per FinTS in BB, Dedup wie beim Comdirect-Im
 `knowledge/research/ing-fints-anbindung-2026-11-06.md` (MT940, Verfahren 999, Produktregistrierung bei der DK).
 
 ## Acceptance criteria
-- [ ] To be defined during refinement.
+- [ ] To be defined during refinement, nach dem Befund aus banking-import-y7m4r (FinTS-Sonde gegen die ING).
 
 ## Notes
 Captured raw, unrefined. Vision nennt FinTS als spätere Ausbaustufe; Einordnung in den Fahrplan beim Verfeinern.
@@ -38,3 +38,15 @@ Produktregistrierung (2026-11-17): Formular 1.0.4 für „BudgetBuddy“ an regi
   nicht zur Registrierung (fints.org, FAQ Produktregistrierung, Stand 28.06.2023).
 - Die Standardnummer von python-fints ist eine Bibliotheksnummer. Solche Nummern sind laut FAQ nur für interne Tests
   erlaubt, im Betrieb nicht.
+
+Verfeinerung 2026-11-20 (Roman):
+- Produktregistrierungsnummer am 2026-11-20 erhalten, sie liegt in `.env` als `FINTS_PRODUCT_ID`.
+- Zuerst der Spike banking-import-y7m4r (FinTS-Sonde gegen die ING), danach wird diese Task verfeinert. Die Vision führt
+  FinTS für Romans eigene Konten seit heute als Ziel.
+- Umfang: Girokonto und Extra-Konto. Das Depot klärt nur der Spike, gebaut wird es hier nicht.
+- YNABs eigene ING-Verbindung bleibt eine Probezeit lang an. In dieser Zeit muss BB YNABs Importe des Girokontos als
+  Duplikat erkennen (heute `PossibleDuplicate` über Betrag, Tag ±1 und Payee, ADR 0093). Danach trennt Roman die
+  Verbindung in YNAB, BB ist dann die einzige Quelle wie bei Comdirect.
+- Bibliothek: entscheidet der Architect nach dem Befund des Spikes; ein Python-Sidecar ist erlaubt.
+- Beim Verfeinern zu klären: Abruf je Konto im selben Ablauf wie Comdirect (`fetchAndBook`, automatisch abrufen) oder
+  eigener Takt; Anzeige „ING · Import <Stand>“; Meldung, wenn der 90-Tage-Log-in bei der ING fällig ist.

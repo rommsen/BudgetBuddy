@@ -151,14 +151,16 @@ ist, Roman aber weiter in YNAB budgetiert.
   nicht" bleibt Romans Gefühl. BB macht sie leichter (Entwurf, Leihen), trifft sie nicht.
 - ~~**Kategorie-Verwaltung** im Budget-Schritt.~~ Seit 2026-11-07 Ziel (Etappe 2, ADR 0086).
   Gelöscht wird nie, nur deaktiviert.
-- **Open Source, FinTS, allgemeiner Bankimport.** Erst mal für Roman.
+- **Open Source, allgemeiner Bankimport.** Erst mal für Roman. FinTS für Romans eigene Konten ist seit
+  2026-11-20 Ziel (banking-import-r28hx), mit eigener Produktnummer, die nicht im Repo steht.
 - **Backlog-Flut.** Verfeinert wird nur die nächste Etappe des Fahrplans.
 - **Prognosen, Cashflow-Vorschau.** Die erwartete Einnahme ist eine einzelne Ankündigung,
   kein Forecast-Modul.
 - **Lena-Sicht** im Budget als eigenes Feature.
 - **Depot-Vermögenssicht** (ING-Depot, Consors): Vermögen, kein Budget-Geld. Kommt als
   eigene Sicht, wenn sie gebraucht wird.
-- **ING-Bankadapter:** ING-Buchungen kommen weiter über den YNAB-Spiegel.
+- ~~**ING-Bankadapter:** ING-Buchungen kommen weiter über den YNAB-Spiegel.~~ Seit 2026-11-20 Ziel:
+  Girokonto und Extra-Konto per FinTS (banking-import-r28hx), zuerst der Spike banking-import-y7m4r.
 - **Amazon-Auslesen, lokale LLMs, Finanz-Vorschläge** bleiben geparkt.
 - **Reports** nur, wenn real vermisst, dann als Sichten auf die eigene Historie.
 - **Multi-User, Konfliktmodell.** Lena braucht keine eigene Identität, ein Filter auf das,

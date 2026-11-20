@@ -5,6 +5,25 @@ Newest entries on top.
 
 ---
 
+## 2026-11-20 17:54 -- Modeling / Refined: banking-import-r28hx - Alle Konten per FinTS selbst abrufen
+
+**Type:** Modeling / Refine
+**BC:** banking-import
+**Status after:** backlog
+**Summary:** Produktnummer der DK am 2026-11-20 erhalten. Roman: Spike zuerst, Umfang Girokonto und Extra-Konto (Depot nur im Spike prüfen), YNABs ING-Verbindung nach einer Probezeit trennen, Bibliothek entscheidet der Architect nach dem Befund. Vision: FinTS für Romans Konten ist Ziel, ING-Bankadapter kein Nicht-Ziel mehr. Fahrplan: unter Laufend. `.env.example` mit Platzhaltern.
+**Split into:** banking-import-y7m4r (Spike, todo)
+
+---
+
+## 2026-11-20 17:54 -- Modeling / Captured: banking-import-y7m4r - "Spike: FinTS-Sonde gegen die ING klärt Konten, MT940-Referenzen, Depot und Bibliothek, bevor banking-import-r28hx verfeinert wird"
+
+**Type:** Modeling / Capture
+**BC:** banking-import
+**Filed to:** todo
+**Summary:** Spike aus der Verfeinerung von banking-import-r28hx: Wegwerf-Sonden (python-fints, libfintx) gegen die ING klären BPD, Konten, MT940-Referenzen, Depot und Bibliothek. Owner-run.
+
+---
+
 ## 2026-11-20 17:42 -- Capture / Captured: infrastructure-x7p2e - "Expecto wieder schnell: weniger testSequenced, lange Aufzählungen teilen, kurze Zeitgeber"
 
 **Type:** Capture

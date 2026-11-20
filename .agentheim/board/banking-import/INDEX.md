@@ -11,13 +11,14 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 4
-- **Todo:** 0
+- **Todo:** 1
 - **Doing:** 0
 - **Done:** 12
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **banking-import-y7m4r** — "Spike: FinTS-Sonde gegen die ING klärt Konten, MT940-Referenzen, Depot und Bibliothek, bevor banking-import-r28hx verfeinert wird" (spike) — `todo/banking-import-y7m4r-fints-sonde-gegen-die-ing.md`
 <!-- todo-list:end -->
 
 ### Doing

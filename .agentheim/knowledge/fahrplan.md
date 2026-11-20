@@ -408,11 +408,13 @@ jede Arbeit bremst.
 - ✓ `design-system-ak97z` Umschalter im Sheet Betrag hält die Tastatur offen (2026-11-10)
 - `infrastructure-mshaf` Gate schneller und stabil
 - `infrastructure-rm6zb` Wächter gegen Formatangaben in interpolierten Strings (Fable)
+- `banking-import-y7m4r` Spike FinTS-Sonde gegen die ING (owner-run, Produktnummer da seit 2026-11-20), danach
+  `banking-import-r28hx` ING per FinTS verfeinern
 
 ## Danach, bei Bedarf
 - Reports (bis dahin in YNAB).
 - Budget-Stufe 3: erwartete Einnahme, Leihen, Entwurf, Targets mit Deckel.
-- ETF-Bewertung, ING-Import.
+- ETF-Bewertung. ING-Import ist nach „Laufend“ gerückt (2026-11-20).
 - Benachrichtigungen: `infrastructure-jsys4`, `banking-import-r9tfx`, `ledger-g47hp`
 - `budgeting-bk6tq` Spike Vortrag ab dem ersten Tag
 - `infrastructure-phadg` Altlasten Test-Doktrin
