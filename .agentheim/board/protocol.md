@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-20 05:08 -- Batch started: [ledger-enjex]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-enjex - "Kassenbuch am Handy ohne Toast (R3), Teil 3 Detail II: Memo, Betrag und Payee mit Rückgängig am Feld, Lena-Knopf wechselt ohne Text, Erneut senden ohne Meldung; Schlussprüfung kein Toast im Kassenbuch am Handy"
+**Parallel:** yes (neben der Prüfung von pz5wv)
+
+---
+
 ## 2026-11-20 05:08 -- Modeling / Promoted: ledger-enjex - "Kassenbuch am Handy ohne Toast (R3), Teil 3 Detail II: Memo, Betrag und Payee mit Rückgängig am Feld, Lena-Knopf wechselt ohne Text, Erneut senden ohne Meldung; Schlussprüfung kein Toast im Kassenbuch am Handy"
 
 **Type:** Modeling / Promote

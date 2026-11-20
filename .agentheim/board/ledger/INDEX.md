@@ -11,18 +11,18 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 11
-- **Todo:** 1
-- **Doing:** 1
+- **Todo:** 0
+- **Doing:** 2
 - **Done:** 160
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **ledger-enjex** — "Kassenbuch am Handy ohne Toast (R3), Teil 3 Detail II: Memo, Betrag und Payee mit Rückgängig am Feld, Lena-Knopf wechselt ohne Text, Erneut senden ohne Meldung; Schlussprüfung kein Toast im Kassenbuch am Handy" (feature) — `todo/ledger-enjex-detail-ohne-toast-memo-betrag-payee-lena.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **ledger-enjex** — "Kassenbuch am Handy ohne Toast (R3), Teil 3 Detail II: Memo, Betrag und Payee mit Rückgängig am Feld, Lena-Knopf wechselt ohne Text, Erneut senden ohne Meldung; Schlussprüfung kein Toast im Kassenbuch am Handy" (feature) — `doing/ledger-enjex-detail-ohne-toast-memo-betrag-payee-lena.md`
 - **ledger-pz5wv** — "Durchgehen ohne Toast (B3): letzte Aktion unter „Passt, weiter“ mit Rückgängig für jede Aktion, Fehler rot an derselben Stelle" (feature) — `doing/ledger-pz5wv-durchgehen-ohne-toast-letzte-aktion.md`
 <!-- doing-list:end -->
 
