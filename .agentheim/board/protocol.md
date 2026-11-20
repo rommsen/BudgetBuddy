@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-20 03:44 -- Task verified and completed: banking-import-ns4re - "Abrufen ohne Toast (R3): Meldungen im Sheet, solange es offen ist; Ergebnis und Fehler nach geschlossenem Sheet in der Meldungsleiste"
+
+**Type:** Work / Task completion
+**Task:** banking-import-ns4re - "Abrufen ohne Toast (R3): Meldungen im Sheet, solange es offen ist; Ergebnis und Fehler nach geschlossenem Sheet in der Meldungsleiste"
+**Summary:** Abrufen ohne Toast: Ergebnis bei geschlossenem Sheet und gescheitertes Abbrechen am Meldungsplatz
+**Duration:** 25m
+**Verification:** PASS (iteration 1)
+**Files changed:** 6
+**Tests added:** 2
+**ADRs written:** none
+
+---
+
 ## 2026-11-20 03:39 -- Task verified and completed: banking-import-vwhfm - "Einstellungen ohne Toast (R3): „✓ Gespeichert“ am Abschnitt oder Feld, Fehler rot unter dem Feld, Bankstatus und Push-TAN im Abschnitt, alle Texte deutsch"
 
 **Type:** Work / Task completion

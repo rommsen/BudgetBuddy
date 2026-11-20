@@ -176,13 +176,23 @@ let transitionTests =
             Expect.isEmpty (dispatched (State.fetchExternalCmd (rootModel Overview) Components.Fetch.Types.NoOp)) "sonst nichts"
 
         // Review-Fund zu banking-import-d0fey: war das Sheet zu, ging das Ergebnis unbemerkt vorbei.
-        testCase "Nach einem Abruf bei geschlossenem Sheet kommt das Ergebnis als Toast, dazu laden die Daten neu" <| fun () ->
-            let messages = dispatched (State.fetchExternalCmd (rootModel Overview) (Components.Fetch.Types.FetchFinished (Some "Abruf fertig: 6 neue Buchungen")))
-            Expect.equal
-                messages
-                [ State.ShowToast ("Abruf fertig: 6 neue Buchungen", ToastSuccess)
-                  State.OverviewMsg ReloadRequested ]
-                "Toast und Neuladen"
+        // banking-import-ns4re (R3): die Wurzel ruft keinen Toast mehr direkt, das Ergebnis geht an den Meldungsplatz.
+        testCase "Nach einem Abruf bei geschlossenem Sheet kommt das Ergebnis als Meldung, dazu laden die Daten neu" <| fun () ->
+            let messages = dispatched (State.fetchExternalCmd (rootModel Overview) (Components.Fetch.Types.FetchFinished (Some ("Abgerufen", "6 neue Buchungen"))))
+            match messages with
+            | [ State.ShowFeedback message; State.OverviewMsg ReloadRequested ] ->
+                Expect.equal (message.Tone, message.Action, message.Detail, message.Act) (FeedbackOk, "Abgerufen", Some "6 neue Buchungen", None) "Meldung"
+                Expect.equal (FeedbackSlot.toastText message) "Abgerufen · 6 neue Buchungen" "PC-Toast"
+            | other -> failtest $"%A{other}"
+
+        testCase "Ein gescheitertes Abbrechen geht rot an den Meldungsplatz" <| fun () ->
+            let messages =
+                dispatched (State.fetchExternalCmd (rootModel Overview) (Components.Fetch.Types.ShowFeedback (FeedbackError, "Nicht abgebrochen", Some "Datenbank gesperrt")))
+            match messages with
+            | [ State.ShowFeedback message ] ->
+                Expect.equal (message.Tone, message.Action, message.Detail) (FeedbackError, "Nicht abgebrochen", Some "Datenbank gesperrt") "Meldung"
+                Expect.equal (FeedbackSlot.toastText message) "Nicht abgebrochen: Datenbank gesperrt" "PC-Toast"
+            | other -> failtest $"%A{other}"
 
         // Bis ledger-v6s7c führt „Jetzt durchgehen“ dorthin, wo heute Zu-tun-Eintrag 1 hinführt.
         testCase "Jetzt durchgehen öffnet das Kassenbuch über alle Konten mit genau dem Filter Zu prüfen" <| fun () ->

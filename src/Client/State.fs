@@ -550,13 +550,15 @@ let syncNavAccounts
 let fetchExternalCmd (model: Model) (external: Components.Fetch.Types.ExternalMsg) : Cmd<Msg> =
     match external with
     | Components.Fetch.Types.NoOp -> Cmd.none
-    | Components.Fetch.Types.ShowToast (message, toastType) -> Cmd.ofMsg (ShowToast (message, toastType))
+    | Components.Fetch.Types.ShowFeedback (tone, action, detail) ->
+        Cmd.ofMsg (ShowFeedback (FeedbackSlot.message (Guid.NewGuid()) tone action detail))
     | Components.Fetch.Types.OpenReview -> Cmd.ofMsg (OpenOverviewTodo Components.Overview.Types.TodoReview)
-    | Components.Fetch.Types.FetchFinished resultToast ->
+    | Components.Fetch.Types.FetchFinished resultMessage ->
         Cmd.batch [
-            // Das Sheet war zu: das Ergebnis kommt als Toast (Review-Fund zu banking-import-d0fey).
-            match resultToast with
-            | Some message -> Cmd.ofMsg (ShowToast (message, ToastSuccess))
+            // Das Sheet war zu: das Ergebnis geht an den Meldungsplatz, am Handy die Leiste, am PC der Toast
+            // (Review-Fund zu banking-import-d0fey, R3 seit banking-import-ns4re).
+            match resultMessage with
+            | Some (action, line) -> Cmd.ofMsg (ShowFeedback (FeedbackSlot.message (Guid.NewGuid()) FeedbackOk action (Some line)))
             | None -> ()
             Cmd.map OverviewMsg (Cmd.ofMsg Components.Overview.Types.ReloadRequested)
             if isLedgerPage model.CurrentPage then

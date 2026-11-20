@@ -70,3 +70,4 @@ Geschnitten und priorisiert wird im Refinement.
 - Work-Lauf 2026-11-20 (design-system-ytgnc): der Hinweistext `note` der Styleguide-Galerie (`text-text-muted/80`) hat 3,99:1 und steht deshalb als Ausnahme der Invariante 10 im Zustand `styleguide-rueckmeldung`.
 - Work-Lauf 2026-11-20 (design-system-gkded): Ausnahme `kassenbuch-kategorie-toast` @ 1280, Invariante 5, `[data-testid="detail-history-toggle"]`: der PC-Toast steht 5 s über „Historie“ am Ende des Details (gleiche Lage wie vorher). Fällt weg, sobald ledger-p5y9s die Kategorie am Feld bestätigt; dann die Ausnahme streichen.
 - Work-Lauf 2026-11-20 (design-system-gkded): `scripts/browser-usage.mjs` `FLOWS` nennt bei `verschiebung-erneut-senden` noch „über den Toast“.
+- Work-Lauf 2026-11-20 (banking-import-ns4re): der Schließen-Knopf des PC-Dialogs heißt `aria-label="Close modal"` (englisch, `Modal.fs`); der Sweep-Zustand `abrufen-fertig-leiste` sucht ihn unter diesem Namen.

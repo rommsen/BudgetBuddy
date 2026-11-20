@@ -2863,6 +2863,39 @@ export const STATES = [
     open: openFetch("fetch-done"),
     primary: (page) => fetchLayer(page).getByRole("button", { name: "Jetzt durchgehen" }),
   },
+  // banking-import-ns4re (R3): Roman schließt das Sheet, während der Abruf läuft. Das Ergebnis steht danach am Handy
+  // in der Leiste („✓ Abgerufen“ / „6 neue Buchungen“, kein Knopf rechts), am PC als Toast unten rechts. `startSync`
+  // antwortet erst, wenn das Sheet zu ist.
+  (() => {
+    // Je Seite ein eigenes Tor: der Sweep misst die Breiten parallel.
+    const releases = new WeakMap();
+    return {
+      name: "abrufen-fertig-leiste",
+      route: "/",
+      widths: [320, 412, 1280],
+      mock: async (page) => {
+        await mockOverview(page);
+        const answered = new Promise((resolve) => releases.set(page, resolve));
+        await page.route("**/api/SyncApi/startSync", async (r) => {
+          await answered;
+          await json(r, { Ok: { Fetched: syncSession("Completed", FETCH_RESULT) } });
+        });
+      },
+      open: async (page, { width }) => {
+        const sheet = width < 1024;
+        await openFetch("fetch-running")(page);
+        await fetchLayer(page).getByRole("button", { name: sheet ? "Schließen" : "Close modal" }).first().click();
+        if (sheet) await page.waitForFunction(() => document.querySelectorAll(".bottom-sheet.active").length === 0);
+        else await page.locator('[data-layer="dialog"]').waitFor({ state: "detached" });
+        releases.get(page)();
+        if (sheet) {
+          await page.locator('[data-testid="feedback-bar"] [data-testid="feedback-message"]', { hasText: "Abgerufen" }).waitFor();
+        } else {
+          await page.locator(".toast-layer", { hasText: "Abgerufen" }).getByRole("button", { name: "Schließen" }).waitFor();
+        }
+      },
+    };
+  })(),
   // banking-import-d0fey: eine wartende Buchung trägt „doppelt?“ statt „Nicht in YNAB“ (Zeile am Handy, Statusspalte
   // am PC), mit langem Payee und großem Betrag.
   {

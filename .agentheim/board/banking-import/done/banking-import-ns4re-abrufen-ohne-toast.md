@@ -1,7 +1,7 @@
 ---
 id: banking-import-ns4re
 title: "Abrufen ohne Toast (R3): Meldungen im Sheet, solange es offen ist; Ergebnis und Fehler nach geschlossenem Sheet in der Meldungsleiste"
-status: doing
+status: done
 type: feature
 context: banking-import
 created: 2026-11-19
@@ -100,3 +100,52 @@ Skizze und Screenshots (`…` = `/private/tmp/claude-501/-Users-romansachse-src-
 Abhängigkeit: Meldungsleiste und Meldungsweg (Handy Leiste, PC Toast) aus design-system-ytgnc. Auf der Übersicht trägt die
 Leiste „+ Buchung“ erst mit budgeting-gtrgk; vorher zeigt ytgnc die Leiste dort nur mit Meldung. Abgrenzung: „Abrufen“
 im Kassenbuch (Spiegel-Lauf, Skizze 24 bis 26) ist ledger-gwr9j, nicht diese Task.
+
+
+## Outcome
+
+Im Sheet „Abrufen“ gibt es keinen Toast mehr (Regel R3, ADR 0098). Meldungen ohne Ort gehen über den Meldungsplatz aus design-system-gkded: am Handy in die Leiste, am PC als Toast.
+
+**Code**
+- `src/Client/Components/Fetch/State.fs`:
+  - `resultToast` ist ersetzt durch die reine Funktion `resultMessage : FetchCounts -> string * string`. Sie liefert Aktion „Abgerufen“ und darunter `resultTitle`. Das ✓ setzt die Leiste über den Ton `FeedbackOk`.
+  - Ohne neue Buchung, aber mit Umsätzen in der Zukunft, lautet die Zeile „Nichts Neues, 2 folgen später“ bzw. „Nichts Neues, 1 folgt später“. Mit neuen Buchungen steht nur der Titel.
+  - `settled` gibt bei geschlossenem Sheet `FetchFinished (Some (resultMessage …))` zurück.
+  - `SyncCancelled (Error err)` gibt `ShowFeedback (FeedbackError, "Nicht abgebrochen", Some (syncErrorText err))` zurück, ohne „Erneut“.
+- `src/Client/Components/Fetch/Types.fs`: `ExternalMsg.ShowToast` ist ersetzt durch `ShowFeedback of FeedbackTone * action * detail option`, gleiche Form wie bei den Regeln (categorization-t6j00). `FetchFinished` trägt `resultMessage: (string * string) option`.
+- `src/Client/State.fs` (`fetchExternalCmd`): Beide Fälle gehen über `State.ShowFeedback (FeedbackSlot.message …)`. Es gibt keinen direkten `ShowToast` mehr.
+  - Das Neuladen nach dem Abruf ist unverändert: Übersicht, auf dem Kassenbuch zusätzlich Liste und Stände.
+  - Der PC-Toast zeigt „Abgerufen · 6 neue Buchungen“ bzw. „Nicht abgebrochen: <Grund>“ (`FeedbackSlot.toastText`).
+- `grep -rn "ShowToast\|resultToast" src/Client/Components/Fetch/`: leer.
+- TAN und Fehler holen das Sheet weiter über `surfaced` nach vorn. Die Tests dazu sind unverändert grün.
+
+**Tests**
+- `src/Tests/FetchSheetTests.fs`:
+  - Die zwei Fälle „Ergebnis bei geschlossenem Sheet“ (Start, nach TAN) erwarten jetzt die Meldung.
+  - Der alte Test zu `resultToast` heißt jetzt `resultMessage` und deckt neu, Einzahl, nichts, nur Zukunft (2 und 1) sowie neu mit Zukunft ab.
+  - Neu ist „gescheitertes Abbrechen kommt als Fehlermeldung“. Er prüft außerdem, dass ein gelungenes Abbrechen `NoOp` meldet.
+  - Die Erwartungen „ohne Toast bei offenem Sheet“ sind unverändert.
+- `src/Tests/OverviewTests.fs`:
+  - Der Root-Test „Ergebnis bei geschlossenem Sheet“ ist umgeschrieben. Er prüft `State.ShowFeedback` mit Ton, Aktion, Detail und PC-Text, danach das Neuladen.
+  - Neu ist der Test „gescheitertes Abbrechen geht rot an den Meldungsplatz“ (PC-Text „Nicht abgebrochen: …“).
+- Sweep `scripts/layout-states.mjs`: neuer Zustand `abrufen-fertig-leiste` bei 320, 412 und 1280 px.
+  - `startSync` antwortet erst, wenn das Sheet bzw. der Dialog geschlossen ist (Tor je Seite, weil der Sweep die Breiten parallel misst).
+  - Danach wartet der Zustand unter 1024 px auf die Leiste mit „Abgerufen“, am PC auf den Toast mit ✕.
+  - Ergebnis: keine Verletzungen, keine Fehler.
+- `[flow:abrufen]` ist grün und unverändert, kein neuer Flow.
+- `./verify.sh`: `VERIFY: PASS` (dotnet 5276 grün, node 354 grün).
+
+**Vergleich mit der Skizze** (Screenshots in `/private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/4b5cf62e-3174-40e3-90f3-4b5312280eb9/scratchpad/result-shots/banking-import-ns4re/`)
+- `abrufen-fertig-leiste-412.png` neben `skizze-shots/30-uebersicht-leiste.png`:
+  - Leiste über der Navigation mit grünem ✓ und „Abgerufen“, darunter „6 neue Buchungen“. Rechts nur das runde „+“ der Leiste, kein Knopf zur Meldung.
+  - Unterschied: Die Skizze 30 setzt Aktion und Ergebnis nebeneinander und zeigt „+ Buchung“ breit. Hier gilt die Task: zweizeilig wie Skizze 26. Das runde „+“ bei Meldung kommt aus design-system-gkded (`Feedback.addShape`), dort ist der Unterschied schon genannt.
+  - Seiteninhalt (Zu tun, Monat, Angepinnt) ist Stand von BB und nicht Teil dieser Task.
+- `abrufen-fertig-leiste-320.png`: dieselbe Leiste. Die Zeile bricht nicht um, nichts ist verdeckt (Sweep).
+- `abrufen-fertig-leiste-1280-toast.png` (PC 1280): Toast unten rechts „Abgerufen · 6 neue Buchungen“ mit ✓ und ✕, keine Leiste.
+  - Die Aufnahme ist mit `animations: "disabled"` gemacht. In `abrufen-fertig-leiste-1280.png` steht der Toast noch in der Einblendung (Deckkraft 0), so wie es schon das Outcome von gkded beschreibt.
+- `abrufen-fertig-*.png`: Das Ergebnis bei offenem Sheet ist unverändert.
+- Abweichungen: nur die in der Task genannten. Die zweite Zeile bei „nur Zukunft“ ist verkürzt, rechts steht kein Knopf.
+- [human-eye] Gesamteindruck bleibt für Roman.
+
+**Kann-Sammlung banking-import**
+- Der Schließen-Knopf des PC-Dialogs heißt `aria-label="Close modal"` (englisch, `Modal.fs`). Der Sweep-Zustand sucht ihn unter diesem Namen.

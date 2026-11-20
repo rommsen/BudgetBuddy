@@ -68,10 +68,12 @@ type Msg =
 
 type ExternalMsg =
     | NoOp
-    | ShowToast of string * ToastType
+    /// Eine Meldung für den Meldungsplatz der Seite (Leiste am Handy, Toast am PC): Ton, Aktion (nie gekürzt),
+    /// darunter der Grund. Heute nur ein gescheitertes Abbrechen, das Sheet ist dann schon zu.
+    | ShowFeedback of FeedbackTone * action: string * detail: string option
     /// Ein Abruf ist beendet: Zu tun, Zähler, Importzeile und eine offene Kassenbuch-Liste laden neu. War das
-    /// Sheet zu, trägt er den Satz für einen Toast mit dem Ergebnis.
-    | FetchFinished of resultToast: string option
+    /// Sheet zu, trägt er Aktion und Zeile des Ergebnisses für den Meldungsplatz (`resultMessage`).
+    | FetchFinished of resultMessage: (string * string) option
     /// „Jetzt durchgehen“: das Durchgehen Karte für Karte (ledger-v6s7c).
     | OpenReview
 

@@ -302,26 +302,42 @@ let closedSheetTests =
             Expect.equal (sheetScreen model) TanScreen "TAN"
             Expect.equal calls.Starts 0 "kein Start"
 
-        testCase "ein Ergebnis bei geschlossenem Sheet kommt als Toast, das Sheet bleibt zu" <| fun () ->
+        // banking-import-ns4re (R3): das Ergebnis bei geschlossenem Sheet ist eine Meldung für den Meldungsplatz,
+        // am Handy in der Leiste, am PC als Toast. Aktion „Abgerufen“ (das ✓ setzt die Leiste), darunter der Titel.
+        testCase "ein Ergebnis bei geschlossenem Sheet kommt als Meldung, das Sheet bleibt zu" <| fun () ->
             let calls = newCalls ()
             let model, ext = steps calls (closedWhileStarting calls None) [ SyncStarted (Ok (Fetched booked)) ]
             Expect.isFalse model.IsOpen "bleibt zu"
-            Expect.equal ext (FetchFinished (Some "Abruf fertig: 2 neue Buchungen")) "Toast mit dem Ergebnis"
+            Expect.equal ext (FetchFinished (Some ("Abgerufen", "2 neue Buchungen"))) "Meldung mit dem Ergebnis"
 
-        testCase "ein Ergebnis nach der TAN bei geschlossenem Sheet kommt als Toast" <| fun () ->
+        testCase "ein Ergebnis nach der TAN bei geschlossenem Sheet kommt als Meldung" <| fun () ->
             let calls = newCalls ()
             let tan, _ = steps calls (startedFrom calls None) [ SyncStarted (Ok (TanRequired waitingTan)); ConfirmTan; Closed ]
             let model, ext = steps calls tan [ TanConfirmed (Ok { booked with Counts = emptyFetchCounts }) ]
             Expect.isFalse model.IsOpen "bleibt zu"
-            Expect.equal ext (FetchFinished (Some "Abruf fertig: Nichts Neues")) "Toast"
+            Expect.equal ext (FetchFinished (Some ("Abgerufen", "Nichts Neues"))) "Meldung"
 
-        testCase "ohne neue Buchung, aber mit Umsätzen in der Zukunft nennt der Toast sie" <| fun () ->
+        testCase "resultMessage: Aktion „Abgerufen“, darunter der Titel, ohne neue Buchung kurz mit den späteren" <| fun () ->
+            let line counts = resultMessage counts
+            Expect.equal (line { emptyFetchCounts with NewEntries = 6; ByRule = 6 }) ("Abgerufen", "6 neue Buchungen") "neu"
+            Expect.equal (line { emptyFetchCounts with NewEntries = 1 }) ("Abgerufen", "1 neue Buchung") "Einzahl"
+            Expect.equal (line emptyFetchCounts) ("Abgerufen", "Nichts Neues") "nichts"
+            Expect.equal (line { emptyFetchCounts with FutureDated = 2 }) ("Abgerufen", "Nichts Neues, 2 folgen später") "nur Zukunft"
+            Expect.equal (line { emptyFetchCounts with FutureDated = 1 }) ("Abgerufen", "Nichts Neues, 1 folgt später") "nur Zukunft, Einzahl"
             Expect.equal
-                (resultToast { emptyFetchCounts with FutureDated = 2 })
-                "Abruf fertig: Nichts Neues. 2 mit Datum in der Zukunft folgen beim nächsten Abruf."
-                "nicht nur Nichts Neues"
-            Expect.equal
-                (resultToast { emptyFetchCounts with NewEntries = 3; ByRule = 3; FutureDated = 1 })
-                "Abruf fertig: 3 neue Buchungen"
-                "mit neuen Buchungen bleibt der Toast kurz"
+                (line { emptyFetchCounts with NewEntries = 3; ByRule = 3; FutureDated = 1 })
+                ("Abgerufen", "3 neue Buchungen")
+                "mit neuen Buchungen bleibt die Zeile kurz"
+
+        // Das Sheet ist beim Abbrechen schon zu: ein gescheitertes Abbrechen ist eine rote Meldung ohne „Erneut“
+        // (die Sitzung ist im Modell verworfen, ein neuer Abruf liest sie wieder, ADR 0071).
+        testCase "ein gescheitertes Abbrechen kommt als Fehlermeldung „Nicht abgebrochen“ mit dem Grund" <| fun () ->
+            let calls = newCalls ()
+            let tan, _ = steps calls (startedFrom calls None) [ SyncStarted (Ok (TanRequired waitingTan)); CancelSync ]
+            let err = SyncError.DatabaseError ("cancel_sync", "gesperrt")
+            let model, ext = steps calls tan [ SyncCancelled (Error err) ]
+            Expect.isFalse model.IsOpen "bleibt zu"
+            Expect.equal ext (ShowFeedback (FeedbackError, "Nicht abgebrochen", Some (syncErrorText err))) "Fehler in der Leiste"
+            let _, okExt = steps calls tan [ SyncCancelled (Ok ()) ]
+            Expect.equal okExt NoOp "gelungenes Abbrechen meldet nichts"
     ]

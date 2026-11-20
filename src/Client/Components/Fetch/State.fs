@@ -35,13 +35,16 @@ let interruptedStartTimeoutMessage (reason: string) : string =
 let sessionReadFailedMessage (reason: string) : string =
     $"Der Stand des Abrufs ließ sich nicht lesen ({reason}). Es wurde nichts abgerufen. Bitte neu abrufen."
 
-/// Der Toast nach einem Abruf, während das Sheet zu war: „Abruf fertig: 6 neue Buchungen“. Ohne neue Buchung,
-/// aber mit Umsätzen in der Zukunft, sagt „Nichts Neues“ allein zu wenig: dann folgt der Satz des Ergebnisses.
-let resultToast (counts: FetchCounts) : string =
-    if counts.NewEntries = 0 && counts.FutureDated > 0 then
-        $"Abruf fertig: {resultTitle counts}. {resultSentence counts}"
-    else
-        $"Abruf fertig: {resultTitle counts}"
+/// Die Meldung nach einem Abruf, während das Sheet zu war: Aktion „Abgerufen“ (das ✓ setzt die Leiste), darunter
+/// der Titel. Ohne neue Buchung, aber mit Umsätzen in der Zukunft, sagt „Nichts Neues“ allein zu wenig; der ganze
+/// Satz des Ergebnisses ist für die zweite Zeile am Handy zu lang, deshalb die kurze Form.
+let resultMessage (counts: FetchCounts) : string * string =
+    let line =
+        match counts.NewEntries, counts.FutureDated with
+        | 0, 1 -> "Nichts Neues, 1 folgt später"
+        | 0, n when n > 1 -> $"Nichts Neues, {n} folgen später"
+        | _ -> resultTitle counts
+    "Abgerufen", line
 
 /// Die Aufrufe des Sheets als Funktionswerte (Doktrin Punkt 1): unter .NET wirft der Remoting-Proxy im
 /// Typinitialisierer. `update` schließt `livePorts` an, Tests zählen die Aufrufe. Ein Port wird schon
@@ -93,12 +96,12 @@ let private failed (message: string) (model: Model) : Model =
     surfaced { model with Session = Failure message; Phase = FetchIdle }
 
 /// Die Sitzung steht still: das Sheet zeigt TAN oder Ergebnis, der Root lädt nach einem Ende nach. War das
-/// Sheet zu, öffnet es für TAN und Fehler wieder, ein Ergebnis kommt als Toast.
+/// Sheet zu, öffnet es für TAN und Fehler wieder, ein Ergebnis geht an den Meldungsplatz der Seite.
 let private settled (session: SyncSession) (model: Model) : Model * ExternalMsg =
     let model = { model with Session = Success (Some session); Phase = FetchIdle }
     match session.Status with
     | Completed when model.IsOpen -> model, FetchFinished None
-    | Completed -> model, FetchFinished (Some (resultToast session.Counts))
+    | Completed -> model, FetchFinished (Some (resultMessage session.Counts))
     | Failed _ -> surfaced model, FetchFinished None
     | AwaitingTan -> surfaced model, NoOp
     | _ -> model, NoOp
@@ -218,7 +221,8 @@ let updateWith (ports: FetchPorts) (msg: Msg) (model: Model) : Model * Cmd<Msg> 
         | _ -> { model with IsOpen = false }, Cmd.none, NoOp
 
     | SyncCancelled (Ok ()) -> model, Cmd.none, NoOp
-    | SyncCancelled (Error err) -> model, Cmd.none, ShowToast (syncErrorText err, ToastError)
+    // Das Sheet ist schon zu, die Sitzung im Modell verworfen: kein „Erneut“, ein neuer Abruf liest sie wieder (ADR 0071).
+    | SyncCancelled (Error err) -> model, Cmd.none, ShowFeedback (FeedbackError, "Nicht abgebrochen", Some (syncErrorText err))
 
     | ReviewRequested -> { model with IsOpen = false }, Cmd.none, OpenReview
 
