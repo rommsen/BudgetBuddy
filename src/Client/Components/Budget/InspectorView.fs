@@ -290,6 +290,14 @@ let private targetYnabView (model: Model) (category: BudgetCategory) (dispatch: 
                                 OnClick = fun () -> dispatch (RetryTargetToYnab category.Id) }
                     ]
                 ]
+                // Scheiterte „Erneut senden“, steht der Grund rot unter der Markierung (Regel R3, budgeting-sx9v5).
+                match Components.Budget.TargetEdit.targetRetryFailure category.Id model with
+                | Some failure ->
+                    Html.div [
+                        prop.custom ("data-testid", "target-ynab-retry-error")
+                        prop.children [ ErrorDisplay.inline' $"Target weiter nicht in YNAB: {failure}" ]
+                    ]
+                | None -> ()
             | None -> ()
             for gap in hints.Gaps do
                 Html.p [ prop.key gap; prop.className ListRoles.muted; prop.text gap ]

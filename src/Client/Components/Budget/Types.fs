@@ -220,6 +220,62 @@ type GeneralHistory = {
     Generation: int
 }
 
+/// Ton der Zeile im Sheet (Regel R3, ADR 0098, budgeting-gtrgk): ✓ grün, ! gelb, ! rot.
+type SheetLineTone =
+    | LineOk
+    | LineWarning
+    | LineError
+
+/// Eine Verschiebung aus dem Tab, wie sie gesendet wurde: Monat und Auftrag (budgeting-y1kkr, ADR 0099). Quelle für
+/// „Rückgängig“; der Client rechnet sie nicht aus dem Bericht zurück, der Zu verteilen nur am Vorzeichen erkennt.
+type SentMove = { Month: string; Request: MoveRequest }
+
+/// Was der laufende Aufruf aus dem Tab ist (`Model.TabSend`).
+type TabSend =
+    /// Holen, Abgeben oder der Fehlbetrag-Knopf: ist danach jede Zeile geschrieben, bietet die Zeile „Rückgängig“ an.
+    | ForwardMove of SentMove
+    /// Das Rückgängig selbst. Ein Rückgängig des Rückgängig gibt es nicht.
+    | UndoingMove
+
+/// Die eine Meldung im Sheet „Geld“ über dem Hauptknopf (Platz 2 aus ADR 0098). Sie bleibt bis zur nächsten Aktion im
+/// Sheet, bis zum Kategorie- oder Monatswechsel oder bis das Sheet schließt; der Wechsel zwischen Zuweisen, Holen und
+/// Abgeben beendet sie nicht. Kein ✕, kein Zeitlimit.
+type SheetLine = {
+    Tone: SheetLineTone
+    Text: string
+    /// Gruppen-Id einer offenen Verschiebung: rechts steht dann „Erneut senden“.
+    Retry: string option
+    /// Die Verschiebung, die „Rückgängig“ zurücknimmt (ADR 0099): rechts steht dann „Rückgängig“. Das Angebot lebt nur
+    /// in der Zeile und endet mit ihr.
+    Undo: SentMove option
+}
+
+/// Ein Lesen, das scheiterte, als Zustand der Seite (Hinweis „nicht neu gelesen“, budgeting-gtrgk). Kein Toast: der
+/// Hinweis bleibt, bis ein Neu-Lesen gelingt.
+type ReadNotice =
+    /// Gescheitert, mit Grund.
+    | ReadFailed of reason: string
+    /// „Neu laden“ läuft; der Grund des letzten Fehlschlags steht weiter da.
+    | Rereading of reason: string
+
+/// „Verfügbar“ im Tab Geld leuchtet kurz nach einem Bericht mit geschriebener Zeile (`Feedback.flash`). `Count` zählt
+/// jedes Leuchten: das Ende eines älteren nimmt ein neueres nicht ab, und ein neues baut das Element neu auf.
+type AvailableFlash = { Count: int; On: bool }
+
+/// Die Rückmeldung einer Target-Antwort an der Zeile ihrer Kategorie auf der Seite Targets prüfen (Regel R3, ADR 0098,
+/// budgeting-sx9v5). Sie bleibt bis zur nächsten Aktion auf der Seite (`TargetCheck.endsCheckNote`).
+type CheckRowNote = {
+    CategoryId: System.Guid
+    Tone: SheetLineTone
+    /// Der Satz in der Zeile, ohne Namen („Target jetzt 175 € monatlich“).
+    Text: string
+    /// Der Name der Kategorie für die schmale Zeile am bisherigen Platz, leer, wenn die Prüfung gerade lud.
+    Name: string
+    /// Gruppe und Platz der Zeile vor der Antwort. Steht die Kategorie danach in einer anderen Gruppe, steht die
+    /// Rückmeldung an diesem Platz als schmale Zeile mit Namen. `None`: die Prüfung lud gerade.
+    From: (CheckGroup * int) option
+}
+
 /// Die Seite Targets prüfen `#/budget/target-check` (budgeting-q4v8n, ADR 0082). Liegt auf der Budget-Seite
 /// wie `GeneralHistory`, damit die Rückkehr Monat und Auswahl behält.
 type TargetCheckPage = {
@@ -237,6 +293,12 @@ type TargetCheckPage = {
     /// Läuft ein Laden oder stilles Neuladen? Seine Antwort kann älter sein als eine Schreib-Antwort, die vor
     /// ihr kommt; dann lädt die Prüfung noch einmal (`applyCheckAnswered`).
     LoadPending: bool
+    /// Die Rückmeldung der letzten Target-Antwort an ihrer Zeile (budgeting-sx9v5).
+    Note: CheckRowNote option
+    /// Die Zeile der Rückmeldung leuchtet kurz nach einem geschriebenen Target.
+    Flash: AvailableFlash
+    /// Das stille Neuladen scheiterte: Hinweis oben auf der Seite, bis ein Neu-Lesen gelingt.
+    Stale: ReadNotice option
 }
 
 /// Filter über der Liste neben der Suche.
@@ -298,47 +360,6 @@ type PageKeyAction =
     | ClosePanelKey
     | LeaveKey
 
-/// Ton der Zeile im Sheet (Regel R3, ADR 0098, budgeting-gtrgk): ✓ grün, ! gelb, ! rot.
-type SheetLineTone =
-    | LineOk
-    | LineWarning
-    | LineError
-
-/// Eine Verschiebung aus dem Tab, wie sie gesendet wurde: Monat und Auftrag (budgeting-y1kkr, ADR 0099). Quelle für
-/// „Rückgängig“; der Client rechnet sie nicht aus dem Bericht zurück, der Zu verteilen nur am Vorzeichen erkennt.
-type SentMove = { Month: string; Request: MoveRequest }
-
-/// Was der laufende Aufruf aus dem Tab ist (`Model.TabSend`).
-type TabSend =
-    /// Holen, Abgeben oder der Fehlbetrag-Knopf: ist danach jede Zeile geschrieben, bietet die Zeile „Rückgängig“ an.
-    | ForwardMove of SentMove
-    /// Das Rückgängig selbst. Ein Rückgängig des Rückgängig gibt es nicht.
-    | UndoingMove
-
-/// Die eine Meldung im Sheet „Geld“ über dem Hauptknopf (Platz 2 aus ADR 0098). Sie bleibt bis zur nächsten Aktion im
-/// Sheet, bis zum Kategorie- oder Monatswechsel oder bis das Sheet schließt; der Wechsel zwischen Zuweisen, Holen und
-/// Abgeben beendet sie nicht. Kein ✕, kein Zeitlimit.
-type SheetLine = {
-    Tone: SheetLineTone
-    Text: string
-    /// Gruppen-Id einer offenen Verschiebung: rechts steht dann „Erneut senden“.
-    Retry: string option
-    /// Die Verschiebung, die „Rückgängig“ zurücknimmt (ADR 0099): rechts steht dann „Rückgängig“. Das Angebot lebt nur
-    /// in der Zeile und endet mit ihr.
-    Undo: SentMove option
-}
-
-/// Ein Lesen, das scheiterte, als Zustand der Seite (Hinweis „nicht neu gelesen“, budgeting-gtrgk). Kein Toast: der
-/// Hinweis bleibt, bis ein Neu-Lesen gelingt.
-type ReadNotice =
-    /// Gescheitert, mit Grund.
-    | ReadFailed of reason: string
-    /// „Neu laden“ läuft; der Grund des letzten Fehlschlags steht weiter da.
-    | Rereading of reason: string
-
-/// „Verfügbar“ im Tab Geld leuchtet kurz nach einem Bericht mit geschriebener Zeile (`Feedback.flash`). `Count` zählt
-/// jedes Leuchten: das Ende eines älteren nimmt ein neueres nicht ab, und ein neues baut das Element neu auf.
-type AvailableFlash = { Count: int; On: bool }
 
 /// Die gewählte Kategorie, der einzige Auswahl-Zustand. Hält nur die Id: Zugewiesen, Aktivität und
 /// Verfügbar kommen aus `Model.Month`, also live aus YNAB. Aus der Datenbank kommen die Tab-Daten
@@ -398,6 +419,11 @@ type Model = {
     TargetCall: TargetCall
     /// "Erneut senden" am Hinweis "Nicht in YNAB" des Targets läuft für diese Kategorie (budgeting-e2z7v).
     TargetYnabRetry: System.Guid option
+    /// „Erneut senden“ am Target scheiterte für diese Kategorie: der Grund steht rot unter der Markierung
+    /// (budgeting-sx9v5).
+    TargetRetryFailed: (System.Guid * string) option
+    /// Der Target-Wert im Tab Target leuchtet kurz, nachdem „Erneut senden“ gelang.
+    TargetFlash: AvailableFlash
     /// Der einmalige Lauf "Targets nach YNAB schreiben" (budgeting-e2z7v).
     TargetsToYnab: TargetsToYnabRun
     /// Die gewählte Kategorie. Filter und Suche wirken nur auf die Liste, sie bleibt gewählt.
@@ -668,6 +694,12 @@ type Msg =
     | RereadStaleHistory
     /// Das Leuchten von „Verfügbar“ endet, mit seiner Zählung.
     | AvailableFlashEnded of count: int
+    /// „Neu laden“ am Hinweis „Prüfung nicht neu gelesen“ auf der Seite Targets prüfen (budgeting-sx9v5).
+    | RereadTargetCheck
+    /// Das Leuchten der Zeile auf der Seite Targets prüfen endet, mit seiner Zählung.
+    | CheckFlashEnded of count: int
+    /// Das Leuchten des Target-Werts im Tab Target endet, mit seiner Zählung.
+    | TargetFlashEnded of count: int
 
 /// Was die Seite an die App meldet (wie im Kassenbuch).
 type ExternalMsg =
@@ -713,11 +745,13 @@ let init () : Model =
       TargetForm = None
       TargetCall = TargetIdle
       TargetYnabRetry = None
+      TargetRetryFailed = None
+      TargetFlash = { Count = 0; On = false }
       TargetsToYnab = TargetsToYnabClosed
       Selected = None
       Tab = MoneyTab
       GeneralHistory = { Rows = NotAsked; Filter = AllRuns; FilterChoiceOpen = false; Expanded = Set.empty; ReturnPending = false; Generation = 0 }
-      TargetCheck = { Data = NotAsked; OpenGroups = Set.empty; Panel = None; ReturnPending = false; Generation = 0; LoadPending = false }
+      TargetCheck = { Data = NotAsked; OpenGroups = Set.empty; Panel = None; ReturnPending = false; Generation = 0; LoadPending = false; Note = None; Flash = { Count = 0; On = false }; Stale = None }
       EntriesGeneration = 0
       HistoryGeneration = 0
       MonthGeneration = 0

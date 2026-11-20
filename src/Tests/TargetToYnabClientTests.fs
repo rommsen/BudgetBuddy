@@ -124,6 +124,36 @@ let private retryTests =
                         | _ -> ()
                         walk (depth - 1) next expected
             walk 4 page None
+
+        // budgeting-sx9v5 (Regel R3): steht der Tab Target offen, steht die Antwort am Target, ohne Toast.
+        testCase "Im offenen Tab Target: gelungen leuchtet der Wert ohne Text, gescheitert steht der Grund unter der Markierung" <| fun () ->
+            let shown = pageWith [ category tripId notInYnab ] |> step (SelectCategory tripId)
+            Expect.equal shown.Tab TargetTab "Tab Target"
+            let running = step (RetryTargetToYnab tripId) shown
+            let ok, _, okExternal = update (TargetToYnabRetried (tripId, Ok ())) running
+            Expect.equal okExternal NoOp "kein Toast"
+            Expect.isNone ok.SheetLine "keine Zeile"
+            Expect.equal ok.TargetFlash { Count = 1; On = true } "der Wert leuchtet"
+            Expect.isFalse (step (TargetFlashEnded 1) ok).TargetFlash.On "bis der Zeitgeber endet"
+            Expect.isTrue (step (TargetFlashEnded 0) ok).TargetFlash.On "ein älteres Ende nimmt es nicht ab"
+            CmdTiming.expectAfter Components.Budget.State.availableFlashMs (TargetFlashEnded 1) (Components.Budget.State.targetFlashCmd 1)
+            let failed, _, failedExternal = update (TargetToYnabRetried (tripId, Error "HTTP 500")) running
+            Expect.equal failedExternal NoOp "kein Toast"
+            Expect.equal (targetRetryFailure tripId failed) (Some "HTTP 500") "Grund unter der Markierung"
+            Expect.isNone (targetRetryFailure holidayId failed) "nur an dieser Kategorie"
+            Expect.isFalse failed.TargetFlash.On "leuchtet nicht"
+            Expect.isNone (targetRetryFailure tripId (step (RetryTargetToYnab tripId) failed)) "ein neuer Versuch nimmt ihn weg"
+            Expect.isNone (targetRetryFailure tripId (step CloseInspector failed)) "Schließen nimmt ihn weg"
+
+        testCase "Sheet offen in einem anderen Tab: die Antwort steht als Zeile im Sheet, geschlossen in der Leiste" <| fun () ->
+            let shown = { (pageWith [ category tripId notInYnab ] |> step (SelectCategory tripId)) with Tab = MoneyTab }
+            let running = step (RetryTargetToYnab tripId) shown
+            let failed, _, external = update (TargetToYnabRetried (tripId, Error "HTTP 500")) running
+            Expect.equal external NoOp "kein Toast"
+            Expect.equal (failed.SheetLine |> Option.map (fun l -> l.Tone, l.Text)) (Some (LineError, "Target weiter nicht in YNAB: HTTP 500")) "rot im Sheet"
+            Expect.isNone (targetRetryFailure tripId failed) "nicht an der Markierung"
+            let ok, _, _ = update (TargetToYnabRetried (tripId, Ok ())) running
+            Expect.equal (ok.SheetLine |> Option.map (fun l -> l.Tone, l.Text)) (Some (LineOk, "Target in YNAB geschrieben")) "grün im Sheet"
     ]
 
 let private report : TargetsToYnabReport =

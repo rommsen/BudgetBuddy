@@ -329,6 +329,28 @@ async function mockTargetCheck(page) {
   await page.route("**/api/BudgetApi/getTargetCheck", (r) => json(r, { Ok: targetCheck }));
 }
 
+// budgeting-sx9v5: „übernehmen“ schreibt das Target (Bestätigung am bisherigen Platz), oder der Aufruf bricht ab und
+// das stille Neuladen der Prüfung scheitert (Hinweis „Prüfung nicht neu gelesen“).
+const mockTargetCheckTake = (answer) => async (page) => {
+  await mockTargetCheck(page);
+  if (answer === "abort") {
+    let reads = 0;
+    await page.route("**/api/BudgetApi/getTargetCheck", (r) => {
+      reads += 1;
+      return reads === 1 ? json(r, { Ok: targetCheck }) : json(r, { Error: "YNAB antwortet nicht (503)" });
+    });
+  }
+  await page.route("**/api/BudgetApi/changeCategoryTarget", (r) => {
+    if (answer === "abort") return r.abort("connectionreset");
+    const [, request] = JSON.parse(r.request().postData() ?? "[]");
+    return json(r, { Ok: { TargetWritten: { ...request.Shown, Goal: request.Wanted.NewGoal } } });
+  });
+};
+const takeEssen = async (page) => {
+  const row = page.locator('[data-testid="target-check-row"]').filter({ hasText: "Essen" });
+  await row.getByRole("button", { name: /übernehmen$/ }).click();
+};
+
 // budgeting-pscgb: die Seite Kategorien mit langen Namen von Gruppe und Kategorie.
 // budgeting-sn2sn: je Kategorie `Active`, zwei deaktivierte (eine mit langem Namen) für den Abschnitt "Deaktiviert".
 const categoryGroups = [
@@ -356,6 +378,24 @@ async function mockCategoryAdmin(page) {
   await mockBudget(page);
   await page.route("**/api/CategoryApi/getCategoryGroups", (r) => json(r, { Ok: categoryGroups }));
 }
+
+// budgeting-sx9v5: Speichern gelingt, das stille Neuladen danach scheitert; die Reihenfolge wird abgelehnt.
+async function mockCategoryAdminReloadFails(page) {
+  await mockBudget(page);
+  let reads = 0;
+  await page.route("**/api/CategoryApi/getCategoryGroups", (r) => {
+    reads += 1;
+    return reads === 1 ? json(r, { Ok: categoryGroups }) : json(r, { Error: "YNAB antwortet nicht (503)" });
+  });
+  await page.route("**/api/CategoryApi/saveCategory", (r) => json(r, { Ok: guid(1) }));
+}
+async function mockCategoryAdminOrderFails(page) {
+  await mockCategoryAdmin(page);
+  await page.route("**/api/CategoryApi/setCategoryOrder", (r) => json(r, { Error: "BB hat die Reihenfolge nicht gespeichert" }));
+}
+const noToast = async (page, where) => {
+  if ((await page.locator(".toast-layer > *").count()) > 0) throw new Error(`Toast neben ${where}`);
+};
 
 const budgetRow = (page, name) => page.locator('[data-testid="budget-category-row"]:visible').filter({ has: page.getByText(name, { exact: true }) });
 const openBudget = async (page) => page.locator('[data-testid="budget-to-be-budgeted"]').waitFor();
@@ -1210,6 +1250,33 @@ export const STATES = [
       await page.locator('[data-testid="target-check-form"]:visible').first().waitFor();
     },
   },
+  // budgeting-sx9v5: nach „übernehmen“ verlässt Essen die Gruppe „Gibst du mehr aus?“; die Bestätigung steht als schmale
+  // Zeile an ihrem bisherigen Platz, am PC genauso, ohne Toast.
+  {
+    name: "targets-pruefen-uebernommen",
+    route: "/budget/target-check",
+    widths: [412, 1280],
+    mock: mockTargetCheckTake("written"),
+    open: async (page) => {
+      await takeEssen(page);
+      await page.locator('[data-testid="target-check-moved-line"]').filter({ hasText: "Essen: Target jetzt 150 € monatlich" }).waitFor();
+      await noToast(page, "der Bestätigung");
+    },
+  },
+  // budgeting-sx9v5: der Aufruf bricht ab, das stille Neuladen scheitert: rot in der Zeile, oben der Hinweis mit „Neu laden“.
+  {
+    name: "targets-pruefen-nicht-neu-gelesen",
+    route: "/budget/target-check",
+    widths: [412, 1280],
+    mock: mockTargetCheckTake("abort"),
+    open: async (page) => {
+      await takeEssen(page);
+      await page.locator('[data-testid="target-check-stale"]').waitFor();
+      await page.locator('[data-testid="target-check-row-line"]').waitFor();
+      await noToast(page, "dem Hinweis");
+    },
+    primary: (page) => page.locator('[data-testid="target-check-stale"] button'),
+  },
   // budgeting-pscgb: die Seite Kategorien (Budget, Menü "Kategorien verwalten").
   {
     name: "kategorien",
@@ -1250,6 +1317,36 @@ export const STATES = [
       await page.locator('[data-testid="categories-row"]').filter({ hasText: "Essen" }).click();
       await page.locator('[data-testid="categories-group-field"]:visible').first().click();
       await page.locator('[data-testid="categories-group-choice"]:visible button').first().waitFor();
+    },
+  },
+  // budgeting-sx9v5: nach dem Speichern scheitert das stille Neuladen: Hinweis oben mit „Neu laden“, die gespeicherte Zeile
+  // leuchtet, am PC genauso, ohne Toast.
+  {
+    name: "kategorien-nicht-neu-geladen",
+    route: "/budget/categories",
+    widths: [412, 1280],
+    mock: mockCategoryAdminReloadFails,
+    open: async (page) => {
+      await page.locator('[data-testid="categories-row"]').filter({ hasText: "Essen" }).click();
+      const form = page.locator('[data-testid="categories-form"]:visible').first();
+      await form.getByRole("textbox", { name: "Name" }).fill("Essen gehen");
+      await page.getByRole("button", { name: "Speichern" }).locator("visible=true").click();
+      await page.locator('[data-testid="categories-stale"]').waitFor();
+      await page.locator('[data-testid="categories-form"]:visible').waitFor({ state: "detached" });
+      await noToast(page, "dem Hinweis");
+    },
+    primary: (page) => page.locator('[data-testid="categories-stale"] button'),
+  },
+  // budgeting-sx9v5: die Reihenfolge wird abgelehnt: rot unter dem Kopf der Gruppe, am PC genauso, ohne Toast.
+  {
+    name: "kategorien-fehler-reihenfolge",
+    route: "/budget/categories",
+    widths: [412, 1280],
+    mock: mockCategoryAdminOrderFails,
+    open: async (page) => {
+      await page.getByRole("button", { name: "Essen nach unten" }).click();
+      await page.locator('[data-testid="categories-order-error"]').waitFor();
+      await noToast(page, "dem Fehler");
     },
   },
   // ledger-qh9qx, ledger-qns4j (AC5), Regression ledger-filter-bar: Spaltenköpfe, Statuszelle mit zwei

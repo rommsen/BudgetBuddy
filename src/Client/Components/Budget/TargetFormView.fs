@@ -28,6 +28,9 @@ type TargetFormProps = {
     /// Ein Satz unter Betrag und Datum über die volle Breite, etwa der Vorschlag auf der Seite Targets prüfen
     /// (budgeting-c4ve4).
     AmountNote: string option
+    /// Der Betrag leuchtet kurz (`Feedback.flash`), etwa nachdem „Erneut senden“ am Target gelang (budgeting-sx9v5).
+    /// `None` ohne Leuchten.
+    AmountFlash: Components.Budget.Types.AvailableFlash option
     OnAmountChanged: string -> unit
     OnDateChanged: DateField.DateEntry -> unit
     OnRhythmChanged: TargetFrequency -> unit
@@ -250,21 +253,32 @@ let private amountField (props: TargetFormProps) =
     let target = props.Shown
     let form = props.Form
     let hint = targetAmountHint target form
+    let lit = props.AmountFlash |> Option.exists (fun f -> f.On)
     Input.groupSimple "Target" (
         Html.div [
             prop.custom ("data-testid", "target-amount")
             prop.className "flex flex-col gap-1"
             prop.children [
-                Input.text
-                    { Input.textInputDefaults with
-                        Value = targetAmountText target form
-                        OnChange = props.OnAmountChanged
-                        InputMode = Some "decimal"
-                        AriaLabel = Some "Target"
-                        ReadOnly = formFieldsLocked props.Locks
-                        DescribedBy = (if hint.IsSome then Some "target-amount-hint-text" else None)
-                        AriaInvalid = hint.IsSome
-                        ClassName = Some (Input.amountFieldClass false hint.IsSome) }
+                // Die Hülle trägt das Leuchten; sitzt `feedback-flash` direkt über `.input-field`, leuchtet das Feld
+                // selbst (budgeting-sx9v5). Kein Schlüssel je Leuchten: er baute das Feld neu und nähme ihm den Fokus.
+                // Das Leuchten endet nach `availableFlashMs`, das nächste setzt die Klasse neu.
+                Html.div [
+                    prop.custom ("data-testid", "target-amount-value")
+                    prop.custom ("data-flash", lit)
+                    prop.className (if lit then Feedback.flash else "")
+                    prop.children [
+                        Input.text
+                            { Input.textInputDefaults with
+                                Value = targetAmountText target form
+                                OnChange = props.OnAmountChanged
+                                InputMode = Some "decimal"
+                                AriaLabel = Some "Target"
+                                ReadOnly = formFieldsLocked props.Locks
+                                DescribedBy = (if hint.IsSome then Some "target-amount-hint-text" else None)
+                                AriaInvalid = hint.IsSome
+                                ClassName = Some (Input.amountFieldClass false hint.IsSome) }
+                    ]
+                ]
                 match hint with
                 | Some text ->
                     Html.div [

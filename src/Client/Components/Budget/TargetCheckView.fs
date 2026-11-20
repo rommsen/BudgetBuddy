@@ -25,9 +25,24 @@ type private RowView = {
     Bars: Stats.SparkBar list
     Take: (string * TargetButtonState) option
     Selected: bool
+    /// Die Rückmeldung der letzten Antwort, wenn sie in dieser Zeile steht (`NoteInRow`).
+    Note: CheckRowNote option
+    Flash: AvailableFlash
 }
 
-let private rowViewOf (model: Model) (data: TargetCheckData) (selected: System.Guid option) (row: TargetCheckRow) : RowView =
+/// Die Rückmeldung als Zeile (Baustein der Zeile im Sheet, Skizze `.mk-msg`): ✓ grün, ! gelb, ! rot.
+let private noteLine (testId: string) (tone: SheetLineTone) (text: string) =
+    let feedbackTone =
+        match tone with
+        | LineOk -> Feedback.Tone.Ok
+        | LineWarning -> Feedback.Tone.Warning
+        | LineError -> Feedback.Tone.Error
+    Html.div [
+        prop.custom ("data-testid", testId)
+        prop.children [ Feedback.sheetLine { Tone = feedbackTone; Action = text; Detail = None; Act = None } ]
+    ]
+
+let private rowViewOf (model: Model) (data: TargetCheckData) (selected: System.Guid option) (inRow: CheckRowNote option) (row: TargetCheckRow) : RowView =
     let line, bars = checkSparkBars row
     { Row = row
       Wide = checkRowText Wide row
@@ -38,7 +53,9 @@ let private rowViewOf (model: Model) (data: TargetCheckData) (selected: System.G
         match takeText row, takeButton model data row with
         | Some text, Some state -> Some (text, state)
         | _ -> None
-      Selected = selected = Some row.CategoryId }
+      Selected = selected = Some row.CategoryId
+      Note = inRow |> Option.filter (fun n -> n.CategoryId = row.CategoryId)
+      Flash = model.TargetCheck.Flash }
 
 // Die Zeile ist ein Raster. Schmal: Name und Ø in Zeile 1, die Balken über die volle Breite, darunter Zusatz und
 // Knöpfe. Breit (Liste ab 720 px): vier Spalten wie in der Skizze, der Zusatz unter dem Namen.
@@ -83,10 +100,14 @@ let private rowButtonWrap = "flex min-w-0 flex-1 @min-[720px]:flex-none"
 let private rowView (dispatch: Msg -> unit) (view: RowView) =
     let row = view.Row
     let hasNote = view.Wide.Note.IsSome
+    // Nach einem geschriebenen Target leuchtet die Zeile kurz (`Feedback.flash`); der Schlüssel baut sie je Leuchten
+    // neu, so beginnt die Animation auch beim zweiten Mal von vorn.
+    let lit = view.Note |> Option.exists (fun n -> n.Tone = LineOk) && view.Flash.On
     Html.div [
-        prop.key (string row.CategoryId)
+        prop.key (if view.Note.IsSome then $"{row.CategoryId}-{view.Flash.Count}" else string row.CategoryId)
         prop.custom ("data-testid", "target-check-row")
-        prop.className (rowClass view.Selected)
+        prop.custom ("data-flash", lit)
+        prop.className (rowClass view.Selected + " " + (if lit then Feedback.flash else ""))
         prop.children [
             Html.div [
                 prop.className (nameClass hasNote)
@@ -153,7 +174,23 @@ let private rowView (dispatch: Msg -> unit) (view: RowView) =
                     ]
                 ]
             ]
+            match view.Note with
+            | Some note ->
+                Html.div [
+                    prop.className "col-span-full"
+                    prop.children [ noteLine "target-check-row-line" note.Tone note.Text ]
+                ]
+            | None -> ()
         ]
+    ]
+
+/// Die schmale Zeile am bisherigen Platz, wenn die Kategorie ihre Gruppe verlassen hat (Muster „Gelöschtes als Zeile
+/// am Platz“, design-system-ytgnc): „Essen auswärts: Target jetzt 175 € monatlich“.
+let private movedNoteRow (bordered: bool) (note: CheckRowNote) =
+    Html.div [
+        prop.key $"moved-{note.CategoryId}"
+        prop.className ("px-3 py-1 @min-[720px]:px-4" + (if bordered then " border-t border-border-subtle" else ""))
+        prop.children [ noteLine "target-check-moved-line" note.Tone (checkNoteMovedText note) ]
     ]
 
 /// Die Farbe des Titels einer Gruppe nach Farbrolle (ADR 0087): mehr Gelb (braucht dich), weniger
@@ -179,7 +216,15 @@ let private groupKey (group: CheckGroup) =
 
 /// Eine Gruppe als Karte: der Kopf klappt auf und zu (Titel in der Farbe der Gruppe, Zahl, Regelsatz), zu
 /// rendert sie ihre Zeilen nicht.
-let private groupCard (model: Model) (data: TargetCheckData) (selected: System.Guid option) (dispatch: Msg -> unit) (group: CheckGroup) (rows: TargetCheckRow list) =
+let private groupCard
+    (model: Model)
+    (data: TargetCheckData)
+    (selected: System.Guid option)
+    (place: CheckNotePlace)
+    (dispatch: Msg -> unit)
+    (group: CheckGroup)
+    (rows: TargetCheckRow list)
+    =
     let key = groupKey group
     let isOpen = model.TargetCheck.OpenGroups.Contains group
     let rowsId = $"target-check-{key}-rows"
@@ -215,7 +260,17 @@ let private groupCard (model: Model) (data: TargetCheckData) (selected: System.G
             Html.div [
                 prop.id rowsId
                 prop.hidden (not isOpen)
-                prop.children (if isOpen then rows |> List.map (rowViewOf model data selected >> rowView dispatch) else [])
+                prop.children (
+                    if isOpen then
+                        let inRow = if place = NoteInRow then model.TargetCheck.Note else None
+                        let shown = rows |> List.map (rowViewOf model data selected inRow >> rowView dispatch)
+                        match place, model.TargetCheck.Note with
+                        | NoteAt (g, index), Some note when g = group ->
+                            List.take index shown @ [ movedNoteRow true note ] @ List.skip index shown
+                        | _ -> shown
+                    else
+                        []
+                )
             ]
         ]
     ]
@@ -223,6 +278,13 @@ let private groupCard (model: Model) (data: TargetCheckData) (selected: System.G
 let private groupsView (model: Model) (data: TargetCheckData) (groups: (CheckGroup * TargetCheckRow list) list) (dispatch: Msg -> unit) =
     // Einmal vor der Schleife: die Zeile mit offenem Panel (CLAUDE.md, große Listen).
     let selected = panelCategory model
+    let place = model.TargetCheck.Note |> Option.map (checkNotePlace groups) |> Option.defaultValue NoteHidden
+    // Fiel die bisherige Gruppe ganz weg, steht die schmale Zeile als eigene Karte an ihrem Platz.
+    let standalone (before: CheckGroup option) =
+        match place, model.TargetCheck.Note with
+        | NoteBefore b, Some note when b = before ->
+            Html.div [ prop.key "moved-note"; prop.className cardClass; prop.children [ movedNoteRow false note ] ]
+        | _ -> Html.none
     Html.div [
         prop.custom ("data-testid", "target-check-list")
         prop.className "@container flex flex-col gap-3 min-w-0"
@@ -234,7 +296,9 @@ let private groupsView (model: Model) (data: TargetCheckData) (groups: (CheckGro
                     prop.text NothingToCheckText
                 ]
             for group, rows in groups do
-                groupCard model data selected dispatch group rows
+                standalone (Some group)
+                groupCard model data selected place dispatch group rows
+            standalone None
         ]
     ]
 
@@ -280,6 +344,7 @@ let private formProps (model: Model) (row: TargetCheckRow) (form: TargetForm) (i
       Status = Html.none
       Pause = Html.none
       AmountNote = checkSuggestionHint row
+      AmountFlash = None
       OnAmountChanged = CheckAmountChanged >> dispatch
       OnDateChanged = CheckDateChanged >> dispatch
       OnRhythmChanged = CheckRhythmChanged >> dispatch
@@ -439,6 +504,21 @@ let view (model: Model) (dispatch: Msg -> unit) =
             prop.className "budget-page flex flex-col gap-3 py-2"
             prop.children [
                 header (loaded |> Option.map (snd >> checkCounts)) dispatch
+                // Ein gescheitertes stilles Neuladen ist ein Zustand der Seite (ADR 0098): Hinweis in allen Breiten, bis
+                // ein Neu-Lesen gelingt (budgeting-sx9v5, wie „Beträge nicht neu gelesen“ in budgeting-gtrgk).
+                match check.Stale with
+                | Some notice ->
+                    let reason, running =
+                        match notice with
+                        | ReadFailed reason -> reason, false
+                        | Rereading reason -> reason, true
+                    Feedback.stateHint
+                        "target-check-stale"
+                        CheckStaleText
+                        [ reason ]
+                        (Some { Label = "Neu laden"; OnClick = fun () -> dispatch RereadTargetCheck })
+                        running
+                | None -> ()
                 // ADR 0043: zur Renderzeit genau eine Hülle. Ohne "Anpassen …" ist das Panel zu.
                 // Esc schließt am PC erst eine offene Rückfrage, dann „Anpassen …“ (F5, design-system-gcpws).
                 if isPanel then

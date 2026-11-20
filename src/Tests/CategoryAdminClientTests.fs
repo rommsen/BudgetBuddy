@@ -137,18 +137,27 @@ let tests =
             Expect.equal back.Form.Value.Editor (EditingCategory { CategoryId = None; Name = "Haustier"; GroupId = Some tiere; Active = true; WasActive = true }) "zurück mit neuer Gruppe"
             Expect.isTrue (match back.Groups with Success gs -> gs |> List.exists (fun g -> g.Id = tiere && g.Name = "Tiere") | _ -> false) "die Gruppe steht im Auswahlfeld"
             Expect.isNonEmpty cmd "die Liste lädt still neu"
-            Expect.equal external (ShowToast ("Gruppe Tiere angelegt", ToastSuccess)) "Rückmeldung"
+            Expect.equal external NoOp "kein Toast"
+            Expect.equal (back.Mark, back.MarkLit) (Some GroupFieldLit, true) "das Feld Gruppe leuchtet"
             let cancelled = run inGroupForm [ CloseForm ]
             Expect.equal cancelled.Form.Value.Editor (EditingCategory { CategoryId = None; Name = "Haustier"; GroupId = Some alltag; Active = true; WasActive = true }) "Abbrechen kehrt unverändert zurück"
 
-        testCase "gespeichert: das Formular schließt, die Liste lädt neu, eine späte Antwort ohne Formular wird ein Toast" <| fun () ->
+        testCase "gespeichert: das Formular schließt, die Zeile leuchtet ohne Text, eine späte Antwort ohne Formular wird ein Toast" <| fun () ->
             let saved, cmd, external = update (CategorySaved (Ok drogerie)) (run loaded [ EditCategory drogerie; NameChanged "Bad"; Save ])
             Expect.isNone saved.Form "zu"
             Expect.isNonEmpty cmd "Neuladen"
-            Expect.equal external (ShowToast ("Gespeichert", ToastSuccess)) "Rückmeldung"
-            let created = run loaded [ NewCategory; NameChanged " Haustier "; Save ]
-            let _, _, toast = update (CategorySaved (Ok drogerie)) created
-            Expect.equal toast (ShowToast ("Haustier angelegt", ToastSuccess)) "Anlegen nennt den Namen"
+            Expect.equal external NoOp "kein Toast"
+            Expect.equal (saved.Mark, saved.MarkLit) (Some (CategoryLit drogerie), true) "die Zeile leuchtet"
+            Expect.equal (match saved.Groups with Success gs -> gs |> List.collect (fun g -> g.Categories) |> List.map (fun c -> c.Name) | _ -> []) [ "Bad" ] "neuer Name gleich in der Liste"
+            let haustier = Guid.NewGuid()
+            let created = run loaded [ NewCategory; NameChanged " Haustier "; GroupChosen (string kinder); Save ]
+            let added, _, toast = update (CategorySaved (Ok haustier)) created
+            Expect.equal toast NoOp "kein Toast"
+            Expect.equal added.Mark (Some (CategoryLit haustier)) "die neue Zeile leuchtet"
+            match added.Groups with
+            | Success gs ->
+                Expect.equal (gs |> List.find (fun g -> g.Id = kinder)).Categories [ { Id = haustier; Name = "Haustier"; Active = true } ] "steht gleich in ihrer Gruppe"
+            | other -> failtestf "Liste erwartet, bekam %A" other
             // Schließen ist während des Speicherns gesperrt; ohne Formular ist man nur nach "Zurück".
             let closed = run loaded [ NewCategory; NameChanged "Haustier"; Save; Leave ]
             let _, _, late = update (CategorySaved (Error "YNAB hat abgelehnt")) closed
@@ -160,7 +169,8 @@ let tests =
             Expect.equal stale.Groups Loading "überholt"
             let reloadFailed, _, warn = update (Reloaded (loaded.Generation, Error "weg")) loaded
             Expect.equal reloadFailed.Groups loaded.Groups "Liste bleibt"
-            Expect.equal warn (ShowToast ("Liste nicht neu geladen: weg", ToastWarning)) "Hinweis"
+            Expect.equal warn NoOp "kein Toast"
+            Expect.equal reloadFailed.Stale (Some { Reason = "weg"; Rereading = false }) "Hinweis auf der Seite"
 
         testCase "ohne Gruppe ist Speichern gesperrt" <| fun () ->
             let empty = run { init () with Groups = Success [] } [ NewCategory; NameChanged "Haustier" ]
@@ -186,7 +196,9 @@ let tests =
             let done', reload, toast = update (ActiveSaved (Ok ())) saving
             Expect.isNone done'.Form "zu"
             Expect.isNonEmpty reload "lädt still neu"
-            Expect.equal toast (ShowToast ("Drogerie deaktiviert. In YNAB noch sichtbar, dort ausblenden.", ToastSuccess)) "Hinweis"
+            Expect.equal toast NoOp "kein Toast"
+            Expect.equal (done'.Mark, done'.MarkLit, done'.InactiveOpen) (Some (Deactivated drogerie), true, true) "leuchtet im aufgeklappten Bereich mit dem Satz"
+            Expect.equal DeactivatedNotice "In YNAB noch sichtbar, dort ausblenden." "der Satz bleibt"
             match done'.Groups with
             | Success gs ->
                 Expect.isEmpty (activeCategories (gs |> List.find (fun g -> g.Id = alltag))) "nicht mehr in der Karte"
@@ -199,8 +211,9 @@ let tests =
             Expect.isNonEmpty cmd "jetzt Name nach YNAB"
             Expect.equal external NoOp "noch kein Toast"
             Expect.isTrue between.Form.Value.IsSaving "läuft weiter"
-            let _, _, toast = update (CategorySaved (Ok drogerie)) between
-            Expect.equal toast (ShowToast ("Bad deaktiviert. In YNAB noch sichtbar, dort ausblenden.", ToastSuccess)) "Hinweis"
+            let after, _, toast = update (CategorySaved (Ok drogerie)) between
+            Expect.equal toast NoOp "kein Toast"
+            Expect.equal (after.Mark, after.InactiveOpen) (Some (Deactivated drogerie), true) "im Bereich Deaktiviert mit dem Satz"
 
         testCase "abgelehntes Deaktivieren: die Meldung mit Betrag bleibt im Formular, nichts ändert sich" <| fun () ->
             let saving = run loaded [ EditCategory drogerie; ActiveToggled false; Save ]
@@ -244,7 +257,8 @@ let tests =
             Expect.equal (movedOrder StepDown a (match start.Groups with Success [ g ] -> g | _ -> failwith "Gruppe")) (Some [ b; a; c; off ]) "Auftrag"
             let failed, reload, toast = update (OrderSaved (alltag, Error "weg")) moved
             Expect.isNonEmpty reload "lädt den Stand neu"
-            Expect.equal toast (ShowToast ("Reihenfolge nicht gespeichert: weg", ToastError)) "Meldung"
+            Expect.equal toast NoOp "kein Toast"
+            Expect.equal (failed.Mark, failed.MarkLit) (Some (OrderFailed (alltag, "Reihenfolge nicht gespeichert: weg")), false) "rot unter dem Kopf der Gruppe"
             Expect.equal (order failed) (order moved) "bis zum Neuladen bleibt die Liste"
 
         testCase "am PC verschiebt Alt mit Pfeil hoch oder runter, ohne Alt nicht" <| fun () ->
@@ -261,11 +275,15 @@ let tests =
             let active, cmd, _ = update (Reactivate drogerie) opened
             Expect.isNonEmpty cmd "an BB"
             Expect.isEmpty (match active.Groups with Success gs -> inactiveCategories gs | _ -> []) "nicht mehr deaktiviert"
-            let _, reload, toast = update (Reactivated ("Drogerie", Ok ())) active
+            let back, reload, toast = update (Reactivated (drogerie, Ok ())) active
             Expect.isNonEmpty reload "lädt still neu"
-            Expect.equal toast (ShowToast ("Drogerie ist wieder aktiv", ToastSuccess)) "Rückmeldung"
-            let _, _, failed = update (Reactivated ("Drogerie", Error "weg")) active
-            Expect.equal failed (ShowToast ("Drogerie nicht aktiviert: weg", ToastError)) "Fehler"
+            Expect.equal toast NoOp "kein Toast"
+            Expect.equal (back.Mark, back.MarkLit) (Some (CategoryLit drogerie), true) "die Zeile leuchtet in ihrer Gruppe"
+            let failed, _, failedToast = update (Reactivated (drogerie, Error "weg")) active
+            Expect.equal failedToast NoOp "kein Toast"
+            Expect.equal failed.Mark (Some (ReactivateFailed (drogerie, "Nicht aktiviert: weg"))) "rot an der Zeile"
+            Expect.equal (match failed.Groups with Success gs -> inactiveCategories gs |> List.map (fun (_, c) -> c.Id) | _ -> []) [ drogerie ] "wieder im Bereich Deaktiviert"
+            Expect.isTrue failed.InactiveOpen "aufgeklappt"
 
         // Bug (Review 2026-11-08): "Aktiv" und Name geändert, Formular geschlossen, solange das Deaktivieren lief:
         // `ActiveSaved` fiel in den fremden Zweig, Name und Gruppe gingen nie hinaus, ohne Toast und Neuladen.
@@ -353,6 +371,71 @@ let tests =
                 { Id = alltag; Name = "Alltag"; Categories = [ { Id = a; Name = "A"; Active = true }; { Id = b; Name = "B"; Active = true }; { Id = off; Name = "Aus"; Active = false } ] }
             Expect.equal [ canMove StepUp a group; canMove StepDown a group ] [ false; true ] "erste Zeile"
             Expect.equal [ canMove StepUp b group; canMove StepDown b group ] [ true; false ] "letzte Zeile, die deaktivierte zählt nicht"
+    ]
+
+// budgeting-sx9v5 (Regel R3): jede Rückmeldung an ihrem Ort, am Handy und am PC gleich, ohne Toast.
+[<Tests>]
+let placeTests =
+    testList "Kategorien verwalten: Rückmeldung am Ort" [
+        testCase "Gruppe umbenannt: das Formular schließt, der Kopf der Gruppe leuchtet, kein Toast" <| fun () ->
+            let renamed, cmd, external = update (GroupSaved ("Familie", Ok kinder)) (run loaded [ RenameGroup kinder; NameChanged "Familie"; Save ])
+            Expect.isNone renamed.Form "zu"
+            Expect.isNonEmpty cmd "Neuladen und Zeitgeber"
+            Expect.equal external NoOp "kein Toast"
+            Expect.equal (renamed.Mark, renamed.MarkLit) (Some (GroupLit kinder), true) "der Kopf leuchtet"
+
+        testCase "Die Rückmeldung bleibt bis zur nächsten Aktion; Aufklappen, die Auswahl der Gruppe und Antworten lassen sie stehen" <| fun () ->
+            let lit = model' (update (CategorySaved (Ok drogerie)) (run loaded [ EditCategory drogerie; NameChanged "Bad"; Save ]))
+            for msg in [ ToggleInactive; Reloaded (lit.Generation, Ok groups); Loaded (lit.Generation - 1, Ok []); MarkFlashEnded 0 ] do
+                Expect.equal (model' (update msg lit)).Mark lit.Mark $"{msg} lässt sie stehen"
+            for msg in [ NewCategory; EditCategory drogerie; NewGroup; RenameGroup kinder; MoveCategory (drogerie, StepUp); Reactivate drogerie; Leave; Entered; RereadList ] do
+                Expect.isNone (model' (update msg lit)).Mark $"{msg} beendet sie"
+            let inForm = run loaded [ NewCategory; NameChanged "Haustier"; GroupChosen NewGroupChoice; NameChanged "Tiere"; Save ]
+            let back = model' (update (GroupSaved ("Tiere", Ok tiere)) inForm)
+            Expect.equal (model' (update OpenGroupChoice back)).Mark (Some GroupFieldLit) "die Auswahl öffnen lässt das Leuchten"
+            Expect.isNone (model' (update (NameChanged "Hund") back)).Mark "eine Eingabe beendet es"
+
+        testCase "Das Leuchten endet mit seinem Zeitgeber, das Ende eines älteren nimmt ein neueres nicht ab" <| fun () ->
+            let first = model' (update (CategorySaved (Ok drogerie)) (run loaded [ EditCategory drogerie; NameChanged "Bad"; Save ]))
+            let second = model' (update (Reactivated (drogerie, Ok ())) first)
+            Expect.equal second.MarkCount (first.MarkCount + 1) "zählt"
+            Expect.isTrue (model' (update (MarkFlashEnded first.MarkCount) second)).MarkLit "älteres Ende"
+            let ended = model' (update (MarkFlashEnded second.MarkCount) second)
+            Expect.isFalse ended.MarkLit "eigenes Ende"
+            Expect.equal ended.Mark second.Mark "die Rückmeldung selbst bleibt"
+            Expect.equal markFlashMs 900 "0,7 s Animation und ein Rest"
+
+        testCase "Liste nicht neu geladen: Neu laden liest einmal still, gelungen ist der Hinweis weg, gescheitert bleibt er" <| fun () ->
+            let failed = model' (update (Reloaded (loaded.Generation, Error "503")) loaded)
+            let rereading, cmd, external = update RereadList failed
+            Expect.isNonEmpty cmd "liest neu"
+            Expect.equal external NoOp "kein Toast"
+            Expect.equal rereading.Stale (Some { Reason = "503"; Rereading = true }) "läuft"
+            Expect.equal rereading.Groups failed.Groups "die Liste bleibt stehen"
+            let _, again, _ = update RereadList rereading
+            Expect.isEmpty again "kein zweiter Aufruf"
+            Expect.isNone (model' (update (Reloaded (rereading.Generation, Ok groups)) rereading)).Stale "gelungen"
+            Expect.equal (model' (update (Reloaded (rereading.Generation, Error "504")) rereading)).Stale (Some { Reason = "504"; Rereading = false }) "gescheitert"
+            let _, none, _ = update RereadList loaded
+            Expect.isEmpty none "ohne Hinweis nichts"
+            Expect.equal ListStaleText "Liste nicht neu geladen, sie kann veraltet sein." "Satz"
+
+        testCase "Ein Fehler im Formular steht am Feld des abgelehnten Aufrufs: Name und Gruppe am Namen, Deaktivieren am Schalter" <| fun () ->
+            let nameFailed = model' (update (CategorySaved (Error "doppelt")) (run loaded [ EditCategory drogerie; NameChanged "Bad"; Save ]))
+            Expect.equal (nameFailed.Form.Value.Error, nameFailed.Form.Value.FailedCall) (Some "doppelt", Some SavingCategory) "am Namen"
+            let groupFailed = model' (update (GroupSaved ("Kinder", Error "doppelt")) (run loaded [ RenameGroup kinder; Save ]))
+            Expect.equal groupFailed.Form.Value.FailedCall (Some SavingGroup) "Gruppe am Namen"
+            let activeFailed = model' (update (ActiveSaved (Error "Rest 24,50 €")) (run loaded [ EditCategory drogerie; ActiveToggled false; Save ]))
+            Expect.equal (activeFailed.Form.Value.Error, activeFailed.Form.Value.FailedCall) (Some "Rest 24,50 €", Some SavingActive) "am Schalter"
+            Expect.isNone (model' (update (NameChanged "B") nameFailed)).Form.Value.Error "eine Eingabe nimmt ihn weg"
+
+        testCase "Während gespeichert wird, öffnet kein anderes Formular: die Antwort bleibt bei ihrem" <| fun () ->
+            let saving = run loaded [ EditCategory drogerie; NameChanged "Bad"; Save ]
+            for msg in [ NewCategory; EditCategory drogerie; NewGroup; RenameGroup kinder ] do
+                Expect.equal (model' (update msg saving)).Form saving.Form $"{msg} ändert nichts"
+            let failed, _, external = update (CategorySaved (Error "doppelt")) (run saving [ EditCategory drogerie ])
+            Expect.equal external NoOp "kein Toast"
+            Expect.equal failed.Form.Value.Error (Some "doppelt") "am eigenen Formular"
     ]
 
 // design-system-gcpws (F5): ↑↓ öffnen die nächste Kategorie im Panel, Esc schließt es, auch aus dem Feld Name. Über die

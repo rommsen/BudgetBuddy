@@ -17,6 +17,9 @@ open Components.Budget.Moves
 open Components.Budget.TargetFormCore
 open Components.Budget.TargetEdit
 
+/// Ton und Satz der Zeile im Sheet (budgeting-sx9v5).
+let private sheetLineOf (model: Model) = model.SheetLine |> Option.map (fun l -> l.Tone, l.Text)
+
 let private eur (amount: decimal) : Money = { Amount = amount; Currency = "EUR" }
 
 let private past = "2026-10-01"
@@ -251,10 +254,15 @@ let private flowTests =
             Expect.isNonEmpty cmd "Aufruf"
             Expect.equal external NoOp "Satz im Tab"
         }
-        test "Bricht der Aufruf ab, während eine andere Kategorie gezeigt wird, kommt der Satz als Toast" {
+        // budgeting-sx9v5 (Regel R3): bei offenem Sheet rot in der Zeile im Sheet, kein Toast; geschlossen die Leiste.
+        test "Bricht der Aufruf ab, während eine andere Kategorie gezeigt wird, steht der Satz rot in der Zeile im Sheet" {
             let running = onTrip |> step (TargetAmountChanged "60") |> step SaveTarget |> step (SelectCategory holidayId)
             let lost, _, external = update (TargetChangeCallLost (tripId, current, "Netz weg.")) running
-            Expect.equal external (ShowToast (targetCallLostText true "Netz weg.", ToastError)) "Toast"
+            Expect.equal external NoOp "kein Toast"
+            Expect.equal (sheetLineOf lost) (Some (LineError, targetCallLostText true "Netz weg.")) "Zeile im Sheet"
+            let closed = running |> step CloseInspector
+            let _, _, away = update (TargetChangeCallLost (tripId, current, "Netz weg.")) closed
+            Expect.equal away (ShowToast (targetCallLostText true "Netz weg.", ToastError)) "Sheet zu: Leiste, am PC Toast"
             Expect.equal lost.TargetCall TargetIdle "Aufruf frei"
         }
         test "Bricht der Aufruf ab, während ein anderer Monat gewählt ist, wird nichts neu gelesen und der Satz verspricht es nicht" {
@@ -264,7 +272,8 @@ let private flowTests =
             // Der Ausgang ist offen: nur die Leiste liest ihre Prüfung neu (budgeting-gvajj), sie gilt dem laufenden Monat.
             Expect.equal lost.MonthStartCheckGeneration (running.MonthStartCheckGeneration + 1) "die Leiste liest neu"
             Expect.equal cmd.Length 1 "kein weiterer Aufruf"
-            Expect.equal external (ShowToast (targetCallLostText false "weg", ToastError)) "Toast ohne Versprechen"
+            Expect.equal external NoOp "kein Toast"
+            Expect.equal (sheetLineOf lost) (Some (LineError, targetCallLostText false "weg")) "Zeile ohne Versprechen"
         }
         // budgeting-r3wq8, Bug: während des Speicherns ließen sich Betrag und Datum weiter bearbeiten. Die
         // Antwort setzte das Formular zurück, die nachgetippte Eingabe war still weg.
@@ -282,10 +291,11 @@ let private flowTests =
             Expect.isFalse (formFieldsLocked (locksOf away)) "frei"
             Expect.equal (formOf (away |> step (TargetAmountChanged "30"))).AmountInput (Some "30") "Eingabe"
         }
-        test "Ein Fehler, während der Tab Historie offen ist, kommt als Toast, die Meldung bleibt im Formular" {
+        test "Ein Fehler, während der Tab Historie offen ist, steht gelb in der Zeile im Sheet, die Meldung bleibt im Formular" {
             let running = onTrip |> step (TargetAmountChanged "60") |> step SaveTarget |> step (SelectInspectorTab HistoryTab)
             let answered, _, external = update (TargetChangeAnswered (tripId, current, Error "kaputt")) running
-            Expect.equal external (ShowToast (targetRejectedAwayText "kaputt", ToastWarning)) "Toast"
+            Expect.equal external NoOp "kein Toast"
+            Expect.equal (sheetLineOf answered) (Some (LineWarning, targetRejectedAwayText "kaputt")) "Zeile im Sheet"
             Expect.equal (formOf answered).Notice (Some (TargetRejectedNotice "kaputt")) "Meldung im Formular"
         }
         test "Target entfernen ist gesperrt, solange die Bestätigung offen ist" {
@@ -296,10 +306,13 @@ let private flowTests =
             let saving = onTrip |> step (TargetAmountChanged "60") |> step SaveTarget
             Expect.isTrue (formRemoveLocked (locksOf saving) (formOf saving)) "Aufruf läuft"
         }
-        test "Ein Fehler, während eine andere Kategorie gezeigt wird, kommt als Toast" {
+        test "Ein Fehler, während eine andere Kategorie gezeigt wird, steht gelb in der Zeile im Sheet, bei geschlossenem Sheet in der Leiste" {
             let running = onTrip |> step (TargetAmountChanged "60") |> step SaveTarget |> step (SelectCategory holidayId)
-            let _, _, external = update (TargetChangeAnswered (tripId, current, Error "kaputt")) running
-            Expect.equal external (ShowToast (targetRejectedAwayText "kaputt", ToastWarning)) "Toast"
+            let answered, _, external = update (TargetChangeAnswered (tripId, current, Error "kaputt")) running
+            Expect.equal external NoOp "kein Toast"
+            Expect.equal (sheetLineOf answered) (Some (LineWarning, targetRejectedAwayText "kaputt")) "Zeile im Sheet"
+            let _, _, away = update (TargetChangeAnswered (tripId, current, Error "kaputt")) (running |> step CloseInspector)
+            Expect.equal away (ShowToast (targetRejectedAwayText "kaputt", ToastWarning)) "Sheet zu: Leiste, am PC Toast"
         }
     ]
 

@@ -36,20 +36,41 @@ type SaveCall =
     | SavingActive
 
 /// Das offene Formular. `Saving`: der Aufruf läuft, Speichern und Schließen sind gesperrt. `Error`: die Meldung
-/// des Servers, sie bleibt im Formular, bis etwas geändert wird. `Notice`: der Hinweis nach gelungenem
-/// Deaktivieren oder Aktivieren, er kommt als Toast, wenn das Formular schließt. `GroupChoiceOpen`: die Auswahl der
-/// Gruppe steht offen über dem Formular (oberste Ebene, §7.8 Punkt 6).
+/// des Servers, sie bleibt im Formular am Feld (`FailedCall`), bis etwas geändert wird. `Deactivated`: Deaktivieren
+/// gelang, Name und Gruppe gehen noch hinaus; schließt das Formular, steht die Zeile im Bereich Deaktiviert mit dem Satz
+/// zu YNAB. `GroupChoiceOpen`: die Auswahl der Gruppe steht offen über dem Formular (oberste Ebene, §7.8 Punkt 6).
 type Form =
     { Editor: Editor
       Saving: SaveCall option
       Error: string option
-      Notice: string option
+      /// Welcher Aufruf abgelehnt wurde: Name und Gruppe stehen am Feld Name, Aktiv am Schalter.
+      FailedCall: SaveCall option
+      Deactivated: bool
       GroupChoiceOpen: bool }
     member form.IsSaving = form.Saving.IsSome
 
 /// Der Aufruf für die Reihenfolge einer Gruppe, der gerade läuft. `Next`: die zuletzt gewünschte Reihenfolge, die
 /// nach der Antwort hinausgeht. Je Gruppe läuft höchstens ein Aufruf, sonst könnten sich die Antworten überholen.
 type OrderCall = { Next: Guid list option }
+
+/// Was nach einer Aktion an ihrem Ort steht, bis zur nächsten Aktion (Regel R3, ADR 0098, budgeting-sx9v5). Am Handy und
+/// am PC gleich, ohne Toast.
+type Mark =
+    /// Die Zeile der Kategorie leuchtet kurz (angelegt, gespeichert, wieder aktiv) und wird ins Bild gerollt.
+    | CategoryLit of Guid
+    /// Deaktiviert: die Zeile im Bereich Deaktiviert leuchtet, darunter der Satz zu YNAB.
+    | Deactivated of Guid
+    /// Der Kopf der Gruppe leuchtet (umbenannt).
+    | GroupLit of Guid
+    /// Das Feld Gruppe im Kategorie-Formular leuchtet (neue Gruppe aus „Neue Gruppe“ angelegt).
+    | GroupFieldLit
+    /// Rot an der Zeile im Bereich Deaktiviert (Aktivieren abgelehnt).
+    | ReactivateFailed of Guid * string
+    /// Rot unter dem Kopf der Gruppe (Reihenfolge abgelehnt).
+    | OrderFailed of Guid * string
+
+/// Das stille Neuladen der Liste scheiterte: Hinweis oben auf der Seite, bis ein Neu-Lesen gelingt.
+type ListStale = { Reason: string; Rereading: bool }
 
 type Model = {
     Groups: RemoteData<ManagedCategoryGroup list>
@@ -60,6 +81,13 @@ type Model = {
     InactiveOpen: bool
     /// Je Gruppe der laufende Aufruf für die Reihenfolge.
     OrderCalls: Map<Guid, OrderCall>
+    /// Die Rückmeldung der letzten Aktion an ihrem Ort.
+    Mark: Mark option
+    /// Zählt jedes Leuchten: das Ende eines älteren nimmt ein neueres nicht ab.
+    MarkCount: int
+    /// Das Leuchten läuft (`markFlashMs`).
+    MarkLit: bool
+    Stale: ListStale option
 }
 
 type Msg =
@@ -103,14 +131,27 @@ type Msg =
     | ToggleInactive
     /// "Aktivieren" im Abschnitt Deaktiviert.
     | Reactivate of Guid
-    | Reactivated of name: string * Result<unit, string>
+    | Reactivated of categoryId: Guid * Result<unit, string>
+    /// „Neu laden“ am Hinweis „Liste nicht neu geladen“.
+    | RereadList
+    /// Das Leuchten endet, mit seiner Zählung.
+    | MarkFlashEnded of count: int
 
 type ExternalMsg =
     | NoOp
     | ShowToast of string * ToastType
     | BackToBudget
 
-let init () : Model = { Groups = NotAsked; Form = None; Generation = 0; InactiveOpen = false; OrderCalls = Map.empty }
+let init () : Model =
+    { Groups = NotAsked
+      Form = None
+      Generation = 0
+      InactiveOpen = false
+      OrderCalls = Map.empty
+      Mark = None
+      MarkCount = 0
+      MarkLit = false
+      Stale = None }
 
 let private loadCmd (generation: int) (answer: int * Result<ManagedCategoryGroup list, string> -> Msg) : Cmd<Msg> =
     Cmd.OfAsync.either
@@ -145,17 +186,24 @@ let private groupsOf (model: Model) : ManagedCategoryGroup list =
     | _ -> []
 
 let private opened (editor: Editor) : Form option =
-    Some { Editor = editor; Saving = None; Error = None; Notice = None; GroupChoiceOpen = false }
+    Some { Editor = editor; Saving = None; Error = None; FailedCall = None; Deactivated = false; GroupChoiceOpen = false }
 
 /// Die zweite Zeile einer Gruppe in der Auswahl (Prototyp `cegroup`): die Zahl ihrer aktiven Kategorien.
 let categoryCountText (count: int) : string =
     if count = 1 then "1 Kategorie" else $"{count} Kategorien"
 
-/// Der Hinweis nach dem Deaktivieren: die YNAB-API kann nicht ausblenden (ADR 0088 Punkt 2).
-let deactivatedNotice (name: string) : string = $"{name} deaktiviert. In YNAB noch sichtbar, dort ausblenden."
+/// Der Satz unter der deaktivierten Zeile: die YNAB-API kann nicht ausblenden (ADR 0088 Punkt 2). Er ist Inhalt, er
+/// bleibt bis zur nächsten Aktion.
+[<Literal>]
+let DeactivatedNotice = "In YNAB noch sichtbar, dort ausblenden."
 
-/// Der Hinweis nach dem Aktivieren, wie im Prototyp.
-let reactivatedNotice (name: string) : string = $"{name} ist wieder aktiv"
+/// Der Satz des Hinweises, wenn das stille Neuladen der Liste scheiterte.
+[<Literal>]
+let ListStaleText = "Liste nicht neu geladen, sie kann veraltet sein."
+
+/// Wie lange eine Zeile, ein Kopf oder ein Feld leuchtet: 0,7 s Animation (`.feedback-flash`), danach nimmt die Seite
+/// die Klasse ab. Mit `prefers-reduced-motion` steht der Ring so lange ohne Bewegung.
+let markFlashMs = 900
 
 /// Die Kategorien einer Gruppe, die auf der Seite in ihrer Karte stehen: die aktiven, in BBs Reihenfolge.
 let activeCategories (group: ManagedCategoryGroup) : ManagedCategory list =
@@ -347,26 +395,95 @@ let private withGroup (id: Guid) (name: string) (model: Model) : Model =
     | Success groups -> { model with Groups = Success (groups @ [ { Id = id; Name = name; Categories = [] } ]) }
     | _ -> model
 
-let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
+/// Die neue oder geänderte Kategorie gleich in der Liste (Name, Gruppe), bis das stille Neuladen sie bringt: so steht
+/// die Zeile schon da, wenn sie leuchtet.
+let private withCategory (id: Guid) (editor: CategoryEditor) (model: Model) : Model =
+    match model.Groups, editor.GroupId with
+    | Success groups, Some groupId ->
+        let existing = groups |> List.tryPick (fun g -> g.Categories |> List.tryFind (fun c -> c.Id = id))
+        let category: ManagedCategory =
+            { Id = id
+              Name = editor.Name.Trim()
+              Active = existing |> Option.map (fun c -> c.Active) |> Option.defaultValue true }
+        let placed =
+            groups
+            |> List.map (fun g ->
+                let others = g.Categories |> List.filter (fun c -> c.Id <> id)
+                if g.Id <> groupId then { g with Categories = others }
+                else
+                    match g.Categories |> List.tryFindIndex (fun c -> c.Id = id) with
+                    | Some index -> { g with Categories = List.insertAt index category others }
+                    | None -> { g with Categories = others @ [ category ] })
+        { model with Groups = Success placed }
+    | _ -> model
+
+/// Setzt die Rückmeldung an ihren Ort. Ein Leuchten zählt hoch und bekommt seinen Zeitgeber; ein Fehler leuchtet nicht.
+let private marked (mark: Mark) (model: Model) : Model * Cmd<Msg> =
+    match mark with
+    | ReactivateFailed _
+    | OrderFailed _ -> { model with Mark = Some mark; MarkLit = false }, Cmd.none
+    | _ ->
+        let count = model.MarkCount + 1
+        { model with Mark = Some mark; MarkCount = count; MarkLit = true },
+        Client.Debounce.delayed markFlashMs (MarkFlashEnded count)
+
+/// Endet mit dieser Nachricht die Rückmeldung? Jede Aktion auf der Seite beendet sie; Aufklappen des Abschnitts
+/// Deaktiviert, die Auswahl der Gruppe öffnen und schließen, Antworten und Laden nicht.
+let endsMark (msg: Msg) : bool =
+    match msg with
+    | Entered
+    | RetryLoad
+    | RereadList
+    | NewCategory
+    | EditCategory _
+    | NewGroup
+    | RenameGroup _
+    | NameChanged _
+    | GroupChosen _
+    | Save
+    | CloseForm
+    | Leave
+    | ActiveToggled _
+    | MoveCategory _
+    | Reactivate _ -> true
+    | _ -> false
+
+/// Speichert das offene Formular gerade? Dann öffnet kein anderes: die Antwort gehört ihm.
+let private saving (model: Model) : bool =
+    model.Form |> Option.exists (fun f -> f.IsSaving)
+
+/// Der Fehler des Servers im eigenen Formular, am Feld des abgelehnten Aufrufs.
+let private failedIn (call: SaveCall) (message: string) (model: Model) : Model =
+    { model with Form = model.Form |> Option.map (fun f -> { f with Saving = None; Error = Some message; FailedCall = Some call }) }
+
+let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     match msg with
     | Entered ->
         let generation = model.Generation + 1
-        { model with Groups = Loading; Form = None; Generation = generation }, loadCmd generation Loaded, NoOp
+        { model with Groups = Loading; Form = None; Generation = generation; Stale = None }, loadCmd generation Loaded, NoOp
     | RetryLoad ->
         let generation = model.Generation + 1
         { model with Groups = Loading; Generation = generation }, loadCmd generation Loaded, NoOp
     | Loaded (generation, result) when generation = model.Generation ->
-        let groups =
-            match result with
-            | Ok groups -> Success groups
-            | Error message -> Failure message
-        { model with Groups = groups }, Cmd.none, NoOp
+        match result with
+        | Ok groups -> { model with Groups = Success groups; Stale = None }, Cmd.none, NoOp
+        | Error message -> { model with Groups = Failure message }, Cmd.none, NoOp
     | Reloaded (generation, result) when generation = model.Generation ->
         match result with
-        | Ok groups -> { model with Groups = Success groups }, Cmd.none, NoOp
-        | Error message -> model, Cmd.none, ShowToast ($"Liste nicht neu geladen: {message}", ToastWarning)
+        | Ok groups -> { model with Groups = Success groups; Stale = None }, Cmd.none, NoOp
+        // Ein Zustand der Seite (ADR 0098): Hinweis oben, die Liste bleibt stehen.
+        | Error message -> { model with Stale = Some { Reason = message; Rereading = false } }, Cmd.none, NoOp
     | Loaded _
     | Reloaded _ -> model, Cmd.none, NoOp
+    | RereadList ->
+        match model.Stale with
+        | Some stale when not stale.Rereading ->
+            let reloaded, cmd = reload { model with Stale = Some { stale with Rereading = true } }
+            reloaded, cmd, NoOp
+        | _ -> model, Cmd.none, NoOp
+    | MarkFlashEnded count ->
+        if count = model.MarkCount then { model with MarkLit = false }, Cmd.none, NoOp else model, Cmd.none, NoOp
+    | NewCategory | EditCategory _ | NewGroup | RenameGroup _ when saving model -> model, Cmd.none, NoOp
     | NewCategory ->
         let first = groupsOf model |> List.tryHead |> Option.map (fun g -> g.Id)
         { model with Form = opened (EditingCategory { CategoryId = None; Name = ""; GroupId = first; Active = true; WasActive = true }) },
@@ -432,18 +549,22 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
             match model.Form with
             | Some { Editor = EditingCategory _; Saving = Some SavingCategory } -> true
             | _ -> false
-        match result with
-        | Ok _ ->
-            let toast =
-                match model.Form with
-                | Some { Editor = EditingCategory { CategoryId = None; Name = name } } when isOwn -> $"{name.Trim()} angelegt"
-                | Some { Notice = Some notice } when isOwn -> notice
-                | _ -> "Gespeichert"
-            let reloaded, cmd = reload { model with Form = if isOwn then None else model.Form }
-            reloaded, cmd, ShowToast (toast, ToastSuccess)
-        | Error message when isOwn ->
-            { model with Form = model.Form |> Option.map (fun f -> { f with Saving = None; Error = Some message }) }, Cmd.none, NoOp
-        | Error message -> model, Cmd.none, ShowToast ($"Nicht gespeichert: {message}", ToastError)
+        match result, model.Form with
+        | Ok id, Some ({ Editor = EditingCategory editor } as form) when isOwn ->
+            // Formular zu, die Zeile leuchtet an ihrem Platz; nach dem Deaktivieren im Bereich Deaktiviert mit dem Satz zu
+            // YNAB (Regel R3, budgeting-sx9v5).
+            let placed = withCategory id editor { model with Form = None }
+            let mark, opened =
+                if form.Deactivated then Deactivated id, { placed with InactiveOpen = true } else CategoryLit id, placed
+            let lit, flashCmd = marked mark opened
+            let reloaded, cmd = reload lit
+            reloaded, Cmd.batch [ cmd; flashCmd ], NoOp
+        // Ohne eigenes Formular ist man nur nach "Zurück": die Meldung hat keinen Ort (Leiste, am PC der Toast).
+        | Ok _, _ ->
+            let reloaded, cmd = reload model
+            reloaded, cmd, ShowToast ("Gespeichert", ToastSuccess)
+        | Error message, _ when isOwn -> failedIn SavingCategory message model, Cmd.none, NoOp
+        | Error message, _ -> model, Cmd.none, ShowToast ($"Nicht gespeichert: {message}", ToastError)
     | GroupSaved (name, result) ->
         let own =
             match model.Form with
@@ -451,14 +572,20 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
             | _ -> None
         match result, own with
         | Ok id, Some { ReturnTo = Some editor } ->
+            // Zurück im Kategorie-Formular steht die neue Gruppe im Feld Gruppe, das Feld leuchtet kurz.
             let back = withGroup id name { model with Form = opened (EditingCategory { editor with GroupId = Some id }) }
-            let reloaded, cmd = reload back
-            reloaded, cmd, ShowToast ($"Gruppe {name} angelegt", ToastSuccess)
-        | Ok id, _ ->
-            let reloaded, cmd = reload (withGroup id name { model with Form = if own.IsSome then None else model.Form })
+            let lit, flashCmd = marked GroupFieldLit back
+            let reloaded, cmd = reload lit
+            reloaded, Cmd.batch [ cmd; flashCmd ], NoOp
+        | Ok id, Some _ ->
+            // Der Kopf der Gruppe leuchtet kurz.
+            let lit, flashCmd = marked (GroupLit id) (withGroup id name { model with Form = None })
+            let reloaded, cmd = reload lit
+            reloaded, Cmd.batch [ cmd; flashCmd ], NoOp
+        | Ok id, None ->
+            let reloaded, cmd = reload (withGroup id name model)
             reloaded, cmd, ShowToast ("Gruppe gespeichert", ToastSuccess)
-        | Error message, Some _ ->
-            { model with Form = model.Form |> Option.map (fun f -> { f with Saving = None; Error = Some message }) }, Cmd.none, NoOp
+        | Error message, Some _ -> failedIn SavingGroup message model, Cmd.none, NoOp
         | Error message, None -> model, Cmd.none, ShowToast ($"Nicht gespeichert: {message}", ToastError)
     | Leave -> { model with Form = None }, Cmd.none, BackToBudget
     | ActiveToggled active ->
@@ -472,23 +599,29 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         | Some ({ Editor = EditingCategory editor; Saving = Some SavingActive } as form) ->
             match result with
             | Ok () ->
-                let name = editor.Name.Trim()
-                let notice = if editor.Active then reactivatedNotice name else deactivatedNotice name
                 let settled = { editor with WasActive = editor.Active }
-                let marked =
+                let changed =
                     match editor.CategoryId with
                     | Some id -> withActive id editor.Active model
                     | None -> model
-                let form' = { form with Editor = EditingCategory settled; Notice = Some notice; Saving = Some SavingCategory }
-                match settled.GroupId with
-                | Some groupId when fieldsChanged (groupsOf model) settled ->
-                    { marked with Form = Some form' },
+                let form' =
+                    { form with Editor = EditingCategory settled; Deactivated = not editor.Active; Saving = Some SavingCategory }
+                match settled.GroupId, editor.CategoryId with
+                | Some groupId, _ when fieldsChanged (groupsOf model) settled ->
+                    { changed with Form = Some form' },
                     saveCategoryCmd { CategoryId = settled.CategoryId; Name = settled.Name; GroupId = groupId },
                     NoOp
-                | _ ->
-                    let reloaded, cmd = reload { marked with Form = None }
-                    reloaded, cmd, ShowToast (notice, ToastSuccess)
-            | Error message -> { model with Form = Some { form with Saving = None; Error = Some message } }, Cmd.none, NoOp
+                | _, Some id ->
+                    // Deaktiviert: die Zeile steht im Bereich Deaktiviert (aufgeklappt) mit dem Satz zu YNAB; aktiviert:
+                    // wieder in ihrer Gruppe. Beide leuchten kurz.
+                    let closed = { changed with Form = None; InactiveOpen = changed.InactiveOpen || not editor.Active }
+                    let lit, flashCmd = marked (if editor.Active then CategoryLit id else Deactivated id) closed
+                    let reloaded, cmd = reload lit
+                    reloaded, Cmd.batch [ cmd; flashCmd ], NoOp
+                | _, None ->
+                    let reloaded, cmd = reload { changed with Form = None }
+                    reloaded, cmd, NoOp
+            | Error message -> failedIn SavingActive message model, Cmd.none, NoOp
         | _ ->
             match result with
             // Ohne eigenes Formular (etwa nach "Zurück"): BB hat geändert, die Liste holt den Stand.
@@ -521,23 +654,34 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         | _ -> { model with OrderCalls = Map.remove groupId model.OrderCalls }, Cmd.none, NoOp
     | OrderSaved (groupId, Error message) ->
         // Die wartende Reihenfolge fällt weg, das Neuladen zeigt den Stand von BB.
-        let reloaded, cmd = reload { model with OrderCalls = Map.remove groupId model.OrderCalls }
-        reloaded, cmd, ShowToast ($"Reihenfolge nicht gespeichert: {message}", ToastError)
+        // Rot unter dem Kopf der Gruppe, bis zur nächsten Aktion.
+        let failed, _ =
+            marked (OrderFailed (groupId, $"Reihenfolge nicht gespeichert: {message}")) { model with OrderCalls = Map.remove groupId model.OrderCalls }
+        let reloaded, cmd = reload failed
+        reloaded, cmd, NoOp
     | ToggleInactive -> { model with InactiveOpen = not model.InactiveOpen }, Cmd.none, NoOp
     | Reactivate categoryId ->
-        let name =
-            groupsOf model
-            |> List.tryPick (fun g -> g.Categories |> List.tryFind (fun c -> c.Id = categoryId))
-            |> Option.map (fun c -> c.Name)
-        match name with
-        | Some name ->
+        let known = groupsOf model |> List.exists (fun g -> g.Categories |> List.exists (fun c -> c.Id = categoryId))
+        if known then
             bumped (withActive categoryId true model),
-            setActiveCmd { CategoryId = categoryId; Active = true } (fun result -> Reactivated (name, result)),
+            setActiveCmd { CategoryId = categoryId; Active = true } (fun result -> Reactivated (categoryId, result)),
             NoOp
-        | None -> model, Cmd.none, NoOp
-    | Reactivated (name, Ok ()) ->
-        let reloaded, cmd = reload model
-        reloaded, cmd, ShowToast (reactivatedNotice name, ToastSuccess)
-    | Reactivated (name, Error message) ->
-        let reloaded, cmd = reload model
-        reloaded, cmd, ShowToast ($"{name} nicht aktiviert: {message}", ToastError)
+        else
+            model, Cmd.none, NoOp
+    | Reactivated (categoryId, Ok ()) ->
+        // Die Zeile steht wieder in ihrer Gruppe und leuchtet kurz.
+        let lit, flashCmd = marked (CategoryLit categoryId) model
+        let reloaded, cmd = reload lit
+        reloaded, Cmd.batch [ cmd; flashCmd ], NoOp
+    | Reactivated (categoryId, Error message) ->
+        // Zurück in den Bereich Deaktiviert, rot an ihrer Zeile.
+        let back = { withActive categoryId false model with InactiveOpen = true }
+        let failed, _ = marked (ReactivateFailed (categoryId, $"Nicht aktiviert: {message}")) back
+        let reloaded, cmd = reload failed
+        reloaded, cmd, NoOp
+
+
+/// Der Einstieg: eine Aktion beendet die Rückmeldung der vorigen (`endsMark`), dann wirkt die Nachricht.
+let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
+    let model = if endsMark msg then { model with Mark = None; MarkLit = false } else model
+    transition msg model

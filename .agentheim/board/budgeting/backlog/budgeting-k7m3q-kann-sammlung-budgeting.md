@@ -24,3 +24,6 @@ Kann-Sammlung des BC nach der Regel Backlog-Disziplin in CLAUDE.md. Funde ohne G
 - Work-Lauf 2026-11-20 (budgeting-y1kkr): ein Doppeltipp auf „Rückgängig“ zeigt beim zweiten Tipp gelb „Eine Verschiebung läuft noch“; der Auftrag geht nur einmal hinaus.
 - Work-Lauf 2026-11-20 (budgeting-p3sk0): ist der Monat beim ersten Betreten der Übersicht noch nicht geladen und dauert das Laden länger als 0,9 s, ist das Leuchten der neu angepinnten Kategorie vorbei, bevor die Zeile erscheint.
 - Work-Lauf 2026-11-20 (budgeting-p3sk0): auf einem anderen Gerät angepinnte Kategorien leuchten beim nächsten Betreten nach einem Neu-Lesen ebenfalls.
+- Work-Lauf 2026-11-20 (budgeting-sx9v5): verlässt man „Targets prüfen“ vor der Antwort auf „übernehmen“, geht die Rückmeldung verloren (auch eine Ablehnung).
+- Work-Lauf 2026-11-20 (budgeting-sx9v5): der Satz „wird gleich neu gelesen“ steht auch nach gescheitertem Neu-Lesen noch da.
+- Work-Lauf 2026-11-20 (budgeting-sx9v5): eine Ablehnung zu einem Target kann im Sheet einer anderen Kategorie landen, wenn inzwischen gewechselt wurde.

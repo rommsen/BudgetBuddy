@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-11-20 05:08 -- Task verified and completed: budgeting-sx9v5 - "Targets und Kategorien verwalten am Handy ohne Toast (R3): Ergebnis am Target im Sheet und in der Zeile der Prüfung, Kategorien verwalten mit leuchtender Zeile und Fehler am Feld, Hinweis „nicht neu gelesen“ auf der Seite"
+
+**Type:** Work / Task completion
+**Task:** budgeting-sx9v5 - "Targets und Kategorien verwalten am Handy ohne Toast (R3): Ergebnis am Target im Sheet und in der Zeile der Prüfung, Kategorien verwalten mit leuchtender Zeile und Fehler am Feld, Hinweis „nicht neu gelesen“ auf der Seite"
+**Summary:** Targets und Kategorien ohne Toast: Bestätigung und Fehler am Ort, Hinweis nicht neu gelesen
+**Duration:** 50m
+**Verification:** PASS (iteration 1)
+**Files changed:** 17
+**Tests added:** 12
+**ADRs written:** none
+
+---
+
+## 2026-11-20 04:45 -- Verification failed: ledger-p5y9s - Detail I ohne Toast
+
+**Type:** Work / Verification failure
+**Task:** ledger-p5y9s
+**Iteration:** 1 of 3
+**Reasons:** Zusammenspiel mit ledger-k68sd: Löschen bei offener Bestätigung am Feld schickt deren Rückgängig für die gelöschte Buchung in die Leiste
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-11-20 04:32 -- Task verified and completed: ledger-k68sd - "Kassenbuch am Handy ohne Toast (R3), Teil 4: gelöschte Buchung hinterlässt eine Zeile am Platz „… gelöscht · Rückgängig“ statt Toast, Fehler beim Löschen unter dem Knopf"
 
 **Type:** Work / Task completion

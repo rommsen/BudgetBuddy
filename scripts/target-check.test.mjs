@@ -131,7 +131,7 @@ after(async () => {
   await stopServer(frontend, frontendPort);
 });
 
-test("[flow:targets-pruefen] Handy: über das Feld Targets prüfen der Leiste Monatserster die Seite öffnen, bei Gibst du mehr aus übernehmen, die Zeile steht danach bei Passt, Zurück führt zur Budget-Seite", async () => {
+test("[flow:targets-pruefen] Handy: über das Feld Targets prüfen der Leiste Monatserster die Seite öffnen, bei Gibst du mehr aus übernehmen, die Bestätigung steht am bisherigen Platz ohne Toast, die Zeile steht danach bei Passt, Zurück führt zur Budget-Seite", async () => {
   const { context, page, calls } = await mockedPage(375, 812);
   try {
     await page.goto(`http://127.0.0.1:${frontendPort}/#/budget`, { waitUntil: "load" });
@@ -148,10 +148,11 @@ test("[flow:targets-pruefen] Handy: über das Feld Targets prüfen der Leiste Mo
     assert.ok((await page.locator('[data-testid="spark-bars"]').count()) > 0, "die Mini-Balken stehen da");
     assert.equal(sparkStops, 0, "die Mini-Balken haben keinen Tab-Stopp");
     await rowOf(page, "Strom q4v8n").getByRole("button", { name: "150 € übernehmen" }).click();
-    // Am Handy steht die Rückmeldung in der Meldungsleiste, Aktion und Detail getrennt (design-system-gkded).
-    const bar = page.getByTestId("feedback-bar");
-    await bar.getByTestId("feedback-action").filter({ hasText: "Strom q4v8n" }).waitFor();
-    await bar.getByTestId("feedback-detail").filter({ hasText: "Target jetzt 150 € monatlich." }).waitFor();
+    // budgeting-sx9v5 (Regel R3): die Bestätigung steht am bisherigen Platz der Zeile, nicht in der Leiste und nicht als
+    // Toast. Die Zeile verlässt „Gibst du mehr aus?“, dort bleibt die schmale Zeile mit Namen.
+    await more.locator('[data-testid="target-check-moved-line"]').filter({ hasText: "Strom q4v8n: Target jetzt 150 € monatlich" }).waitFor();
+    assert.equal(await page.locator(".toast-layer > *").count(), 0, "kein Toast im DOM");
+    assert.equal(await page.locator('[data-testid="feedback-bar"] [data-testid="feedback-action"]').count(), 0, "keine Meldung in der Leiste");
 
     const fits = page.locator('[data-testid="target-check-group"]').filter({ hasText: "Passt" });
     await fits.locator('[data-testid="target-check-group-toggle"]').click();

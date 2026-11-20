@@ -30,7 +30,13 @@ let private monthHint (hint: string option) =
 /// Satz, warum (budgeting-r3wq8), nicht während eines Monatswechsels aus dem laufenden (budgeting-g2ty9, F5).
 let readOnlyTarget (model: Model) (category: BudgetCategory) (target: Target) =
     React.fragment [
-        figure "target-goal" "Target" (targetText target)
+        // Nach gelungenem „Erneut senden“ leuchtet der Wert kurz (budgeting-sx9v5).
+        Html.div [
+            prop.key $"target-goal-{model.TargetFlash.Count}"
+            prop.custom ("data-flash", model.TargetFlash.On)
+            prop.className ("-mx-1 rounded-md px-1 " + (if model.TargetFlash.On then Feedback.flash else ""))
+            prop.children [ figure "target-goal" "Target" (targetText target) ]
+        ]
         match target.Date with
         | Some date -> figure "target-date-text" (targetReadDateLabel target) (dateText date)
         | None -> ()
@@ -64,6 +70,7 @@ let formProps
       Status = status
       Pause = pause
       AmountNote = None
+      AmountFlash = Some model.TargetFlash
       OnAmountChanged = TargetAmountChanged >> dispatch
       OnDateChanged = TargetDateChanged >> dispatch
       OnRhythmChanged = TargetRhythmChanged >> dispatch

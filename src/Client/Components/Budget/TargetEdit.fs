@@ -350,16 +350,36 @@ let startTargetRetry (categoryId: System.Guid) (model: Model) : Model * bool =
         | Success month ->
             categoriesOf month |> List.exists (fun c -> c.Id = categoryId && (targetYnabHints c).NotInYnab.IsSome)
         | _ -> false
-    if model.TargetYnabRetry.IsNone && notInYnab then { model with TargetYnabRetry = Some categoryId }, true
+    if model.TargetYnabRetry.IsNone && notInYnab then
+        { model with TargetYnabRetry = Some categoryId; TargetRetryFailed = None }, true
     else model, false
 
-/// Antwort auf "Erneut senden" am Target: gibt den Knopf frei; ein Fehler nennt den Grund als Toast. Der Aufrufer
-/// liest den Monat danach still neu, der Hinweis kommt aus dem Server.
+/// Steht der Tab Target dieser Kategorie offen (Sheet oder Panel)? Dann steht die Antwort auf "Erneut senden" am Target.
+let private targetTabShows (categoryId: System.Guid) (model: Model) : bool =
+    model.Selected |> Option.exists (fun s -> s.CategoryId = categoryId && not s.ReturnPending) && model.Tab = TargetTab
+
+/// Antwort auf "Erneut senden" am Target: gibt den Knopf frei (Regel R3, budgeting-sx9v5). Steht der Tab Target der
+/// Kategorie offen, steht die Antwort dort: gelungen leuchtet der Target-Wert kurz (kein Text, die Markierung
+/// verschwindet mit dem Neulesen), gescheitert steht der Grund rot unter der Markierung, die "Erneut senden" behält.
+/// Sonst die Zeile im Sheet bzw. die Leiste. Der Aufrufer liest den Monat danach still neu, der Hinweis kommt aus dem
+/// Server.
 let applyTargetRetried (categoryId: System.Guid) (result: Result<unit, string>) (model: Model) : Model * ExternalMsg =
     let released = if model.TargetYnabRetry = Some categoryId then { model with TargetYnabRetry = None } else model
+    let inTab = targetTabShows categoryId model
+    let line tone text = ShowLine { Tone = tone; Text = text; Retry = None; Undo = None }
     match result with
-    | Ok () -> released, ShowToast ("Target in YNAB geschrieben", ToastSuccess)
-    | Error message -> released, ShowToast ($"Target weiter nicht in YNAB: {message}", ToastError)
+    | Ok () when inTab ->
+        { released with
+            TargetRetryFailed = None
+            TargetFlash = { Count = model.TargetFlash.Count + 1; On = true } },
+        NoOp
+    | Ok () -> { released with TargetRetryFailed = None }, line LineOk "Target in YNAB geschrieben"
+    | Error message when inTab -> { released with TargetRetryFailed = Some (categoryId, message) }, NoOp
+    | Error message -> released, line LineError $"Target weiter nicht in YNAB: {message}"
+
+/// Der Grund, warum "Erneut senden" am Target dieser Kategorie scheiterte, `None` ohne.
+let targetRetryFailure (categoryId: System.Guid) (model: Model) : string option =
+    model.TargetRetryFailed |> Option.filter (fun (id, _) -> id = categoryId) |> Option.map snd
 
 /// "Targets nach YNAB schreiben" im Menü: schließt das Menü und öffnet die Bestätigung, außer ein Lauf läuft.
 let askWriteAllTargets (model: Model) : Model =

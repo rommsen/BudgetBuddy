@@ -250,6 +250,14 @@ let private checkReadCmd (read: CheckRead option) (model: Model) : Cmd<Msg> =
     | Some CheckQuietReload -> targetCheckCmd TargetCheckReloaded model.TargetCheck.Generation
     | None -> Cmd.none
 
+/// Setzt die Rückmeldung einer Target-Antwort an ihren Ort (Regel R3, budgeting-sx9v5): in die Zeile auf Targets prüfen
+/// oder als `ShowLine` in die Zeile im Sheet bzw. die Leiste. `before`: das Modell vor der Antwort.
+let private placeTargetFeedback (categoryId: System.Guid) (before: Model) (model: Model) (feedback: TargetFeedback) : Model * ExternalMsg =
+    match feedback with
+    | NoFeedback -> model, NoOp
+    | InCheckRow (tone, text) -> noteInCheckRow categoryId (tone, text) before model, NoOp
+    | FeedbackLine (tone, text) -> model, ShowLine { Tone = tone; Text = text; Retry = None; Undo = None }
+
 /// Startet den Kopf der Schlange, wenn keiner läuft.
 let private flushAssign (model: Model) : Model * Cmd<Msg> =
     match startNextAssign model with
@@ -616,11 +624,11 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
         let origin = targetCallOrigin categoryId month model
         let formOpen = answerFormOpen origin categoryId month model
         let shown = targetAnswerShown categoryId month model
-        let name = checkCategoryName categoryId model
         let answered, reread = applyTargetAnswered categoryId month result model
         // Lief noch ein Laden der Prüfung, liest sie neu: seine Antwort kann älter sein als diese.
         let checked, checkRead = applyCheckAnswered origin categoryId month result answered
-        let model', cmd, external = afterTargetAnswer shown reread (checked, targetAnswerToast origin formOpen name result)
+        let placed = placeTargetFeedback categoryId model checked (targetAnswerFeedback origin formOpen result)
+        let model', cmd, external = afterTargetAnswer shown reread placed
         // Ein angenommenes Target ändert die Hinweise: das Feld Targets prüfen der Leiste liest neu (budgeting-gvajj).
         // Eine Ablehnung schrieb nichts.
         let model', barCmd =
@@ -635,9 +643,11 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
         let lost, reread = applyTargetCallLost categoryId month message model
         // Der Ausgang ist offen: die Prüfung liest neu, wenn sie zum Monat des Aufrufs steht oder noch lädt.
         let checked, checkRead = applyCheckCallLost origin categoryId month message lost
-        // Steht das Formular offen (Tab oder Panel), steht der Satz dort, sonst als Toast.
-        let external = targetCallLostToast origin formOpen checkRead.IsSome reread message
-        let model', cmd, external' = afterTargetAnswer shown reread (checked, external)
+        // Steht das Formular offen (Tab oder Panel), steht der Satz dort, von der Seite in der Zeile, sonst in der Zeile
+        // im Sheet bzw. der Leiste.
+        let placed =
+            placeTargetFeedback categoryId model checked (targetCallLostFeedback origin formOpen checkRead.IsSome reread message)
+        let model', cmd, external' = afterTargetAnswer shown reread placed
         // Vielleicht geschrieben: auch die Leiste liest neu (budgeting-gvajj).
         let model', barCmd = rereadMonthStartCheck model'
         model', Cmd.batch [ cmd; checkReadCmd checkRead model'; barCmd ], external'
@@ -649,9 +659,20 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
         let retried = retryTargetCheck model
         retried, targetCheckCmd TargetCheckLoaded retried.TargetCheck.Generation, NoOp
     | TargetCheckLoaded (generation, result) -> applyTargetCheckLoaded generation result model, Cmd.none, NoOp
-    | TargetCheckReloaded (generation, result) ->
-        let reloaded, external = applyTargetCheckReloaded generation result model
-        reloaded, Cmd.none, external
+    | TargetCheckReloaded (generation, result) -> applyTargetCheckReloaded generation result model, Cmd.none, NoOp
+    | RereadTargetCheck ->
+        match startCheckReread model with
+        | model', true -> model', targetCheckCmd TargetCheckReloaded model'.TargetCheck.Generation, NoOp
+        | model', false -> model', Cmd.none, NoOp
+    | CheckFlashEnded count ->
+        let flash = model.TargetCheck.Flash
+        if flash.Count = count then
+            { model with TargetCheck = { model.TargetCheck with Flash = { flash with On = false } } }, Cmd.none, NoOp
+        else
+            model, Cmd.none, NoOp
+    | TargetFlashEnded count ->
+        if model.TargetFlash.Count = count then { model with TargetFlash = { model.TargetFlash with On = false } }, Cmd.none, NoOp
+        else model, Cmd.none, NoOp
     | ToggleCheckGroup group -> toggleCheckGroup group model, Cmd.none, NoOp
     | LeaveTargetCheck -> model, Cmd.none, leaveTargetCheck model
     | TargetCheckAbandoned -> abandonTargetCheck model, Cmd.none, NoOp
@@ -743,6 +764,9 @@ let private routeOf (msg: Msg) (model: Model) : MsgRoute =
     | RereadStale
     | RereadStaleHistory
     | AvailableFlashEnded _
+    | CheckFlashEnded _
+    | TargetFlashEnded _
+    | RereadTargetCheck
     | GeneralHistoryEntered
     | RetryGeneralHistory
     | GeneralHistoryLoaded _
@@ -938,10 +962,19 @@ let availableFlashMs = 900
 let availableFlashCmd (count: int) : Cmd<Msg> =
     Client.Debounce.delayed availableFlashMs (AvailableFlashEnded count)
 
+/// Der Zeitgeber, der das Leuchten der Zeile auf Targets prüfen beendet (budgeting-sx9v5).
+let checkFlashCmd (count: int) : Cmd<Msg> =
+    Client.Debounce.delayed checkFlashMs (CheckFlashEnded count)
+
+/// Der Zeitgeber, der das Leuchten des Target-Werts im Tab Target beendet (budgeting-sx9v5).
+let targetFlashCmd (count: int) : Cmd<Msg> =
+    Client.Debounce.delayed availableFlashMs (TargetFlashEnded count)
+
 /// Der Einstieg. Jede Nachricht geht ihren Weg (`routeOf`), danach folgt der Tab dem Schlüssel und die
 /// Schlange läuft weiter. Eine Meldung mit Ort geht an ihren Platz (`routeSheetLine`).
 let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
-    let model = if endsSheetLine msg then { model with SheetLine = None } else model
+    let model = if endsSheetLine msg then { model with SheetLine = None; TargetRetryFailed = None } else model
+    let model = if endsCheckNote msg then { model with TargetCheck = { model.TargetCheck with Note = None } } else model
     let busy = inspectorBusy model
     let model', cmd, external =
         match routeOf msg model with
@@ -962,4 +995,15 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
             availableFlashCmd routed.AvailableFlash.Count
         else
             Cmd.none
-    routed, Cmd.batch [ cmd; sendCmd; flashCmd ], external''
+    let checkFlashTimer =
+        let flash = routed.TargetCheck.Flash
+        if flash.On && flash.Count <> model.TargetCheck.Flash.Count then
+            checkFlashCmd flash.Count
+        else
+            Cmd.none
+    let targetFlashTimer =
+        if routed.TargetFlash.On && routed.TargetFlash.Count <> model.TargetFlash.Count then
+            targetFlashCmd routed.TargetFlash.Count
+        else
+            Cmd.none
+    routed, Cmd.batch [ cmd; sendCmd; flashCmd; checkFlashTimer; targetFlashTimer ], external''

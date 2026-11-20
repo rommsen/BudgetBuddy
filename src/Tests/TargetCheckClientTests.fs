@@ -121,6 +121,9 @@ let private panelOf (model: Model) : TargetForm =
     | Some form -> form
     | None -> failtest "Panel erwartet"
 
+/// Ton und Satz der Rückmeldung an der Zeile (budgeting-sx9v5).
+let private noteOf (model: Model) = model.TargetCheck.Note |> Option.map (fun n -> n.Tone, n.Text)
+
 let private answered (id: Guid) (result: Result<TargetChangeResult, string>) (model: Model) =
     update (TargetChangeAnswered (id, current, result)) model
 
@@ -222,61 +225,63 @@ let private pageTests =
             Expect.isTrue (nothingToCheck (checkGroups onlyFits)) "nur Passt"
             Expect.isFalse (nothingToCheck (checkGroups checkData)) "mit Gruppen"
         }
-        test "Der Toast einer Antwort: festgehalten von der Seite ein Erfolg, sonst offenes Formular keiner, von der Seite wie übernehmen, sonst Ablehnung als Warnung" {
-            let name = Some "Strom"
+        // budgeting-sx9v5 (Regel R3): kein Toast für eine Antwort mit Ort, am Handy und am PC gleich.
+        test "Der Ort einer Antwort: festgehalten von der Seite grün in der Zeile, sonst offenes Formular nichts, von der Seite in der Zeile wie übernehmen, sonst gelb in der Zeile im Sheet" {
             let notWritten = [ Ok (TargetChangedMeanwhile None); Error "nein" ]
             for origin in [ Some FromCheckRow; Some FromCheckPanel ] do
                 for formOpen in [ true; false ] do
-                    Expect.equal (targetAnswerToast origin formOpen name (Ok (TargetWritten None))) (ShowToast ("Strom: Target entfernt.", ToastSuccess)) $"{origin}, {formOpen}: Erfolg"
-                    Expect.equal (targetAnswerToast origin formOpen name (Ok (TargetWritten (Some (monthly 175m)))))
-                        (ShowToast ("Strom: Target jetzt 175 € monatlich.", ToastSuccess)) $"{origin}, {formOpen}: Erfolg mit Betrag"
+                    Expect.equal (targetAnswerFeedback origin formOpen (Ok (TargetWritten None))) (InCheckRow (LineOk, "Target entfernt")) $"{origin}, {formOpen}: Erfolg"
+                    Expect.equal (targetAnswerFeedback origin formOpen (Ok (TargetWritten (Some (monthly 175m)))))
+                        (InCheckRow (LineOk, "Target jetzt 175 € monatlich")) $"{origin}, {formOpen}: Erfolg mit Betrag"
                 for result in notWritten do
-                    Expect.equal (targetAnswerToast origin false name result) (takeAnswerToast result) $"{origin}, {result}: wie übernehmen"
+                    Expect.equal (targetAnswerFeedback origin false result) (InCheckRow (takeAnswerNote result)) $"{origin}, {result}: wie übernehmen"
             for origin in [ Some FromCheckRow; Some FromCheckPanel; Some FromTargetTab; None ] do
                 for result in notWritten do
-                    Expect.equal (targetAnswerToast origin true name result) NoOp $"{origin}, {result}: offenes Formular"
-            Expect.equal (takeAnswerToast (Error "nein")) (ShowToast ("Target nicht gespeichert: nein", ToastError)) "abgelehnt als Fehler"
+                    Expect.equal (targetAnswerFeedback origin true result) NoFeedback $"{origin}, {result}: offenes Formular"
+            Expect.equal (takeAnswerNote (Error "nein")) (LineError, "Target nicht gespeichert: nein") "abgelehnt rot"
+            Expect.equal (takeAnswerNote (Ok (TargetChangedMeanwhile None))) (LineWarning, targetRejectedAwayText TargetChangedMeanwhileText) "inzwischen geändert gelb"
             for origin in [ Some FromTargetTab; None ] do
-                Expect.equal (targetAnswerToast origin false name (Error "nein")) (ShowToast ("Target nicht gespeichert: nein", ToastWarning)) $"{origin}: Warnung"
-                Expect.equal (targetAnswerToast origin false name (Ok (TargetChangedMeanwhile None)))
-                    (ShowToast (targetRejectedAwayText TargetChangedMeanwhileText, ToastWarning)) $"{origin}: inzwischen geändert"
-                Expect.equal (targetAnswerToast origin false name (Ok (TargetWritten None))) NoOp $"{origin}: festgehalten ohne Toast"
+                Expect.equal (targetAnswerFeedback origin false (Error "nein")) (FeedbackLine (LineWarning, "Target nicht gespeichert: nein")) $"{origin}: Warnung"
+                Expect.equal (targetAnswerFeedback origin false (Ok (TargetChangedMeanwhile None)))
+                    (FeedbackLine (LineWarning, targetRejectedAwayText TargetChangedMeanwhileText)) $"{origin}: inzwischen geändert"
+                Expect.equal (targetAnswerFeedback origin false (Ok (TargetWritten None))) NoFeedback $"{origin}: festgehalten ohne Meldung"
         }
-        // Review zu budgeting-c4ve4: kam die Antwort, während die Prüfung lud (`Data = Loading`), fehlte der Name und
-        // der Erfolgs-Toast blieb still.
-        test "Kommt die Erfolgsantwort, während die Prüfung lädt, meldet ein allgemeiner Satz ohne Namen" {
+        // Review zu budgeting-c4ve4: kam die Antwort, während die Prüfung lud (`Data = Loading`), fehlte der Name. Seit
+        // budgeting-sx9v5 steht die Bestätigung in der Zeile, die den Namen zeigt; sie wartet, bis die Prüfung steht.
+        test "Kommt die Erfolgsantwort, während die Prüfung lädt, steht die Bestätigung danach in der Zeile" {
             // GIVEN übernehmen bei "weniger", dann wird die Seite neu betreten. WHEN die Antwort kommt.
             let saving = loaded () |> step (TakeSuggestion lessId) |> step TargetCheckEntered
             Expect.equal saving.TargetCheck.Data Loading "die Prüfung lädt"
-            let _, _, saved = saving |> answered lessId (Ok (TargetWritten (Some { lessTarget with Goal = eur 23m })))
-            Expect.equal saved (ShowToast ("Target gespeichert.", ToastSuccess)) "gespeichert"
-            // Entfernen im Panel, dann wiederholt die Seite das Laden.
-            let removing =
-                loaded () |> step (AdjustTarget moreId) |> step AskRemoveCheckTarget |> step ConfirmRemoveCheckTarget |> step TargetCheckEntered
-            Expect.equal removing.TargetCheck.Data Loading "die Prüfung lädt"
-            let _, _, removed = removing |> answered moreId (Ok (TargetWritten None))
-            Expect.equal removed (ShowToast ("Target entfernt.", ToastSuccess)) "entfernt"
-            // intakt: geladen steht der Name im Satz.
-            let _, _, named = loaded () |> step (TakeSuggestion lessId) |> answered lessId (Ok (TargetWritten (Some { lessTarget with Goal = eur 23m })))
-            Expect.equal named (ShowToast ("Kantine: Target jetzt 23 € wöchentlich.", ToastSuccess)) "mit Namen"
+            let saved, _, external = saving |> answered lessId (Ok (TargetWritten (Some { lessTarget with Goal = eur 23m })))
+            Expect.equal external NoOp "kein Toast"
+            Expect.equal saved.TargetCheck.Note
+                (Some { CategoryId = lessId; Tone = LineOk; Text = "Target jetzt 23 € wöchentlich"; Name = ""; From = None }) "ohne Platz"
+            let shown = saved |> step (TargetCheckLoaded (saved.TargetCheck.Generation, Ok checkData))
+            Expect.equal (checkNotePlace (checkGroups (dataOf shown)) shown.TargetCheck.Note.Value) NoteInRow "danach in der Zeile"
+            // intakt: geladen trägt die Rückmeldung Namen und bisherigen Platz.
+            let named, _, _ = loaded () |> step (TakeSuggestion lessId) |> answered lessId (Ok (TargetWritten (Some { lessTarget with Goal = eur 23m })))
+            Expect.equal (named.TargetCheck.Note |> Option.map (fun n -> n.Name, n.From)) (Some ("Kantine", Some (SpendsLess, 0))) "mit Namen und Platz"
         }
-        test "Der Satz des Erfolgs-Toasts: ganze Euro ohne Cent, sonst genau, mit dem Rhythmus als Wort" {
-            Expect.equal (targetWrittenText "Kantine" (Some (weekly 35m))) "Kantine: Target jetzt 35 € wöchentlich." "wöchentlich"
-            Expect.equal (targetWrittenText "Kantine" (Some (monthly 172.5m))) "Kantine: Target jetzt 172,50 € monatlich." "mit Cent"
-            Expect.equal (targetWrittenText "Kantine" (Some { monthly 1260m with Rhythm = Years 1 })) "Kantine: Target jetzt 1.260 € jährlich." "jährlich, mit Tausenderpunkt"
-            Expect.equal (targetWrittenText "Kantine" None) "Kantine: Target entfernt." "entfernt"
+        test "Die Bestätigung: ganze Euro ohne Cent, sonst genau, mit dem Rhythmus als Wort; am bisherigen Platz mit Namen" {
+            Expect.equal (targetWrittenRowText (Some (weekly 35m))) "Target jetzt 35 € wöchentlich" "wöchentlich"
+            Expect.equal (targetWrittenRowText (Some (monthly 172.5m))) "Target jetzt 172,50 € monatlich" "mit Cent"
+            Expect.equal (targetWrittenRowText (Some { monthly 1260m with Rhythm = Years 1 })) "Target jetzt 1.260 € jährlich" "jährlich, mit Tausenderpunkt"
+            Expect.equal (targetWrittenRowText None) "Target entfernt" "entfernt"
+            let note = { CategoryId = moreId; Tone = LineOk; Text = "Target jetzt 175 € monatlich"; Name = "Essen auswärts"; From = Some (SpendsMore, 0) }
+            Expect.equal (checkNoteMovedText note) "Essen auswärts: Target jetzt 175 € monatlich" "mit Namen"
+            Expect.equal (checkNoteMovedText { note with Name = "" }) "Target jetzt 175 € monatlich" "ohne Namen nur der Satz"
         }
-        test "Der Toast eines Abbruchs: offenes Formular keiner, von der Seite verspricht er nur das Neuladen der Prüfung" {
-            let toast rereads = ShowToast (targetCallLostText rereads "weg", ToastError)
+        test "Der Ort eines Abbruchs: offenes Formular nichts, von der Seite rot in der Zeile mit dem Versprechen nur des Neuladens der Prüfung, sonst rot in der Zeile im Sheet" {
+            let lost rereads = targetCallLostText rereads "weg"
             for origin in [ Some FromCheckRow; Some FromCheckPanel; Some FromTargetTab; None ] do
-                Expect.equal (targetCallLostToast origin true true true "weg") NoOp $"{origin}: offenes Formular"
+                Expect.equal (targetCallLostFeedback origin true true true "weg") NoFeedback $"{origin}: offenes Formular"
             for origin in [ Some FromCheckRow; Some FromCheckPanel ] do
-                Expect.equal (targetCallLostToast origin false true false "weg") (toast true) $"{origin}: Prüfung lädt neu"
-                Expect.equal (targetCallLostToast origin false false true "weg") (toast false) $"{origin}: nur der Monat, kein Versprechen"
+                Expect.equal (targetCallLostFeedback origin false true false "weg") (InCheckRow (LineError, lost true)) $"{origin}: Prüfung lädt neu"
+                Expect.equal (targetCallLostFeedback origin false false true "weg") (InCheckRow (LineError, lost false)) $"{origin}: nur der Monat, kein Versprechen"
             for origin in [ Some FromTargetTab; None ] do
-                Expect.equal (targetCallLostToast origin false false true "weg") (toast true) $"{origin}: Monat liest neu"
-                Expect.equal (targetCallLostToast origin false true false "weg") (toast true) $"{origin}: Prüfung lädt neu"
-                Expect.equal (targetCallLostToast origin false false false "weg") (toast false) $"{origin}: nichts liest neu"
+                Expect.equal (targetCallLostFeedback origin false false true "weg") (FeedbackLine (LineError, lost true)) $"{origin}: Monat liest neu"
+                Expect.equal (targetCallLostFeedback origin false true false "weg") (FeedbackLine (LineError, lost true)) $"{origin}: Prüfung lädt neu"
+                Expect.equal (targetCallLostFeedback origin false false false "weg") (FeedbackLine (LineError, lost false)) $"{origin}: nichts liest neu"
         }
     ]
 
@@ -336,25 +341,34 @@ let private takeTests =
             Expect.equal (fitsNoteText (RecentlySet today)) "neu gesetzt am 06.11.2026" "der Satz"
             Expect.equal (budgetTarget after moreId) (Some written) "im geladenen Monat"
             Expect.equal (groupOf after lessId) SpendsLess "andere Zeilen bleiben"
-            Expect.equal (after.TargetCall, external) (TargetIdle, ShowToast ("Strom: Target jetzt 150 € monatlich.", ToastSuccess)) "frei, Erfolgs-Toast"
+            Expect.equal (after.TargetCall, external) (TargetIdle, NoOp) "frei, kein Toast"
+            Expect.equal (noteOf after) (Some (LineOk, "Target jetzt 150 € monatlich")) "Bestätigung in der Zeile"
+            // Die Zeile verließ "Gibst du mehr aus?": die Bestätigung steht dort als schmale Zeile mit Namen.
+            Expect.equal (checkNotePlace (checkGroups (dataOf after)) after.TargetCheck.Note.Value) (NoteBefore (Some SpendsLess)) "am bisherigen Platz"
+            Expect.isTrue after.TargetCheck.Flash.On "leuchtet"
         }
-        test "TargetChangedMeanwhile ordnet mit BBs Stand neu ein und meldet per Warn-Toast" {
+        test "TargetChangedMeanwhile ordnet mit BBs Stand neu ein und meldet gelb an der Zeile" {
             let bbs = monthly 150m
             let after, _, external = loaded () |> step (TakeSuggestion moreId) |> answered moreId (Ok (TargetChangedMeanwhile (Some bbs)))
             Expect.equal ((rowIn after moreId).Target, (rowIn after moreId).Group, (rowIn after moreId).Note) (Some bbs, Fits, None) "BBs Stand, ohne neue Änderung"
             Expect.equal (budgetTarget after moreId) (Some bbs) "im geladenen Monat"
-            Expect.equal external (ShowToast (targetRejectedAwayText TargetChangedMeanwhileText, ToastWarning)) "Warn-Toast"
+            Expect.equal external NoOp "kein Toast"
+            Expect.equal (noteOf after) (Some (LineWarning, targetRejectedAwayText TargetChangedMeanwhileText)) "gelb an der Zeile"
+            Expect.isFalse after.TargetCheck.Flash.On "leuchtet nicht"
         }
         test "Error lässt die Zeile stehen und meldet Target nicht gespeichert mit Grund" {
             let after, _, external = loaded () |> step (TakeSuggestion moreId) |> answered moreId (Error "Kategorie gelöscht")
             Expect.equal (groupOf after moreId) SpendsMore "unverändert"
-            Expect.equal external (ShowToast ("Target nicht gespeichert: Kategorie gelöscht", ToastError)) "Fehler-Toast"
+            Expect.equal external NoOp "kein Toast"
+            Expect.equal (noteOf after) (Some (LineError, "Target nicht gespeichert: Kategorie gelöscht")) "rot in der Zeile"
+            Expect.equal (checkNotePlace (checkGroups (dataOf after)) after.TargetCheck.Note.Value) NoteInRow "in ihrer Zeile"
             Expect.equal after.TargetCall TargetIdle "frei"
         }
         test "Ein abgebrochener Aufruf meldet und lädt die Prüfung still neu, die Liste bleibt stehen" {
             let running = loaded () |> step (TakeSuggestion moreId)
             let lost, cmd, external = update (TargetChangeCallLost (moreId, current, "Http error (0)")) running
-            Expect.equal external (ShowToast (targetCallLostText true "Http error (0)", ToastError)) "Fehler-Toast"
+            Expect.equal external NoOp "kein Toast"
+            Expect.equal (noteOf lost) (Some (LineError, targetCallLostText true "Http error (0)")) "rot in der Zeile"
             Expect.isGreaterThan lost.TargetCheck.Generation running.TargetCheck.Generation "lädt neu"
             Expect.equal lost.TargetCheck.Data running.TargetCheck.Data "ohne Loading"
             Expect.isNonEmpty cmd "Aufruf"
@@ -362,10 +376,13 @@ let private takeTests =
             Expect.equal (dataOf reloaded).Categories [] "die neue Antwort steht"
             let failed, _, failedToast = update (TargetCheckReloaded (lost.TargetCheck.Generation, Error "weg")) lost
             Expect.equal failed.TargetCheck.Data running.TargetCheck.Data "ein Fehler lässt die Liste stehen"
-            // Review zu budgeting-q4v8n: ein gescheitertes stilles Neuladen blieb ohne jede Anzeige.
-            Expect.equal failedToast (ShowToast ("Prüfung nicht neu gelesen, sie kann veraltet sein: weg", ToastWarning)) "Warn-Toast mit Grund"
-            let _, _, staleToast = update (TargetCheckReloaded (lost.TargetCheck.Generation - 1, Error "alt")) lost
-            Expect.equal staleToast NoOp "ein überholter Fehler meldet nichts"
+            // Review zu budgeting-q4v8n: ein gescheitertes stilles Neuladen blieb ohne jede Anzeige. Seit budgeting-sx9v5 ein
+            // Hinweis auf der Seite statt eines Toasts.
+            Expect.equal failedToast NoOp "kein Toast"
+            Expect.equal failed.TargetCheck.Stale (Some (ReadFailed "weg")) "Hinweis mit Grund"
+            Expect.equal (noteOf failed) (noteOf lost) "die Zeile behält ihre Rückmeldung"
+            let stale, _, staleToast = update (TargetCheckReloaded (lost.TargetCheck.Generation - 1, Error "alt")) lost
+            Expect.equal (staleToast, stale.TargetCheck.Stale) (NoOp, None) "ein überholter Fehler meldet nichts"
         }
         // Review zu budgeting-q4v8n: ein stilles Neuladen, das vor einer Schreib-Antwort startete, ersetzte mit
         // seinem älteren Stand die Rohdaten danach. Ebenso das Laden beim Betreten, das noch lief.
@@ -394,7 +411,8 @@ let private takeTests =
         test "Lädt die Prüfung nach einem Abbruch nicht neu, verspricht der Satz in Toast und Panel kein Neuladen" {
             let failedRow = loaded () |> step (TakeSuggestion moreId) |> step TargetCheckEntered |> answer (Error "kaputt")
             let lost, _, external = update (TargetChangeCallLost (moreId, current, "weg")) failedRow
-            Expect.equal external (ShowToast (targetCallLostText false "weg", ToastError)) "Toast der Zeile"
+            Expect.equal external NoOp "kein Toast"
+            Expect.equal (noteOf lost) (Some (LineError, targetCallLostText false "weg")) "in der Zeile"
             Expect.equal lost.TargetCheck.Generation failedRow.TargetCheck.Generation "lädt nicht"
             let failedPanel =
                 loaded () |> step (AdjustTarget moreId) |> step SaveCheckTarget |> step RetryTargetCheck |> answer (Error "kaputt")
@@ -442,7 +460,8 @@ let private panelTests =
             let after, _, external = opened |> step SaveCheckTarget |> answered moreId (Ok (TargetWritten (Some (monthly 150m))))
             Expect.isNone after.TargetCheck.Panel "zu"
             Expect.equal (rowIn after moreId).Note (Some (RecentlySet today)) "Passt, neu gesetzt"
-            Expect.equal external (ShowToast ("Strom: Target jetzt 150 € monatlich.", ToastSuccess)) "Erfolgs-Toast, das Panel ist zu"
+            Expect.equal external NoOp "kein Toast, das Panel ist zu"
+            Expect.equal (noteOf after) (Some (LineOk, "Target jetzt 150 € monatlich")) "Bestätigung an der Zeile"
         }
         test "Entfernen mit TargetWritten None setzt entfernt am heute" {
             let asked = loaded () |> step (AdjustTarget fitsId) |> step AskRemoveCheckTarget
@@ -451,7 +470,8 @@ let private panelTests =
             Expect.isNonEmpty cmd "gesendet"
             Expect.equal removing.TargetCall (TargetSaving (fitsId, current, RemovingTarget, FromCheckPanel)) "entfernen läuft"
             let after, _, external = removing |> answered fitsId (Ok (TargetWritten None))
-            Expect.equal external (ShowToast ("Internet: Target entfernt.", ToastSuccess)) "Erfolgs-Toast"
+            Expect.equal external NoOp "kein Toast"
+            Expect.equal (noteOf after) (Some (LineOk, "Target entfernt")) "Bestätigung an der Zeile"
             Expect.equal ((rowIn after fitsId).Note, (rowIn after fitsId).Target) (Some (RecentlyRemoved today), None) "entfernt"
             Expect.equal (fitsNoteText (RecentlyRemoved today)) "entfernt am 06.11.2026" "der Satz"
             Expect.isNone after.TargetCheck.Panel "zu"
@@ -473,11 +493,12 @@ let private panelTests =
             Expect.isNonEmpty cmd "Aufruf"
         }
         // Review zu budgeting-q4v8n: Abgelehnt nach geschlossenem Panel meldet derselbe Fehler-Toast wie übernehmen.
-        test "Kommt die Ablehnung, nachdem das Panel während des Aufrufs geschlossen wurde, meldet ein Fehler-Toast" {
+        test "Kommt die Ablehnung, nachdem das Panel während des Aufrufs geschlossen wurde, steht sie rot in der Zeile" {
             let after, _, external =
                 loaded () |> step (AdjustTarget moreId) |> step SaveCheckTarget |> step CloseCheckPanel
                 |> answered moreId (Error "Kategorie gelöscht")
-            Expect.equal external (ShowToast ("Target nicht gespeichert: Kategorie gelöscht", ToastError)) "Fehler-Toast"
+            Expect.equal external NoOp "kein Toast"
+            Expect.equal (noteOf after) (Some (LineError, "Target nicht gespeichert: Kategorie gelöscht")) "rot in der Zeile"
             Expect.isNone after.TargetCheck.Panel "bleibt zu"
         }
         // Review zu budgeting-q4v8n: ein neuer Monat in den Rohdaten ließ das Panel unsichtbar offen.
@@ -873,5 +894,72 @@ let private keyTests =
         }
     ]
 
+// ============================================
+// Rückmeldung am Ort (budgeting-sx9v5, Regel R3)
+// ============================================
+
+let private placeTests =
+    testList "Targets prüfen: Rückmeldung am Ort" [
+        test "Die Rückmeldung bleibt bis zur nächsten Aktion auf der Seite; Aufklappen, Laden und Antworten lassen sie stehen" {
+            let noted, _, _ = loaded () |> step (TakeSuggestion lessId) |> answered lessId (Error "nein")
+            Expect.isSome noted.TargetCheck.Note "steht"
+            let keeps =
+                [ ToggleCheckGroup Fits
+                  TargetCheckReloaded (noted.TargetCheck.Generation, Ok checkData)
+                  TargetCheckLoaded (noted.TargetCheck.Generation, Ok checkData)
+                  CheckFlashEnded noted.TargetCheck.Flash.Count
+                  TargetChangeAnswered (moreId, current, Error "fremd") ]
+            for msg in keeps do
+                Expect.equal (noteOf (noted |> step msg)) (noteOf noted) $"{msg} lässt sie stehen"
+            let ends =
+                [ TakeSuggestion moreId; AdjustTarget moreId; TargetCheckEntered; RetryTargetCheck; LeaveTargetCheck
+                  CloseCheckPanel; AskRemoveCheckTarget; SaveCheckTarget ]
+            for msg in ends do
+                Expect.isNone (noted |> step msg).TargetCheck.Note $"{msg} beendet sie"
+        }
+        test "Nur ein geschriebenes Target leuchtet, jedes Leuchten zählt, das Ende eines älteren nimmt ein neueres nicht ab" {
+            let written = Ok (TargetWritten (Some { lessTarget with Goal = eur 23m }))
+            let first, _, _ = loaded () |> step (TakeSuggestion lessId) |> answered lessId written
+            Expect.equal (first.TargetCheck.Flash.On, first.TargetCheck.Flash.Count) (true, 1) "leuchtet"
+            let second, _, _ = first |> step (TakeSuggestion withoutId) |> answered withoutId (Ok (TargetWritten (Some (monthly 20m))))
+            Expect.equal second.TargetCheck.Flash.Count 2 "zweites Leuchten"
+            Expect.isTrue (second |> step (CheckFlashEnded 1)).TargetCheck.Flash.On "das ältere Ende nimmt es nicht ab"
+            Expect.isFalse (second |> step (CheckFlashEnded 2)).TargetCheck.Flash.On "das eigene Ende"
+            let failed, _, _ = second |> step (TakeSuggestion moreId) |> answered moreId (Error "nein")
+            Expect.isFalse failed.TargetCheck.Flash.On "ein Fehler leuchtet nicht"
+            CmdTiming.expectAfter checkFlashMs (CheckFlashEnded 2) (Components.Budget.State.checkFlashCmd 2)
+        }
+        test "Der Platz: in der eigenen Gruppe in der Zeile, sonst am bisherigen Platz der Gruppe, fiel sie weg vor der nächsten, am Ende ohne" {
+            let groups = checkGroups checkData
+            let note group index = { CategoryId = lessId; Tone = LineOk; Text = "x"; Name = "Kantine"; From = Some (group, index) }
+            Expect.equal (checkNotePlace groups (note SpendsLess 0)) NoteInRow "eigene Gruppe"
+            // Kantine steht in "weniger"; die Rückmeldung kam aus "mehr" (Platz 5 gibt es dort nicht: ans Ende).
+            Expect.equal (checkNotePlace groups (note SpendsMore 5)) (NoteAt (SpendsMore, 1)) "am Platz, höchstens am Ende"
+            let withoutMore = checkGroups { checkData with Categories = checkData.Categories |> List.filter (fun c -> c.CategoryId <> moreId) }
+            Expect.equal (checkNotePlace withoutMore (note SpendsMore 0)) (NoteBefore (Some SpendsLess)) "Gruppe weg: vor der nächsten"
+            let onlyMore = checkGroups { checkData with Categories = checkData.Categories |> List.filter (fun c -> c.CategoryId = moreId) }
+            Expect.equal (checkNotePlace onlyMore (note Fits 0)) (NoteBefore None) "danach keine: am Ende"
+            Expect.equal (checkNotePlace onlyMore { note SpendsLess 0 with From = None }) NoteHidden "Kategorie nicht in der Prüfung"
+        }
+        test "Prüfung nicht neu gelesen: Hinweis bis ein Neu-Lesen gelingt, Neu laden liest still einmal, ein neuer Fehler bleibt Hinweis" {
+            let start = loaded () |> step (TakeSuggestion moreId) |> step (TargetChangeCallLost (moreId, current, "weg"))
+            let failed = start |> step (TargetCheckReloaded (start.TargetCheck.Generation, Error "503"))
+            Expect.equal failed.TargetCheck.Stale (Some (ReadFailed "503")) "Hinweis"
+            Expect.equal CheckStaleText "Prüfung nicht neu gelesen, sie kann veraltet sein." "Satz"
+            let rereading, cmd, external = update RereadTargetCheck failed
+            Expect.isNonEmpty cmd "liest neu"
+            Expect.equal external NoOp "kein Toast"
+            Expect.equal rereading.TargetCheck.Stale (Some (Rereading "503")) "läuft, der Grund bleibt"
+            Expect.equal rereading.TargetCheck.Data failed.TargetCheck.Data "ohne Loading"
+            Expect.isFalse (sends RereadTargetCheck rereading) "kein zweiter Aufruf"
+            let again = rereading |> step (TargetCheckReloaded (rereading.TargetCheck.Generation, Error "504"))
+            Expect.equal again.TargetCheck.Stale (Some (ReadFailed "504")) "wieder gescheitert"
+            let read = rereading |> step (TargetCheckReloaded (rereading.TargetCheck.Generation, Ok checkData))
+            Expect.isNone read.TargetCheck.Stale "gelungen: weg"
+            Expect.isNone (again |> step TargetCheckEntered |> answer (Ok checkData)).TargetCheck.Stale "auch nach neuem Betreten"
+            Expect.isFalse (sends RereadTargetCheck (loaded ())) "ohne Hinweis nichts"
+        }
+    ]
+
 [<Tests>]
-let tests = testList "Targets prüfen" [ pageTests; takeTests; panelTests; originTests; walkTests; sketchTests; keyTests ]
+let tests = testList "Targets prüfen" [ pageTests; takeTests; panelTests; originTests; walkTests; sketchTests; keyTests; placeTests ]

@@ -5,6 +5,7 @@
 /// Panel rechts (§7.6).
 module Components.Budget.CategoriesView
 
+open Fable.Core
 open Feliz
 open Shared.Budgeting
 open Types
@@ -22,6 +23,28 @@ let IntroText =
 /// Roman im Review-Lauf e83f2d00..ad18f0c9, Abweichung von Prototyp Version 17).
 let ActiveSwitchText = "Deaktiviert verschwindet sie aus Auswahl und Budget. Buchungen und Historie bleiben. Nur in BB, YNAB bleibt unverändert."
 
+[<Emit("$0 && $0.scrollIntoView({ block: 'nearest' })")>]
+let private scrollIntoViewNearest (element: obj) : unit = jsNative
+
+/// Rollt seinen Inhalt beim Erscheinen ins Bild (`block: nearest`), je `key` einmal: die neue oder geänderte Zeile nach
+/// dem Speichern (budgeting-sx9v5).
+[<ReactComponent>]
+let private Revealed (key: string) (child: ReactElement) =
+    let element = React.useElementRef ()
+    React.useEffect ((fun () -> element.current |> Option.iter (box >> scrollIntoViewNearest)), [| box key |])
+    Html.div [ prop.ref element; prop.children [ child ] ]
+
+/// Eine markierte Zeile in einer Karte: die Hülle trägt den Rand der Zeile, das Leuchten und darunter die Rückmeldung.
+/// Ohne Markierung bleibt die Zeile, wie sie ist.
+let private markedRow (key: string) (lit: bool) (row: ReactElement) (below: ReactElement) =
+    Html.div [
+        prop.key key
+        prop.custom ("data-testid", "categories-marked")
+        prop.custom ("data-flash", lit)
+        prop.className ("border-b border-border-subtle last:border-b-0 " + (if lit then Feedback.flash else ""))
+        prop.children [ row; below ]
+    ]
+
 let private header (dispatch: Msg -> unit) =
     Html.div [
         prop.custom ("data-testid", "categories-head")
@@ -32,14 +55,17 @@ let private header (dispatch: Msg -> unit) =
         ]
     ]
 
-let private groupSection (group: ManagedCategoryGroup) (dispatch: Msg -> unit) =
+let private groupSection (model: Model) (group: ManagedCategoryGroup) (dispatch: Msg -> unit) =
+    let headLit = model.Mark = Some (GroupLit group.Id) && model.MarkLit
     Html.section [
         prop.key (string group.Id)
         prop.custom ("data-testid", "categories-group")
         prop.className "flex flex-col gap-2"
         prop.children [
             Html.div [
-                prop.className "flex items-center justify-between gap-3 min-w-0"
+                prop.custom ("data-testid", "categories-group-head")
+                prop.custom ("data-flash", headLit)
+                prop.className ("-mx-1 flex items-center justify-between gap-3 min-w-0 rounded-md px-1 " + (if headLit then Feedback.flash else ""))
                 prop.children [
                     Html.h2 (Truncate.textProps ListRoles.groupHeader group.Name)
                     Html.div [
@@ -54,12 +80,18 @@ let private groupSection (group: ManagedCategoryGroup) (dispatch: Msg -> unit) =
                     ]
                 ]
             ]
+            // Scheiterte die Reihenfolge, steht der Grund rot unter dem Kopf, bis zur nächsten Aktion.
+            match model.Mark with
+            | Some (OrderFailed (groupId, message)) when groupId = group.Id ->
+                Html.div [ prop.custom ("data-testid", "categories-order-error"); prop.children [ ErrorDisplay.inline' message ] ]
+            | _ -> ()
             let active = activeCategories group
             if not active.IsEmpty then
                 Html.div [
                     prop.className cardClass
                     prop.children [
                         for category in active do
+                          let row =
                             Button.orderNameRow
                                 (string category.Id)
                                 "categories-row"
@@ -76,6 +108,11 @@ let private groupSection (group: ManagedCategoryGroup) (dispatch: Msg -> unit) =
                                 (canMove StepDown category.Id group)
                                 (fun () -> dispatch (MoveCategory (category.Id, StepUp)))
                                 (fun () -> dispatch (MoveCategory (category.Id, StepDown)))
+                          // Angelegt, gespeichert oder wieder aktiv: die Zeile leuchtet kurz und wird ins Bild gerollt.
+                          match model.Mark with
+                          | Some (CategoryLit id) when id = category.Id ->
+                              markedRow (string category.Id) model.MarkLit (Revealed $"{category.Id}-{model.MarkCount}" row) Html.none
+                          | _ -> row
                     ]
                 ]
         ]
@@ -106,7 +143,7 @@ let private addButtons (dispatch: Msg -> unit) =
 
 /// Der Abschnitt "Deaktiviert (n)": eingeklappt eine Zeile mit Chevron, aufgeklappt eine Karte mit Name (gedämpft),
 /// Gruppe und "Aktivieren" je Kategorie. Ohne deaktivierte Kategorie fehlt er.
-let private inactiveSection (groups: ManagedCategoryGroup list) (isOpen: bool) (dispatch: Msg -> unit) =
+let private inactiveSection (model: Model) (groups: ManagedCategoryGroup list) (isOpen: bool) (dispatch: Msg -> unit) =
     let inactive = inactiveCategories groups
     if inactive.IsEmpty then
         Html.none
@@ -127,6 +164,7 @@ let private inactiveSection (groups: ManagedCategoryGroup list) (isOpen: bool) (
                     prop.hidden (not isOpen)
                     prop.children [
                         for group, category in inactive do
+                          let row =
                             Html.div [
                                 prop.key (string category.Id)
                                 prop.custom ("data-testid", "categories-inactive-row")
@@ -149,6 +187,29 @@ let private inactiveSection (groups: ManagedCategoryGroup list) (isOpen: bool) (
                                             OnClick = fun () -> dispatch (Reactivate category.Id) }
                                 ]
                             ]
+                          // Deaktiviert: die Zeile leuchtet, darunter der Satz zu YNAB; Aktivieren abgelehnt: rot darunter.
+                          let below (content: ReactElement) =
+                              Html.div [ prop.className "px-4 pb-2.5 -mt-1"; prop.children [ content ] ]
+                          match model.Mark with
+                          | Some (Deactivated id) when id = category.Id ->
+                              markedRow
+                                  (string category.Id)
+                                  model.MarkLit
+                                  (Revealed $"{category.Id}-{model.MarkCount}" row)
+                                  (below (
+                                      Html.p [
+                                          prop.custom ("data-testid", "categories-deactivated-note")
+                                          prop.className ListRoles.secondary
+                                          prop.text DeactivatedNotice
+                                      ]
+                                  ))
+                          | Some (ReactivateFailed (id, message)) when id = category.Id ->
+                              markedRow
+                                  (string category.Id)
+                                  false
+                                  (Html.div [ prop.children [ row ] ])
+                                  (below (Html.div [ prop.custom ("data-testid", "categories-reactivate-error"); prop.children [ ErrorDisplay.inline' message ] ]))
+                          | _ -> row
                     ]
                 ]
             ]
@@ -209,7 +270,7 @@ let private groupNameOf (groups: ManagedCategoryGroup list) (groupId: System.Gui
 
 /// Der Inhalt des Formulars: Name, bei einer Kategorie das Feld Gruppe (öffnet die Auswahl, G13), in beiden
 /// Formularen der Hinweis zu YNAB, darunter ein Fehler.
-let private formBody (groups: ManagedCategoryGroup list) (form: Form) (dispatch: Msg -> unit) =
+let private formBody (model: Model) (groups: ManagedCategoryGroup list) (form: Form) (dispatch: Msg -> unit) =
     let name =
         match form.Editor with
         | EditingCategory editor -> editor.Name
@@ -222,8 +283,12 @@ let private formBody (groups: ManagedCategoryGroup list) (form: Form) (dispatch:
         prop.custom ("data-testid", "categories-form")
         prop.className "flex flex-col gap-3.5"
         prop.children [
-            Input.groupSimple
+            // Ein Fehler des Servers steht am Feld (Regel R3, `.claude/rules/task-ui-vorgaben.md`): Name und Gruppe am
+            // Feld Name, das Deaktivieren am Schalter Aktiv.
+            let nameError = if form.FailedCall = Some SavingActive then None else form.Error
+            Input.groupWithError
                 "Name"
+                nameError
                 (Input.text
                     { Input.textInputDefaults with
                         Value = name
@@ -236,15 +301,24 @@ let private formBody (groups: ManagedCategoryGroup list) (form: Form) (dispatch:
             | EditingCategory editor ->
                 // Feld mit Pfeil wie im Prototyp (`ceGroupPick`), kein natives Select (G13).
                 // Während des Speicherns gesperrt wie die übrigen Felder.
-                Input.pickerFieldWith
-                    form.IsSaving
-                    "categories-group-field"
-                    "Gruppe"
-                    (groupNameOf groups editor.GroupId)
-                    "Gruppe wählen"
-                    None
-                    form.GroupChoiceOpen
-                    (fun () -> dispatch OpenGroupChoice)
+                // Nach „Neue Gruppe“ steht die neue Gruppe im Feld, das Feld leuchtet kurz.
+                let fieldLit = model.Mark = Some GroupFieldLit && model.MarkLit
+                Html.div [
+                    prop.custom ("data-testid", "categories-group-field-wrap")
+                    prop.custom ("data-flash", fieldLit)
+                    prop.className (if fieldLit then Feedback.flash else "")
+                    prop.children [
+                        Input.pickerFieldWith
+                            form.IsSaving
+                            "categories-group-field"
+                            "Gruppe"
+                            (groupNameOf groups editor.GroupId)
+                            "Gruppe wählen"
+                            None
+                            form.GroupChoiceOpen
+                            (fun () -> dispatch OpenGroupChoice)
+                    ]
+                ]
                 Html.p [ prop.className ListRoles.muted; prop.text "Name und Gruppe werden nach YNAB übertragen." ]
                 if editor.CategoryId.IsSome then
                     Input.switchRow
@@ -254,18 +328,13 @@ let private formBody (groups: ManagedCategoryGroup list) (form: Form) (dispatch:
                         editor.Active
                         form.IsSaving
                         (fun active -> dispatch (ActiveToggled active))
+                    match form.FailedCall, form.Error with
+                    | Some SavingActive, Some message ->
+                        Html.div [ prop.custom ("data-testid", "categories-form-error"); prop.children [ ErrorDisplay.inline' message ] ]
+                    | _ -> ()
             // Auch Gruppennamen gehen nach YNAB (Entscheidung Roman im Review-Lauf nach budgeting-t7dka, Abweichung
             // von Prototyp Version 17).
             | EditingGroup _ -> Html.p [ prop.className ListRoles.muted; prop.text "Der Name wird nach YNAB übertragen." ]
-            match form.Error with
-            | Some message ->
-                Html.p [
-                    prop.custom ("data-testid", "categories-form-error")
-                    prop.role "alert"
-                    prop.className $"text-sm {Colors.error}"
-                    prop.text message
-                ]
-            | None -> ()
         ]
     ]
 
@@ -286,7 +355,7 @@ let private formButtons (form: Form) (dispatch: Msg -> unit) =
               IsDisabled = not form.IsSaving && not (canSave form)
               OnClick = fun () -> dispatch Save } ]
 
-let private sidePanel (groups: ManagedCategoryGroup list) (form: Form) (dispatch: Msg -> unit) =
+let private sidePanel (model: Model) (groups: ManagedCategoryGroup list) (form: Form) (dispatch: Msg -> unit) =
     // Die Hülle wie in Kassenbuch und Budget (design-system-gcpws, §7.6): unter dem Seitenkopf, ohne Karte. Esc schließt über
     // die Tasten der Seite (`CategoryKeys`), auch ohne Fokus im Panel.
     Detail.panelWith "categories-panel" (formTitle form.Editor) [
@@ -308,7 +377,7 @@ let private sidePanel (groups: ManagedCategoryGroup list) (form: Form) (dispatch
                             OnClick = fun () -> dispatch CloseForm }
                 ]
             ]
-            formBody groups form dispatch
+            formBody model groups form dispatch
             Html.div [ prop.className "grid grid-cols-2 gap-3"; prop.children (formButtons form dispatch) ]
             groupChoiceDialog groups form dispatch
         ]
@@ -316,7 +385,7 @@ let private sidePanel (groups: ManagedCategoryGroup list) (form: Form) (dispatch
     ]
 
 /// Das Sheet unter 1024 px. Immer gerendert, damit es ein- und ausfährt.
-let private sheet (groups: ManagedCategoryGroup list) (form: Form option) (dispatch: Msg -> unit) =
+let private sheet (model: Model) (groups: ManagedCategoryGroup list) (form: Form option) (dispatch: Msg -> unit) =
     match form with
     // Am Handy ersetzt die Auswahl der Gruppe den Inhalt des Sheets (§7.15, Sheets werden nicht gestapelt);
     // Schließen führt zurück ins Formular.
@@ -335,7 +404,7 @@ let private sheet (groups: ManagedCategoryGroup list) (form: Form option) (dispa
               Title = formTitle form.Editor
               Subtitle = None
               Footer = Some (formButtons form dispatch) }
-            [ Html.div [ prop.className "py-2"; prop.children [ formBody groups form dispatch ] ] ]
+            [ Html.div [ prop.className "py-2"; prop.children [ formBody model groups form dispatch ] ] ]
     | None ->
         BottomSheet.view { IsOpen = false; OnClose = ignore; Title = ""; Subtitle = None; Footer = None } []
 
@@ -374,13 +443,23 @@ let view (model: Model) (dispatch: Msg -> unit) =
             prop.className "flex flex-col gap-4 min-w-0"
             prop.children [
                 Html.p [ prop.className $"text-sm {Colors.textSecondary}"; prop.text IntroText ]
+                // Ein gescheitertes stilles Neuladen ist ein Zustand der Seite (ADR 0098): Hinweis, bis es klappt.
+                match model.Stale with
+                | Some stale ->
+                    Feedback.stateHint
+                        "categories-stale"
+                        ListStaleText
+                        [ stale.Reason ]
+                        (Some { Label = "Neu laden"; OnClick = fun () -> dispatch RereadList })
+                        stale.Rereading
+                | None -> ()
                 match model.Groups with
                 | Failure message -> ErrorDisplay.card message (Some (fun () -> dispatch RetryLoad))
                 | Success groups ->
                     for group in groups do
-                        groupSection group dispatch
+                        groupSection model group dispatch
                     addButtons dispatch
-                    inactiveSection groups model.InactiveOpen dispatch
+                    inactiveSection model groups model.InactiveOpen dispatch
                 | NotAsked
                 | Loading -> skeleton ()
             ]
@@ -408,7 +487,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
                         Html.div [
                             prop.className "relative"
                             prop.children [
-                                sidePanel groups form dispatch
+                                sidePanel model groups form dispatch
                                 Html.div [
                                     prop.className $"{PanelWidths.columnInsetWide} min-h-[calc(100vh-7rem)]"
                                     prop.children [ content ]
@@ -418,7 +497,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
                     | None -> Html.div [ prop.className "max-w-[860px]"; prop.children [ content ] ]
                 else
                     content
-                    sheet groups model.Form dispatch
+                    sheet model groups model.Form dispatch
             ]
         ]
     ]

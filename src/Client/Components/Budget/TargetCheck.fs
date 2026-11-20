@@ -59,6 +59,7 @@ let private settleLoaded (data: TargetCheckData) (c: TargetCheckPage) : TargetCh
     { c with
         Data = Success data
         LoadPending = false
+        Stale = None
         Panel = c.Panel |> Option.filter (fun form -> form.Month = data.Month) }
 
 /// Eine Antwort mit fremder Generation ist überholt: ein späteres Betreten oder Wiederholen lädt schon.
@@ -70,25 +71,32 @@ let applyTargetCheckLoaded (generation: int) (result: Result<TargetCheckData, st
             | Ok data -> settleLoaded data c
             | Error message -> { c with Data = Failure message; LoadPending = false })
 
-/// Die Antwort des stillen Neuladens. Ein Fehler lässt die Liste stehen und meldet per Warn-Toast, dass sie
-/// veraltet sein kann (wie `Month.applyReloaded`); lud die Seite noch, wird er zur Fehlerkarte, sonst bliebe sie
-/// beim Skelett stehen.
-let applyTargetCheckReloaded
-    (generation: int)
-    (result: Result<TargetCheckData, string>)
-    (model: Model)
-    : Model * ExternalMsg =
+/// Die Antwort des stillen Neuladens. Ein Fehler lässt die Liste stehen und setzt den Hinweis „Prüfung nicht neu
+/// gelesen“ oben auf der Seite (Zustand der Seite, Regel R3, budgeting-sx9v5; wie `Month.applyReloaded`); lud die Seite
+/// noch, wird er zur Fehlerkarte, sonst bliebe sie beim Skelett stehen. Ein gelesener Stand nimmt den Hinweis weg.
+let applyTargetCheckReloaded (generation: int) (result: Result<TargetCheckData, string>) (model: Model) : Model =
     let c = model.TargetCheck
-    if generation <> c.Generation then model, NoOp
+    if generation <> c.Generation then model
     else
         match result, c.Data with
-        | Ok data, _ -> withCheck model (settleLoaded data), NoOp
+        | Ok data, _ -> withCheck model (settleLoaded data)
         | Error message, (NotAsked | Loading) ->
-            withCheck model (fun c -> { c with Data = Failure message; LoadPending = false }), NoOp
-        | Error message, Success _ ->
-            withCheck model (fun c -> { c with LoadPending = false }),
-            ShowToast ($"Prüfung nicht neu gelesen, sie kann veraltet sein: {message}", ToastWarning)
-        | Error _, Failure _ -> withCheck model (fun c -> { c with LoadPending = false }), NoOp
+            withCheck model (fun c -> { c with Data = Failure message; LoadPending = false })
+        | Error message, Success _ -> withCheck model (fun c -> { c with LoadPending = false; Stale = Some (ReadFailed message) })
+        | Error _, Failure _ -> withCheck model (fun c -> { c with LoadPending = false })
+
+/// Der Satz des Hinweises, wenn das stille Neuladen scheiterte.
+[<Literal>]
+let CheckStaleText = "Prüfung nicht neu gelesen, sie kann veraltet sein."
+
+/// „Neu laden“ am Hinweis: liest die Prüfung still neu (`true`: der Aufrufer sendet). Läuft es schon, geschieht nichts.
+let startCheckReread (model: Model) : Model * bool =
+    match model.TargetCheck.Stale with
+    | Some (ReadFailed reason) ->
+        let reading = reloadTargetCheck model
+        withCheck reading (fun c -> { c with Stale = Some (Rereading reason) }), true
+    | Some (Rereading _)
+    | None -> model, false
 
 /// Ein Tipp auf den Kopf einer Gruppe klappt sie auf, ein zweiter zu.
 let toggleCheckGroup (group: CheckGroup) (model: Model) : Model =
@@ -531,75 +539,154 @@ let applyCheckCallLost
         if owns then onPanel (formTakeCallLost (targetCallLostText read.IsSome message) >> Some) reading else reading
     noted, read
 
-/// Der Toast zu einer Antwort auf "übernehmen": abgelehnt als Fehler, inzwischen geändert als Warnung mit
-/// demselben Satz wie im Tab, festgehalten keiner.
-let takeAnswerToast (result: Result<TargetChangeResult, string>) : ExternalMsg =
-    match result with
-    | Ok (TargetWritten _) -> NoOp
-    | Ok (TargetChangedMeanwhile _) -> ShowToast (targetRejectedAwayText TargetChangedMeanwhileText, ToastWarning)
-    | Error message -> ShowToast (targetRejectedAwayText message, ToastError)
+// ============================================
+// Rückmeldung am Ort (Regel R3, ADR 0098, budgeting-sx9v5)
+// ============================================
+
+/// Wo eine Target-Antwort steht. Am Handy und am PC gleich; einen Toast gibt es nur über `FeedbackLine` bei
+/// geschlossenem Sheet (Leiste, am PC der Toast unten rechts).
+type TargetFeedback =
+    /// Nichts: das offene Formular (Tab oder Panel) zeigt die Antwort selbst, oder es gibt nichts zu melden.
+    | NoFeedback
+    /// In der Zeile der Kategorie auf der Seite Targets prüfen.
+    | InCheckRow of SheetLineTone * string
+    /// Die Zeile im Sheet, bei geschlossenem Sheet die Leiste (`ShowLine`).
+    | FeedbackLine of SheetLineTone * string
 
 let private fromCheckPage (origin: TargetOrigin option) : bool =
     origin = Some FromCheckRow || origin = Some FromCheckPanel
 
-/// Ein Betrag im Erfolgs-Toast: ganze Euro ohne Cent ("175 €"), sonst genau ("172,50 €").
-let private toastAmountText (amount: decimal) : string =
+/// Ein Betrag in der Bestätigung: ganze Euro ohne Cent ("175 €"), sonst genau ("172,50 €").
+let private noteAmountText (amount: decimal) : string =
     if amount = System.Math.Floor amount then wholeEuroText amount else euroText { Amount = amount; Currency = TargetCurrency }
 
-/// Der Satz des Erfolgs-Toasts nach einem Schreiben von der Seite (budgeting-c4ve4): "Essen auswärts: Target
-/// jetzt 175 € monatlich.", entfernt "Essen auswärts: Target entfernt."
-let targetWrittenText (name: string) (target: Target option) : string =
+/// Die Bestätigung in der Zeile nach einem Schreiben von der Seite (budgeting-c4ve4), ohne Namen, weil die Zeile ihn
+/// zeigt: "Target jetzt 175 € monatlich", entfernt "Target entfernt".
+let targetWrittenRowText (target: Target option) : string =
     match target with
-    | Some t -> $"{name}: Target jetzt {toastAmountText t.Goal.Amount} {rhythmWordText t.Rhythm}."
-    | None -> $"{name}: Target entfernt."
+    | Some t -> $"Target jetzt {noteAmountText t.Goal.Amount} {rhythmWordText t.Rhythm}"
+    | None -> "Target entfernt"
 
-/// Der Satz ohne Namen, wenn die Prüfung gerade lädt und den Namen nicht kennt: "Target gespeichert." bzw.
-/// "Target entfernt."
-let targetWrittenUnnamedText (target: Target option) : string =
-    match target with
-    | Some _ -> "Target gespeichert."
-    | None -> "Target entfernt."
+/// Die schmale Zeile am bisherigen Platz, wenn die Kategorie die Gruppe verlassen hat: "Essen auswärts: Target jetzt
+/// 175 € monatlich". Ohne bekannten Namen nur der Satz.
+let checkNoteMovedText (note: CheckRowNote) : string =
+    if System.String.IsNullOrEmpty note.Name then note.Text else $"{note.Name}: {note.Text}"
 
-/// Der Name der Kategorie in der geladenen Prüfung, für den Toast.
-let checkCategoryName (categoryId: System.Guid) (model: Model) : string option =
-    match model.TargetCheck.Data with
-    | Success data -> data.Categories |> List.tryFind (fun c -> c.CategoryId = categoryId) |> Option.map (fun c -> c.Name)
-    | _ -> None
+/// Die Rückmeldung zu einer Antwort auf "übernehmen" in der Zeile: festgehalten grün mit dem neuen Target,
+/// inzwischen geändert gelb, abgelehnt rot, beide mit demselben Satz wie im Tab.
+let takeAnswerNote (result: Result<TargetChangeResult, string>) : SheetLineTone * string =
+    match result with
+    | Ok (TargetWritten target) -> LineOk, targetWrittenRowText target
+    | Ok (TargetChangedMeanwhile _) -> LineWarning, targetRejectedAwayText TargetChangedMeanwhileText
+    | Error message -> LineError, targetRejectedAwayText message
 
-/// Der Toast zu einer Target-Antwort. Festgehalten von der Seite (Zeile und Panel) meldet ein Erfolgs-Toast
-/// (`targetWrittenText`, `name` aus `checkCategoryName`), auch aus dem Panel, das dabei schließt; lädt die Prüfung
-/// gerade und kennt den Namen nicht, ohne Namen (`targetWrittenUnnamedText`). Sonst:
-/// `formOpen`, das Formular des Aufrufs (Tab oder Panel) steht noch offen und zeigt die Antwort selbst, dann
-/// keiner. Aufrufe von der Seite melden wie "übernehmen" (`takeAnswerToast`), alle anderen eine Ablehnung als
-/// Warnung.
-let targetAnswerToast
-    (origin: TargetOrigin option)
-    (formOpen: bool)
-    (name: string option)
-    (result: Result<TargetChangeResult, string>)
-    : ExternalMsg =
-    match result, name with
-    | Ok (TargetWritten target), Some name when fromCheckPage origin -> ShowToast (targetWrittenText name target, ToastSuccess)
-    | Ok (TargetWritten target), None when fromCheckPage origin -> ShowToast (targetWrittenUnnamedText target, ToastSuccess)
-    | _ when formOpen -> NoOp
-    | _ when fromCheckPage origin -> takeAnswerToast result
-    | _ ->
-        match result with
-        | Error message -> ShowToast (targetRejectedAwayText message, ToastWarning)
-        | Ok (TargetChangedMeanwhile _) -> ShowToast (targetRejectedAwayText TargetChangedMeanwhileText, ToastWarning)
-        | Ok (TargetWritten _) -> NoOp
+/// Wo eine Target-Antwort steht. Festgehalten von der Seite (Zeile und Panel): grün in der Zeile, auch aus dem Panel,
+/// das dabei schließt. Sonst: `formOpen`, das Formular des Aufrufs (Tab oder Panel) steht noch offen und zeigt die
+/// Antwort selbst, dann nichts. Aufrufe von der Seite melden in der Zeile wie "übernehmen" (`takeAnswerNote`), alle
+/// anderen eine Ablehnung gelb in der Zeile im Sheet (bei geschlossenem Sheet die Leiste).
+let targetAnswerFeedback (origin: TargetOrigin option) (formOpen: bool) (result: Result<TargetChangeResult, string>) : TargetFeedback =
+    match result with
+    | Ok (TargetWritten _) when fromCheckPage origin -> InCheckRow (takeAnswerNote result)
+    | _ when formOpen -> NoFeedback
+    | _ when fromCheckPage origin -> InCheckRow (takeAnswerNote result)
+    | Error message -> FeedbackLine (LineWarning, targetRejectedAwayText message)
+    | Ok (TargetChangedMeanwhile _) -> FeedbackLine (LineWarning, targetRejectedAwayText TargetChangedMeanwhileText)
+    | Ok (TargetWritten _) -> NoFeedback
 
-/// Der Toast zu einem abgebrochenen Target-Aufruf, keiner bei offenem Formular. Der Satz verspricht das Neulesen
-/// nur, wenn es läuft: von der Seite das Neuladen der Prüfung (`checkReads`), sonst auch das Neulesen des
-/// Monats (`monthRereads`).
-let targetCallLostToast
+/// Wo ein abgebrochener Target-Aufruf steht: bei offenem Formular dort, von der Seite rot in der Zeile, sonst rot in der
+/// Zeile im Sheet (bei geschlossenem Sheet die Leiste). Der Satz verspricht das Neulesen nur, wenn es läuft: von der
+/// Seite das Neuladen der Prüfung (`checkReads`), sonst auch das Neulesen des Monats (`monthRereads`).
+let targetCallLostFeedback
     (origin: TargetOrigin option)
     (formOpen: bool)
     (checkReads: bool)
     (monthRereads: bool)
     (message: string)
-    : ExternalMsg =
-    if formOpen then NoOp
-    else
-        let rereads = if fromCheckPage origin then checkReads else checkReads || monthRereads
-        ShowToast (targetCallLostText rereads message, ToastError)
+    : TargetFeedback =
+    if formOpen then NoFeedback
+    elif fromCheckPage origin then InCheckRow (LineError, targetCallLostText checkReads message)
+    else FeedbackLine (LineError, targetCallLostText (checkReads || monthRereads) message)
+
+/// Gruppe und Platz der Zeile einer Kategorie in der geladenen Prüfung, `None` ohne Rohdaten oder Zeile.
+let checkRowPlace (categoryId: System.Guid) (model: Model) : (CheckGroup * int) option =
+    match model.TargetCheck.Data with
+    | Success data ->
+        checkGroups data
+        |> List.tryPick (fun (group, rows) ->
+            rows |> List.tryFindIndex (fun r -> r.CategoryId = categoryId) |> Option.map (fun i -> group, i))
+    | _ -> None
+
+/// Der Name der Kategorie in der geladenen Prüfung, leer ohne.
+let private checkCategoryName (categoryId: System.Guid) (model: Model) : string =
+    match model.TargetCheck.Data with
+    | Success data ->
+        data.Categories
+        |> List.tryFind (fun c -> c.CategoryId = categoryId)
+        |> Option.map (fun c -> c.Name)
+        |> Option.defaultValue ""
+    | _ -> ""
+
+/// Die Rückmeldung an ihre Zeile setzen. `before`: das Modell vor der Antwort, aus ihm kommen Name und bisheriger Platz.
+/// Ein geschriebenes Target lässt die Zeile kurz leuchten (`Flash`), jedes neue Leuchten zählt hoch.
+let noteInCheckRow (categoryId: System.Guid) (tone: SheetLineTone, text: string) (before: Model) (after: Model) : Model =
+    let note =
+        { CategoryId = categoryId
+          Tone = tone
+          Text = text
+          Name = checkCategoryName categoryId before
+          From = checkRowPlace categoryId before }
+    withCheck after (fun c ->
+        { c with
+            Note = Some note
+            Flash = if tone = LineOk then { Count = c.Flash.Count + 1; On = true } else { c.Flash with On = false } })
+
+/// Wo die Rückmeldung steht. In der Zeile, wenn die Kategorie in ihrer bisherigen Gruppe steht (oder die Prüfung beim
+/// Antworten lud); sonst als schmale Zeile am bisherigen Platz der alten Gruppe, und fiel die Gruppe ganz weg, vor der
+/// Gruppe, die in der Reihenfolge danach kommt (`None`: am Ende).
+type CheckNotePlace =
+    | NoteInRow
+    | NoteAt of CheckGroup * int
+    | NoteBefore of CheckGroup option
+    | NoteHidden
+
+let checkNotePlace (groups: (CheckGroup * TargetCheckRow list) list) (note: CheckRowNote) : CheckNotePlace =
+    let current =
+        groups |> List.tryPick (fun (group, rows) -> if rows |> List.exists (fun r -> r.CategoryId = note.CategoryId) then Some group else None)
+    match note.From, current with
+    | None, Some _ -> NoteInRow
+    | None, None -> NoteHidden
+    | Some (group, _), Some now when now = group -> NoteInRow
+    | Some (group, index), _ ->
+        match groups |> List.tryFind (fun (g, _) -> g = group) with
+        | Some (_, rows) -> NoteAt (group, min index (List.length rows))
+        | None ->
+            let later = checkGroupOrder |> List.skipWhile (fun g -> g <> group) |> List.tail
+            NoteBefore (groups |> List.map fst |> List.tryFind (fun g -> List.contains g later))
+
+/// Endet mit dieser Nachricht die Rückmeldung an der Zeile? Jede Aktion auf der Seite beendet sie; Aufklappen einer
+/// Gruppe, Antworten und Laden nicht.
+let endsCheckNote (msg: Msg) : bool =
+    match msg with
+    | TargetCheckEntered
+    | RetryTargetCheck
+    | RereadTargetCheck
+    | LeaveTargetCheck
+    | TakeSuggestion _
+    | AdjustTarget _
+    | CloseCheckPanel
+    | CheckAmountChanged _
+    | CheckDateChanged _
+    | CheckRhythmChanged _
+    | CheckWeekdayChanged _
+    | OpenCheckWeekdayChoice
+    | CloseCheckWeekdayChoice
+    | SaveCheckTarget
+    | ConfirmCheckTargetChange
+    | CancelCheckTargetChange
+    | AskRemoveCheckTarget
+    | CancelRemoveCheckTarget
+    | ConfirmRemoveCheckTarget -> true
+    | _ -> false
+
+/// Wie lange die Zeile leuchtet (wie „Verfügbar“ im Tab Geld): 0,7 s Animation, danach nimmt die App die Klasse ab.
+let checkFlashMs = 900
