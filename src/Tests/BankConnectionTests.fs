@@ -485,17 +485,25 @@ let adapterTests =
         testCase "Disconnected ohne Zugangsdaten: deutscher Grund, kein Login" <| fun () ->
             let probe = Probe(Disconnected)
             let ports = probe.Build()
-            Expect.equal
-                (testConnectionWith [] ports)
-                (Error (SettingsError.ComdirectCredentialsInvalid ("credentials", "Comdirect-Zugangsdaten fehlen")))
-                "der Grund"
+            // Review 624bf480: es stand „Comdirect-Zugangsdaten ungültig: Comdirect-Zugangsdaten fehlen“ da.
+            match testConnectionWith [] ports with
+            | Error error ->
+                Expect.equal
+                    (Components.Settings.State.settingsErrorToString error)
+                    "Comdirect-Zugangsdaten nicht gespeichert"
+                    "der Grund auf der Seite"
+            | other -> failtestf "Fehler erwartet: %A" other
             Expect.equal probe.Logins.Value 0 "kein Login"
 
         testCase "YNAB-Verbindung testen ohne gespeicherten Token: deutscher Grund" <| fun () ->
-            Expect.equal
-                (Server.Api.storedYnabToken (settingsFrom []) |> run)
-                (Error (SettingsError.YnabTokenInvalid "kein YNAB-Token gespeichert"))
-                "ohne Token"
+            // Review 624bf480: es stand „YNAB-Token ungültig: kein YNAB-Token gespeichert“ da.
+            match Server.Api.storedYnabToken (settingsFrom []) |> run with
+            | Error error ->
+                Expect.equal
+                    (Components.Settings.State.settingsErrorToString error)
+                    "YNAB-Token nicht gespeichert"
+                    "der Grund auf der Seite"
+            | other -> failtestf "Fehler erwartet: %A" other
             Expect.equal (Server.Api.storedYnabToken (settingsFrom [ "ynab_token", "t" ]) |> run) (Ok "t") "mit Token"
 
         testCase "Intakt: Disconnected, testComdirectConnection: Challenge wie bisher" <| fun () ->

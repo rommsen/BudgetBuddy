@@ -37,16 +37,6 @@ let private liveBerlinDay () : DateTime =
 let inline private combineErrors (result: Result<'T, string list>) : Result<'T, string> =
     result |> Result.mapError (String.concat "; ")
 
-/// Converts SettingsError to string
-let private settingsErrorToString (error: SettingsError) : string =
-    match error with
-    | SettingsError.YnabTokenInvalid msg -> $"Invalid YNAB token: {msg}"
-    | SettingsError.YnabConnectionFailed (status, msg) -> $"YNAB connection failed (HTTP {status}): {msg}"
-    | SettingsError.ComdirectCredentialsInvalid (field, reason) -> $"Invalid Comdirect credentials ({field}): {reason}"
-    | SettingsError.ComdirectConnectionTestFailed reason -> $"Verbindungstest gescheitert: {reason}"
-    | SettingsError.EncryptionFailed msg -> $"Encryption failed: {msg}"
-    | SettingsError.DatabaseError (op, msg) -> $"Database error during {op}: {msg}"
-
 /// Converts SyncError to string
 let private syncErrorToString (error: SyncError) : string =
     match error with
@@ -243,16 +233,12 @@ let saveComdirectCredentialsWith
         return Error (SettingsError.DatabaseError ("save_comdirect_credentials", ex.Message))
 }
 
-/// Der Satz, wenn „Verbindung testen“ bei Comdirect keine Zugangsdaten findet. Die Seite zeigt ihn im Block
-/// Bankverbindung (banking-import-vwhfm).
-let comdirectNotConfiguredText = "Comdirect-Zugangsdaten fehlen"
-
 /// Der gespeicherte YNAB-Token für „Verbindung testen“. Fehlt er, steht der Grund deutsch auf der Seite
 /// (banking-import-vwhfm); der Token selbst geht nie an den Client.
 let storedYnabToken (getSetting: string -> Async<string option>) : Async<Result<string, SettingsError>> = async {
     match! getSetting "ynab_token" with
     | Some token -> return Ok token
-    | None -> return Error (SettingsError.YnabTokenInvalid "kein YNAB-Token gespeichert")
+    | None -> return Error (SettingsError.NotConfigured "YNAB-Token")
 }
 
 /// Verbindungstest (ADR 0071 Punkt 2): bei `Connected` liest er die erste Umsatzseite der
@@ -299,7 +285,8 @@ let testComdirectConnectionWith
             | Ok challenge ->
                 return Ok (TanChallengeStarted challenge.Id)
         | _ ->
-            return Error (SettingsError.ComdirectCredentialsInvalid ("credentials", comdirectNotConfiguredText))
+            // Die Seite zeigt im Block Bankverbindung „Comdirect-Zugangsdaten nicht gespeichert“.
+            return Error (SettingsError.NotConfigured "Comdirect-Zugangsdaten")
 }
 
 /// Speichert die Sync-Einstellungen nach der Validierung (alle Fehler gesammelt). Die Schlüssel liest

@@ -39,7 +39,7 @@ type SettingsApi = {
 
     /// Tests YNAB connection and returns available budgets.
     /// Purpose: Validates credentials and populates budget selection UI.
-    /// Returns: List of budgets or SettingsError (YnabConnectionFailed).
+    /// Returns: List of budgets or SettingsError (YnabConnectionFailed, NotConfigured ohne Token).
     testYnabConnection: unit -> Async<SettingsResult<YnabBudgetWithAccounts list>>
 
     /// Tests the Comdirect connection (ADR 0071 Punkt 2).

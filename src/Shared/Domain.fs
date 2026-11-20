@@ -662,6 +662,8 @@ type SettingsError =
     | ComdirectConnectionTestFailed of reason: string
     | EncryptionFailed of message: string
     | DatabaseError of operation: string * message: string
+    /// Für „Verbindung testen“ fehlt etwas Gespeichertes. `what` nennt es für die Seite, etwa „YNAB-Token“.
+    | NotConfigured of what: string
 
 /// Errors from YNAB API operations.
 /// Purpose: Differentiates between network issues, auth failures, and data problems.

@@ -27,6 +27,7 @@ let settingsErrorToString (error: SettingsError) : string =
     // Eine Ablehnung der Validierung ist schon ein Satz für die Seite.
     | SettingsError.DatabaseError ("validation", msg) -> msg
     | SettingsError.DatabaseError (op, msg) -> $"Datenbankfehler beim {operationLabel op}: {msg}"
+    | SettingsError.NotConfigured what -> $"{what} nicht gespeichert"
 
 /// Nach so vielen Millisekunden fällt die Rückfrage "Bank trennen" von selbst zurück.
 let bankDisconnectConfirmMs = 3000

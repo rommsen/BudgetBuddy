@@ -96,21 +96,25 @@ let settingsFeedbackTests =
             }
 
         // Felder, die beim Ändern speichern: „✓ Gespeichert“ oder rot darunter, das Feld zeigt den gespeicherten Stand.
-        for label, field, ok, rejected in
+        let loadedYnab = loadedView.Ynab.Value
+        for label, field, ok, rejected, stored in
             [ "Standard-Budget", DefaultBudgetField,
               DefaultBudgetSet (YnabBudgetId "budget-neu", Ok ()),
-              DefaultBudgetSet (YnabBudgetId "budget-neu", Error (YnabError.NetworkError "weg"))
+              DefaultBudgetSet (YnabBudgetId "budget-neu", Error (YnabError.NetworkError "weg")),
+              { loadedYnab with DefaultBudgetId = Some (YnabBudgetId "budget-neu") }
               "Standard-Konto", DefaultAccountField,
               DefaultAccountSet (accountId, Ok ()),
-              DefaultAccountSet (accountId, Error (YnabError.NetworkError "weg"))
+              DefaultAccountSet (accountId, Error (YnabError.NetworkError "weg")),
+              { loadedYnab with DefaultAccountId = Some accountId }
               "Quick-Add-Konto", QuickAddAccountField,
               QuickAddAccountSet (accountId, Ok ()),
-              QuickAddAccountSet (accountId, Error (YnabError.NetworkError "weg")) ] do
+              QuickAddAccountSet (accountId, Error (YnabError.NetworkError "weg")),
+              { loadedYnab with QuickAddAccountId = Some accountId } ] do
             test $"{label}: gespeichert steht darunter „✓ Gespeichert“, abgelehnt rot der Grund und der alte Wert" {
                 let saved, _, external = run ok (loaded ())
                 expectFeedback saved (Field field) (SettingsNote.Done "✓ Gespeichert")
                 Expect.equal external NoOp "kein Toast"
-                Expect.notEqual saved.Settings (loaded ()).Settings "der neue Wert gilt"
+                Expect.equal saved.Settings (Success { loadedView with Ynab = Some stored }) "der neue Wert gilt, die übrigen bleiben"
                 let failed, _, external = run rejected (loaded ())
                 expectFeedback failed (Field field) (SettingsNote.Failed "Nicht gespeichert: Netzwerkfehler: weg")
                 Expect.equal failed.Settings (loaded ()).Settings "das Feld zeigt wieder den gespeicherten Wert"
@@ -266,7 +270,8 @@ let settingsErrorTextTests =
                   SettingsError.ComdirectConnectionTestFailed "x", "Verbindungstest gescheitert: x"
                   SettingsError.EncryptionFailed "x", "Verschlüsselung gescheitert: x"
                   SettingsError.DatabaseError ("validation", "x"), "x"
-                  SettingsError.DatabaseError ("save_sync_settings", "x"), "Datenbankfehler beim Speichern: x" ]
+                  SettingsError.DatabaseError ("save_sync_settings", "x"), "Datenbankfehler beim Speichern: x"
+                  SettingsError.NotConfigured "YNAB-Token", "YNAB-Token nicht gespeichert" ]
             for error, text in cases do
                 Expect.equal (SettingsState.settingsErrorToString error) text $"%A{error}"
         }
