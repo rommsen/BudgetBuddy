@@ -1092,11 +1092,13 @@ type LedgerEntryView = {
 }
 
 /// Die Reihenfolge der Warteschlange im Durchgehen (ledger-v6s7c): zuerst die wartenden Buchungen
-/// (ADR 0093, sie halten YNAB auf), danach nach Buchungsdatum, älteste zuerst, bei Gleichstand die
-/// kleinere EntryId (als Text verglichen, damit Server und Client dieselbe Folge haben). Rein.
+/// (ADR 0093, sie halten YNAB auf), danach nach Buchungsdatum, neueste zuerst (Roman, 2026-11-20,
+/// ledger-sbbh8: „Später“ merkt sich nichts, so stehen beim nächsten Öffnen nicht wieder dieselben
+/// alten vorn), auch innerhalb der wartenden. Bei Gleichstand die kleinere EntryId (als Text
+/// verglichen, damit Server und Client dieselbe Folge haben). Rein.
 let reviewQueueOrder (entries: LedgerEntryView list) : LedgerEntryView list =
     entries
-    |> List.sortBy (fun e -> (e.PossibleDuplicate.IsNone, e.Date, e.Id.ToString()))
+    |> List.sortBy (fun e -> (e.PossibleDuplicate.IsNone, -e.Date.Ticks, e.Id.ToString()))
 
 // ============================================
 // Prüfvermerk setzen und zurückschreiben (ADR 0050, ledger-r777c)

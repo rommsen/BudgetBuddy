@@ -2,7 +2,8 @@ module LedgerReviewQueueTests
 
 // Die Warteschlange des Durchgehens (ledger-v6s7c), Server-Seite:
 //
-//  * reine Reihenfolge `reviewQueueOrder`: wartende zuerst, dann Datum aufsteigend, Gleichstand EntryId;
+//  * reine Reihenfolge `reviewQueueOrder`: wartende zuerst, dann Datum absteigend (neueste zuerst, Roman
+//    2026-11-20, ledger-sbbh8), Gleichstand die kleinere EntryId;
 //  * `getReviewQueue` gegen In-Memory-SQLite: alle ungeprüften, nicht gelöschten Buchungen jeder Herkunft,
 //    dieselbe Menge wie `countNeedsReviewEntries`;
 //  * „aus Bestellnummer“ im Lesepfad: nur bei einer Kategorie aus `OrderIdMatch`, weg nach Romans Änderung.
@@ -76,22 +77,22 @@ let orderTests =
         testCase "ohne Buchung bleibt die Schlange leer" <| fun () ->
             Expect.isEmpty (reviewQueueOrder []) "leer"
 
-        testCase "älteste zuerst, bei gleichem Datum die kleinere EntryId" <| fun () ->
+        testCase "neueste zuerst, bei gleichem Datum die kleinere EntryId" <| fun () ->
             let d1 = DateTime(2026, 11, 1)
             let d2 = DateTime(2026, 11, 2)
             let entries =
                 [ view "c0000000-0000-0000-0000-000000000000" d2 false
                   view "b0000000-0000-0000-0000-000000000000" d1 false
                   view "a0000000-0000-0000-0000-000000000000" d2 false ]
-            Expect.equal (idsOf (reviewQueueOrder entries)) [ "b"; "a"; "c" ] "1.11. vor 2.11., dort a vor c"
+            Expect.equal (idsOf (reviewQueueOrder entries)) [ "a"; "c"; "b" ] "2.11. vor 1.11., dort a vor c"
 
-        testCase "wartende Buchungen stehen vorn, auch wenn sie jünger sind" <| fun () ->
+        testCase "wartende Buchungen stehen vorn, auch wenn sie älter sind, je neueste zuerst" <| fun () ->
             let entries =
-                [ view "a0000000-0000-0000-0000-000000000000" (DateTime(2026, 10, 1)) false
-                  view "d0000000-0000-0000-0000-000000000000" (DateTime(2026, 11, 9)) true
-                  view "b0000000-0000-0000-0000-000000000000" (DateTime(2026, 10, 2)) false
-                  view "c0000000-0000-0000-0000-000000000000" (DateTime(2026, 11, 8)) true ]
-            Expect.equal (idsOf (reviewQueueOrder entries)) [ "c"; "d"; "a"; "b" ] "erst die wartenden nach Datum, dann der Rest"
+                [ view "a0000000-0000-0000-0000-000000000000" (DateTime(2026, 11, 1)) false
+                  view "d0000000-0000-0000-0000-000000000000" (DateTime(2026, 10, 9)) true
+                  view "b0000000-0000-0000-0000-000000000000" (DateTime(2026, 11, 2)) false
+                  view "c0000000-0000-0000-0000-000000000000" (DateTime(2026, 10, 8)) true ]
+            Expect.equal (idsOf (reviewQueueOrder entries)) [ "d"; "c"; "b"; "a" ] "erst die wartenden, neueste zuerst, dann der Rest, neueste zuerst"
     ]
 
 // ============================================
@@ -258,14 +259,14 @@ let queueTests =
             let (LedgerAccountId accountGuid) = account
             let queue =
                 Ledger.QueryHandlers.getReviewQueue () |> run |> List.filter (fun v -> v.AccountId = accountGuid)
-            // Orakel von Hand: die wartende vorn, dann nach Datum 1., 2., 4., 5., 6.
+            // Orakel von Hand: die wartende vorn, dann neueste zuerst nach Datum 6., 5., 4., 2., 1.
             Expect.equal
                 (queue |> List.map (fun v -> v.Id))
-                ([ waiting; fromRule; fromMirror; fromImport; fromBob; fromQuickAdd ] |> List.map guidOf)
+                ([ waiting; fromQuickAdd; fromBob; fromImport; fromMirror; fromRule ] |> List.map guidOf)
                 "Reihenfolge und Menge"
             Expect.equal
                 (queue |> List.map (fun v -> v.Origin))
-                [ ImportedFromComdirect; ImportedFromComdirect; MirroredFromYnab; ImportedFromComdirect; AddedByBob; AddedViaQuickAdd ]
+                [ ImportedFromComdirect; AddedViaQuickAdd; AddedByBob; ImportedFromComdirect; MirroredFromYnab; ImportedFromComdirect ]
                 "jede Herkunft"
             Expect.equal (List.length queue) (countNeedsReviewEntries (Some account) |> run) "dieselbe Zahl wie Zu prüfen"
             Expect.isSome (queue.Head.PossibleDuplicate) "die wartende trägt ihren Treffer"

@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-21 00:08 -- Task verified and completed: ledger-sbbh8 - "Durchgehen ordnet neueste zuerst: nach den wartenden Duplikaten kommen die Buchungen nach Datum absteigend, damit nach „Später“ nicht wieder dieselben alten vorne stehen"
+
+**Type:** Work / Task completion
+**Task:** ledger-sbbh8 - "Durchgehen ordnet neueste zuerst: nach den wartenden Duplikaten kommen die Buchungen nach Datum absteigend, damit nach „Später“ nicht wieder dieselben alten vorne stehen"
+**Summary:** Durchgehen ordnet neueste zuerst
+**Duration:** 21m
+**Verification:** PASS (iteration 1)
+**Files changed:** 3
+**Tests added:** 0
+**ADRs written:** none
+
+---
+
 ## 2026-11-20 23:48 -- Batch started: [budgeting-m5pqn, ledger-cyd1t, ledger-sbbh8]
 
 **Type:** Work / Batch start
