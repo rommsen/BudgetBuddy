@@ -1,7 +1,7 @@
 ---
 id: ledger-enjex
 title: "Kassenbuch am Handy ohne Toast (R3), Teil 3 Detail II: Memo, Betrag und Payee mit Rückgängig am Feld, Lena-Knopf wechselt ohne Text, Erneut senden ohne Meldung; Schlussprüfung kein Toast im Kassenbuch am Handy"
-status: backlog
+status: todo
 type: feature
 context: ledger
 created: 2026-11-19
