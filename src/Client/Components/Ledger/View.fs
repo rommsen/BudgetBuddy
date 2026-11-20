@@ -5609,9 +5609,9 @@ let private reviewEditors (dispatch: Msg -> unit) (model: Model) (entry: LedgerE
                   | None -> () ]
     ]
 
-/// Die Endansicht: „Alles geprüft“ in Grün, die Zahl der durchgegangenen Buchungen, „Zur Übersicht“. Bietet die letzte
-/// Aktion ein Rückgängig, steht darunter „Letzte rückgängig“ ohne Füllung (Skizze 13, ledger-pz5wv); war sie eine
-/// Warnung, steht ihre gelbe Zeile darunter, sonst ginge die Warnung verloren.
+/// Die Endansicht: „Alles geprüft“ in Grün, die Zahl der durchgegangenen Buchungen, „Zur Übersicht“. Ein Rückgängig
+/// gibt es hier nicht (Skizze 13 hatte „Letzte rückgängig“, Roman hat es am 20.11. gestrichen). War die letzte Aktion
+/// eine Warnung oder ein Fehler, steht ihre Zeile ohne Knopf darunter, sonst ginge sie verloren.
 let private reviewEnd (dispatch: Msg -> unit) (review: ReviewSession) (count: int) (onBack: unit -> unit) =
     Html.div [
         prop.custom ("data-testid", "review-end")
@@ -5619,17 +5619,11 @@ let private reviewEnd (dispatch: Msg -> unit) (review: ReviewSession) (count: in
         prop.children [
             Card.sheetMessage "review-end-message" true "Alles geprüft" (reviewDoneText count)
             Button.view { Button.defaultProps with Text = "Zur Übersicht"; Variant = Button.Primary; OnClick = onBack }
-            if (reviewUndoOffered review).IsSome then
-                Button.view
-                    { Button.defaultProps with
-                        Text = "Letzte rückgängig"
-                        Variant = Button.Outline
-                        OnClick = fun () -> dispatch ReviewUndoLast }
             match review.Last with
             | Some last when (reviewLastLine last).Tone <> FeedbackOk ->
                 Html.div [
                     prop.className "w-full max-w-[420px] px-4"
-                    // Ohne eigenen Knopf: „Letzte rückgängig“ darüber nimmt sie schon zurück.
+                    // Ohne Knopf: in der Endansicht wird nichts mehr zurückgenommen oder wiederholt.
                     prop.children [ Feedback.line { reviewLastMessage dispatch last with Act = None } ]
                 ]
             | _ -> ()

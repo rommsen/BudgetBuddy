@@ -62,7 +62,7 @@ async function swipe(page, locator, dx) {
   await (await touchHold(page, locator, dx))();
 }
 
-test("[flow:durchgehen] Am Handy ein Duplikat verwerfen, ohne Kategorie nach rechts wischen, eine Kategorie wählen, per Wisch bestätigen, „Passt“ zurücknehmen, erneut bestätigen und bei Alles geprüft ankommen", async () => {
+test("[flow:durchgehen] Am Handy ein Duplikat verwerfen, ohne Kategorie nach rechts wischen, eine Kategorie wählen, per Wisch bestätigen und bei Alles geprüft ankommen", async () => {
   const context = await browser.newContext({ viewport: { width: 412, height: 915 }, hasTouch: true, isMobile: true });
   const page = await context.newPage();
   page.setDefaultTimeout(20000);
@@ -114,21 +114,13 @@ test("[flow:durchgehen] Am Handy ein Duplikat verwerfen, ohne Kategorie nach rec
     const end = page.locator('[data-testid="review-end"]');
     await end.getByText("Alles geprüft").waitFor();
 
-    // „Letzte rückgängig“ holt die Karte zurück, die Zeile zeigt wieder den Hinweis (ledger-pz5wv, kein Toast).
-    await end.getByRole("button", { name: "Letzte rückgängig" }).tap();
-    await card.getByText("Markt ohne Kategorie").waitFor();
-    await foot.getByText("Wischen: rechts „Passt“, links „Später“").waitFor();
-    await page.waitForFunction(() => document.body.innerText.includes("2 von 2"));
-    // Erneut bestätigen: die Karte wird nicht übersprungen, obwohl das Neulesen sie erst nach der Rücknahme offen sieht.
-    await page.getByRole("button", { name: "Passt, weiter" }).tap();
-    await end.getByText("Alles geprüft").waitFor();
-    // Prüfvermerk, Rücknahme und Kategorie der Karte melden sich nicht in der Meldungsleiste (ledger-mf2bg).
+    // Prüfvermerk und Kategorie der Karte melden sich nicht in der Meldungsleiste (ledger-mf2bg).
     const bars = await page.locator('[data-testid="feedback-bar"]').filter({ visible: true }).allInnerTexts();
     assert.ok(!bars.some((t) => /Passt|geprüft|Rückgängig nicht|Kategorie/.test(t)), `keine Meldung zu Passt oder Kategorie in der Leiste: ${bars.join(" | ")}`);
     assert.deepEqual(
       state.calls.map((c) => c.endpoint),
-      ["discardDuplicateEntry", "setEntryCategory", "setReviewMark", "restoreReviewMark", "setReviewMark"],
-      "verwerfen, Kategorie, Prüfvermerk, Rücknahme, Prüfvermerk"
+      ["discardDuplicateEntry", "setEntryCategory", "setReviewMark"],
+      "verwerfen, Kategorie, Prüfvermerk"
     );
   } finally {
     await context.close();
@@ -199,7 +191,7 @@ test("[layout] Am Handy scrollt das Durchgehen nicht, langer Inhalt scrollt in d
   }
 });
 
-test("[tastatur] Am PC passen Enter, S, K, L, Z und Esc; Esc schließt erst den Picker, dann die Ansicht, Z holt die letzte Karte zurück", async () => {
+test("[tastatur] Am PC passen Enter, S, K, L, Z und Esc; Esc schließt erst den Picker, dann die Ansicht, Z holt die letzte Karte zurück, nur nicht aus der Endansicht", async () => {
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
   const page = await context.newPage();
   page.setDefaultTimeout(20000);
@@ -227,21 +219,27 @@ test("[tastatur] Am PC passen Enter, S, K, L, Z und Esc; Esc schließt erst den 
     await search.waitFor({ state: "detached" });
     assert.equal(await position.textContent(), "2 von 3", "Esc schloss nur den Picker");
 
+    const at = (text) => page.waitForFunction((t) => document.querySelector('[data-testid="review-position"]')?.textContent === t, text);
+
+    // Z nimmt „Später“ zurück (ledger-pz5wv); die Tastenleiste nennt es.
+    await page.keyboard.press("s");
+    await at("3 von 3");
+    assert.match(await page.locator('[data-testid="review-keys"]').innerText(), /Z\s*rückgängig/);
+    await page.keyboard.press("z");
+    await at("2 von 3");
+
     const lena = page.waitForRequest("**/api/LedgerApi/setLenaFlag");
     await page.keyboard.press("l");
-    await page.getByText("Dritte Karte").first().waitFor();
+    await at("3 von 3");
     await lena;
 
     await page.keyboard.press("s");
-    await page.locator('[data-testid="review-end"]').waitFor();
-
-    // Z nimmt „Später“ zurück, auch aus der Endansicht (ledger-pz5wv); die Tastenleiste nennt es.
+    const end = page.locator('[data-testid="review-end"]');
+    await end.waitFor();
+    // In der Endansicht nimmt Z nichts mehr zurück (Romans Prüfung am 20.11.): die Endansicht bleibt.
     await page.keyboard.press("z");
-    await page.getByText("Dritte Karte").first().waitFor();
-    assert.equal(await position.textContent(), "3 von 3");
-    assert.match(await page.locator('[data-testid="review-keys"]').innerText(), /Z\s*rückgängig/);
-    await page.keyboard.press("s");
-    await page.locator('[data-testid="review-end"]').waitFor();
+    await end.getByText("Alles geprüft").waitFor();
+    assert.equal(await page.locator('[data-testid="review-card"]').count(), 0, "keine Karte zurück");
 
     await page.keyboard.press("Escape");
     await page.waitForURL(/#\/$/);

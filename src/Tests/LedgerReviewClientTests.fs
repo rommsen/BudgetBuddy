@@ -969,12 +969,13 @@ let lastLineTests =
             let noPayee = reviewLastLine { EntryId = id; Kind = LastConfirmed; Payee = None; Outcome = LastDone; Act = undo }
             Expect.equal noPayee.Detail "ohne Payee" "ohne Payee"
 
-        testCase "Z nimmt die letzte Aktion zurück, nur mit Rückgängig, auch in der Endansicht" <| fun () ->
+        testCase "Z nimmt die letzte Aktion zurück, nur mit Rückgängig und nicht in der Endansicht" <| fun () ->
             let normal = Some (NormalCard, true)
             Expect.equal (reviewKeyAction normal true "z") (Some KeyUndo) "mit Rückgängig"
             Expect.equal (reviewKeyAction normal true "Z") (Some KeyUndo) "groß"
             Expect.equal (reviewKeyAction normal false "z") None "ohne Rückgängig nichts"
-            Expect.equal (reviewKeyAction None true "z") (Some KeyUndo) "Endansicht"
+            // Roman hat das Rückgängig der Endansicht am 20.11. gestrichen: vorher lieferte Z hier KeyUndo.
+            Expect.equal (reviewKeyAction None true "z") None "Endansicht"
             Expect.equal (reviewKeyAction None false "z") None "Endansicht ohne Rückgängig"
             Expect.equal (reviewKeyAction (Some (DuplicateCard, false)) true "z") (Some KeyUndo) "Duplikat-Karte"
             let skipped = reviewing [ cardA; cardC ] |> step ReviewSkip
@@ -984,9 +985,7 @@ let lastLineTests =
             Expect.equal (key skipped "BODY" false true "z") None "nicht mit Strg"
             Expect.equal (key (reviewing [ cardA ]) "BODY" false false "z") None "ohne letzte Aktion nichts"
             let atEnd = reviewing [ cardA ] |> step ReviewSkip
-            Expect.equal (key atEnd "BODY" false false "z") (Some KeyUndo) "Endansicht"
-            let back = atEnd |> step (ReviewKey KeyUndo)
-            Expect.equal (cardId back) (Some (idOf cardA)) "Z holt die Karte zurück"
+            Expect.equal (key atEnd "BODY" false false "z") None "Endansicht"
 
         testCase "Passt schreibt die Zeile ohne Toast, gelb mit Grund, wenn YNAB den Prüfvermerk nicht nimmt" <| fun () ->
             let confirming = reviewing [ cardA; cardC ] |> step ReviewConfirm
@@ -1175,12 +1174,7 @@ let lastLineTests =
             | ShowToastWithAction (_, ToastSuccess, { Kind = UndoFlag (id, _) }) -> Expect.equal id (idOf lenaA) "Toast mit Rückgängig"
             | other -> failtestf "Toast erwartet: %A" other
 
-        testCase "die Endansicht bietet „Letzte rückgängig“ über die Zeile an und holt die letzte Karte zurück" <| fun () ->
-            let atEnd = reviewing [ cardA ] |> step ReviewConfirm |> step (reviewed (idOf cardA))
-            Expect.isNone (reviewCardOf atEnd) "Endansicht"
-            Expect.isSome (reviewUndoOffered atEnd.Review.Value) "Rückgängig angeboten"
-            let back = atEnd |> step ReviewUndoLast
-            Expect.equal (cardId back) (Some (idOf cardA)) "A ist zurück"
+        testCase "nach „Ist neu“ bietet die Zeile kein Rückgängig an" <| fun () ->
             let newOnly = reviewing [ dupD ] |> step ReviewConfirmNew |> step (ReviewConfirmedNew (idOf dupD, Ok PushToYnabSent))
             Expect.isNone (newOnly.Review |> Option.bind reviewUndoOffered) "nach Ist neu kein Rückgängig"
 

@@ -1572,7 +1572,7 @@ let reviewReturnSideOf (undo: ReviewUndo) : ReviewReturnSide =
     | UndoConfirmed _ -> ReturnFromRight
     | UndoSkipped _ | UndoLenaAsked _ | UndoDiscarded _ | UndoPayeeChanged _ -> ReturnFromLeft
 
-/// Das Rückgängig, das die Zeile anbietet (für Taste Z und „Letzte rückgängig“), sonst `None`.
+/// Das Rückgängig, das die Zeile anbietet (für Taste Z), sonst `None`.
 let reviewUndoOffered (review: ReviewSession) : ReviewUndo option =
     match review.Last with
     | Some { Act = Some (LastUndo undo) } -> Some undo
@@ -1718,12 +1718,13 @@ type ReviewKeyAction =
 /// Die Tastenbelegung des Durchgehens: Enter passt (nur mit Ziel, nicht auf der Duplikat-Karte),
 /// S später, K öffnet die Kategorieauswahl und L fragt Lena bzw. nimmt die Rückfrage zurück (beide
 /// nicht auf der Duplikat-Karte), Esc führt zurück, Z nimmt die letzte Aktion zurück, wenn die Zeile ein
-/// Rückgängig anbietet (`undoOffered`), auch in der Endansicht. Ohne Karte (Endansicht) sonst nur Esc. Rein.
+/// Rückgängig anbietet (`undoOffered`). Ohne Karte (Endansicht) nur Esc: dort gibt es kein Rückgängig mehr
+/// (Romans Prüfung am 20.11.). Rein.
 let reviewKeyAction (card: (ReviewCardKind * bool) option) (undoOffered: bool) (key: string) : ReviewKeyAction option =
     match key, card with
     | "Escape", _ -> Some KeyLeave
-    | ("z" | "Z"), _ -> if undoOffered then Some KeyUndo else None
     | _, None -> None
+    | ("z" | "Z"), _ -> if undoOffered then Some KeyUndo else None
     | "Enter", Some (NormalCard, true) -> Some KeyConfirm
     | ("s" | "S"), Some _ -> Some KeySkip
     | ("k" | "K"), Some (NormalCard, _) -> Some KeyOpenCategory
@@ -3336,7 +3337,7 @@ type Msg =
     | ReviewSwiped of dx: float * dy: float
     /// Eine Taste am PC (ohne Fokus in einem Feld).
     | ReviewKey of ReviewKeyAction
-    /// „Rückgängig“ in der Zeile der letzten Aktion, Taste Z oder „Letzte rückgängig“ in der Endansicht.
+    /// „Rückgängig“ in der Zeile der letzten Aktion oder Taste Z.
     | ReviewUndoLast
     /// „Erneut“ in der Zeile der letzten Aktion.
     | ReviewRetryLast
