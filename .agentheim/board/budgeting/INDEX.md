@@ -10,14 +10,15 @@ Catalog of this bounded context's tasks by status.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 4
-- **Todo:** 2
+- **Backlog:** 3
+- **Todo:** 3
 - **Doing:** 0
 - **Done:** 70
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **budgeting-y1kkr** — "„Rückgängig“ nach einer Verschiebung im Sheet „Geld“: Verschiebung in die Gegenrichtung mit demselben Betrag, für Holen, Abgeben und den Fehlbetrag-Knopf, nur wenn alles geschrieben ist" (feature) — `todo/budgeting-y1kkr-rueckgaengig-nach-verschiebung.md`
 - **budgeting-p3sk0** — "Angepinnt ohne Meldung (R3): Anpinnen und Lösen im Kategorie-Detail ohne Toast, die Kategorie leuchtet auf der Übersicht im Bereich „Angepinnt“ kurz, ein Fehler beim Speichern steht am Ort" (feature) — `todo/budgeting-p3sk0-angepinnt-ohne-meldung.md`
 - **budgeting-sx9v5** — "Targets und Kategorien verwalten am Handy ohne Toast (R3): Ergebnis am Target im Sheet und in der Zeile der Prüfung, Kategorien verwalten mit leuchtender Zeile und Fehler am Feld, Hinweis „nicht neu gelesen“ auf der Seite" (feature) — `todo/budgeting-sx9v5-targets-und-kategorien-ohne-toast.md`
 <!-- todo-list:end -->
@@ -107,7 +108,6 @@ prior-art matcher additionally checks `done-archive/` when present.
 
 ### Backlog
 <!-- backlog-list:start -->
-- **budgeting-y1kkr** — "„Rückgängig“ nach einer Verschiebung im Sheet „Geld“: Verschiebung in die Gegenrichtung mit demselben Betrag, für Holen, Abgeben und den Fehlbetrag-Knopf, nur wenn alles geschrieben ist" (feature) — `backlog/budgeting-y1kkr-rueckgaengig-nach-verschiebung.md`
 - **budgeting-wnkgj** — "Budget-Seite angleichen (Teil D): Kopf, Gruppensummen, Panel am PC, Kategorie-Detail, Dialog „Targets anwenden“, Leerflächen am PC" (feature) — `backlog/budgeting-wnkgj-budget-angleichen.md`
 - **budgeting-h9c3w** — "Kann-Sammlung budgeting" (chore) — `backlog/budgeting-h9c3w-review-befunde-sammlung.md`
 - **budgeting-bk6tq** — "Spike: Ausgaben am Monatswechsel. Wann kommen Buchungen bei Comdirect und ING an (vorgemerkt, gebucht, welches Datum), und was heißt das für Auffüllen auf einen festen Betrag am Monatsersten?" (spike) — `backlog/budgeting-bk6tq-vortrag-ab-dem-ersten-tag.md`

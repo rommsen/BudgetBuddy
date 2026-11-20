@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-20 02:45 -- Modeling / Promoted: budgeting-y1kkr - "„Rückgängig“ nach einer Verschiebung im Sheet „Geld“: Verschiebung in die Gegenrichtung mit demselben Betrag, für Holen, Abgeben und den Fehlbetrag-Knopf, nur wenn alles geschrieben ist"
+
+**Type:** Modeling / Promote
+**BC:** budgeting
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-20 02:44 -- Task verified and completed: budgeting-gtrgk - "Budget-Seite und Sheet „Geld“ am Handy ohne Toast (R3): Ergebnis und Fehler in der Zeile über dem Knopf, „Verfügbar“ leuchtet kurz, Hinweis „nicht neu gelesen“ unter „Zu verteilen“ mit „Neu laden“"
 
 **Type:** Work / Task completion

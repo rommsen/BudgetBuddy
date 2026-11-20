@@ -1,7 +1,7 @@
 ---
 id: budgeting-y1kkr
 title: "„Rückgängig“ nach einer Verschiebung im Sheet „Geld“: Verschiebung in die Gegenrichtung mit demselben Betrag, für Holen, Abgeben und den Fehlbetrag-Knopf, nur wenn alles geschrieben ist"
-status: backlog
+status: todo
 type: feature
 context: budgeting
 created: 2026-11-19
