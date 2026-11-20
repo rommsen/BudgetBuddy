@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-11-20 18:01 -- Modeling / Refined: infrastructure-x7p2e - Expecto wieder schnell
+
+**Type:** Modeling / Refine
+**BC:** infrastructure
+**Status after:** todo
+**Summary:** Zwei Hebel: testSequenced nur bei geteiltem Zustand (Grund als Kommentar), die fünf längsten Aufzählungen teilen. Ziel höchstens 30 s Wandzeit, Messtabelle vorher und nachher, zehn grüne Läufe, kein Produktionscode. Zeitgeber kürzen gestrichen (läuft im parallelen Teil, Dauern sind Produktionskonstanten).
+
+---
+
 ## 2026-11-20 17:54 -- Modeling / Refined: banking-import-r28hx - Alle Konten per FinTS selbst abrufen
 
 **Type:** Modeling / Refine

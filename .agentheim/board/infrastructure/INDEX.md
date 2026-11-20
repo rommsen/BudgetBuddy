@@ -44,7 +44,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
-- **infrastructure-x7p2e** — "Expecto wieder schnell: weniger testSequenced, lange Aufzählungen teilen, kurze Zeitgeber" (chore) — `backlog/infrastructure-x7p2e-expecto-laufzeit.md`
+- **infrastructure-x7p2e** — "Expecto wieder schnell: testSequenced nur bei geteiltem Zustand, lange Aufzählungen teilen, Ziel höchstens 30 s" (chore) — `backlog/infrastructure-x7p2e-expecto-laufzeit.md`
 - **infrastructure-rm6zb** — "Wächter gegen Formatangaben in interpolierten Strings unter src/Client und src/Shared" (chore) — `backlog/infrastructure-rm6zb-waechter-formatangaben-interpolierte-strings.md`
 - **infrastructure-hgbey** — "Kann-Sammlung infrastructure" (chore) — `backlog/infrastructure-hgbey-kann-sammlung-infrastructure.md`
 - **infrastructure-phadg** — "Altlasten nach der Test-Doktrin: nachgebaute Tests und Quelltext-Tests auf View-Verdrahtung ersetzen" (chore) — `backlog/infrastructure-phadg-altlasten-test-doktrin.md`
