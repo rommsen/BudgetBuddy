@@ -1489,7 +1489,19 @@ let private FeedbackDemo () =
                     ]
                 ]
                 subTitle "Zeile „gelöscht“ am Platz"
-                preview [ Feedback.removedRow "Regel drei" undo ]
+                preview [
+                    Html.div [
+                        prop.className "space-y-2"
+                        prop.children [
+                            Feedback.removedRowIn "Regel drei" Feedback.RemovedPhase.Removing
+                            Feedback.removedRow "Regel drei" undo
+                            Feedback.removedRowIn "Eine Regel mit einem sehr langen Namen für die Zeile" Feedback.RemovedPhase.Restoring
+                            Feedback.removedRowIn
+                                "Regel drei"
+                                (Feedback.RemovedPhase.RestoreFailed ("Datenbankfehler bei restore_rule: gesperrt", { undo with Label = "Erneut" }))
+                        ]
+                    ]
+                ]
             ]
         ]
     ]

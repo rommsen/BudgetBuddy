@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 1
 - **Todo:** 0
-- **Doing:** 1
-- **Done:** 10
+- **Doing:** 0
+- **Done:** 11
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,11 +22,11 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **categorization-t6j00** — "Regeln ohne Toast (R3): gelöschte Regel als gestrichelte Zeile am Platz mit Rückgängig, gespeicherte Regel leuchtet kurz, Fehler an der Regel oder als Hinweis der Seite" (feature) — `doing/categorization-t6j00-regeln-ohne-toast.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **categorization-t6j00** — "Regeln ohne Toast (R3): gelöschte Regel als gestrichelte Zeile am Platz mit Rückgängig, gespeicherte Regel leuchtet kurz, Fehler an der Regel oder als Hinweis der Seite" (feature) — `done/categorization-t6j00-regeln-ohne-toast.md`
 - **categorization-m47g8** — "Neue Regeln kommen ans Ende der Liste (niedrigste Priorität), aus der Buchung wie im Tab Regeln" (bug) — `done/categorization-m47g8-neue-regel-ans-ende.md`
 - **categorization-n3sxw** — "Regeln ins Kassenbuch: Regeln als Tab neben den Buchungen statt eigener Seite" (feature) — `done/categorization-n3sxw-regeln-ins-kassenbuch.md`
 - **categorization-f955d** — "Regeln: Inline-Formular nach Elmish, Abhängigkeit von budgeting lösen, Menü und Zeilen bedienbar, Testlücken schließen" (bug) — `done/categorization-f955d-regelformular-und-regelseite-nachziehen.md`

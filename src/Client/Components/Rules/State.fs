@@ -10,7 +10,18 @@ open Shared.Domain
 module ListKeys = Client.DesignSystem.ListKeys
 
 let init () : Model * Cmd<Msg> =
-    { Rules = NotAsked; LoadVersion = 0; Categories = NotAsked; Panel = None; SaveRequests = 0; Reorder = ReorderIdle }, Cmd.none
+    { Rules = NotAsked
+      LoadVersion = 0
+      Categories = NotAsked
+      Panel = None
+      SaveRequests = 0
+      Reorder = ReorderIdle
+      Removed = None
+      Fault = None
+      StaleLoad = None
+      Flashed = None
+      LastMoved = None },
+    Cmd.none
 
 // ============================================
 // Reine Hilfen
@@ -93,6 +104,45 @@ let followEntry (shown: Guid option) (model: Model) : Model =
 /// (ledger-hg5m5). Ein Formular des Tabs bleibt.
 let forTab (model: Model) : Model =
     if (entryFormFor model).IsSome then { model with Panel = None } else model
+
+/// Die nächste Aktion auf dem Tab (Regel R3, ADR 0098): Regel wählen, „Neue Regel“, ein Pfeil, ein weiteres Löschen,
+/// „Regel anlegen“ aus einer Buchung, den Tab verlassen. Sie nimmt die Zeile „gelöscht“ und einen Fehler an einer
+/// Regel weg; ein Zeitlimit gibt es nicht.
+let isNextAction (msg: Msg) : bool =
+    match msg with
+    | RuleChosen _
+    | NewRuleRequested
+    | MoveRequested _
+    | DeleteRequested
+    | EntryRuleRequested _
+    | RulesTabLeft -> true
+    | _ -> false
+
+/// Eine Zeile der Liste: eine Regel mit ihrer Nummer oder die Zeile „gelöscht“ ohne Nummer.
+type ListRow =
+    | RuleRow of number: int * Rule
+    | RemovedRow of RemovedRule
+
+/// Die Zeilen der Liste: die Zeile „gelöscht“ steht an der Stelle der Regel, die Regeln danach rücken in der Nummer
+/// auf (Skizze 33: „2 Regel vier“ unter „„Regel drei“ gelöscht“).
+let listRows (rules: Rule list) (removed: RemovedRule option) : ListRow list =
+    let numbered = rules |> List.mapi (fun index rule -> RuleRow (index + 1, rule))
+    match removed with
+    | Some row -> List.insertAt (min (max row.Position 0) numbered.Length) (RemovedRow row) numbered
+    | None -> numbered
+
+/// Der Fehler unter der Regel `ruleId`, falls er zu ihr gehört.
+let faultAt (fault: RuleFault option) (ruleId: RuleId) : string option =
+    match fault with
+    | Some { RuleId = Some id; Text = text } when id = ruleId -> Some text
+    | _ -> None
+
+/// Der Fehler über der Liste: einer, dessen Regel nicht (mehr) in der Liste steht.
+let faultAboveList (rules: Rule list) (fault: RuleFault option) : string option =
+    match fault with
+    | Some { RuleId = Some id } when rules |> List.exists (fun r -> r.Id = id) -> None
+    | Some { Text = text } -> Some text
+    | None -> None
 
 /// Wo steht der Fokus, wenn eine Taste kommt? In einem Textfeld gehören die Pfeile dem Cursor (§7.8).
 type KeyFocus =
@@ -204,6 +254,19 @@ let private reorderCmd (ports: RulesPorts) (ids: RuleId list) : Cmd<Msg> =
 
 let private unreachable (operation: string) (ex: exn) = RulesError.DatabaseError (operation, ex.Message)
 
+/// So lange leuchtet eine Regel (`Feedback.flash`, Keyframes `feedbackFlash` in styles.css, 0,7 s). Ohne Bewegung
+/// steht der Ring so lange.
+[<Literal>]
+let flashDurationMs = 700
+
+/// Das Ende des Leuchtens. `Cmd.OfAsync.perform` passt hier: das Warten kann nicht scheitern.
+let private flashEndCmd (ruleId: RuleId) : Cmd<Msg> =
+    Cmd.OfAsync.perform (fun () -> async { do! Async.Sleep flashDurationMs }) () (fun _ -> FlashEnded ruleId)
+
+/// Die Regel leuchtet kurz.
+let private flash (rule: Rule) (model: Model) : Model * Cmd<Msg> =
+    { model with Flashed = Some rule.Id }, flashEndCmd rule.Id
+
 // ============================================
 // update
 // ============================================
@@ -261,16 +324,17 @@ let private afterSave (shell: Shell) (origin: PanelOrigin) (rule: Rule) : Panel 
 let private savingPanel (model: Model) (request: int) : Panel option =
     model.Panel |> Option.filter (fun panel -> panel.Save = Saving request)
 
-/// Die Antwort auf ein Speichern. `place` setzt die gespeicherte Regel in die Liste, `failedText` nennt einen Fehler,
-/// dessen Formular nicht mehr offen ist.
+/// Die Antwort auf ein Speichern. `place` setzt die gespeicherte Regel in die Liste. Gelungen leuchtet die Regel in der
+/// Liste kurz (aus einer Buchung meldet es die Seite, dort ist die Regel nicht zu sehen). Gescheitert steht der Fehler
+/// im Formular, solange es offen ist, sonst an `failedElsewhere`.
 let private saveAnswered
     (model: Model)
     (shell: Shell)
+    (origin: PanelOrigin)
     (request: int)
     (result: Result<Rule, RulesError>)
     (place: Rule -> Rule list -> Rule list)
-    (savedText: string)
-    (failedText: string)
+    (failedElsewhere: string -> Model * ExternalMsg)
     =
     let bound = savingPanel model request
     match result, bound with
@@ -280,11 +344,16 @@ let private saveAnswered
             match bound with
             | Some saving -> afterSave shell saving.Origin rule
             | None -> model.Panel
-        { model' with Panel = panel }, Cmd.none, ShowToast (savedText, ToastSuccess)
+        match origin with
+        | FromEntry _ -> { model' with Panel = panel }, Cmd.none, ShowFeedback (FeedbackOk, "Regel angelegt", Some rule.Name)
+        | FromRulesTab ->
+            let flashed, cmd = flash rule { model' with Panel = panel }
+            flashed, cmd, NoOp
     | Error err, Some panel ->
         { model with Panel = Some { panel with Save = SaveFailed (saveFailure err) } }, Cmd.none, NoOp
     | Error err, None ->
-        model, Cmd.none, ShowToast ($"{failedText}: {rulesErrorToString err}", ToastError)
+        let model', ext = failedElsewhere (rulesErrorToString err)
+        model', Cmd.none, ext
 
 /// Startet das Laden der Liste. Eine geladene Liste bleibt stehen, bis die neue da ist: der Wechsel zwischen den
 /// Tabs zeigt kein Skeleton.
@@ -295,6 +364,9 @@ let private startLoad (ports: RulesPorts) (model: Model) : Model * Cmd<Msg> =
 
 let updateWith (ports: RulesPorts) (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     let editDraft = editDraft ports
+    // Die nächste Aktion nimmt die Zeile „gelöscht“ und einen Fehler an einer Regel weg (ein Löschen setzt danach
+    // seine eigene Zeile).
+    let model = if isNextAction msg then { model with Removed = None; Fault = None } else model
     match msg with
     | LoadRules ->
         let model', cmd = startLoad ports model
@@ -302,10 +374,10 @@ let updateWith (ports: RulesPorts) (msg: Msg) (model: Model) : Model * Cmd<Msg> 
 
     | RulesLoaded (version, _) when version <> model.LoadVersion -> model, Cmd.none, NoOp
 
-    | RulesLoaded (_, Ok rules) -> { model with Rules = Success rules }, Cmd.none, NoOp
+    | RulesLoaded (_, Ok rules) -> { model with Rules = Success rules; StaleLoad = None }, Cmd.none, NoOp
 
-    | RulesLoaded (_, Error err) when RemoteData.isSuccess model.Rules ->
-        model, Cmd.none, ShowToast ($"Regeln konnten nicht neu geladen werden: {err}", ToastError)
+    // Ein Zustand der Seite, keine Meldung (R3): der Hinweis über der Liste bleibt, bis ein Laden klappt.
+    | RulesLoaded (_, Error err) when RemoteData.isSuccess model.Rules -> { model with StaleLoad = Some err }, Cmd.none, NoOp
 
     | RulesLoaded (_, Error err) -> { model with Rules = Failure err }, Cmd.none, NoOp
 
@@ -315,10 +387,8 @@ let updateWith (ports: RulesPorts) (msg: Msg) (model: Model) : Model * Cmd<Msg> 
     | CategoriesLoaded (Ok categories) -> { model with Categories = Success categories }, Cmd.none, NoOp
 
     | CategoriesLoaded (Error err) ->
-        let text = ynabErrorText err
-        { model with Categories = RemoteData.lateFailure text model.Categories },
-        Cmd.none,
-        ShowToast ($"Kategorien konnten nicht geladen werden: {text}", ToastError)
+        // Den Grund zeigt die Auswahl der Kategorie mit „Erneut versuchen“ (`categoryLoadState`), ohne Meldung.
+        { model with Categories = RemoteData.lateFailure (ynabErrorText err) model.Categories }, Cmd.none, NoOp
 
     // Ein zweiter Klick auf „Neue Regel“ lässt den Entwurf stehen, wie dieselbe Regel noch einmal.
     | NewRuleRequested when (model.Panel |> Option.exists (fun p -> p.Editor = NewRule)) -> model, Cmd.none, NoOp
@@ -352,7 +422,7 @@ let updateWith (ports: RulesPorts) (msg: Msg) (model: Model) : Model * Cmd<Msg> 
                 model, Cmd.none, NoOp
             else
                 let byId = rules |> List.map (fun r -> r.Id, r) |> Map.ofList
-                let model' = withRules (newOrder |> List.choose (fun id -> Map.tryFind id byId)) model
+                let model' = { withRules (newOrder |> List.choose (fun id -> Map.tryFind id byId)) model with LastMoved = Some ruleId }
                 match model.Reorder with
                 | ReorderIdle -> { model' with Reorder = ReorderSending (newOrder, false) }, reorderCmd ports newOrder, NoOp
                 // Eine Umordnung läuft: der neue Stand geht nach ihrer Antwort hinaus, nicht neben ihr.
@@ -369,7 +439,7 @@ let updateWith (ports: RulesPorts) (msg: Msg) (model: Model) : Model * Cmd<Msg> 
     | RulesReordered (Error err) ->
         // Welche Reihenfolge gilt, weiß nur der Server: die Liste lädt neu, ein wartender Stand verfällt.
         let model', cmd = startLoad ports { model with Reorder = ReorderIdle }
-        model', cmd, ShowToast ($"Reihenfolge konnte nicht gespeichert werden: {err}", ToastError)
+        { model' with Fault = Some { RuleId = model.LastMoved; Text = $"Reihenfolge nicht gespeichert: {err}" } }, cmd, NoOp
 
     | NameEntered value -> editDraft model (fun d -> { d with Name = value }) false
     | PatternEntered value -> editDraft model (fun d -> { d with Pattern = value }) true
@@ -416,16 +486,20 @@ let updateWith (ports: RulesPorts) (msg: Msg) (model: Model) : Model * Cmd<Msg> 
                     Cmd.OfAsync.either
                         ports.Create
                         (buildNewRule panel.Draft categoryId)
-                        (fun result -> RuleCreated (shell, request, result))
-                        (fun ex -> RuleCreated (shell, request, Error (unreachable "create" ex)))
+                        (fun result -> RuleCreated (shell, panel.Origin, request, result))
+                        (fun ex -> RuleCreated (shell, panel.Origin, request, Error (unreachable "create" ex)))
                 { model with Panel = Some { panel with Save = Saving request }; SaveRequests = request }, cmd, NoOp
             | _ -> model, Cmd.none, NoOp
         | _ -> model, Cmd.none, NoOp
 
-    | RuleCreated (shell, request, result) ->
+    | RuleCreated (shell, origin, request, result) ->
         // Ans Ende (categorization-m47g8) und genau einmal: kam eine Ladeantwort nach dem Speichern auf
-        // dem Server, steht die Regel schon in der Liste.
-        saveAnswered model shell request result (fun rule rules -> (rules |> List.filter (fun r -> r.Id <> rule.Id)) @ [ rule ]) "Regel angelegt" "Regel konnte nicht angelegt werden"
+        // dem Server, steht die Regel schon in der Liste. Eine neue Regel ohne offenes Formular hat keinen Platz in der
+        // Liste: der Fehler geht an die Seite.
+        saveAnswered
+            model shell origin request result
+            (fun rule rules -> (rules |> List.filter (fun r -> r.Id <> rule.Id)) @ [ rule ])
+            (fun reason -> model, ShowFeedback (FeedbackError, "Regel nicht angelegt", Some reason))
 
     | ChangeRequested shell ->
         match model.Panel with
@@ -437,18 +511,20 @@ let updateWith (ports: RulesPorts) (msg: Msg) (model: Model) : Model * Cmd<Msg> 
                     Cmd.OfAsync.either
                         ports.Change
                         (buildRuleChange rule panel.Draft categoryId)
-                        (fun result -> RuleChanged (shell, request, result))
-                        (fun ex -> RuleChanged (shell, request, Error (unreachable "update" ex)))
+                        (fun result -> RuleChanged (shell, rule.Id, request, result))
+                        (fun ex -> RuleChanged (shell, rule.Id, request, Error (unreachable "update" ex)))
                 { model with Panel = Some { panel with Save = Saving request }; SaveRequests = request }, cmd, NoOp
             | _ -> model, Cmd.none, NoOp
         | _ -> model, Cmd.none, NoOp
 
-    | RuleChanged (shell, request, result) ->
+    | RuleChanged (shell, ruleId, request, result) ->
         saveAnswered
-            model shell request result
+            model shell FromRulesTab request result
             (fun rule rules -> rules |> List.map (fun r -> if r.Id = rule.Id then rule else r))
-            "Regel gespeichert"
-            "Regel konnte nicht gespeichert werden"
+            (fun reason -> { model with Fault = Some { RuleId = Some ruleId; Text = $"Nicht gespeichert: {reason}" } }, NoOp)
+
+    | FlashEnded ruleId when model.Flashed = Some ruleId -> { model with Flashed = None }, Cmd.none, NoOp
+    | FlashEnded _ -> model, Cmd.none, NoOp
 
     | DeleteRequested ->
         match model.Panel, model.Rules with
@@ -462,35 +538,57 @@ let updateWith (ports: RulesPorts) (msg: Msg) (model: Model) : Model * Cmd<Msg> 
                         (fun result -> RuleDeleted (rule, position, result))
                         (fun ex -> RuleDeleted (rule, position, Error (unreachable "delete" ex)))
                 let model' = withRules (rules |> List.filter (fun r -> r.Id <> rule.Id)) model
-                { model' with Panel = None }, cmd, NoOp
+                { model' with Panel = None; Removed = Some { Rule = rule; Position = position; Phase = Removing } }, cmd, NoOp
             | None -> model, Cmd.none, NoOp
         | _ -> model, Cmd.none, NoOp
 
-    | RuleDeleted (rule, position, Ok ()) -> model, Cmd.none, RuleDeletedUndoable (rule, position)
+    | RuleDeleted (rule, _, Ok ()) ->
+        match model.Removed with
+        | Some ({ Phase = Removing } as removed) when removed.Rule.Id = rule.Id ->
+            { model with Removed = Some { removed with Phase = Removed } }, Cmd.none, NoOp
+        | _ -> model, Cmd.none, NoOp
 
     | RuleDeleted (rule, position, Error err) ->
-        // Die Regel steht noch auf dem Server: sie kommt an ihre Stelle zurück.
+        // Die Regel steht noch auf dem Server: sie kommt an ihre Stelle zurück, darunter der Grund.
         let model' =
             mapRules
                 (fun rules ->
                     if rules |> List.exists (fun r -> r.Id = rule.Id) then rules
                     else List.insertAt (min position rules.Length) rule rules)
                 model
-        model', Cmd.none, ShowToast ($"Regel konnte nicht gelöscht werden: {rulesErrorToString err}", ToastError)
+        let removed = model.Removed |> Option.filter (fun r -> r.Rule.Id <> rule.Id)
+        { model' with
+            Removed = removed
+            Fault = Some { RuleId = Some rule.Id; Text = $"Nicht gelöscht: {rulesErrorToString err}" } },
+        Cmd.none,
+        NoOp
 
-    | RestoreRequested (rule, position) ->
-        let cmd =
-            Cmd.OfAsync.either
-                ports.Restore
-                { Rule = rule; Position = position }
-                RuleRestored
-                (fun ex -> RuleRestored (Error (unreachable "restore" ex)))
-        model, cmd, NoOp
+    | RestoreRequested ->
+        match model.Removed with
+        | Some ({ Phase = (Removed | RestoreFailed _) } as removed) ->
+            let rule = removed.Rule
+            let cmd =
+                Cmd.OfAsync.either
+                    ports.Restore
+                    { Rule = rule; Position = removed.Position }
+                    (fun result -> RuleRestored (rule, result))
+                    (fun ex -> RuleRestored (rule, Error (unreachable "restore" ex)))
+            { model with Removed = Some { removed with Phase = Restoring } }, cmd, NoOp
+        | _ -> model, Cmd.none, NoOp
 
-    // Die Antwort ist die ganze Liste in der neuen Reihenfolge: kein Zwischenstand an falscher Stelle.
-    | RuleRestored (Ok rules) -> withRules rules model, Cmd.none, NoOp
+    // Die Antwort ist die ganze Liste in der neuen Reihenfolge: kein Zwischenstand an falscher Stelle. Die Regel steht
+    // wieder an ihrem Platz und leuchtet kurz.
+    | RuleRestored (rule, Ok rules) ->
+        let removed = model.Removed |> Option.filter (fun r -> r.Rule.Id <> rule.Id)
+        let model', cmd = flash rule { withRules rules model with Removed = removed }
+        model', cmd, NoOp
 
-    | RuleRestored (Error err) ->
-        model, Cmd.none, ShowToast ($"Regel konnte nicht wiederhergestellt werden: {rulesErrorToString err}", ToastError)
+    | RuleRestored (rule, Error err) ->
+        let reason = rulesErrorToString err
+        match model.Removed with
+        | Some removed when removed.Rule.Id = rule.Id ->
+            { model with Removed = Some { removed with Phase = RestoreFailed reason } }, Cmd.none, NoOp
+        // Die Zeile ist schon weg (nächste Aktion während des Wiederherstellens): der Fehler geht an die Seite.
+        | _ -> model, Cmd.none, ShowFeedback (FeedbackError, "Regel nicht wiederhergestellt", Some reason)
 
 let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg = updateWith livePorts msg model

@@ -355,9 +355,6 @@ type ToastActionKind =
     /// "Rückgängig" nach "Buchung löschen" im Detail (ledger-z6sya, ADR 0092): die Buchung wird in
     /// YNAB neu angelegt und gilt im Kassenbuch nicht mehr als gelöscht.
     | UndoDeleteEntry of entryId: Guid
-    /// "Rückgängig" nach "Regel löschen" (categorization-n3sxw): die Regel kommt mit allen Feldern an ihre Stelle
-    /// zurück (`restoreRule`).
-    | UndoDeleteRule of rule: Shared.Domain.Rule * position: int
     /// "Neu laden" am Hinweis "Neue Version" der installierten PWA (infrastructure-bnbdc,
     /// ADR 0057): gibt den wartenden Service Worker frei, die Seite lädt neu.
     | ReloadForUpdate
@@ -453,6 +450,19 @@ module FeedbackSlot =
         match act with
         | Some { Kind = UndoReviewMark _ } -> Some (ReviewedBySwipe, 1)
         | _ -> None
+
+    /// Eine Meldung mit Aktion und Detail getrennt, ohne Knopf (etwa „Regel angelegt“ / Name der Regel). Der Toast am
+    /// PC zeigt „Aktion · Detail“, bei einem Fehler „Aktion: Detail“.
+    let message (id: Guid) (tone: FeedbackTone) (action: string) (detail: string option) : FeedbackMessage =
+        { Id = id
+          Tone = tone
+          Action = action
+          Detail = detail
+          Act = None
+          Group = None
+          ToastSeparator = (if tone = FeedbackError then ": " else " · ")
+          ToastHidden = false
+          ToastExiting = false }
 
     /// Eine Meldung aus einem Toast von heute (`ShowToast`, `ShowToastWithAction`).
     let ofToast (id: Guid) (text: string) (toastType: ToastType) (act: ToastAction option) : FeedbackMessage =

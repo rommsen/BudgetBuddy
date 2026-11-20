@@ -1,7 +1,7 @@
 ---
 id: categorization-t6j00
 title: "Regeln ohne Toast (R3): gelöschte Regel als gestrichelte Zeile am Platz mit Rückgängig, gespeicherte Regel leuchtet kurz, Fehler an der Regel oder als Hinweis der Seite"
-status: doing
+status: done
 type: feature
 context: categorization
 created: 2026-11-19
@@ -156,3 +156,74 @@ Abhängigkeiten: DS-Baustein und Meldungsweg aus design-system-ytgnc (DS-Modul v
 festgelegt). Meldungsplatz bei `FromEntry`: ledger-gwr9j (Kassenbuch-Leiste) und ledger-pz5wv (Zeile der letzten Aktion
 im Durchgehen). Dasselbe Muster „gelöscht am Platz“ nutzt ledger-gwr9j für „Buchung gelöscht“; den Baustein baut ytgnc,
 nicht diese Task.
+
+
+## Outcome
+
+Im Tab „Regeln“ gibt es keinen Toast mehr (Regel R3, ADR 0098), auf allen Breiten.
+
+**Modell und Ablauf** (`src/Client/Components/Rules/Types.fs`, `State.fs`)
+- Neu im `Model`: `Removed: RemovedRule option` (Regel, Stelle, Phase `Removing | Removed | Restoring | RestoreFailed of reason`), `Fault: RuleFault option` (Regel-Id oder keine, Text), `StaleLoad: string option`, `Flashed: RuleId option`, `LastMoved: RuleId option`.
+- Die „nächste Aktion“ ist die reine Funktion `isNextAction` (RuleChosen, NewRuleRequested, MoveRequested, DeleteRequested, EntryRuleRequested, RulesTabLeft). Am Anfang von `updateWith` nimmt sie Zeile und Fehler weg. Ein zweites Löschen ersetzt die Zeile, die Antwort des ersten ändert sie nicht mehr.
+- `DeleteRequested` setzt die Zeile mit Phase `Removing`, `RuleDeleted Ok` macht sie zu `Removed`. Bei `Error` kommt die Regel an ihre Stelle zurück, darunter „Nicht gelöscht: <Grund>“.
+- `RestoreRequested` hat keine Argumente mehr und nimmt Regel und Stelle aus `Model.Removed`. Es wirkt nur in den Phasen `Removed` und `RestoreFailed` („Erneut“).
+- `RuleRestored (rule, Ok rules)` übernimmt die Liste des Servers und nimmt die Zeile weg, die Regel leuchtet. Bei `Error` wird die Zeile `RestoreFailed`. Ist die Zeile schon weg, geht „Regel nicht wiederhergestellt“ an den Meldungsplatz der Seite.
+- Speichern: `RuleCreated` trägt jetzt `origin: PanelOrigin`, `RuleChanged` die `RuleId`.
+  - Gelungen aus dem Tab: die Regel leuchtet (`flashDurationMs = 700`, `FlashEnded`, passend zu `feedbackFlash` in styles.css).
+  - Aus einer Buchung: `ShowFeedback (FeedbackOk, "Regel angelegt", Some name)`.
+  - Gescheitert bei geschlossenem Formular: unter einer bestehenden Regel „Nicht gespeichert: <Grund>“, bei einer neuen Regel `ShowFeedback (FeedbackError, "Regel nicht angelegt", Some grund)`.
+  - Formular offen: wie bisher im Formular.
+- Reihenfolge gescheitert: die Liste lädt neu, `Fault` an `LastMoved` „Reihenfolge nicht gespeichert: <Grund>“. Fehlt die Regel nach dem Laden, steht der Satz über der Liste (`faultAboveList`).
+- Neuladen gescheitert bei stehender Liste: `StaleLoad`, bleibt bis `RulesLoaded Ok`.
+- Kategorien gescheitert: keine Meldung mehr, der Grund steht schon in der Auswahl.
+- `ExternalMsg` ist `NoOp | ShowFeedback of FeedbackTone * action * detail option`. `ShowToast` und `RuleDeletedUndoable` gibt es im Tab nicht mehr.
+- Abweichung vom Wortlaut des ersten Kriteriums: `grep -n "ShowToast" src/Client/Components/Rules/` findet nichts. Die Meldung bei `FromEntry` heißt `ShowFeedback` und geht über `State.ShowFeedback` / `FeedbackSlot.post`. Am Handy erscheint sie in der Leiste, am PC als Toast, weil sie dort keinen Ort hat.
+- Neben `FromEntry` nutzen zwei seltene Fälle ohne Platz in der Liste denselben Weg: „Regel nicht angelegt“ bei geschlossenem Formular (verlangt die Task) und „Regel nicht wiederhergestellt“, wenn die Zeile schon weg ist.
+
+**Wurzel** (`src/Client/State.fs`, `src/Client/Types.fs`)
+- `UndoDeleteRule` ist aus `ToastActionKind` und `toastActionMsg` entfernt, der Zweig `RuleDeletedUndoable` ebenso.
+- Neu ist `FeedbackSlot.message id tone action detail`: Aktion und Detail getrennt, im PC-Toast mit „ · “ bzw. bei Fehlern „: “ verbunden.
+
+**Ansicht** (`src/Client/Components/Rules/View.fs`)
+- `listRows` (rein, in `State.fs`) setzt die Zeile „gelöscht“ ohne Nummer an die Stelle, die Regeln danach rücken auf.
+- In Tabelle und Karte ist die Zeile `data-testid="rule-deleted-row"`. Fehler stehen unter der Regel über `ErrorDisplay.inline'` (`rule-fault`) oder über der Liste (`rules-fault`).
+- Der Hinweis „Regeln nicht neu geladen“ ist `Detail.notice` gelb mit „Neu laden“ (`rules-stale-notice`). Abweichung im Text: Badge „Regeln nicht neu geladen“, darunter „Die Liste kann veraltet sein: <Grund>“, statt eines einzigen Satzes. So ist das Muster aus dem Kassenbuch (`order-stale-bar`).
+- Eine leuchtende Zeile trägt `Feedback.flash` und rollt per `scrollIntoView({block:"nearest"})` ins Bild. Die Zeilen haben dafür einen transparenten Rand.
+- Leer gelöschte Liste: die Zeile steht statt „Keine Regeln“.
+
+**DS** (`src/Client/DesignSystem/Feedback.fs`)
+- Neu: `RemovedPhase` (`Removing`, `Removed of Act`, `Restoring`, `RestoreFailed of reason * Act`), `removedRowText` und `removedRowIn name phase` (rot mit Grund darunter, `data-phase`, in jeder Phase 48 px).
+- `removedRow name undo` bleibt mit derselben Signatur (ledger-gwr9j nutzt es).
+- Im Styleguide zeigt `/styleguide` alle vier Phasen. `standards/frontend/styleguide.md` §5 (Zeile Feedback) und §7.13 (Gelöschtes in einer Liste) sind ergänzt.
+
+**Tests**
+- `src/Tests/RulesListTests.fs`, 8 neue Tests:
+  - Reihenfolge-Fehler an der Regel bzw. über der Liste.
+  - Ein überholtes `FlashEnded` ändert nichts.
+  - Rückgängig wirkt nicht, solange etwas läuft.
+  - Jede nächste Aktion nimmt Zeile und Fehler weg, Nicht-Aktionen nicht, ein zweites Löschen ersetzt die Zeile.
+  - Gescheitertes Wiederherstellen ohne Zeile geht an die Seite.
+  - `listRows` mit Nummerierung.
+  - Der Root reicht Aktion und Detail an `State.ShowFeedback` weiter (PC-Text „Regel angelegt · Rewe“).
+  - `RuleCreated` trägt die Herkunft.
+- Umgeschrieben, nicht gelöscht, wurden die Erwartungen auf `ShowToast` und `RuleDeletedUndoable`: Neuladen, Anlegen und Ändern leuchten (mit `CmdTiming.expectAfter flashDurationMs`), Löschen, Wiederherstellen, Kategorien, Root, FromEntry sowie die Aufzählungen „Speichern in jeder Reihenfolge“ (jetzt Leuchten, Fehler an der Regel bzw. Meldungsplatz) und „Reihenfolge in jeder Reihenfolge“ (Fehler an der Regel statt Toast).
+- `ClientCommandTests.fs`: Rückgängig schickt Regel und Stelle aus der Zeile.
+- Gegenprobe: vier Mutanten in `State.fs` gesetzt, 6 Tests waren rot, danach wiederhergestellt. Die Mutanten: `RulesTabLeft` keine Aktion, Zeile immer am Ende, Fehler beim Wiederherstellen löscht die Zeile, kein Leuchten nach dem Speichern.
+- Sweep (`scripts/layout-states.mjs`):
+  - `regeln-geloescht-toast` heißt jetzt `regeln-geloescht` (320, 390, 412, 1024, 1440). Gelöscht wird die Regel mit dem langen Namen, dann wartet der Zustand auf `rule-deleted-row` in Phase `removed`.
+  - Neu ist `regeln-geloescht-fehler` (320, 412): `restoreRule` antwortet mit `DatabaseError`, die rote Zeile mit „Erneut“ bricht nicht.
+  - Neuer Helfer `deleteLongRule`. Kopfkommentar in `scripts/regeln-tab.test.mjs` nachgezogen.
+- `./verify.sh`: `VERIFY: PASS` (dotnet 5250 grün, node 354 grün).
+
+**Vergleich mit der Skizze** (Screenshots in `/private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/4b5cf62e-3174-40e3-90f3-4b5312280eb9/scratchpad/result-shots/categorization-t6j00/`)
+- `regeln-geloescht-412.png` neben `skizze-shots/33-regeln-geloescht-zeile.png`: gestrichelte Zeile „„Eine Regel mit einem sehr l…“ gelöscht“ mit „Rückgängig“ im Akzent rechts, ohne Nummer. Die Regel darunter trägt „2“.
+  - Genannte Abweichungen: gruppierte Karte statt Einzelkarten (die Zeile steht als Zeile in der Karte), Pfeile, Hinweis über der Liste, 48 statt 44 px.
+  - Weiter: Radius 12 statt 10 px (aus design-system-ytgnc). Die schließende Anführung fällt mit in die Kürzung des Namens („…“), wie im DS-Baustein.
+- `regeln-geloescht-320.png` / `-390.png`: „gelöscht“ und „Rückgängig“ ganz lesbar.
+- `regeln-geloescht-fehler-320.png` / `-412.png`: rote gestrichelte Zeile „„Ein…“ nicht wiederhergestellt“, darunter der Grund in drei Zeilen, rechts „Erneut“. Dafür gibt es keine Skizzenansicht.
+- `regeln-geloescht-1280.png` und `-1440.png` (Tabelle, Zeile über alle Spalten, voller Name) sowie `-1024.png` (Karte neben dem Panel): kein Toast.
+- [human-eye] Gesamteindruck und Leuchten bleiben für Roman.
+
+**Kann-Sammlung categorization**
+- Der Knopf „Neu laden“ am Hinweis zeigt keinen Lauf (`Busy = false`), weil die Liste beim Neuladen `Success` bleibt.
+- Bei 320 px bleibt vom langen Namen in der roten Zeile nur „„Ein…“ stehen.

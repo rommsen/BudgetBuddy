@@ -354,24 +354,73 @@ let fieldNote (text: string) (act: Act option) : ReactElement =
         ]
     ]
 
-/// Was in einer Liste gelöscht wurde, hinterlässt an seinem Platz diese Zeile bis zur nächsten Aktion:
-/// „„Regel drei“ gelöscht · Rückgängig“. Der Name wird mit „…“ gekürzt, „gelöscht“ bleibt stehen.
-let removedRow (name: string) (undo: Act) : ReactElement =
+/// Wie weit das Gelöschte ist. `Removing`: das Löschen läuft („wird gelöscht …“, ohne Knopf, damit die Liste nicht
+/// springt, wenn die Antwort kommt). `Removed`: gelöscht, mit „Rückgängig“. `Restoring`: das Zurückholen läuft.
+/// `RestoreFailed`: rot, darunter der Grund, rechts „Erneut“ (Fehler am selben Platz, R3).
+[<RequireQualifiedAccess>]
+type RemovedPhase =
+    | Removing
+    | Removed of undo: Act
+    | Restoring
+    | RestoreFailed of reason: string * retry: Act
+
+/// Was hinter dem Namen steht; es wird nie gekürzt, nur der Name.
+let removedRowText (phase: RemovedPhase) : string =
+    match phase with
+    | RemovedPhase.Removing -> "wird gelöscht …"
+    | RemovedPhase.Removed _ -> "gelöscht"
+    | RemovedPhase.Restoring -> "wird wiederhergestellt …"
+    | RemovedPhase.RestoreFailed _ -> "nicht wiederhergestellt"
+
+/// Was in einer Liste gelöscht wurde, hinterlässt an seinem Platz diese Zeile bis zur nächsten Aktion, in jeder Phase
+/// gleich hoch: „„Regel drei“ gelöscht · Rückgängig“. Der Name wird mit „…“ gekürzt, der Rest und der Knopf nie.
+/// Scheitert das Zurückholen, wird die Zeile rot (Rand und Text in der Fehlerrolle), der Grund bricht darunter um.
+let removedRowIn (name: string) (phase: RemovedPhase) : ReactElement =
+    let failed, act =
+        match phase with
+        | RemovedPhase.Removed undo -> false, Some undo
+        | RemovedPhase.RestoreFailed (_, retry) -> true, Some retry
+        | RemovedPhase.Removing
+        | RemovedPhase.Restoring -> false, None
+    let tone = if failed then $"{Borders.error} {Colors.error}" else $"{Borders.default'} {Colors.textSecondary}"
     Html.div [
         prop.custom ("data-testid", "feedback-removed-row")
-        prop.custom ("aria-live", "polite")
+        prop.custom ("data-phase", (match phase with
+                                    | RemovedPhase.Removing -> "removing"
+                                    | RemovedPhase.Removed _ -> "removed"
+                                    | RemovedPhase.Restoring -> "restoring"
+                                    | RemovedPhase.RestoreFailed _ -> "failed"))
+        if failed then prop.role "alert" else prop.custom ("aria-live", "polite")
         prop.className (
-            $"flex items-center justify-between gap-2 min-h-[48px] lg:min-h-[44px] border border-dashed {Borders.default'} "
-            + $"{Radius.lg} pl-3 pr-1.5 {FontSizes.compact} {Colors.textSecondary}"
+            $"flex items-center justify-between gap-2 min-h-[48px] lg:min-h-[44px] border border-dashed {tone} "
+            + $"{Radius.lg} pl-3 pr-1.5 {FontSizes.compact}"
         )
         prop.children [
             Html.span [
-                prop.className "flex min-w-0 items-baseline gap-1"
+                prop.className "flex min-w-0 flex-col py-1.5"
                 prop.children [
-                    Truncate.text "" $"„{name}“"
-                    Html.span [ prop.className "flex-none"; prop.text "gelöscht" ]
+                    Html.span [
+                        prop.className "flex min-w-0 items-baseline gap-1"
+                        prop.children [
+                            Truncate.text "" $"„{name}“"
+                            Html.span [ prop.className "flex-none"; prop.text (removedRowText phase) ]
+                        ]
+                    ]
+                    match phase with
+                    | RemovedPhase.RestoreFailed (reason, _) ->
+                        Html.span [
+                            prop.custom ("data-testid", "feedback-removed-reason")
+                            prop.className $"{FontSizes.xs} {Colors.textSecondary} break-words"
+                            prop.text reason
+                        ]
+                    | _ -> Html.none
                 ]
             ]
-            actButton ActColor.Accent undo
+            match act with
+            | Some a -> actButton ActColor.Accent a
+            | None -> Html.none
         ]
     ]
+
+/// Die Zeile „gelöscht“ mit „Rückgängig“ (`removedRowIn` in der Phase `Removed`).
+let removedRow (name: string) (undo: Act) : ReactElement = removedRowIn name (RemovedPhase.Removed undo)

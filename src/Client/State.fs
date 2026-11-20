@@ -133,8 +133,6 @@ let toastActionMsg (kind: ToastActionKind) : Msg =
         LedgerMsg (Components.Ledger.Types.StartDiscardCaptured entryId)
     | UndoDeleteEntry entryId ->
         LedgerMsg (Components.Ledger.Types.StartRestoreDeletedEntry entryId)
-    | UndoDeleteRule (rule, position) ->
-        RulesMsg (Components.Rules.Types.RestoreRequested (rule, position))
     | ReloadForUpdate -> PwaApplyUpdate
     | UndoCategoryBatch changes ->
         LedgerMsg (Components.Ledger.Types.StartUndoCategoryBatch changes)
@@ -817,9 +815,8 @@ let rec updateWith (ports: UpdatePorts) (msg: Msg) (model: Model) : Model * Cmd<
             let externalCmd =
                 match externalMsg with
                 | Components.Rules.Types.NoOp -> Cmd.none
-                | Components.Rules.Types.ShowToast (message, toastType) -> Cmd.ofMsg (ShowToast (message, toastType))
-                | Components.Rules.Types.RuleDeletedUndoable (rule, position) ->
-                    Cmd.ofMsg (ShowToastWithAction ("Regel gelöscht", ToastSuccess, { Label = "Rückgängig"; Kind = UndoDeleteRule (rule, position) }))
+                | Components.Rules.Types.ShowFeedback (tone, action, detail) ->
+                    Cmd.ofMsg (ShowFeedback (FeedbackSlot.message (Guid.NewGuid()) tone action detail))
 
             { model with Rules = rulesModel' }, Cmd.batch [ Cmd.map RulesMsg rulesCmd; externalCmd ]
 

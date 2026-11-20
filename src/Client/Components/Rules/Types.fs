@@ -151,6 +151,22 @@ type ReorderState =
     /// `sent`: die geschickte Reihenfolge. `again`: die Liste hat sich seitdem geändert.
     | ReorderSending of sent: RuleId list * again: bool
 
+/// Wie weit die gelöschte Regel ist (Regel R3, ADR 0098): `deleteRule` läuft, sie ist gelöscht, `restoreRule` läuft
+/// oder das Wiederherstellen ist gescheitert (mit Grund).
+type RemovedPhase =
+    | Removing
+    | Removed
+    | Restoring
+    | RestoreFailed of reason: string
+
+/// Die gelöschte Regel hinterlässt an ihrer Stelle eine Zeile „„Name“ gelöscht“ mit „Rückgängig“, bis zur nächsten
+/// Aktion auf dem Tab. `Position` ist ihre Stelle in der Liste, an die `restoreRule` sie zurückbringt.
+type RemovedRule = { Rule: Rule; Position: int; Phase: RemovedPhase }
+
+/// Ein Fehler an einer Regel, rot unter ihr bis zur nächsten Aktion (etwa „Nicht gelöscht: …“). Steht die Regel nicht
+/// (mehr) in der Liste, steht der Satz über der Liste.
+type RuleFault = { RuleId: RuleId option; Text: string }
+
 type Model = {
     Rules: RemoteData<Rule list>
     /// Zählt jedes Laden und jede Änderung an der Liste. Eine Ladeantwort mit älterer Version ist überholt und
@@ -162,6 +178,16 @@ type Model = {
     /// Zählt die Anfragen zum Speichern; die Nummer bindet die Antwort an ihr Formular.
     SaveRequests: int
     Reorder: ReorderState
+    /// Die Zeile „gelöscht“ am Platz, höchstens eine: ein zweites Löschen ersetzt sie.
+    Removed: RemovedRule option
+    /// Ein Fehler an einer Regel, bis zur nächsten Aktion (`isNextAction`).
+    Fault: RuleFault option
+    /// Das Neuladen ist gescheitert, die Liste steht noch: der Grund für den Hinweis über der Liste, bis ein Laden klappt.
+    StaleLoad: string option
+    /// Die Regel, die gerade kurz leuchtet (nach Speichern, Anlegen oder Wiederherstellen).
+    Flashed: RuleId option
+    /// Die zuletzt verschobene Regel: unter ihr steht ein Fehler beim Speichern der Reihenfolge.
+    LastMoved: RuleId option
 }
 
 type Msg =
@@ -195,19 +221,25 @@ type Msg =
     | PatternTested of TestRequest * Result<bool, RulesError>
     | PatternTestLost of TestRequest
     | CreateRequested of Shell
-    | RuleCreated of Shell * request: int * Result<Rule, RulesError>
+    /// `origin`: woher das Formular kam. Aus einer Buchung ist die Regel nicht zu sehen, die Meldung geht an die Seite.
+    | RuleCreated of Shell * origin: PanelOrigin * request: int * Result<Rule, RulesError>
     | ChangeRequested of Shell
-    | RuleChanged of Shell * request: int * Result<Rule, RulesError>
+    /// `ruleId`: die geänderte Regel. Ist ihr Formular schon zu, steht ein Fehler unter ihr.
+    | RuleChanged of Shell * ruleId: RuleId * request: int * Result<Rule, RulesError>
+    /// Das kurze Leuchten der Regel ist vorbei.
+    | FlashEnded of RuleId
 
-    // Löschen mit Rückgängig
+    // Löschen mit Rückgängig (Zeile „gelöscht“ am Platz)
     | DeleteRequested
     | RuleDeleted of Rule * position: int * Result<unit, RulesError>
-    | RestoreRequested of Rule * position: int
-    | RuleRestored of Result<Rule list, RulesError>
+    /// „Rückgängig“ bzw. „Erneut“ an der Zeile „gelöscht“: die Regel aus `Model.Removed` kommt an ihre Stelle zurück.
+    | RestoreRequested
+    | RuleRestored of Rule * Result<Rule list, RulesError>
 
-/// Was der Regel-Tab der Seite meldet.
+/// Was der Regel-Tab der Seite meldet. Alles, was man in der Liste sieht, meldet der Tab dort selbst (Regel R3,
+/// ADR 0098); an die Seite geht nur, was keinen Ort in der Liste hat (eine Regel aus einer Buchung, eine neue Regel
+/// mit geschlossenem Formular).
 type ExternalMsg =
     | NoOp
-    | ShowToast of string * ToastType
-    /// Die Regel ist gelöscht: Toast „Regel gelöscht“ mit „Rückgängig“, das sie an `position` zurückbringt.
-    | RuleDeletedUndoable of Rule * position: int
+    /// Eine Meldung für den Meldungsplatz der Seite: Ton, Aktion (nie gekürzt), darunter Name oder Grund.
+    | ShowFeedback of FeedbackTone * action: string * detail: string option

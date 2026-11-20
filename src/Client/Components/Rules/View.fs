@@ -125,6 +125,35 @@ let private moveArrows (testId: string) (index: int) (total: int) (rule: Rule) (
       Button.orderArrow $"{testId}-down" "Priorität senken" (chevronDown SM Default) (index < total - 1) (fun () ->
           dispatch (MoveRequested (rule.Id, Down))) ]
 
+/// Die Zeile „gelöscht“ am Platz der Regel (`Feedback.removedRowIn`): „Rückgängig“ bzw. „Erneut“ holt sie zurück.
+let private removedRowView (removed: RemovedRule) (dispatch: Msg -> unit) =
+    let restore : Feedback.Act = { Label = "Rückgängig"; OnClick = fun () -> dispatch RestoreRequested }
+    let phase =
+        match removed.Phase with
+        | Removing -> Feedback.RemovedPhase.Removing
+        | Removed -> Feedback.RemovedPhase.Removed restore
+        | Restoring -> Feedback.RemovedPhase.Restoring
+        | RestoreFailed reason -> Feedback.RemovedPhase.RestoreFailed (reason, { restore with Label = "Erneut" })
+    Html.div [
+        prop.key $"removed-{ruleKey removed.Rule}"
+        prop.custom ("data-testid", "rule-deleted-row")
+        prop.className $"border-b {Borders.subtle} last:border-b-0 p-2"
+        prop.children [ Feedback.removedRowIn removed.Rule.Name phase ]
+    ]
+
+/// Ein Fehler an einer Regel, rot unter ihr (`ErrorDisplay.inline'`).
+let private faultLine (text: string) =
+    Html.div [
+        prop.custom ("data-testid", "rule-fault")
+        prop.className "px-3.5 pb-2"
+        prop.children [ ErrorDisplay.inline' text ]
+    ]
+
+/// Die leuchtende Regel kommt ins Bild, falls sie außerhalb liegt (eine neue Regel steht am Ende).
+let private scrollIntoViewIfFlashed (flashed: bool) : IReactProperty =
+    prop.ref (fun (element: Browser.Types.Element) ->
+        if flashed && not (isNull element) then element?scrollIntoView (createObj [ "block" ==> "nearest" ]))
+
 /// PC: Tabelle mit #, Name, Muster, Art, Kategorie, Status und den Pfeilen (Prototyp `rhead`/`rrow`).
 let private ruleTable (model: Model) (rules: Rule list) (dispatch: Msg -> unit) =
     let total = rules.Length
@@ -136,52 +165,68 @@ let private ruleTable (model: Model) (rules: Rule list) (dispatch: Msg -> unit) 
         prop.className $"overflow-hidden rounded-xl border {Borders.default'} {Backgrounds.dark}"
         prop.children [
             Html.div [
-                prop.className $"{grid} h-[34px] border-b {Borders.default'} {ListRoles.groupHeader}"
+                prop.className $"{grid} h-[34px] border-b {Borders.subtle} {ListRoles.groupHeader}"
                 prop.children [
                     headCell "#"; headCell "Name"; headCell "Muster"; headCell "Art"; headCell "Kategorie"; headCell "Status"
                     Html.span []
                 ]
             ]
-            for index, rule in List.indexed rules do
-                let isSelected = selected = Some rule.Id
-                Html.div [
-                    prop.key (ruleKey rule)
-                    prop.custom ("data-testid", "rule-row")
-                    if isSelected then prop.custom ("aria-current", "true")
-                    prop.className (
-                        $"{grid} h-11 border-b {Borders.subtle} last:border-b-0 cursor-pointer text-sm transition-colors "
-                        + (if isSelected then ListRoles.selectedRow else "hover:bg-surface-hover")
-                    )
-                    prop.onClick (fun _ -> dispatch (RuleChosen rule.Id))
-                    prop.children [
-                        Html.span [ prop.className ListRoles.date; prop.text (string (index + 1)) ]
-                        Html.button [
-                            prop.type' "button"
-                            prop.className $"truncate text-left font-medium {Colors.textPrimary}"
-                            prop.title rule.Name
-                            prop.ariaLabel $"Regel bearbeiten: {rule.Name}"
-                            prop.text rule.Name
-                        ]
-                        Html.span [ prop.className $"truncate {Fonts.mono} {Colors.textPrimary}"; prop.title rule.Pattern; prop.text rule.Pattern ]
-                        Html.span [ prop.className $"truncate {Colors.textSecondary}"; prop.title (kindText rule); prop.text (kindText rule) ]
-                        Html.span [ prop.className $"truncate {Colors.textSecondary}"; prop.title rule.CategoryName; prop.text rule.CategoryName ]
-                        Html.span [
-                            // Der Status ist kein Erfolg: „aktiv“ in `text-secondary`, „inaktiv“ gedämpft (Entscheidung Roman 2026-11-13).
-                            prop.className (if rule.Enabled then $"{ListRoles.secondary}" else $"{ListRoles.muted}")
-                            prop.text (if rule.Enabled then "aktiv" else "inaktiv")
-                        ]
-                        Html.span [
-                            prop.className "flex justify-end"
-                            prop.onClick (fun e -> e.stopPropagation ())
-                            prop.children (moveArrows "rule-move" index total rule dispatch)
+            for row in listRows rules model.Removed do
+                match row with
+                | RemovedRow removed -> removedRowView removed dispatch
+                | RuleRow (number, rule) ->
+                    let index = number - 1
+                    let isSelected = selected = Some rule.Id
+                    let flashed = model.Flashed = Some rule.Id
+                    let fault = faultAt model.Fault rule.Id
+                    Html.div [
+                        prop.key (ruleKey rule)
+                        prop.className $"border-b {Borders.subtle} last:border-b-0"
+                        prop.children [
+                            Html.div [
+                                prop.custom ("data-testid", "rule-row")
+                                if isSelected then prop.custom ("aria-current", "true")
+                                scrollIntoViewIfFlashed flashed
+                                prop.className (
+                                    $"{grid} h-11 border border-transparent cursor-pointer text-sm transition-colors "
+                                    + (if isSelected then ListRoles.selectedRow else "hover:bg-surface-hover")
+                                    + (if flashed then " " + Feedback.flash else "")
+                                )
+                                prop.onClick (fun _ -> dispatch (RuleChosen rule.Id))
+                                prop.children [
+                                    Html.span [ prop.className ListRoles.date; prop.text (string number) ]
+                                    Html.button [
+                                        prop.type' "button"
+                                        prop.className $"truncate text-left font-medium {Colors.textPrimary}"
+                                        prop.title rule.Name
+                                        prop.ariaLabel $"Regel bearbeiten: {rule.Name}"
+                                        prop.text rule.Name
+                                    ]
+                                    Html.span [ prop.className $"truncate {Fonts.mono} {Colors.textPrimary}"; prop.title rule.Pattern; prop.text rule.Pattern ]
+                                    Html.span [ prop.className $"truncate {Colors.textSecondary}"; prop.title (kindText rule); prop.text (kindText rule) ]
+                                    Html.span [ prop.className $"truncate {Colors.textSecondary}"; prop.title rule.CategoryName; prop.text rule.CategoryName ]
+                                    Html.span [
+                                        // Der Status ist kein Erfolg: „aktiv“ in `text-secondary`, „inaktiv“ gedämpft (Entscheidung Roman 2026-11-13).
+                                        prop.className (if rule.Enabled then $"{ListRoles.secondary}" else $"{ListRoles.muted}")
+                                        prop.text (if rule.Enabled then "aktiv" else "inaktiv")
+                                    ]
+                                    Html.span [
+                                        prop.className "flex justify-end"
+                                        prop.onClick (fun e -> e.stopPropagation ())
+                                        prop.children (moveArrows "rule-move" index total rule dispatch)
+                                    ]
+                                ]
+                            ]
+                            match fault with
+                            | Some text -> faultLine text
+                            | None -> Html.none
                         ]
                     ]
-                ]
         ]
     ]
 
 /// Handy: Karte mit einer Zeile je Regel (Prototyp `rulesView()`): Nummer, Name, Bedingung, Kategorie, rechts die
-/// Pfeile übereinander.
+/// Pfeile übereinander. Die Zeile „gelöscht“ ist eine Zeile der Karte.
 let private ruleCard (model: Model) (rules: Rule list) (dispatch: Msg -> unit) =
     let total = rules.Length
     let selected = selectedId model
@@ -189,47 +234,63 @@ let private ruleCard (model: Model) (rules: Rule list) (dispatch: Msg -> unit) =
         prop.custom ("data-testid", "rules-card")
         prop.className $"overflow-hidden rounded-xl border {Borders.default'} {Backgrounds.dark}"
         prop.children [
-            for index, rule in List.indexed rules ->
-                Html.div [
-                    prop.key (ruleKey rule)
-                    prop.custom ("data-testid", "rule-row")
-                    if selected = Some rule.Id then prop.custom ("aria-current", "true")
-                    prop.className (
-                        $"flex items-center border-b {Borders.subtle} last:border-b-0 "
-                        + (if selected = Some rule.Id then ListRoles.selectedRow else "")
-                    )
-                    prop.children [
-                        Html.button [
-                            prop.type' "button"
-                            prop.className "flex flex-1 min-w-0 items-center gap-2.5 py-3 pl-4 pr-2 text-left touch-manipulation"
-                            prop.ariaLabel $"Regel bearbeiten: {rule.Name}"
-                            prop.onClick (fun _ -> dispatch (RuleChosen rule.Id))
-                            prop.children [
-                                Html.span [ prop.className $"w-[18px] shrink-0 {ListRoles.date}"; prop.text (string (index + 1)) ]
-                                Html.span [
-                                    prop.className "flex min-w-0 flex-col gap-0.5"
-                                    prop.children [
-                                        Html.span [
-                                            prop.className "min-w-0 break-words"
-                                            prop.children [
-                                                Html.span [ prop.className ListRoles.primary; prop.text rule.Name ]
-                                                if not rule.Enabled then
-                                                    Html.span [ prop.className ListRoles.muted; prop.text " · inaktiv" ]
+            for row in listRows rules model.Removed do
+                match row with
+                | RemovedRow removed -> removedRowView removed dispatch
+                | RuleRow (number, rule) ->
+                    let index = number - 1
+                    let flashed = model.Flashed = Some rule.Id
+                    let fault = faultAt model.Fault rule.Id
+                    Html.div [
+                        prop.key (ruleKey rule)
+                        prop.className $"border-b {Borders.subtle} last:border-b-0"
+                        prop.children [
+                            Html.div [
+                                prop.custom ("data-testid", "rule-row")
+                                if selected = Some rule.Id then prop.custom ("aria-current", "true")
+                                scrollIntoViewIfFlashed flashed
+                                prop.className (
+                                    "flex items-center border border-transparent "
+                                    + (if selected = Some rule.Id then ListRoles.selectedRow else "")
+                                    + (if flashed then " " + Feedback.flash else "")
+                                )
+                                prop.children [
+                                    Html.button [
+                                        prop.type' "button"
+                                        prop.className "flex flex-1 min-w-0 items-center gap-2.5 py-3 pl-4 pr-2 text-left touch-manipulation"
+                                        prop.ariaLabel $"Regel bearbeiten: {rule.Name}"
+                                        prop.onClick (fun _ -> dispatch (RuleChosen rule.Id))
+                                        prop.children [
+                                            Html.span [ prop.className $"w-[18px] shrink-0 {ListRoles.date}"; prop.text (string number) ]
+                                            Html.span [
+                                                prop.className "flex min-w-0 flex-col gap-0.5"
+                                                prop.children [
+                                                    Html.span [
+                                                        prop.className "min-w-0 break-words"
+                                                        prop.children [
+                                                            Html.span [ prop.className ListRoles.primary; prop.text rule.Name ]
+                                                            if not rule.Enabled then
+                                                                Html.span [ prop.className ListRoles.muted; prop.text " · inaktiv" ]
+                                                        ]
+                                                    ]
+                                                    Html.span [ prop.className $"break-words {ListRoles.secondary}"; prop.text (conditionText rule) ]
+                                                    Html.span [ prop.className $"break-words {ListRoles.secondary}"; prop.text $"→ {rule.CategoryName}" ]
+                                                ]
                                             ]
                                         ]
-                                        Html.span [ prop.className $"break-words {ListRoles.secondary}"; prop.text (conditionText rule) ]
-                                        Html.span [ prop.className $"break-words {ListRoles.secondary}"; prop.text $"→ {rule.CategoryName}" ]
+                                    ]
+                                    Html.div [
+                                        // 8 px zwischen den Pfeilen (§7.15), wie in `Button.orderNameRow`.
+                                        prop.className "flex shrink-0 flex-col gap-2 pr-1"
+                                        prop.children (moveArrows "rule-move" index total rule dispatch)
                                     ]
                                 ]
                             ]
-                        ]
-                        Html.div [
-                            // 8 px zwischen den Pfeilen (§7.15), wie in `Button.orderNameRow`.
-                            prop.className "flex shrink-0 flex-col gap-2 pr-1"
-                            prop.children (moveArrows "rule-move" index total rule dispatch)
+                            match fault with
+                            | Some text -> faultLine text
+                            | None -> Html.none
                         ]
                     ]
-                ]
         ]
     ]
 
@@ -664,6 +725,25 @@ let headerActions (dispatch: Msg -> unit) : ReactElement list =
               OnClick = fun () -> dispatch NewRuleRequested
       } ]
 
+/// „Regeln nicht neu geladen“: ein Zustand der Seite, kein Fehler einer Aktion (R3, Muster ledger-pfhdq). Er bleibt,
+/// bis ein Laden klappt.
+let staleLoadBadge = "Regeln nicht neu geladen"
+
+let staleLoadReason (reason: string) = $"Die Liste kann veraltet sein: {reason}"
+
+let private staleLoadNotice (reason: string) (dispatch: Msg -> unit) =
+    Html.div [
+        prop.custom ("data-testid", "rules-stale-notice")
+        prop.className $"overflow-hidden rounded-xl border {Borders.subtle}"
+        prop.children [
+            Detail.notice
+                { Tone = Detail.NoticeYellow
+                  Badge = staleLoadBadge
+                  Reason = staleLoadReason reason
+                  Action = Some { Label = "Neu laden"; Busy = false; Disabled = false; OnClick = fun () -> dispatch LoadRules } }
+        ]
+    ]
+
 /// Der Inhalt des Tabs: Hinweis, Liste, Panel bzw. Sheet, Tastatur.
 let content (model: Model) (dispatch: Msg -> unit) : ReactElement =
     let model = forTab model
@@ -683,12 +763,23 @@ let content (model: Model) (dispatch: Msg -> unit) : ReactElement =
                         prop.className "@container flex flex-col gap-3 md:pr-6"
                         prop.children [
                             Html.p [ prop.className $"{FontSizes.sm} {Colors.textSecondary}"; prop.text priorityHint ]
+                            match model.StaleLoad with
+                            | Some reason -> staleLoadNotice reason dispatch
+                            | None -> Html.none
+                            match model.Rules with
+                            | RemoteData.Success rules ->
+                                match faultAboveList rules model.Fault with
+                                | Some text ->
+                                    Html.div [ prop.custom ("data-testid", "rules-fault"); prop.children [ ErrorDisplay.inline' text ] ]
+                                | None -> Html.none
+                            | _ -> Html.none
                             match model.Rules with
                             | RemoteData.NotAsked
                             | RemoteData.Loading -> skeleton ()
                             | RemoteData.Failure error ->
                                 ErrorDisplay.cardWithTitle "Regeln konnten nicht geladen werden" error (Some (fun () -> dispatch LoadRules))
-                            | RemoteData.Success rules when rules.IsEmpty ->
+                            // Wird die Liste durch das Löschen leer, steht die Zeile „gelöscht“ statt „Keine Regeln“.
+                            | RemoteData.Success rules when rules.IsEmpty && model.Removed.IsNone ->
                                 Card.emptyState
                                     (Icons.rules XL Icons.Default)
                                     "Keine Regeln"

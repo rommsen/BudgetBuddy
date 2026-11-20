@@ -39,7 +39,6 @@ let private ids (model: Model) =
     | Success rules -> rules |> List.map (fun r -> r.Id)
     | other -> failtest $"keine Liste: %A{other}"
 let private panelOf (model: Model) = model.Panel |> Option.defaultWith (fun () -> failtest "kein Panel")
-let private isToast (ext: ExternalMsg) = match ext with ShowToast _ -> true | _ -> false
 /// Die Nummer der laufenden Anfrage zum Speichern im offenen Formular.
 let private requestOf (model: Model) =
     match (panelOf model).Save with
@@ -102,20 +101,44 @@ let listTests =
             Expect.equal (ids (step (MoveRequested (r1.Id, Up)) shown)) (ids shown) "oberste nicht höher"
             Expect.equal (ids (step (MoveRequested (r3.Id, Down)) shown)) (ids shown) "unterste nicht tiefer"
         }
-        // Ein Neuladen, das scheitert, lässt die geladene Liste stehen und nennt den Fehler; ohne Liste steht der
-        // Fehler in der Liste (mit „Erneut versuchen“), ein Toast dazu wäre doppelt. Eine überholte Antwort zählt nicht.
-        test "Scheitert das Neuladen, bleibt die Liste stehen und ein Toast nennt es" {
+        // Ein Neuladen, das scheitert, lässt die geladene Liste stehen; der Grund steht als Hinweis über der Liste (ein
+        // Zustand der Seite, R3, categorization-t6j00), bis ein Laden klappt. Ohne Liste steht der Fehler in der Liste
+        // (mit „Erneut versuchen“). Eine überholte Antwort zählt nicht.
+        test "Scheitert das Neuladen, bleibt die Liste stehen und der Hinweis über der Liste nennt es, bis ein Laden klappt" {
             let reloading = step LoadRules shown
             let after, _, ext = update (RulesLoaded (reloading.LoadVersion, Error "x")) reloading
             Expect.equal after.Rules shown.Rules "Liste bleibt"
-            Expect.equal ext (ShowToast ("Regeln konnten nicht neu geladen werden: x", ToastError)) "Toast"
+            Expect.equal after.StaleLoad (Some "x") "Hinweis über der Liste"
+            Expect.equal ext NoOp "keine Meldung"
+            Expect.equal (staleLoadBadge, staleLoadReason "x") ("Regeln nicht neu geladen", "Die Liste kann veraltet sein: x") "Text"
+            let stillStale = steps [ RuleChosen r1.Id; NewRuleRequested; MoveRequested (r2.Id, Up) ] after
+            Expect.equal stillStale.StaleLoad (Some "x") "bleibt über Aktionen"
+            let again = step LoadRules after
+            Expect.equal (step (RulesLoaded (again.LoadVersion, Ok [ r1; r2; r3 ])) again).StaleLoad None "weg, wenn ein Laden klappt"
             let first = step LoadRules (fst (init ()))
             let failed, _, none = update (RulesLoaded (first.LoadVersion, Error "x")) first
             Expect.equal failed.Rules (Failure "x") "ohne Liste gilt der Fehler"
-            Expect.equal none NoOp "kein Toast"
+            Expect.equal failed.StaleLoad None "kein Hinweis"
+            Expect.equal none NoOp "keine Meldung"
             let stale, _, ignored = update (RulesLoaded (reloading.LoadVersion - 1, Error "x")) reloading
             Expect.equal stale.Rules shown.Rules "überholt"
+            Expect.equal stale.StaleLoad None "überholt setzt keinen Hinweis"
             Expect.equal ignored NoOp "überholt meldet nichts"
+        }
+        // GIVEN Roman schiebt Regel 2 nach oben WHEN `reorderRules` scheitert THEN lädt die Liste neu und unter Regel 2
+        // steht rot „Reihenfolge nicht gespeichert: <Grund>“ bis zur nächsten Aktion; fehlt sie nach dem Laden, steht
+        // der Satz über der Liste.
+        test "Scheitert die Reihenfolge, steht der Fehler unter der verschobenen Regel bis zur nächsten Aktion" {
+            let failed, _, ext = update (RulesReordered (Error "weg")) (step (MoveRequested (r2.Id, Up)) shown)
+            Expect.equal ext NoOp "keine Meldung"
+            Expect.equal failed.Fault (Some { RuleId = Some r2.Id; Text = "Reihenfolge nicht gespeichert: weg" }) "an Regel 2"
+            Expect.equal (faultAt failed.Fault r2.Id) (Some "Reihenfolge nicht gespeichert: weg") "unter Regel 2"
+            Expect.equal (faultAt failed.Fault r1.Id) None "nicht unter Regel 1"
+            Expect.equal (faultAboveList [ r1; r2; r3 ] failed.Fault) None "nicht über der Liste"
+            Expect.equal (faultAboveList [ r1; r3 ] failed.Fault) (Some "Reihenfolge nicht gespeichert: weg") "Regel fehlt: über der Liste"
+            let reloaded = step (RulesLoaded (failed.LoadVersion, Ok [ r2; r1; r3 ])) failed
+            Expect.isSome reloaded.Fault "Laden ist keine Aktion"
+            Expect.isNone (step (RuleChosen r1.Id) reloaded).Fault "nächste Aktion"
         }
         // GIVEN Roman hat eine Regel verschoben WHEN eine ältere Ladeantwort danach ankommt THEN bleibt die neue
         // Reihenfolge stehen (Befund `State.fs:52` aus categorization-krscs). Alle Reihenfolgen von Laden, Pfeil
@@ -163,14 +186,21 @@ let panelTests =
         }
         // Bug categorization-m47g8: „Neue Regel“ setzte die angelegte Regel vorn in die Liste, der Server vergab ihr
         // die höchste Priorität. Sie steht am Ende.
-        test "Nach dem Anlegen steht die Regel am Ende, das Panel zeigt sie, das Sheet schließt" {
+        // categorization-t6j00: statt des Toasts „Regel angelegt“ leuchtet die Regel in der Liste kurz (R3).
+        test "Nach dem Anlegen steht die Regel am Ende und leuchtet, das Panel zeigt sie, das Sheet schließt" {
             let created = { rule 9 true with Name = "Neu" }
             let saving = steps [ NewRuleRequested; PatternEntered "x"; CategoryChosen (Some r1.CategoryId); CreateRequested InPanel ] shown
-            let inPanel, _, ext = update (RuleCreated (InPanel, requestOf saving, Ok created)) saving
+            let inPanel, cmd, ext = update (RuleCreated (InPanel, FromRulesTab, requestOf saving, Ok created)) saving
             Expect.equal (ids inPanel) [ r1.Id; r2.Id; r3.Id; created.Id ] "am Ende"
             Expect.equal (panelOf inPanel).Editor (Editing created) "Panel zeigt sie"
-            Expect.equal ext (ShowToast ("Regel angelegt", ToastSuccess)) "Toast"
-            Expect.isNone (step (RuleCreated (InSheet, requestOf saving, Ok created)) saving).Panel "Sheet zu"
+            Expect.equal ext NoOp "kein Toast"
+            Expect.equal inPanel.Flashed (Some created.Id) "leuchtet"
+            Tests.CmdTiming.expectAfter flashDurationMs (FlashEnded created.Id) cmd
+            Expect.isNone (step (FlashEnded created.Id) inPanel).Flashed "danach nicht mehr"
+            Expect.isNone (step (RuleCreated (InSheet, FromRulesTab, requestOf saving, Ok created)) saving).Panel "Sheet zu"
+        }
+        test "Ein überholtes Ende des Leuchtens lässt eine andere leuchtende Regel stehen" {
+            Expect.equal (step (FlashEnded r1.Id) { shown with Flashed = Some r2.Id }).Flashed (Some r2.Id) "bleibt"
         }
         // Bug (Review nach categorization-m47g8): Kam eine Ladeantwort nach dem Speichern auf dem Server,
         // aber vor `RuleCreated`, stand die Regel schon in der Liste und wurde ein zweites Mal angehängt
@@ -179,22 +209,24 @@ let panelTests =
             let created = { rule 9 true with Name = "Neu" }
             let saving = steps [ NewRuleRequested; PatternEntered "x"; CategoryChosen (Some r1.CategoryId); CreateRequested InPanel ] shown
             let reloaded = { saving with Rules = Success [ r1; created; r2; r3 ] }
-            let after = step (RuleCreated (InPanel, requestOf saving, Ok created)) reloaded
+            let after = step (RuleCreated (InPanel, FromRulesTab, requestOf saving, Ok created)) reloaded
             Expect.equal (ids after) [ r1.Id; r2.Id; r3.Id; created.Id ] "einmal, am Ende"
         }
         test "Ein ungültiges Regex steht als Feldfehler am Muster, eine Eingabe nimmt ihn weg" {
             let saving = steps [ RuleChosen r1.Id; ChangeRequested InPanel ] shown
-            let failed, _, ext = update (RuleChanged (InPanel, requestOf saving, Error (RulesError.InvalidPattern ("(", "Klammer fehlt")))) saving
+            let failed, _, ext = update (RuleChanged (InPanel, r1.Id, requestOf saving, Error (RulesError.InvalidPattern ("(", "Klammer fehlt")))) saving
             Expect.equal (panelOf failed).Save (SaveFailed (PatternRejected "Klammer fehlt")) "am Muster"
             Expect.equal ext NoOp "kein Toast"
             Expect.equal (panelOf (step (PatternEntered "(a)") failed)).Save NotSaving "weg"
-            let other = step (RuleChanged (InPanel, requestOf saving, Error (RulesError.CategoryLookupFailed "YNAB weg"))) saving
+            let other = step (RuleChanged (InPanel, r1.Id, requestOf saving, Error (RulesError.CategoryLookupFailed "YNAB weg"))) saving
             Expect.equal (panelOf other).Save (SaveFailed (SaveRejected "Kategorie konnte nicht nachgeschlagen werden: YNAB weg")) "im Formular"
         }
-        test "Nach dem Ändern steht die geänderte Regel an ihrer Stelle" {
+        test "Nach dem Ändern steht die geänderte Regel an ihrer Stelle und leuchtet" {
             let changed = { r2 with Name = "Neu" }
             let saving = steps [ RuleChosen r2.Id; ChangeRequested InPanel ] shown
-            let after = step (RuleChanged (InPanel, requestOf saving, Ok changed)) saving
+            let after, _, ext = update (RuleChanged (InPanel, r2.Id, requestOf saving, Ok changed)) saving
+            Expect.equal after.Flashed (Some r2.Id) "leuchtet"
+            Expect.equal ext NoOp "kein Toast"
             match after.Rules with
             | Success [ _; second; _ ] -> Expect.equal second changed "ersetzt"
             | other -> failtest $"%A{other}"
@@ -270,29 +302,85 @@ let deleteTests =
             Expect.equal (ids after) [ r1.Id; r3.Id ] "weg"
             Expect.isNone after.Panel "zu"
         }
-        test "Ist sie gelöscht, kommt der Toast mit Rückgängig für ihre Stelle" {
-            let deleted = steps [ RuleChosen r3.Id; DeleteRequested ] shown
-            Expect.equal (stepExt (RuleDeleted (r3, 2, Ok ())) deleted) (RuleDeletedUndoable (r3, 2)) "Stelle 2"
+        // categorization-t6j00 (R3): statt des Toasts „Regel gelöscht“ steht an ihrer Stelle die Zeile „gelöscht“.
+        test "Löschen setzt die Zeile an die Stelle der Regel, erst „wird gelöscht“, nach der Antwort „gelöscht“" {
+            let deleted = steps [ RuleChosen r2.Id; DeleteRequested ] shown
+            Expect.equal deleted.Removed (Some { Rule = r2; Position = 1; Phase = Removing }) "läuft, an Stelle 1"
+            let done', _, ext = update (RuleDeleted (r2, 1, Ok ())) deleted
+            Expect.equal done'.Removed (Some { Rule = r2; Position = 1; Phase = Removed }) "gelöscht"
+            Expect.equal ext NoOp "kein Toast"
         }
-        test "Scheitert das Löschen, steht sie wieder an ihrer Stelle und ein Toast nennt es" {
+        test "Scheitert das Löschen, steht sie wieder an ihrer Stelle, darunter „Nicht gelöscht“, ohne Zeile" {
             let deleted = steps [ RuleChosen r2.Id; DeleteRequested ] shown
             let back, _, ext = update (RuleDeleted (r2, 1, Error (RulesError.DatabaseError ("delete", "weg")))) deleted
             Expect.equal (ids back) [ r1.Id; r2.Id; r3.Id ] "zurück"
-            Expect.isTrue (isToast ext) "Toast"
+            Expect.isNone back.Removed "keine Zeile"
+            Expect.equal back.Fault (Some { RuleId = Some r2.Id; Text = "Nicht gelöscht: Datenbankfehler bei delete: weg" }) "an der Regel"
+            Expect.equal ext NoOp "kein Toast"
         }
         // GIVEN eine gelöschte Regel an Stelle 3 WHEN Roman „Rückgängig“ wählt THEN steht sie wieder an Stelle 3,
-        // aus der Antwort des Servers; scheitert der Aufruf, fehlt sie und ein Toast nennt es.
-        test "Rückgängig übernimmt die Liste des Servers, ein Fehler lässt die Regel weg" {
-            let deleted = steps [ RuleChosen r3.Id; DeleteRequested ] shown
-            let restoring, _, _ = update (RestoreRequested (r3, 2)) deleted
+        // aus der Antwort des Servers, und leuchtet kurz; scheitert der Aufruf, wird die Zeile rot mit Grund und „Erneut“.
+        test "Rückgängig bringt die Regel zurück und sie leuchtet, ein Fehler macht die Zeile rot" {
+            let deleted = steps [ RuleChosen r3.Id; DeleteRequested; RuleDeleted (r3, 2, Ok ()) ] shown
+            let restoring, cmd, _ = update RestoreRequested deleted
+            Expect.isNonEmpty cmd "restoreRule"
             Expect.equal (ids restoring) [ r1.Id; r2.Id ] "kein Zwischenstand"
-            Expect.equal (ids (step (RuleRestored (Ok [ r1; r2; r3 ])) restoring)) [ r1.Id; r2.Id; r3.Id ] "an Stelle 3"
-            let failed, _, ext = update (RuleRestored (Error (RulesError.DatabaseError ("restore_rule", "weg")))) restoring
+            Expect.equal (restoring.Removed |> Option.map (fun r -> r.Phase)) (Some Restoring) "wird wiederhergestellt"
+            let restored = step (RuleRestored (r3, Ok [ r1; r2; r3 ])) restoring
+            Expect.equal (ids restored) [ r1.Id; r2.Id; r3.Id ] "an Stelle 3"
+            Expect.isNone restored.Removed "Zeile weg"
+            Expect.equal restored.Flashed (Some r3.Id) "leuchtet"
+            let failed, _, ext = update (RuleRestored (r3, Error (RulesError.DatabaseError ("restore_rule", "weg")))) restoring
             Expect.equal (ids failed) [ r1.Id; r2.Id ] "fehlt"
-            Expect.equal ext (ShowToast ("Regel konnte nicht wiederhergestellt werden: Datenbankfehler bei restore_rule: weg", ToastError)) "Toast"
+            Expect.equal (failed.Removed |> Option.map (fun r -> r.Phase)) (Some (RestoreFailed "Datenbankfehler bei restore_rule: weg")) "rot mit Grund"
+            Expect.equal ext NoOp "kein Toast"
+            let retried, retryCmd, _ = update RestoreRequested failed
+            Expect.equal (retried.Removed |> Option.map (fun r -> r.Phase)) (Some Restoring) "Erneut"
+            Expect.isNonEmpty retryCmd "noch einmal restoreRule"
         }
-        test "Rückgängig im Toast führt zur Wiederherstellung an der Stelle" {
-            Expect.equal (State.toastActionMsg (UndoDeleteRule (r3, 2))) (State.RulesMsg (RestoreRequested (r3, 2))) "Nachricht"
+        test "Solange das Löschen oder Wiederherstellen läuft, tut Rückgängig nichts" {
+            let removing = steps [ RuleChosen r3.Id; DeleteRequested ] shown
+            let same, cmd, _ = update RestoreRequested removing
+            Expect.equal same removing "läuft noch"
+            Expect.isEmpty cmd "kein Aufruf"
+            let restoring = steps [ RuleDeleted (r3, 2, Ok ()); RestoreRequested ] removing
+            let again, cmd2, _ = update RestoreRequested restoring
+            Expect.equal again restoring "kein zweites Wiederherstellen"
+            Expect.isEmpty cmd2 "kein Aufruf"
+        }
+        // GIVEN die Zeile „gelöscht“ und ein Fehler an einer Regel WHEN Roman eine Aktion auf dem Tab macht THEN sind
+        // beide weg; kein Zeitlimit, das Laden oder Schließen des Formulars ist keine Aktion.
+        test "Jede nächste Aktion nimmt Zeile und Fehler weg, ein zweites Löschen ersetzt die Zeile" {
+            let deleted = steps [ RuleChosen r3.Id; DeleteRequested; RuleDeleted (r3, 2, Ok ()) ] shown
+            let withFault = { deleted with Fault = Some { RuleId = Some r1.Id; Text = "Nicht gespeichert: x" } }
+            let entryId = Guid.Parse "0195f700-0000-7000-8000-0000000000aa"
+            for action in
+                [ RuleChosen r1.Id; NewRuleRequested; MoveRequested (r2.Id, Up); EntryRuleRequested (entryId, "Rewe", None); RulesTabLeft ] do
+                Expect.isTrue (isNextAction action) $"%A{action} ist eine Aktion"
+                let after = step action withFault
+                Expect.isNone after.Removed $"Zeile weg nach %A{action}"
+                Expect.isNone after.Fault $"Fehler weg nach %A{action}"
+            for other in [ PanelClosed; LoadRules; RulesLoaded (withFault.LoadVersion, Ok [ r1; r2 ]); FlashEnded r1.Id ] do
+                Expect.isFalse (isNextAction other) $"%A{other} ist keine Aktion"
+                Expect.isSome (step other withFault).Removed $"Zeile bleibt nach %A{other}"
+            let second = steps [ RuleChosen r1.Id; DeleteRequested ] withFault
+            Expect.equal second.Removed (Some { Rule = r1; Position = 0; Phase = Removing }) "ersetzt, höchstens eine"
+            Expect.isNone second.Fault "Fehler weg"
+            Expect.equal (step (RuleDeleted (r3, 2, Ok ())) second).Removed second.Removed "die Antwort des ersten Löschens ändert die neue Zeile nicht"
+        }
+        test "Scheitert das Wiederherstellen, nachdem die Zeile schon weg ist, meldet es die Seite" {
+            let restoring = steps [ RuleChosen r3.Id; DeleteRequested; RuleDeleted (r3, 2, Ok ()); RestoreRequested; NewRuleRequested ] shown
+            let _, _, ext = update (RuleRestored (r3, Error (RulesError.DatabaseError ("restore_rule", "weg")))) restoring
+            Expect.equal ext (ShowFeedback (FeedbackError, "Regel nicht wiederhergestellt", Some "Datenbankfehler bei restore_rule: weg")) "Meldungsplatz"
+        }
+        // Die Nummern der Regeln ohne die Zeile „gelöscht“: die Regeln danach rücken auf (Skizze 33, „2 Regel vier“).
+        test "Die Zeile „gelöscht“ steht an ihrer Stelle ohne Nummer, die Regeln danach rücken auf" {
+            let removed = { Rule = r2; Position = 1; Phase = Removed }
+            Expect.equal (listRows [ r1; r3 ] (Some removed)) [ RuleRow (1, r1); RemovedRow removed; RuleRow (2, r3) ] "Mitte"
+            Expect.equal (listRows [ r1; r3 ] (Some { removed with Position = 0 })) [ RemovedRow { removed with Position = 0 }; RuleRow (1, r1); RuleRow (2, r3) ] "oben"
+            Expect.equal (listRows [ r1 ] (Some { removed with Position = 5 })) [ RuleRow (1, r1); RemovedRow { removed with Position = 5 } ] "hinter dem Ende: am Ende"
+            Expect.equal (listRows [] (Some removed)) [ RemovedRow removed ] "leere Liste: nur die Zeile"
+            Expect.equal (listRows [ r1; r3 ] None) [ RuleRow (1, r1); RuleRow (2, r3) ] "ohne Zeile"
         }
     ]
 
@@ -443,15 +531,23 @@ let private checkAnswer (walk: SaveWalk) (flight: Flight) (ok: bool) (before: Mo
         rest
     | _, false ->
         Expect.equal after.Panel before.Panel "ein anderes oder kein Formular bleibt, wie es ist"
-        match ext with
-        | ShowToast (_, kind) -> Expect.equal kind (if ok then ToastSuccess else ToastError) "Toast"
-        | other -> failtest $"kein Toast: %A{other}"
+        // categorization-t6j00 (R3): gelungen leuchtet die Regel; gescheitert steht der Fehler unter einer bestehenden
+        // Regel, bei einer neuen am Meldungsplatz der Seite.
+        match ok, flight.IsCreate with
+        | true, _ ->
+            Expect.equal after.Flashed (Some flight.Saved.Id) "leuchtet"
+            Expect.equal ext NoOp "keine Meldung"
+        | false, true ->
+            Expect.equal ext (ShowFeedback (FeedbackError, "Regel nicht angelegt", Some "Kategorie konnte nicht nachgeschlagen werden: weg")) "Meldungsplatz"
+        | false, false ->
+            Expect.equal after.Fault (Some { RuleId = Some flight.Saved.Id; Text = "Nicht gespeichert: Kategorie konnte nicht nachgeschlagen werden: weg" }) "unter der Regel"
+            Expect.equal ext NoOp "keine Meldung"
         rest
 
 let private answerMsg (flight: Flight) (ok: bool) : Msg =
     let result = if ok then Ok flight.Saved else Error (RulesError.CategoryLookupFailed "weg")
-    if flight.IsCreate then RuleCreated (flight.Shell, flight.Request, result)
-    else RuleChanged (flight.Shell, flight.Request, result)
+    if flight.IsCreate then RuleCreated (flight.Shell, FromRulesTab, flight.Request, result)
+    else RuleChanged (flight.Shell, flight.Saved.Id, flight.Request, result)
 
 [<Tests>]
 let saveOrderTests =
@@ -556,7 +652,8 @@ let reorderOrderTests =
                             | _ -> { walk with InFlight = None; Again = false }, [ "laden", [] ], true
                         Expect.equal calls (List.sort expected) $"Aufrufe. {where}"
                         Expect.equal (ids after) walk'.Shown $"Liste. {where}"
-                        Expect.equal (match ext with ShowToast (_, ToastError) -> true | _ -> false) toast $"Toast. {where}"
+                        Expect.equal ext NoOp $"keine Meldung. {where}"
+                        Expect.equal after.Fault.IsSome toast $"Fehler an der Regel. {where}"
                         answers <- answers + 1
                         walkFrom after walk' (depth - 1) path'
             let start = [ r1.Id; r2.Id; r3.Id ]
@@ -577,7 +674,8 @@ let categoryTests =
         test "Ein Ladefehler steht als Fehler in der Auswahl, nicht als Laden" {
             let failed, _, ext = update (CategoriesLoaded (Error (YnabError.NetworkError "weg"))) { shown with Categories = Loading }
             Expect.isTrue (RemoteData.isFailure failed.Categories) "Fehler"
-            Expect.isTrue (isToast ext) "Toast"
+            // categorization-t6j00: der Toast entfällt, den Grund zeigt die Auswahl mit „Erneut versuchen“.
+            Expect.equal ext NoOp "keine Meldung"
             match categoryLoadState failed.Categories with
             | Client.DesignSystem.CategoryPicker.PickerFailed (Some _) -> ()
             | other -> failtest $"%A{other}"
@@ -609,6 +707,9 @@ let private dispatched (cmd: Elmish.Cmd<'msg>) : 'msg list =
     let collected = ResizeArray<'msg>()
     cmd |> List.iter (fun effect -> effect collected.Add)
     List.ofSeq collected
+
+let private entryOfForm = Guid.Parse "0195f700-0000-7000-8000-0000000000bb"
+let private fromEntryForm = step (EntryRuleRequested (entryOfForm, "Rewe", Some r1.CategoryId)) shown
 
 [<Tests>]
 let rootTests =
@@ -665,12 +766,24 @@ let rootTests =
             Expect.isTrue (RemoteData.isFailure noSettings.Rules.Categories) "ohne Settings ein Fehler"
             Expect.contains (dispatched cmd) (State.SettingsMsg Components.Settings.Types.LoadSettings) "Settings neu"
         }
-        test "Eine gelöschte Regel meldet der Root als Toast „Regel gelöscht“ mit „Rückgängig“" {
+        // categorization-t6j00 (R3): eine gelöschte Regel meldet der Root nicht mehr, die Zeile steht im Tab.
+        test "Eine gelöschte Regel meldet der Root nicht, die Zeile „gelöscht“ steht im Tab" {
             let model = { rootModel LedgerRules with Rules = steps [ RuleChosen r2.Id; DeleteRequested ] shown }
-            let _, cmd = State.update (State.RulesMsg (RuleDeleted (r2, 1, Ok ()))) model
-            let expected =
-                State.ShowToastWithAction ("Regel gelöscht", ToastSuccess, { Label = "Rückgängig"; Kind = UndoDeleteRule (r2, 1) })
-            Expect.contains (dispatched cmd) expected "Toast"
+            let after, cmd = State.update (State.RulesMsg (RuleDeleted (r2, 1, Ok ()))) model
+            Expect.isEmpty (dispatched cmd) "keine Meldung"
+            Expect.isNone after.Feedback "Meldungsplatz leer"
+            Expect.equal (after.Rules.Removed |> Option.map (fun r -> r.Phase)) (Some Removed) "Zeile im Tab"
+        }
+        test "Eine Meldung des Tabs geht als Aktion und Detail an den Meldungsplatz" {
+            let model = { rootModel Page.Ledger with Rules = fromEntryForm }
+            let saving, _ = State.update (State.RulesMsg (CreateRequested InSheet)) model
+            let created = { rule 9 true with Name = "Rewe" }
+            let _, cmd = State.update (State.RulesMsg (RuleCreated (InSheet, FromEntry entryOfForm, requestOf saving.Rules, Ok created))) saving
+            match dispatched cmd with
+            | [ State.ShowFeedback message ] ->
+                Expect.equal (message.Tone, message.Action, message.Detail, message.Act) (FeedbackOk, "Regel angelegt", Some "Rewe", None) "Meldung"
+                Expect.equal (FeedbackSlot.toastText message) "Regel angelegt · Rewe" "PC-Toast"
+            | other -> failtest $"%A{other}"
         }
     ]
 
@@ -699,14 +812,23 @@ let entryFormTests =
         // GIVEN das vorbelegte Formular WHEN Roman „Regel anlegen“ drückt und der Server die Regel anlegt THEN meldet
         // der Toast „Regel angelegt“, die Regel steht am Ende, und das Formular schließt (zurück zur Buchung, auch am
         // PC). Bug categorization-m47g8: sie stand vorn.
-        test "Nach dem Anlegen steht die Regel am Ende, das Formular schließt in jeder Hülle" {
+        // categorization-t6j00: die Regel ist dort nicht zu sehen, also meldet es der Meldungsplatz der Seite mit dem
+        // Namen der Regel; sie leuchtet nicht.
+        test "Nach dem Anlegen steht die Regel am Ende, das Formular schließt in jeder Hülle, die Seite meldet es" {
             let created = { rule 9 true with Name = "Rewe" }
             for shell in [ InPanel; InSheet ] do
                 let saving = step (CreateRequested shell) fromEntry
-                let after, _, ext = update (RuleCreated (shell, requestOf saving, Ok created)) saving
+                let after, _, ext = update (RuleCreated (shell, FromEntry entryId, requestOf saving, Ok created)) saving
                 Expect.equal (ids after) [ r1.Id; r2.Id; r3.Id; created.Id ] $"am Ende ({shell})"
                 Expect.isNone after.Panel $"zurück zur Buchung ({shell})"
-                Expect.equal ext (ShowToast ("Regel angelegt", ToastSuccess)) "Toast"
+                Expect.equal ext (ShowFeedback (FeedbackOk, "Regel angelegt", Some "Rewe")) "Meldungsplatz"
+                Expect.isNone after.Flashed "leuchtet nicht"
+        }
+        test "Das Anlegen trägt die Herkunft des Formulars mit" {
+            let saving, cmd, _ = update (CreateRequested InSheet) fromEntry
+            Expect.isNonEmpty cmd "createRule"
+            Expect.isTrue (SaveState.isSaving (panelOf saving).Save) "läuft"
+            Expect.equal (panelOf saving).Origin (FromEntry entryId) "aus der Buchung"
         }
         test "Abbrechen führt zur Buchung zurück, ohne Aufruf" {
             let closed, cmd, _ = update PanelClosed fromEntry
@@ -785,7 +907,7 @@ let entryFormTests =
             Expect.equal (entryFormFor afterLedgerMsg.Rules) (Some card.Id) "bleibt offen über der Karte"
             let saving, _ = State.update (State.RulesMsg (CreateRequested InSheet)) withForm
             let created = { rule 9 true with Name = "Payee 2" }
-            let afterCreate, _ = State.update (State.RulesMsg (RuleCreated (InSheet, requestOf saving.Rules, Ok created))) saving
+            let afterCreate, _ = State.update (State.RulesMsg (RuleCreated (InSheet, FromEntry card.Id, requestOf saving.Rules, Ok created))) saving
             Expect.isNone afterCreate.Rules.Panel "nach dem Anlegen zu"
             sameCard afterCreate "angelegt"
             let afterClose, _ = State.update (State.RulesMsg PanelClosed) withForm

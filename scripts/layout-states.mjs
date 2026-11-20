@@ -598,6 +598,13 @@ const openRule = async (page, name) => {
   await page.locator('[data-testid="rule-row"]:visible').filter({ hasText: name }).first().click();
   await page.locator('[data-testid="rule-form"]').waitFor();
 };
+/// Öffnet die Regel mit dem langen Namen und löscht sie; das Formular schließt (categorization-t6j00).
+const deleteLongRule = async (page, mobile) => {
+  await openRule(page, "Eine Regel mit einem sehr langen Namen");
+  const remove = page.locator('[data-testid="rule-form"]').getByRole("button", { name: "Regel löschen", exact: true });
+  await (mobile ? remove.tap() : remove.click());
+  await page.locator('[data-testid="rule-form"]').waitFor({ state: "detached" });
+};
 
 // ============================================================
 // Einstellungen (banking-import-t4raw)
@@ -2135,22 +2142,41 @@ export const STATES = [
       await page.locator('.bottom-sheet.active [role="option"]').first().waitFor();
     },
   },
-  // categorization-n3sxw: nach „Regel löschen“ steht der Toast „Regel gelöscht“ mit Rückgängig und verdeckt keine
-  // Bedienelemente (ADR 0087 Punkt 22). Am Handy schließt dabei das Sheet, am PC das Panel.
+  // categorization-t6j00 (R3, ADR 0098): nach „Regel löschen“ steht an ihrem Platz die Zeile „„Name“ gelöscht“ mit
+  // „Rückgängig“, ohne Nummer, kein Toast. Gelöscht wird die Regel mit dem langen Namen: der Name wird gekürzt,
+  // „gelöscht“ und „Rückgängig“ bleiben ganz. Am PC in der Tabelle (1440) und in der Karte neben dem Panel (1024).
   {
-    name: "regeln-geloescht-toast",
+    name: "regeln-geloescht",
     route: "/ledger/rules",
-    widths: [...HANDY_WIDTHS, 1024, 1440],
+    widths: [...HANDY_WIDTHS, 412, 1024, 1440],
     mock: async (page) => {
       await mockRules(page);
       await page.route("**/api/RulesApi/deleteRule", (r) => json(r, { Ok: null }));
     },
     open: async (page, { mobile }) => {
-      await openRule(page, "Regel eins");
-      const remove = page.locator('[data-testid="rule-form"]').getByRole("button", { name: "Regel löschen", exact: true });
-      await (mobile ? remove.tap() : remove.click());
-      await feedbackAction(page).waitFor();
-      await page.locator('[data-testid="rule-form"]').waitFor({ state: "detached" });
+      await deleteLongRule(page, mobile);
+      await page.locator('[data-testid="rule-deleted-row"]:visible [data-phase="removed"]').waitFor();
+    },
+  },
+  // categorization-t6j00: scheitert „Rückgängig“, wird die Zeile rot mit Grund und „Erneut“; sie verdeckt nichts und
+  // bricht nicht.
+  {
+    name: "regeln-geloescht-fehler",
+    route: "/ledger/rules",
+    widths: [320, 412],
+    mock: async (page) => {
+      await mockRules(page);
+      await page.route("**/api/RulesApi/deleteRule", (r) => json(r, { Ok: null }));
+      await page.route("**/api/RulesApi/restoreRule", (r) =>
+        json(r, { Error: { DatabaseError: ["restore_rule", "Datenbank gesperrt, Wiederherstellen später erneut versuchen"] } })
+      );
+    },
+    open: async (page, { mobile }) => {
+      await deleteLongRule(page, mobile);
+      const undo = page.locator('[data-testid="rule-deleted-row"]:visible [data-feedback-action]');
+      await undo.waitFor();
+      await (mobile ? undo.tap() : undo.click());
+      await page.locator('[data-testid="rule-deleted-row"]:visible [data-phase="failed"]').waitFor();
     },
   },
   // design-system-k6kfw: die Übersicht als Einstieg, mit Leiste unten, Rail und Seitenleiste je nach Breite.

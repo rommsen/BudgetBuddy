@@ -75,10 +75,11 @@ let tests =
                 Expect.equal seen (Some (box b.Id)) "Id"
                 Expect.equal answer (Components.Rules.Types.RuleDeleted (b, 1, Ok ())) "Stelle 1"
             }
-            test "Rückgängig schickt Regel und Stelle, die Antwort ist die Liste des Servers" {
-                let seen, answer = run (Components.Rules.Types.RestoreRequested (c, 2)) shown
+            test "Rückgängig schickt Regel und Stelle der Zeile „gelöscht“, die Antwort ist die Liste des Servers" {
+                let deleted : Components.Rules.Types.RemovedRule = { Rule = c; Position = 2; Phase = Components.Rules.Types.Removed }
+                let seen, answer = run Components.Rules.Types.RestoreRequested { shown with Removed = Some deleted }
                 Expect.equal seen (Some (box ({ Rule = c; Position = 2 } : RuleRestore))) "Regel und Stelle"
-                Expect.equal answer (Components.Rules.Types.RuleRestored (Ok [ a; b; c ])) "Liste"
+                Expect.equal answer (Components.Rules.Types.RuleRestored (c, Ok [ a; b; c ])) "Liste"
             }
             test "Ein Pfeil schickt die neue Reihenfolge" {
                 let seen, answer = run (Components.Rules.Types.MoveRequested (b.Id, Components.Rules.Types.Up)) shown

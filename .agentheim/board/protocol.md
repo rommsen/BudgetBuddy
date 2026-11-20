@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-20 02:19 -- Task verified and completed: categorization-t6j00 - "Regeln ohne Toast (R3): gelöschte Regel als gestrichelte Zeile am Platz mit Rückgängig, gespeicherte Regel leuchtet kurz, Fehler an der Regel oder als Hinweis der Seite"
+
+**Type:** Work / Task completion
+**Task:** categorization-t6j00 - "Regeln ohne Toast (R3): gelöschte Regel als gestrichelte Zeile am Platz mit Rückgängig, gespeicherte Regel leuchtet kurz, Fehler an der Regel oder als Hinweis der Seite"
+**Summary:** Regeln ohne Toast: gelöschte Regel als Zeile am Platz, gespeicherte Regel leuchtet, Fehler an der Regel
+**Duration:** 50m
+**Verification:** PASS (iteration 1)
+**Files changed:** 12
+**Tests added:** 8
+**ADRs written:** none
+
+---
+
 ## 2026-11-20 01:43 -- Batch started: [ledger-gwr9j, budgeting-gtrgk, categorization-t6j00]
 
 **Type:** Work / Batch start

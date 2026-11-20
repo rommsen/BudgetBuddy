@@ -5,8 +5,8 @@
 // Wechsel der Tabs und drei Bug-Regressionen aus der früheren Regelseite (`rules-page-mobile.test.mjs`), die nur im
 // echten DOM auftreten: Klick und Enter auf einem Prioritätspfeil, Leertaste auf der Zeile, Mausdruck auf den Auslöser
 // des Kategorie-Popovers. Liste, Formular, Muster-Test, Löschen mit Rückgängig und Tasten im Modell prüfen die
-// .NET-Tests (`src/Tests/RulesListTests.fs`), Trefferflächen, Picker im Sheet und Toast nach dem Löschen der
-// Layout-Sweep (Zustände `regeln`, `regeln-panel`, `regeln-sheet-picker`, `regeln-geloescht-toast`).
+// .NET-Tests (`src/Tests/RulesListTests.fs`), Trefferflächen, Picker im Sheet und die Zeile „gelöscht“ am Platz der
+// Layout-Sweep (Zustände `regeln`, `regeln-panel`, `regeln-sheet-picker`, `regeln-geloescht`, `regeln-geloescht-fehler`).
 //
 // Ausführen: npm run test:scripts -- scripts/regeln-tab.test.mjs
 
