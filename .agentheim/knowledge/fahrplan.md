@@ -3,7 +3,15 @@
 Stand 2026-11-07. Grundlage: ADR 0086, `vision.md` Abschnitt „What success looks like“.
 
 ## Stand
-Zuletzt aktualisiert: 2026-11-20 morgens, nach Work- und Review-Lauf für ledger-vf5h6.
+Zuletzt aktualisiert: 2026-11-20 abends, nach Work- und Review-Lauf für infrastructure-x7p2e.
+
+- **2026-11-20 abends:** Romans Prüfliste zu ledger-vf5h6 (Gruppen 14 bis 19) durch, ein Fund: „Letzte rückgängig“
+  in der Endansicht des Durchgehens gestrichen (4be9c698, deployt). Gate schneller: Layout-Sweep nur noch bei 412 und
+  1440 px (512a1cf0, Romans Entscheidung), infrastructure-x7p2e (Expecto 29,5 statt 65 s, DB-Listen als eine Gruppe,
+  ADR 0100, 60c36195, Verifier PASS in Iteration 1). Review-Lauf 555fa096..8200b83b: 17 Funde behoben in 265c361c,
+  cb9729f5, 0f1c3dee. Gate auf 0f1c3dee: VERIFY: PASS (dotnet 5495, node 357), ganzes Gate rund 6 statt 7,5 min.
+  Nicht gepusht. Nur 4be9c698 ist deployt, der Rest betrifft Tests. Offen: banking-import-y7m4r (FinTS-Sonde, mit
+  Roman), `/architecture-review ledger` vorgeschlagen.
 
 - **Etappe 1 · Bedeutungen:** erledigt, 5 von 5 (Skizze und Prototyp, Layout-Sweep, Muster im
   Styleguide, Designwert-Tests aufgeräumt, Palette 2 im Token-Layer). Romans Blick auf dak16 neben
