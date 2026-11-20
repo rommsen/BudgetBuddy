@@ -249,7 +249,7 @@ let changeTests =
             Expect.equal (availableOf 1 model) 100m "Available unverändert"
             Expect.isFalse (model.CategoryRows |> Map.containsKey (idOf 1)) "Zeilenzustand zurückgesetzt"
 
-        testCase "Ohne Kategorie: der Toast sagt Kategorie entfernt mit dem alten Namen" <| fun () ->
+        testCase "Ohne Kategorie: am Feld steht „Entfernt“, die Leiste nach dem Schließen sagt „Kategorie entfernt“" <| fun () ->
             let model, _, external = update (EntryCategorySet (idOf 1, None, Ok (changed (Some lebensmittel) CategorySent))) (defaultModel ())
             let row = rowOf 1 model
             Expect.isNone row.CategoryId "ohne Kategorie"
@@ -736,7 +736,7 @@ let transferClientTests =
             let batch = Components.Ledger.View.batchPickerProps ignore model
             Expect.isEmpty batch.Accounts "Auswahl-Leiste: keine Konten"
 
-        testCase "nach dem Übertrag: Zeile ist ein Übertrag, Detail zeigt Übertrag → Konto, Toast mit Rückgängig auf die alte Kategorie" <| fun () ->
+        testCase "nach dem Übertrag: Zeile ist ein Übertrag, Detail zeigt Übertrag → Konto, am Feld Rückgängig auf die alte Kategorie, kein Toast" <| fun () ->
             let account = YnabAccountId targetId
             let model, sent, external =
                 run (EntryTransferSet (idOf 1, account, false, Ok (transferOutcome (Some lebensmittel) None CategorySent))) (withTargets (defaultModel ()))
@@ -753,7 +753,7 @@ let transferClientTests =
                 Expect.equal note.BarAction "Übertrag auf Tagesgeld ING" "Leiste nach dem Schließen"
             | None -> failtest "Bestätigung am Feld erwartet"
 
-        testCase "ein gescheiterter Push bleibt sichtbar: Fehlschlag an der Zeile, Toast als Warnung" <| fun () ->
+        testCase "ein gescheiterter Push bleibt sichtbar: Fehlschlag an der Zeile, gelb am Feld, kein Toast" <| fun () ->
             let account = YnabAccountId targetId
             let model, _, external =
                 run (EntryTransferSet (idOf 1, account, false, Ok (transferOutcome (Some lebensmittel) None (CategorySendFailed "Timeout")))) (withTargets (defaultModel ()))
@@ -858,6 +858,16 @@ let detailNoteTests =
             let switched, _, switchExternal = update (OpenDetail (entryOf 2)) model
             Expect.isNone switched.DetailNote "Wechsel: am Feld weg"
             Expect.isTrue (match switchExternal with PostFeedback { Act = Some _ } -> true | _ -> false) "Wechsel: Leiste mit Rückgängig"
+
+        testCase "Verlassen des Kassenbuchs beendet die Bestätigung still: späteres Erfassen oder Durchgehen meldet sie nicht" <| fun () ->
+            let model = changedInDetail (defaultModel ())
+            let left, _, leftExternal = update LedgerLeft model
+            Expect.isNone left.DetailNote "Bestätigung weg"
+            Expect.equal leftExternal NoOp "Verlassen meldet nichts"
+            let _, _, captureExternal = update OpenCaptureUnfiltered left
+            Expect.equal captureExternal NoOp "Erfassen auf der Übersicht: keine Leiste"
+            let _, _, reviewExternal = update ReviewOpened left
+            Expect.equal reviewExternal NoOp "Durchgehen: keine Leiste"
 
         testCase "Ohne Rückgängig (Fehler) endet die Bestätigung beim Schließen still" <| fun () ->
             let failed, _, _ = update (EntryCategorySet (idOf 1, Some (catId 3), Error "nicht erreichbar")) (defaultModel ())

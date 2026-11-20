@@ -113,6 +113,7 @@ let init () : Model * Cmd<Msg> =
         LastMirrorRun = NotAsked
         MirrorStatusGeneration = 0
         MirrorRunning = false
+        MirrorInBackground = false
         BookingsScroll = None
         Categories = NotAsked
         CategoriesLoadedAt = None
@@ -1103,6 +1104,13 @@ let private reportDetailNote
     | NoteOnReviewCard -> model, cmd, onCard
     | NoteInBar -> model, cmd, PostFeedback (detailNoteBar note)
 
+/// Wie `reportDetailNote` für den Split-Editor, der nur in „Details“ steht: Schließt Esc im Durchgehen „Details“, bevor
+/// die Antwort kommt, steht sie in der Zeile unter „Passt, weiter“ (`withDetailNoteLine`), kein Toast.
+let private reportSplitNote (route: DetailNoteRoute) (note: DetailNote) (model: Model, cmd: Cmd<Msg>) : Model * Cmd<Msg> * ExternalMsg =
+    match route, model.Review with
+    | NoteOnReviewCard, Some review -> { model with Review = Some (withDetailNoteLine note review) }, cmd, NoOp
+    | _ -> reportDetailNote route note NoOp (model, cmd)
+
 /// Die Bestätigung dieser Buchung endet: „Rückgängig“ gelang oder eine neue Aktion auf ihrem Feld beginnt.
 let private clearDetailNote (entryId: Guid) (model: Model) : Model =
     match model.DetailNote with
@@ -1117,23 +1125,10 @@ let private detailNoteFieldOf (model: Model) (entryId: Guid) : DetailNoteField =
     |> Option.map (fun note -> note.Field)
     |> Option.defaultValue AtCategory
 
-/// Ein Befehl auf Kategorie, Übertrag oder Aufteilung scheiterte (`note` ist der rote Fehler). Im offenen Detail steht
-/// er rot unter dem Feld, ohne Toast und ohne zweite Zeile in der Hinweisleiste. Sonst trägt die Zeile den
-/// Befehlsfehler (die Hinweisleiste zeigt ihn beim nächsten Öffnen) und die Leiste meldet ihn (am PC der Toast); die
-/// Karte des Durchgehens ohne „Details“ meldet wie bisher.
-let private categoryCommandFailed (entryId: Guid) (reason: string) (note: DetailNote) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
-    let failedRow = { model with CategoryRows = model.CategoryRows |> Map.add entryId (CategoryCommandFailed reason) }
-    match detailNoteRoute model entryId with
-    | NoteAtField ->
-        let model', timer = postDetailNote note { model with CategoryRows = model.CategoryRows |> Map.remove entryId }
-        model', timer, NoOp
-    | NoteOnReviewCard -> failedRow, Cmd.none, ShowToast ($"{note.BarAction}: {reason}", ToastError)
-    | NoteInBar -> failedRow, Cmd.none, PostFeedback (detailNoteBar note)
-
 /// Nach einer gelungenen Rücknahme (Kategorie, Memo, Betrag, Payee, Lena): im offenen Detail steht der alte Wert im
 /// Feld, die Bestätigung ist weg und der Rücknahme-Toast entfällt; eine YNAB-Warnung bleibt gelb am Feld (`hintTitle`
-/// ist ihre obere Zeile in der Leiste). Ist das Detail zu oder steht die Karte des Durchgehens, meldet es wie bisher
-/// (`closedText`, ledger-enjex).
+/// ist ihre obere Zeile in der Leiste). Ist das Detail zu, meldet es wie bisher (`closedText`, ledger-enjex). Auf der
+/// Karte des Durchgehens meldet nur eine YNAB-Warnung (wie bisher), die gelungene Rücknahme bleibt ohne Meldung.
 let private restoredAtField
     (route: DetailNoteRoute)
     (entryId: Guid)
@@ -1152,7 +1147,9 @@ let private restoredAtField
             (ShowToast ($"{hintTitle}: {reason}", ToastWarning))
             (model, cmd)
     | None when not changed -> model, cmd, NoOp
-    | None when route = NoteAtField -> model, cmd, NoOp
+    // Auf der Karte des Durchgehens ohne Meldung, wie `reviewFieldRestored`: der alte Wert steht auf der Karte, im
+    // Durchgehen gibt es keinen Toast (ledger-pz5wv Abschnitt 5).
+    | None when route = NoteAtField || route = NoteOnReviewCard -> model, cmd, NoOp
     | None -> model, cmd, ShowToast (closedText, ToastSuccess)
 
 /// Ein Befehl auf Memo, Betrag, Payee oder Lena scheiterte (ledger-enjex, Muster `categoryCommandFailed`). Im offenen
@@ -1862,6 +1859,26 @@ let private reviewFieldFailed (entryId: Guid) (reason: string) (kind: ReviewLast
     let failedRow = { model with CategoryRows = model.CategoryRows |> Map.add entryId (CategoryCommandFailed reason) }
     setReviewLast (Some (reviewLastFor failedRow entryId kind (LastFailed reason) (Some (LastRetry retry)))) failedRow, Cmd.none, NoOp
 
+/// Ein Befehl auf Kategorie, Übertrag oder Aufteilung scheiterte (`note` ist der rote Fehler). Im offenen Detail steht
+/// er rot unter dem Feld, ohne Toast und ohne zweite Zeile in der Hinweisleiste. Sonst trägt die Zeile den
+/// Befehlsfehler (die Hinweisleiste zeigt ihn beim nächsten Öffnen) und die Leiste meldet ihn (am PC der Toast). Auf der
+/// Karte des Durchgehens ohne „Details“ steht er rot unter dem Knopf mit „Erneut“ (`onCard`, `reviewFieldFailed`), kein
+/// Toast (ledger-pz5wv Abschnitt 5).
+let private categoryCommandFailed
+    (entryId: Guid)
+    (reason: string)
+    (note: DetailNote)
+    (onCard: ReviewLastKind * ReviewRetry)
+    (model: Model)
+    : Model * Cmd<Msg> * ExternalMsg =
+    let failedRow = { model with CategoryRows = model.CategoryRows |> Map.add entryId (CategoryCommandFailed reason) }
+    match detailNoteRoute model entryId with
+    | NoteAtField ->
+        let model', timer = postDetailNote note { model with CategoryRows = model.CategoryRows |> Map.remove entryId }
+        model', timer, NoOp
+    | NoteOnReviewCard -> reviewFieldFailed entryId reason (fst onCard) (snd onCard) model
+    | NoteInBar -> failedRow, Cmd.none, PostFeedback (detailNoteBar note)
+
 /// Nach einer gelungenen Rücknahme am Feld der Karte: der alte Wert steht im Feld, die Bestätigung ist weg, keine
 /// Meldung („… zurückgesetzt“ entfällt). Nimmt YNAB sie nicht, steht das gelb unter dem Knopf.
 let private reviewFieldRestored (entryId: Guid) (outcome: CategoryChangeOutcome) (model: Model, cmd: Cmd<Msg>) : Model * Cmd<Msg> * ExternalMsg =
@@ -1871,8 +1888,8 @@ let private reviewFieldRestored (entryId: Guid) (outcome: CategoryChangeOutcome)
     | _ -> cleared, cmd, NoOp
 
 /// Die zurückgeholte Karte kommt von dieser Seite herein, falls sie jetzt gezeigt wird.
-let private markReturn (side: ReviewReturnSide) (entryId: Guid) (model: Model) : Model =
-    if isReviewCard model entryId then editReview (fun r -> { r with ReturnFrom = Some side }) model else model
+let private markReturn (undo: ReviewUndo) (entryId: Guid) (model: Model) : Model =
+    if isReviewCard model entryId then editReview (fun r -> { r with ReturnFrom = Some (reviewReturnSideOf undo) }) model else model
 
 /// Trägt die Antwort eines Nachladens im Hintergrund ein (ledger-ct3cx). Die Zeilen stehen in der
 /// Reihenfolge des Servers: geänderte mit neuem Stand, gelöschte und nicht mehr passende fehlen, neue
@@ -2333,7 +2350,8 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         let model' = { model with LastMirrorRun = Success status }
         if not model.MirrorRunning && isMirrorStale DateTime.UtcNow status then
             // Auch der Lauf im Hintergrund meldet sich in der Leiste, bis sein Ergebnis die Meldung ersetzt (ledger-gwr9j).
-            { model' with MirrorRunning = true }, Cmd.ofMsg RunMirror, PostFeedback mirrorRunningFeedback
+            // Er ist keine Aktion: eine stehende Meldung mit Knopf („Rückgängig“) ersetzt er nicht.
+            { model' with MirrorRunning = true; MirrorInBackground = true }, Cmd.ofMsg RunMirror, PostFeedbackIfFree mirrorRunningFeedback
         else
             model', Cmd.none, NoOp
 
@@ -2348,7 +2366,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         if model.MirrorRunning then
             model, Cmd.none, NoOp
         else
-            { model with MirrorRunning = true }, Cmd.ofMsg RunMirror, PostFeedback mirrorRunningFeedback
+            { model with MirrorRunning = true; MirrorInBackground = false }, Cmd.ofMsg RunMirror, PostFeedback mirrorRunningFeedback
 
     | BookingsScrollRemembered y -> { model with BookingsScroll = Some y }, Cmd.none, NoOp
     | BookingsScrollDropped -> { model with BookingsScroll = None }, Cmd.none, NoOp
@@ -2369,14 +2387,16 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         // Staende mitbringen. `AccountsRefreshed` zieht die Buchungen des gewaehlten
         // Filters selbst nach (Regression ledger-kt0wq): im Hintergrund, solange der Filter
         // derselbe bleibt und eine Liste steht, sonst als Neuaufbau (ledger-ct3cx).
-        { model with MirrorRunning = false },
+        // „Gespiegelt“ nach einem Lauf im Hintergrund ersetzt wie sein „Spiegeln läuft …“ keine Meldung mit Knopf.
+        { model with MirrorRunning = false; MirrorInBackground = false },
         Cmd.batch [ Cmd.ofMsg RefreshAccounts; Cmd.ofMsg LoadBalances; Cmd.ofMsg LoadMirrorStatus ],
-        PostFeedback (mirrorDoneFeedback summary)
+        (if model.MirrorInBackground then PostFeedbackIfFree (mirrorDoneFeedback summary)
+         else PostFeedback (mirrorDoneFeedback summary))
 
     | MirrorFinished (Error message) ->
         // Ein Fehler wird sichtbar gemacht, nie still geschluckt (ADR 0014): als
         // Toast jetzt und als Lauf-Status dauerhaft.
-        { model with MirrorRunning = false },
+        { model with MirrorRunning = false; MirrorInBackground = false },
         Cmd.ofMsg LoadMirrorStatus,
         PostFeedback (mirrorFailedFeedback message)
 
@@ -2946,11 +2966,13 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
                 noted, Cmd.batch [ cmd; timer ], NoOp
             | _ -> reportDetailNote route (categoryChangedNote entryId payee newId.IsNone failure undo) NoOp (model', cmd)
 
-    | EntryCategorySet (entryId, newId, Error message) when detailNoteRoute model entryId = NoteOnReviewCard ->
-        reviewFieldFailed entryId message LastCategoryChanged (RetryCategory (entryId, newId)) model
-
-    | EntryCategorySet (entryId, _, Error message) ->
-        categoryCommandFailed entryId message (failedDetailNote entryId AtCategory "Nicht geändert" "Kategorie nicht geändert" message) model
+    | EntryCategorySet (entryId, newId, Error message) ->
+        categoryCommandFailed
+            entryId
+            message
+            (failedDetailNote entryId AtCategory "Nicht geändert" "Kategorie nicht geändert" message)
+            (LastCategoryChanged, RetryCategory (entryId, newId))
+            model
 
     | StartUndoCategory (entryId, previous) ->
         whenRowIdle CategoryLock entryId model (fun () ->
@@ -2987,11 +3009,13 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
                 (categoryRestoredToastText name)
                 (clearDetailNote entryId model', cmd)
 
-    | EntryCategoryRestored (entryId, previous, Error message) when detailNoteRoute model entryId = NoteOnReviewCard ->
-        reviewFieldFailed entryId message LastUndone (RetryFieldUndo (UndoCategory (entryId, previous))) model
-
-    | EntryCategoryRestored (entryId, _, Error message) ->
-        categoryCommandFailed entryId message (undoFailedDetailNote entryId AtCategory message) model
+    | EntryCategoryRestored (entryId, previous, Error message) ->
+        categoryCommandFailed
+            entryId
+            message
+            (undoFailedDetailNote entryId AtCategory message)
+            (LastUndone, RetryFieldUndo (UndoCategory (entryId, previous)))
+            model
 
     | StartSetEntryTransfer (entryId, account, undo) ->
         whenRowIdle CategoryLock entryId model (fun () ->
@@ -3048,15 +3072,13 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             let payee = findEntry model entryId |> Option.bind (fun e -> e.Payee)
             reportDetailNote route (transferSetNote entryId name payee failed kind) NoOp (model', cmd)
 
-    | EntryTransferSet (entryId, account, undo, Error message) when detailNoteRoute model entryId = NoteOnReviewCard ->
-        if undo then reviewFieldFailed entryId message LastUndone (RetryFieldUndo (UndoTransfer (entryId, account))) model
-        else reviewFieldFailed entryId message LastTransferSet (RetryTransfer (entryId, account)) model
-
-    | EntryTransferSet (entryId, _, undo, Error message) ->
-        let note =
-            if undo then undoFailedDetailNote entryId AtCategory message
-            else failedDetailNote entryId AtCategory "Nicht gesetzt" "Übertrag nicht gesetzt" message
-        categoryCommandFailed entryId message note model
+    | EntryTransferSet (entryId, account, undo, Error message) ->
+        let note, onCard =
+            if undo then undoFailedDetailNote entryId AtCategory message, (LastUndone, RetryFieldUndo (UndoTransfer (entryId, account)))
+            else
+                failedDetailNote entryId AtCategory "Nicht gesetzt" "Übertrag nicht gesetzt" message,
+                (LastTransferSet, RetryTransfer (entryId, account))
+        categoryCommandFailed entryId message note onCard model
 
     | StartRetryCategorization entryId ->
         whenRowIdle CategoryLock entryId model (fun () ->
@@ -4285,8 +4307,10 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         | _ -> model, Cmd.none, PostFeedback (entryRestoreFailedFeedback message entryId)
 
     | LedgerLeft ->
-        // Die Zeile am Platz nimmt `update` vorher über `endsDeletedRow` weg.
-        model, Cmd.none, NoOp
+        // Die Zeile am Platz nimmt `update` vorher über `endsDeletedRow` weg. Die Bestätigung am Feld endet still: sonst
+        // schickte der nächste Schritt, der das Detail schließt (Erfassen auf der Übersicht, Durchgehen), sie samt
+        // „Rückgängig“ in die Leiste (`handOverDetailNote`).
+        { model with DetailNote = None }, Cmd.none, NoOp
 
     | RunLoadTransferTargets ->
         { model with TransferTargets = Loading },
@@ -4372,12 +4396,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         let unsplit = SplitEditor.isUnsplitResult lines
         let field = if unsplit then AtCategory else AtSplits
         match outcome.Change, outcome.WriteBack, before with
-        | CategoryUnchanged, CategorySendFailed reason, _ ->
-            reportDetailNote
-                route
-                (notInYnabDetailNote entryId field reason)
-                (ShowToast ($"{categoryHintTitle}: {reason}", ToastWarning))
-                (model', cmd)
+        | CategoryUnchanged, CategorySendFailed reason, _ -> reportSplitNote route (notInYnabDetailNote entryId field reason) (model', cmd)
         | CategoryUnchanged, _, _ -> model', cmd, NoOp
         | CategoryChanged, writeBack, Some entry ->
             let text = SplitEditor.savedToastText lines
@@ -4387,13 +4406,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
                     Some (UndoSplit (entryId, SplitEditor.undoLines (SplitEditor.startState entry).Before entry.Amount))
                 else
                     None
-            let onCard =
-                let full = match failure with Some reason -> $"{text}. {categoryHintTitle}: {reason}" | None -> text
-                let tone = if failure.IsSome then ToastWarning else ToastSuccess
-                match undo with
-                | Some kind -> ShowToastWithAction (full, tone, { Label = SplitEditor.undoLabel; Kind = kind })
-                | None -> ShowToast (full, tone)
-            reportDetailNote route (splitSavedNote entryId text unsplit entry.Payee failure undo) onCard (model', cmd)
+            reportSplitNote route (splitSavedNote entryId text unsplit entry.Payee failure undo) (model', cmd)
         | CategoryChanged, _, None -> model', cmd, NoOp
 
     | RunSaveSplitsWithAmount (entryId, lines, amount) ->
@@ -4420,14 +4433,8 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         let amountText = Client.DesignSystem.Money.formatAmountText false true amount.Amount amount.Currency
         let route = detailNoteRoute model entryId
         match outcome.WriteBack with
-        | CategorySendFailed reason ->
-            reportDetailNote
-                route
-                (amountChangedNote entryId amountText (Some reason) None)
-                (ShowToast ($"{amountToastText amount}. {amountHintTitle}: {reason}", ToastWarning))
-                (model'', cmd)
-        | _ when changed ->
-            reportDetailNote route (amountChangedNote entryId amountText None None) (ShowToast (amountToastText amount, ToastSuccess)) (model'', cmd)
+        | CategorySendFailed reason -> reportSplitNote route (amountChangedNote entryId amountText (Some reason) None) (model'', cmd)
+        | _ when changed -> reportSplitNote route (amountChangedNote entryId amountText None None) (model'', cmd)
         | _ -> model'', cmd, NoOp
 
     // Der Editor bleibt offen: der Entwurf geht nicht verloren.
@@ -4462,8 +4469,13 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             "Aufteilung zurückgenommen"
             (clearDetailNote entryId model', Cmd.batch [ cmd; afterEntryChange entryId model' ])
 
-    | SplitsRestored (entryId, _, Error message) ->
-        categoryCommandFailed entryId message (undoFailedDetailNote entryId (detailNoteFieldOf model entryId) message) model
+    | SplitsRestored (entryId, lines, Error message) ->
+        categoryCommandFailed
+            entryId
+            message
+            (undoFailedDetailNote entryId (detailNoteFieldOf model entryId) message)
+            (LastUndone, RetryFieldUndo (UndoSplit (entryId, lines)))
+            model
 
     | RunRefreshEntry entryId ->
         let answer = entryRefreshAnswer model entryId
@@ -5353,7 +5365,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         // „Rückgängig“ aus der Zeile (ledger-pz5wv): die Karte steht sichtbar wieder da, kein Toast.
         | Some (_, settled) ->
             let model', cmd = returnToReviewCard entryId settled
-            markReturn ReturnFromLeft entryId model', cmd, NoOp
+            markReturn (UndoDiscarded entryId) entryId model', cmd, NoOp
         | None ->
             match released.Review with
             | Some _ ->
@@ -5417,23 +5429,32 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
     // „Rückgängig“ der Zeile (ledger-pz5wv): nur die letzte Aktion, eine Stufe. Die Karte kommt von der Seite zurück, zu
     // der sie ging; eine offene Eingabe auf der gezeigten Karte hält sie fest, dann geschieht nichts.
     | ReviewUndoLast ->
-        match model.Review |> Option.bind reviewUndoOffered with
-        | Some undo when not (reviewUndoBlocked undo model) ->
+        match model.Review |> Option.bind (fun r -> r.Last), model.Review |> Option.bind reviewUndoOffered with
+        // Eine Bestätigung aus „Details“ in der Zeile (`handOverDetailNote`): dieselbe Rücknahme wie am Feld. Ist ihre
+        // Buchung nicht die gezeigte Karte, kommt sie zuerst zurück (außer eine Eingabe auf der Karte hält sie fest).
+        | Some { EntryId = entryId; Act = Some (LastFieldUndo kind) }, _ ->
+            match detailNoteUndoMsg kind with
+            | Some undoMsg when not (reviewCardEditing model && not (isReviewCard model entryId)) ->
+                let returned, showCmd = returnToReviewCard entryId (setReviewLast None model)
+                let sent, cmd, external = updateCore undoMsg returned
+                sent, Cmd.batch [ showCmd; cmd ], external
+            | _ -> model, Cmd.none, NoOp
+        | _, Some undo when not (reviewUndoBlocked undo model) ->
             let cleared = setReviewLast None model
             let awaiting = awaitReview (AwaitUndo undo) cleared
             match undo with
             | UndoSkipped entryId ->
                 let returned, cmd = returnToReviewCard entryId cleared
-                markReturn ReturnFromLeft entryId returned, cmd, NoOp
+                markReturn undo entryId returned, cmd, NoOp
             // Die Karte kommt sofort zurück; solange die Rücknahme läuft, überspringt das Neulesen sie nicht.
             | UndoConfirmed (entryId, previous) ->
                 let returned, showCmd = returnToReviewCard entryId awaiting
                 let started, startCmd, external = updateCore (StartUndoReviewMark (entryId, previous)) returned
-                markReturn ReturnFromRight entryId started, Cmd.batch [ showCmd; startCmd ], external
+                markReturn undo entryId started, Cmd.batch [ showCmd; startCmd ], external
             // `StartUndoFlag` holt die Karte selbst zurück (ledger-v6s7c).
             | UndoLenaAsked (entryId, previous) ->
                 let started, cmd, external = updateCore (StartUndoFlag (entryId, previous)) awaiting
-                markReturn ReturnFromLeft entryId started, cmd, external
+                markReturn undo entryId started, cmd, external
             // Die Duplikat-Karte kommt mit der Antwort zurück (`DiscardedDuplicateRestored`).
             | UndoDiscarded entryId ->
                 updateCore (StartRestoreDiscardedDuplicate entryId) awaiting
@@ -5470,7 +5491,8 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             | RetryTransfer (entryId, account) -> onCard entryId (StartSetEntryTransfer (entryId, account, false)) (setReviewLast None model)
             | RetryFieldUndo kind ->
                 match kind, detailNoteUndoMsg kind with
-                | (UndoCategory (entryId, _) | UndoTransfer (entryId, _)), Some msg -> onCard entryId msg (setReviewLast None model)
+                | (UndoCategory (entryId, _) | UndoTransfer (entryId, _) | UndoSplit (entryId, _)), Some msg ->
+                    onCard entryId msg (setReviewLast None model)
                 | _ -> model, Cmd.none, NoOp
             | RetryUndo undo ->
                 let offered = model |> setReviewLast (model.Review |> Option.bind (fun r -> r.Last) |> Option.map (fun l -> { l with Act = Some (LastUndo undo) }))
@@ -5615,7 +5637,15 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         match model'.RuleOffer with
         | Some offer when not (ruleOfferStays model' offer) -> { model' with RuleOffer = None }
         | _ -> model'
-    // Detail schließt mit offener Bestätigung (ledger-p5y9s): mit „Rückgängig“ wandert sie in die Leiste.
+    // Detail schließt mit offener Bestätigung (ledger-p5y9s): mit „Rückgängig“ wandert sie in die Leiste, im Durchgehen in
+    // die Zeile unter „Passt, weiter“. Hat der Schritt dort selbst eine Zeile geschrieben (Später, Passt), ist er die neue
+    // Aktion: die Bestätigung endet still.
+    let lastStampOf (m: Model) = m.Review |> Option.map (fun r -> r.LastStamp)
+    let model' =
+        match model'.DetailNote with
+        | Some note when lastStampOf model' <> lastStampOf model && not (detailShows model' note.EntryId) ->
+            { model' with DetailNote = None }
+        | _ -> model'
     let model', external = handOverDetailNote (model', external)
     let detailId = model'.DetailFor |> Option.map (fun d -> d.Id)
     let pickerStays = model'.CategoryPickerFor.IsNone || model'.CategoryPickerFor = detailId

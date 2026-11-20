@@ -693,7 +693,7 @@ let caseTests =
             Expect.equal external NoOp "kein Toast"
             let note = after.Review.Value.FieldNote
             Expect.equal (note |> Option.map (fun n -> n.Text)) (Some "Lebensmittel") "Name"
-            Expect.isSome (note |> Option.bind (fun n -> n.Available)) "Verfügbares"
+            Expect.equal (note |> Option.bind (fun n -> n.Available)) (Some "110,00 €") "Verfügbares"
 
         testCase "Details öffnet das Detail über der Karte, Schließen lässt die Karte stehen und liest sie neu" <| fun () ->
             let model = reviewing [ cardA; cardC ]
@@ -704,6 +704,35 @@ let caseTests =
             Expect.isFalse closed.Review.Value.DetailShown "zu"
             Expect.equal (cardId closed) (Some (idOf cardA)) "Karte bleibt"
             Expect.contains msgs (RunReviewRefresh (idOf cardA)) "neu lesen"
+
+        // Review-Fund zu ledger-enjex: „Details“ schließen übergab eine offene Bestätigung mit Rückgängig an Leiste und
+        // PC-Toast (`handOverDetailNote`). Im Durchgehen gibt es keinen Toast (ledger-pz5wv Abschnitt 5): sie gehört in die
+        // Zeile unter „Passt, weiter“, Rückgängig dort schickt dieselbe Rücknahme wie am Feld.
+        testCase "Details schließen mit offener Bestätigung: sie wandert in die Zeile unter dem Knopf, nicht in die Leiste" <| fun () ->
+            let details = reviewing [ cardA; cardC ] |> step ReviewShowDetails
+            let changedInDetails =
+                details
+                |> step (StartSetEntryCategory (idOf cardA, Some (YnabCategoryId food)))
+                |> step (EntryCategorySet (idOf cardA, Some (YnabCategoryId food), Ok { Previous = None; Change = CategoryChanged; WriteBack = CategorySent; PreviousTransferAccountId = None }))
+            Expect.isSome changedInDetails.DetailNote "Bestätigung am Feld im Detail"
+            let closed, _, external = run CloseDetail changedInDetails
+            Expect.equal external NoOp "keine Leiste, kein Toast"
+            Expect.isNone closed.DetailNote "am Feld weg"
+            Expect.equal (lineOf closed) (Some (FeedbackOk, "Kategorie geändert", "Payee v6s7c 2", Some "Rückgängig")) "Zeile unter dem Knopf"
+            let _, msgs, undoExternal = run ReviewUndoLast closed
+            Expect.equal undoExternal NoOp "Rückgängig meldet nichts nach außen"
+            Expect.contains msgs (RunUndoCategory (idOf cardA, None)) "dieselbe Rücknahme wie am Feld"
+
+        testCase "Kartenwechsel mit offenen Details: die Zeile der neuen Aktion bleibt, die Bestätigung endet still" <| fun () ->
+            let details = reviewing [ cardA; cardC ] |> step ReviewShowDetails
+            let changedInDetails =
+                details
+                |> step (StartSetEntryCategory (idOf cardA, Some (YnabCategoryId food)))
+                |> step (EntryCategorySet (idOf cardA, Some (YnabCategoryId food), Ok { Previous = None; Change = CategoryChanged; WriteBack = CategorySent; PreviousTransferAccountId = None }))
+            let skipped, _, external = run ReviewSkip changedInDetails
+            Expect.equal external NoOp "keine Leiste, kein Toast"
+            Expect.isNone skipped.DetailNote "Bestätigung weg"
+            Expect.equal (lineOf skipped |> Option.map (fun (_, action, _, _) -> action)) (Some "Später") "die Zeile meldet „Später“"
 
         // ledger-hme9k Befund 4: „Details“ schließen setzte die Felder des Details von Hand und vergaß die
         // aufgeklappte Historie; beim nächsten „Details“ stand sie schon offen da.
@@ -1200,7 +1229,7 @@ let fieldNoteTests =
             let note = (fieldNoteOf after).Value
             Expect.equal note.EntryId (idOf cardB) "Buchung"
             Expect.equal note.Text "Lebensmittel" "Name"
-            Expect.isSome note.Available "Verfügbares"
+            Expect.equal note.Available (Some "110,00 €") "Verfügbares"
             Expect.isTrue note.Flashing "leuchtet"
             Expect.equal note.Undo (UndoCategory (idOf cardB, None)) "Rückgängig"
             Expect.isNone (lineOf after) "keine Zeile unter dem Knopf"
@@ -1340,4 +1369,16 @@ let fieldNoteTests =
             | PostFeedback note -> Expect.equal note.Tone FeedbackError "rot in der Leiste"
             | other -> failtestf "Leiste erwartet: %A" other
             Expect.isNone failed.Review "kein Durchgehen"
+
+        // Review-Fund zu ledger-enjex: eine gescheiterte Rücknahme der Aufteilung auf der Karte ohne „Details“ meldete
+        // sich als Toast (`categoryCommandFailed`); im Durchgehen steht sie rot unter dem Knopf mit „Erneut“.
+        testCase "gescheiterte Rücknahme der Aufteilung auf der Karte: rot unter dem Knopf mit Erneut, kein Toast" <| fun () ->
+            let restore : TransactionSplit list =
+                [ { Amount = eur -6m; Memo = None; Target = Uncategorized }; { Amount = eur -4m; Memo = None; Target = Uncategorized } ]
+            let model = reviewing [ cardA; cardC ]
+            let failed, _, external = run (SplitsRestored (idOf cardA, restore, Error "Netz")) model
+            Expect.equal external NoOp "kein Toast"
+            Expect.equal (lineOf failed) (Some (FeedbackError, "Rückgängig nicht möglich", "Netz", Some "Erneut")) "rot unter dem Knopf"
+            let _, msgs, _ = run ReviewRetryLast failed
+            Expect.contains msgs (RunUndoSplit (idOf cardA, restore)) "Erneut schickt dieselbe Rücknahme"
     ]

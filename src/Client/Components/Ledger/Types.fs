@@ -775,10 +775,6 @@ let restoredNotInYnabNoteFor (hintTitle: string) (entryId: Guid) (field: DetailN
     { changeNote entryId field FeedbackWarning $"Zurückgesetzt, nicht in YNAB: {reason}" None hintTitle (Some reason) with
         Flashing = true }
 
-/// Nach „Rückgängig“ an Kategorie, Übertrag oder Aufteilung mit gescheitertem Versand (Zeile 2612, 3818).
-let restoredNotInYnabNote (entryId: Guid) (field: DetailNoteField) (reason: string) : DetailNote =
-    restoredNotInYnabNoteFor categoryHintTitle entryId field reason
-
 // ============================================
 // Lena fragen im Detail (ledger-xfjcp, ADR 0056)
 // ============================================
@@ -1451,6 +1447,9 @@ type ReviewRetry =
 type ReviewLastAct =
     | LastUndo of ReviewUndo
     | LastRetry of ReviewRetry
+    /// „Rückgängig“ einer Bestätigung aus „Details“, die beim Schließen in die Zeile kam (`handOverDetailNote`): dieselbe
+    /// Rücknahme wie am Feld (`detailNoteUndoMsg`).
+    | LastFieldUndo of ToastActionKind
 
 /// Welche Aktion die Zeile meldet.
 type ReviewLastKind =
@@ -1466,6 +1465,9 @@ type ReviewLastKind =
     | LastCategoryChanged
     /// Übertrag auf der Karte: nur als Warnung oder Fehler.
     | LastTransferSet
+    /// Eine Bestätigung aus „Details“ (Kategorie, Memo, Betrag, Payee, Lena, Aufteilung), die beim Schließen in die Zeile
+    /// kam: Ton, Aktion und zweiter Teil wie in der Leiste (`detailNoteBar`).
+    | LastFromDetail of tone: FeedbackTone * action: string * detail: string
 
 /// Wie die Aktion ausging: erledigt, erledigt, aber nicht in YNAB (gelb, mit Grund), gescheitert (rot, mit Grund).
 type ReviewLastOutcome =
@@ -1570,11 +1572,6 @@ let reviewReturnSideOf (undo: ReviewUndo) : ReviewReturnSide =
     | UndoConfirmed _ -> ReturnFromRight
     | UndoSkipped _ | UndoLenaAsked _ | UndoDiscarded _ | UndoPayeeChanged _ -> ReturnFromLeft
 
-/// Die Buchung, die ein Rückgängig betrifft.
-let reviewUndoEntry (undo: ReviewUndo) : Guid =
-    match undo with
-    | UndoConfirmed (id, _) | UndoSkipped id | UndoLenaAsked (id, _) | UndoDiscarded id | UndoPayeeChanged (id, _) -> id
-
 /// Das Rückgängig, das die Zeile anbietet (für Taste Z und „Letzte rückgängig“), sonst `None`.
 let reviewUndoOffered (review: ReviewSession) : ReviewUndo option =
     match review.Last with
@@ -1618,6 +1615,7 @@ let reviewLastLine (last: ReviewLast) : ReviewLastLine =
         | LastUndone -> "Rückgängig"
         | LastCategoryChanged -> "Kategorie geändert"
         | LastTransferSet -> "Übertrag gesetzt"
+        | LastFromDetail (_, action, _) -> action
     let failedText =
         match last.Kind with
         | LastConfirmed -> "Nicht geprüft"
@@ -1629,17 +1627,19 @@ let reviewLastLine (last: ReviewLast) : ReviewLastLine =
         | LastUndone -> "Rückgängig nicht möglich"
         | LastCategoryChanged -> "Kategorie nicht geändert"
         | LastTransferSet -> "Übertrag nicht gesetzt"
+        | LastFromDetail (_, action, _) -> action
     let button =
         match last.Act with
-        | Some (LastUndo _) -> Some "Rückgängig"
+        | Some (LastUndo _) | Some (LastFieldUndo _) -> Some "Rückgängig"
         | Some (LastRetry _) -> Some "Erneut"
         | None -> None
-    match last.Outcome with
-    | LastDone ->
+    match last.Kind, last.Outcome with
+    | LastFromDetail (tone, action, detail), _ -> { Tone = tone; Action = action; Detail = detail; Button = button }
+    | _, LastDone ->
         { Tone = FeedbackOk; Action = doneText; Detail = last.Payee |> Option.defaultValue "ohne Payee"; Button = button }
-    | LastNotInYnab reason ->
+    | _, LastNotInYnab reason ->
         { Tone = FeedbackWarning; Action = $"{doneText}, nicht in YNAB"; Detail = reason; Button = button }
-    | LastFailed reason ->
+    | _, LastFailed reason ->
         { Tone = FeedbackError; Action = failedText; Detail = reason; Button = button }
 
 /// Die Art der Karte: die normale oder die Duplikat-Karte einer wartenden Buchung (ADR 0093).
@@ -1960,6 +1960,10 @@ type Model = {
     /// Laeuft gerade ein Spiegel-Lauf? Die Liste bleibt waehrenddessen stehen:
     /// Roman wartet nie auf den Spiegel (ADR 0014).
     MirrorRunning: bool
+
+    /// Läuft der Spiegel im Hintergrund (Frische-Kriterium, ADR 0014) statt nach „Jetzt spiegeln“? Dann meldet er sich
+    /// nur, wenn der Meldungsplatz frei ist (`PostFeedbackIfFree`, ledger-gwr9j).
+    MirrorInBackground: bool
 
     /// Der Scrollstand der Buchungen beim Wechsel zum Tab „Regeln“ (categorization-n3sxw). Der Tab „Buchungen“
     /// baut sich beim Zurückwechseln neu auf und setzt ihn wieder. Er gilt nur für den Weg Regeln → Buchungen:
@@ -3474,6 +3478,9 @@ type ExternalMsg =
     | ShowToastWithAction of string * ToastType * ToastAction
     /// Eine Meldung mit getrennter Aktion und Detail für den einen Meldungsplatz (ledger-gwr9j, ADR 0098).
     | PostFeedback of FeedbackNote
+    /// Dieselbe Meldung, aber nur, wenn der Platz frei ist oder seine Meldung keinen Knopf trägt: für Meldungen ohne
+    /// Aktion des Nutzers (Spiegel im Hintergrund). Eine Meldung mit „Rückgängig“ bleibt bis zur nächsten Aktion.
+    | PostFeedbackIfFree of FeedbackNote
     /// Das Durchgehen ist zu Ende oder wird verlassen: zurück zur Übersicht (ledger-v6s7c).
     | LeaveReview
     /// Das Regel-Formular für diese Buchung öffnen, vorbelegt mit Payee und Kategorie (ledger-hg5m5).
@@ -3697,15 +3704,30 @@ let detailNoteBar (note: DetailNote) : FeedbackNote =
       Detail = note.BarDetail
       Act = note.Undo |> Option.map (fun kind -> { Label = undoToastLabel; Kind = kind }) }
 
+/// Die Bestätigung aus „Details“ als Zeile unter „Passt, weiter“ (ledger-pz5wv Abschnitt 5): Text wie in der Leiste,
+/// „Rückgängig“ wie am Feld. Rein.
+let withDetailNoteLine (note: DetailNote) (review: ReviewSession) : ReviewSession =
+    let line =
+        { EntryId = note.EntryId
+          Kind = LastFromDetail (note.Tone, note.BarAction, note.BarDetail |> Option.defaultValue "")
+          Payee = None
+          Outcome = LastDone
+          Act = note.Undo |> Option.map LastFieldUndo }
+    let stamp = review.Clock + 1
+    { review with Last = Some line; Clock = stamp; LastStamp = stamp }
+
 /// Detail schließt mit offener Bestätigung (Entscheidung Roman 2026-11-19): steht ihre Buchung nicht mehr im Detail,
 /// endet sie. Trägt sie „Rückgängig“, wandert sie in die Leiste (am PC in den Toast), außer der Schritt meldet selbst
-/// etwas (eine neue Aktion ersetzt sie). Ohne „Rückgängig“ (Fehler, Warnung) endet sie still. Rein.
+/// etwas (eine neue Aktion ersetzt sie). Im Durchgehen gibt es keinen Toast (ledger-pz5wv Abschnitt 5): dort wandert sie
+/// in die Zeile unter „Passt, weiter“, mit „Rückgängig“ wie am Feld. Ohne „Rückgängig“ (Fehler, Warnung) endet sie
+/// still. Rein.
 let handOverDetailNote (model: Model, external: ExternalMsg) : Model * ExternalMsg =
     match model.DetailNote with
     | Some note when not (detailShows model note.EntryId) ->
         let cleared = { model with DetailNote = None }
-        match external, note.Undo with
-        | NoOp, Some _ -> cleared, PostFeedback (detailNoteBar note)
+        match external, note.Undo, cleared.Review with
+        | NoOp, Some _, Some review -> { cleared with Review = Some (withDetailNoteLine note review) }, NoOp
+        | NoOp, Some _, None -> cleared, PostFeedback (detailNoteBar note)
         | _ -> cleared, external
     | _ -> model, external
 

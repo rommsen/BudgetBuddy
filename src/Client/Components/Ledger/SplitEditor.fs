@@ -185,8 +185,6 @@ let isUnsplitResult (lines: TransactionSplit list) : bool = resultLineCount line
 let savedToastText (lines: TransactionSplit list) : string =
     if isUnsplitResult lines then "Aufteilung aufgehoben" else $"Aufgeteilt in {resultLineCount lines} Zeilen"
 
-let undoLabel = "Rückgängig"
-
 /// Die Zeilen, mit denen "Rückgängig" den Stand vor dem Speichern wiederherstellt, über
 /// denselben Schreibweg: war die Buchung aufgeteilt, die alten Zeilen; war sie es nicht, eine
 /// Zeile der alten Kategorie über den vollen Betrag (`Uncategorized` ohne Kategorie).
