@@ -1,7 +1,7 @@
 ---
 id: budgeting-m5pqn
 title: "Budget-Monat aus BB: YNAB-Stand je Monat festhalten, getBudgetMonth liest nur die Datenbank, Verfügbar und Zu verteilen leitet BB aus Soll, Kassenbuch und Stand ab"
-status: todo
+status: doing
 type: feature
 context: budgeting
 created: 2026-11-20

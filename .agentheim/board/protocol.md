@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-20 23:48 -- Batch started: [budgeting-m5pqn, ledger-cyd1t, ledger-sbbh8]
+
+**Type:** Work / Batch start
+**Tasks:** budgeting-m5pqn - "Budget-Monat aus BB: YNAB-Stand je Monat festhalten, getBudgetMonth liest nur die Datenbank, Verfügbar und Zu verteilen leitet BB aus Soll, Kassenbuch und Stand ab", ledger-cyd1t - "Durchgehen: Textlink „Aufteilen“ unter dem Feld Kategorie öffnet das Detail mit offenem Split-Editor, ohne Umweg über „Details“", ledger-sbbh8 - "Durchgehen ordnet neueste zuerst: nach den wartenden Duplikaten kommen die Buchungen nach Datum absteigend, damit nach „Später“ nicht wieder dieselben alten vorne stehen"
+**Parallel:** yes (3 workers — Builder: alles außer dem Spike banking-import-y7m4r; budgeting-yx51n und budgeting-nyx75 auf die nächste Welle, sie teilen Schema und Lesepfad der Budget-Seite mit m5pqn)
+
+---
+
 ## 2026-11-20 23:42 -- Modeling / Promoted: budgeting-nyx75 - "Kategorie-Gruppe in BB deaktivieren: die Gruppe verschwindet samt ihren Kategorien aus Budget-Liste und Pickern, in YNAB bleibt sie"
 
 **Type:** Modeling / Promote

@@ -1,7 +1,7 @@
 ---
 id: ledger-cyd1t
 title: "Durchgehen: Textlink „Aufteilen“ unter dem Feld Kategorie öffnet das Detail mit offenem Split-Editor, ohne Umweg über „Details“"
-status: todo
+status: doing
 type: feature
 context: ledger
 created: 2026-11-20

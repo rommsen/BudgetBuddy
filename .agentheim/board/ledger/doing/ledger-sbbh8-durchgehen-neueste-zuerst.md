@@ -1,7 +1,7 @@
 ---
 id: ledger-sbbh8
 title: "Durchgehen ordnet neueste zuerst: nach den wartenden Duplikaten kommen die Buchungen nach Datum absteigend, damit nach „Später“ nicht wieder dieselben alten vorne stehen"
-status: todo
+status: doing
 type: feature
 context: ledger
 created: 2026-11-20
