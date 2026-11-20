@@ -856,7 +856,8 @@ export const REVIEW_QUEUE = (() => {
 
 /// Die Seite „Durchgehen“ mit dieser Schlange. Das Neulesen einer Karte liefert ihren Stand aus `state`, damit
 /// Befehle (Kategorie, Prüfvermerk, Verwerfen) ihn ändern können; `state.calls` sammelt die Befehle.
-export async function mockReview(page, queue) {
+/// `failReviewMark`: der Prüfvermerk scheitert mit diesem Grund (ledger-pz5wv, Zustand `durchgehen-fehler`).
+export async function mockReview(page, queue, { failReviewMark = null } = {}) {
   await mockApp(page);
   const state = { byId: new Map(queue.map((e) => [e.Id, { ...e }])), calls: [] };
   const answer = (r, body) => json(r, body);
@@ -881,8 +882,16 @@ export async function mockReview(page, queue) {
   await page.route("**/api/LedgerApi/setReviewMark", (r) => {
     const [id] = r.request().postDataJSON();
     state.calls.push({ endpoint: "setReviewMark", id });
+    if (failReviewMark) return answer(r, { Error: failReviewMark });
     state.byId.set(id, { ...state.byId.get(id), NeedsReview: false });
     return answer(r, { Ok: { Previous: { IsApproved: false, ClearedState: "ReviewUncleared" }, Change: "ReviewMarkChanged", WriteBack: "ReviewMarkSent" } });
+  });
+  // „Rückgängig“ nach „Passt“ (ledger-pz5wv): der Vorzustand aus der Antwort kommt zurück.
+  await page.route("**/api/LedgerApi/restoreReviewMark", (r) => {
+    const [id, previous] = r.request().postDataJSON();
+    state.calls.push({ endpoint: "restoreReviewMark", id, previous });
+    state.byId.set(id, { ...state.byId.get(id), NeedsReview: true });
+    return answer(r, { Ok: { Previous: { IsApproved: true, ClearedState: "ReviewUncleared" }, Change: "ReviewMarkChanged", WriteBack: "ReviewMarkSent" } });
   });
   await page.route("**/api/LedgerApi/setLenaFlag", (r) => {
     const [id, target] = r.request().postDataJSON();
@@ -906,7 +915,8 @@ const openReviewDetails = async (page) => {
   await page.locator('[data-testid="review-details"]').first().click();
   await page.locator('[data-testid="detail-payee"]').filter({ visible: true }).first().waitFor();
 };
-/// Die Zeile unter dem Hauptknopf am Handy (ledger-s2cg3): ohne Scrollen im Bild. Am PC gibt es sie nicht.
+/// Die Zeile unter dem Hauptknopf am Handy (ledger-s2cg3): ohne Scrollen im Bild. Am PC ist sie ohne letzte Aktion leer
+/// (ledger-pz5wv) und wird hier nicht geprüft.
 const reviewFoot = (page, { mobile }) => (mobile ? page.locator('[data-testid="review-foot"]') : null);
 /// Der Memo-Text auf der Karte (ledger-wg42w), nachdem die Vorschläge stehen: gekürzt (`-webkit-line-clamp`), Zahl der
 /// sichtbaren Zeilen, `title`, und ob der Scrollbereich der Karte überläuft.
@@ -2813,6 +2823,34 @@ export const STATES = [
     open: reviewOpen("review-duplicate-card"),
     primary: reviewPrimary("Ist doppelt, verwerfen"),
     reach: reviewFoot,
+  },
+  // ledger-pz5wv: nach „Passt“ steht die letzte Aktion unter „Passt, weiter“ (Karte mit langem Payee: die Aktion bleibt
+  // ganz, der Payee endet mit „…“), „Rückgängig“ mit 48 px erreichbar; am PC dieselbe Zeile in der Spalte.
+  {
+    name: "durchgehen-letzte-aktion",
+    route: "/review",
+    widths: [320, 412, 1280],
+    mock: (page) => mockReview(page, [REVIEW_QUEUE.plain, REVIEW_QUEUE.memoShort]),
+    open: async (page) => {
+      await reviewPrimary("Passt, weiter")(page).click();
+      await page.locator('[data-testid="feedback-line"]').getByText("Passt", { exact: true }).waitFor();
+      await page.getByText("Stadtwerke").first().waitFor();
+    },
+    primary: reviewPrimary("Passt, weiter"),
+    reach: (page) => page.locator('[data-testid="review-foot"]').getByRole("button", { name: "Rückgängig" }),
+  },
+  // ledger-pz5wv: scheitert „Passt“, bleibt die Karte und die Zeile zeigt rot den Grund mit „Erneut“.
+  {
+    name: "durchgehen-fehler",
+    route: "/review",
+    widths: [412],
+    mock: (page) => mockReview(page, [REVIEW_QUEUE.memoShort], { failReviewMark: "YNAB antwortet nicht (503)" }),
+    open: async (page) => {
+      await reviewPrimary("Passt, weiter")(page).click();
+      await page.locator('[data-testid="feedback-line"]').getByText("Nicht geprüft").waitFor();
+    },
+    primary: reviewPrimary("Passt, weiter"),
+    reach: (page) => page.locator('[data-testid="review-foot"]').getByRole("button", { name: "Erneut" }),
   },
   {
     name: "durchgehen-ende",

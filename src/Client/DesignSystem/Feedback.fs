@@ -329,6 +329,43 @@ let sheetLine (message: Message) : ReactElement =
             ]
         ]
 
+/// Die Zeile der letzten Aktion unter dem Hauptknopf (Durchgehen, ledger-pz5wv, Skizze ledger-vf5h6 `.ph-foot.last`):
+/// eine Zeile, 12 px. Zeichen (✓ `success`, ! `attention` bei Warnung, ! `error` bei Fehler), die Aktion halbfett und
+/// nie gekürzt (in `text-primary`, bei Fehler in `error`), danach Name oder Grund in `text-secondary`, gekürzt mit „…“
+/// und dem ganzen Text als `title`, rechts der Knopf im Akzent mit 48 px Trefferfläche. `role="status"` für ok und
+/// Warnung, `role="alert"` für Fehler. Die Höhe setzt der Aufrufer (`ReviewCard.foot`).
+let line (message: Message) : ReactElement =
+    let p = parts message
+    let actionTone = if message.Tone = Tone.Error then Colors.error else Colors.textPrimary
+    Html.div [
+        prop.key (messageKey message)
+        prop.custom ("data-testid", "feedback-line")
+        prop.custom ("data-tone", (string message.Tone).ToLowerInvariant())
+        prop.role (if p.IsAlert then "alert" else "status")
+        prop.className $"feedback-in flex w-full min-w-0 items-center gap-1.5 whitespace-nowrap text-left {FontSizes.xs}"
+        prop.children [
+            match markSymbol message.Tone with
+            | Some symbol ->
+                Html.span [ prop.className $"flex-none {markColor message.Tone}"; prop.ariaHidden true; prop.text symbol ]
+            | None -> Html.none
+            Html.span [
+                prop.custom ("data-testid", "feedback-line-action")
+                prop.className $"flex-none {FontWeights.semibold} {actionTone}"
+                prop.text message.Action
+            ]
+            match message.Detail with
+            | Some detail ->
+                Html.span (
+                    prop.custom ("data-testid", "feedback-line-detail")
+                    :: Truncate.textProps $"min-w-0 flex-1 {Colors.textSecondary}" detail
+                )
+            | None -> Html.span [ prop.className "flex-1" ]
+            match message.Act with
+            | Some act when p.ShowsAct -> actButton ActColor.Accent act
+            | _ -> Html.none
+        ]
+    ]
+
 /// Ein Zustand der Seite als Hinweis am Ort (ADR 0098: „ein Zustand der Seite ist keine Meldung“, budgeting-gtrgk,
 /// Skizze ledger-vf5h6 `.mk-hint`): gelb getönte Fläche, „! <Text>“ in Gelb, darunter kleiner die Gründe, rechts eine
 /// Textaktion im Akzent („Neu laden“). Er bleibt, bis die App ihn wegnimmt; kein ✕, kein Zeitlimit. `running`: die

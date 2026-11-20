@@ -1360,6 +1360,74 @@ type ListInteraction =
 // Durchgehen Karte für Karte (ledger-v6s7c, ADR 0086, Styleguide §7.4)
 // ============================================
 
+/// Was „Rückgängig“ in der Zeile der letzten Aktion zurücknimmt (ledger-pz5wv): eine Beschreibung, keine Funktion,
+/// wie `ToastActionKind`. Der Vorzustand kommt aus der Antwort des Befehls.
+type ReviewUndo =
+    /// „Passt“: `restoreReviewMark` mit dem Vorzustand, die Karte kommt von rechts zurück.
+    | UndoConfirmed of Guid * Shared.Domain.ReviewMarkState
+    /// „Später“: kein Aufruf, die Karte kommt von links zurück.
+    | UndoSkipped of Guid
+    /// „Lena fragen“: `restoreFlag` mit dem Vorzustand.
+    | UndoLenaAsked of Guid * Shared.Domain.FlagState
+    /// „Ist doppelt, verwerfen“: `restoreDiscardedDuplicate`.
+    | UndoDiscarded of Guid
+    /// Payee auf der Karte: der vorige Payee (auch keiner).
+    | UndoPayeeChanged of Guid * previous: string option
+
+/// Was „Erneut“ in der Zeile noch einmal schickt: derselbe Befehl für dieselbe Buchung.
+type ReviewRetry =
+    | RetryConfirm of Guid
+    | RetryConfirmNew of Guid
+    | RetryDiscard of Guid
+    | RetryLena of Guid
+    | RetryPayee of Guid * payee: string option
+    | RetryUndo of ReviewUndo
+
+/// Der Knopf der Zeile.
+type ReviewLastAct =
+    | LastUndo of ReviewUndo
+    | LastRetry of ReviewRetry
+
+/// Welche Aktion die Zeile meldet.
+type ReviewLastKind =
+    | LastConfirmed
+    | LastSkipped
+    | LastLenaAsked
+    | LastDiscarded
+    | LastConfirmedNew
+    | LastPayeeChanged
+    /// Nur als Fehler: „Rückgängig nicht möglich“.
+    | LastUndone
+
+/// Wie die Aktion ausging: erledigt, erledigt, aber nicht in YNAB (gelb, mit Grund), gescheitert (rot, mit Grund).
+type ReviewLastOutcome =
+    | LastDone
+    | LastNotInYnab of reason: string
+    | LastFailed of reason: string
+
+/// Die letzte Aktion im Durchgehen (ledger-pz5wv, ADR 0098 Ausnahme Durchgehen): sie steht unter „Passt, weiter“, bis
+/// zur nächsten Aktion oder bis man die Seite verlässt. Gleiche Aktionen werden nicht zusammengefasst.
+type ReviewLast = {
+    EntryId: Guid
+    Kind: ReviewLastKind
+    /// Der Payee der Buchung (nach „Payee geändert“ der neue), `None` ohne Payee.
+    Payee: string option
+    Outcome: ReviewLastOutcome
+    Act: ReviewLastAct option
+}
+
+/// Ein Befehl der Karte, dessen Antwort über einen gemeinsamen Handler kommt (Flag, Payee, Rücknahmen). Nur diese
+/// Antworten schreiben die Zeile; dieselbe Antwort aus „Details“ meldet sich dort.
+type ReviewAwait =
+    | AwaitLena of Guid
+    | AwaitPayee of Guid * payee: string option
+    | AwaitUndo of ReviewUndo
+
+/// Von welcher Seite eine zurückgeholte Karte hereinkommt (Skizze `enter-back-l`/`enter-back-r`).
+type ReviewReturnSide =
+    | ReturnFromLeft
+    | ReturnFromRight
+
 /// Das laufende Durchgehen. Die gezeigte Karte ist die Buchung in `DetailFor`: so laufen Kategorie,
 /// Übertrag, Payee, Memo und Lena über dieselben Befehle wie im Detail.
 type ReviewSession = {
@@ -1380,6 +1448,12 @@ type ReviewSession = {
     DetailShown: bool
     /// Die aufgelösten Treffer der Duplikat-Karten: die Buchung im Kassenbuch je `MatchEntryId`.
     Matches: Map<Guid, LedgerEntryView>
+    /// Die Zeile der letzten Aktion unter „Passt, weiter“; ohne steht der Wisch-Hinweis.
+    Last: ReviewLast option
+    /// Befehle der Karte, deren Antwort die Zeile schreibt (`ReviewAwait`).
+    Awaiting: Set<ReviewAwait>
+    /// Die gezeigte Karte kam per „Rückgängig“ zurück, von dieser Seite (nur für die Einblendung).
+    ReturnFrom: ReviewReturnSide option
 }
 
 /// Ein frisches Durchgehen: die Schlange lädt.
@@ -1391,7 +1465,70 @@ let reviewStarting : ReviewSession =
       Deciding = None
       Suggestions = []
       DetailShown = false
-      Matches = Map.empty }
+      Matches = Map.empty
+      Last = None
+      Awaiting = Set.empty
+      ReturnFrom = None }
+
+/// Die Seite, auf der die Karte nach „Rückgängig“ wieder hereinkommt: „Passt“ ging nach rechts, alles andere nach links.
+let reviewReturnSideOf (undo: ReviewUndo) : ReviewReturnSide =
+    match undo with
+    | UndoConfirmed _ -> ReturnFromRight
+    | UndoSkipped _ | UndoLenaAsked _ | UndoDiscarded _ | UndoPayeeChanged _ -> ReturnFromLeft
+
+/// Die Buchung, die ein Rückgängig betrifft.
+let reviewUndoEntry (undo: ReviewUndo) : Guid =
+    match undo with
+    | UndoConfirmed (id, _) | UndoSkipped id | UndoLenaAsked (id, _) | UndoDiscarded id | UndoPayeeChanged (id, _) -> id
+
+/// Das Rückgängig, das die Zeile anbietet (für Taste Z und „Letzte rückgängig“), sonst `None`.
+let reviewUndoOffered (review: ReviewSession) : ReviewUndo option =
+    match review.Last with
+    | Some { Act = Some (LastUndo undo) } -> Some undo
+    | _ -> None
+
+/// Was die Zeile der letzten Aktion zeigt: Ton, Aktion (nie gekürzt), zweiter Teil (Payee oder Grund, gekürzt mit „…“)
+/// und die Beschriftung des Knopfs.
+type ReviewLastLine = {
+    Tone: FeedbackTone
+    Action: string
+    Detail: string
+    Button: string option
+}
+
+/// Die Zeile der letzten Aktion (ledger-pz5wv, Tabelle in Abschnitt 1): „✓ Passt · Payee · Rückgängig“, gelb
+/// „! Passt, nicht in YNAB · Grund · Rückgängig“, rot „! Nicht geprüft · Grund · Erneut“. Ohne Payee „ohne Payee“. Rein.
+let reviewLastLine (last: ReviewLast) : ReviewLastLine =
+    let doneText =
+        match last.Kind with
+        | LastConfirmed -> "Passt"
+        | LastSkipped -> "Später"
+        | LastLenaAsked -> "Lena gefragt"
+        | LastDiscarded -> "Verworfen"
+        | LastConfirmedNew -> "Als neu übernommen"
+        | LastPayeeChanged -> "Payee geändert"
+        | LastUndone -> "Rückgängig"
+    let failedText =
+        match last.Kind with
+        | LastConfirmed -> "Nicht geprüft"
+        | LastSkipped -> "Nicht übersprungen"
+        | LastLenaAsked -> "Flag nicht geändert"
+        | LastDiscarded -> "Nicht verworfen"
+        | LastConfirmedNew -> "Nicht übernommen"
+        | LastPayeeChanged -> "Payee nicht geändert"
+        | LastUndone -> "Rückgängig nicht möglich"
+    let button =
+        match last.Act with
+        | Some (LastUndo _) -> Some "Rückgängig"
+        | Some (LastRetry _) -> Some "Erneut"
+        | None -> None
+    match last.Outcome with
+    | LastDone ->
+        { Tone = FeedbackOk; Action = doneText; Detail = last.Payee |> Option.defaultValue "ohne Payee"; Button = button }
+    | LastNotInYnab reason ->
+        { Tone = FeedbackWarning; Action = $"{doneText}, nicht in YNAB"; Detail = reason; Button = button }
+    | LastFailed reason ->
+        { Tone = FeedbackError; Action = failedText; Detail = reason; Button = button }
 
 /// Die Art der Karte: die normale oder die Duplikat-Karte einer wartenden Buchung (ADR 0093).
 type ReviewCardKind =
@@ -1463,13 +1600,17 @@ type ReviewKeyAction =
     | KeyOpenCategory
     | KeyLena
     | KeyLeave
+    /// Z: nimmt die letzte Aktion der Zeile zurück (ledger-pz5wv).
+    | KeyUndo
 
 /// Die Tastenbelegung des Durchgehens: Enter passt (nur mit Ziel, nicht auf der Duplikat-Karte),
 /// S später, K öffnet die Kategorieauswahl und L fragt Lena bzw. nimmt die Rückfrage zurück (beide
-/// nicht auf der Duplikat-Karte), Esc führt zurück. Ohne Karte (Endansicht) nur Esc. Rein.
-let reviewKeyAction (card: (ReviewCardKind * bool) option) (key: string) : ReviewKeyAction option =
+/// nicht auf der Duplikat-Karte), Esc führt zurück, Z nimmt die letzte Aktion zurück, wenn die Zeile ein
+/// Rückgängig anbietet (`undoOffered`), auch in der Endansicht. Ohne Karte (Endansicht) sonst nur Esc. Rein.
+let reviewKeyAction (card: (ReviewCardKind * bool) option) (undoOffered: bool) (key: string) : ReviewKeyAction option =
     match key, card with
     | "Escape", _ -> Some KeyLeave
+    | ("z" | "Z"), _ -> if undoOffered then Some KeyUndo else None
     | _, None -> None
     | "Enter", Some (NormalCard, true) -> Some KeyConfirm
     | ("s" | "S"), Some _ -> Some KeySkip
@@ -3081,6 +3222,10 @@ type Msg =
     | ReviewSwiped of dx: float * dy: float
     /// Eine Taste am PC (ohne Fokus in einem Feld).
     | ReviewKey of ReviewKeyAction
+    /// „Rückgängig“ in der Zeile der letzten Aktion, Taste Z oder „Letzte rückgängig“ in der Endansicht.
+    | ReviewUndoLast
+    /// „Erneut“ in der Zeile der letzten Aktion.
+    | ReviewRetryLast
 
 /// Was Esc bei offenem Formular „Neue Buchung“ tut, im Dialog wie im Panel: erst die offene Auswahl darin schließen,
 /// dann das Formular wie „Abbrechen“. Das Popover der Kategorie behandelt Esc selbst und hält das Ereignis an. Während

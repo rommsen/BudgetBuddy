@@ -1472,6 +1472,22 @@ let private FeedbackDemo () =
                         ]
                     ]
                 ]
+                // ledger-pz5wv: die Zeile der letzten Aktion unter „Passt, weiter“ im Durchgehen (in `ReviewCard.foot`).
+                subTitle "Zeile der letzten Aktion (Durchgehen)"
+                preview [
+                    Html.div [
+                        prop.className "max-w-[412px] space-y-1"
+                        prop.children [
+                            for m in
+                                [ msg Feedback.Tone.Ok "Passt" (Some "Stadtwerke Leipzig") (Some undo)
+                                  msg Feedback.Tone.Ok "Passt" (Some "REWE Markt GmbH Filiale Leipzig-Gohlis Georg-Schumann-Straße") (Some undo)
+                                  msg Feedback.Tone.Warning "Passt, nicht in YNAB" (Some "Zeitüberschreitung") (Some undo)
+                                  msg Feedback.Tone.Error "Nicht geprüft" (Some "YNAB antwortet nicht (503)") (Some retry)
+                                  msg Feedback.Tone.Ok "Als neu übernommen" (Some "Bäckerei Schmidt") None ] ->
+                                ReviewCard.foot (ReviewCard.FootLast m)
+                        ]
+                    ]
+                ]
                 subTitle "Feld mit Leuchten und Bestätigung"
                 row [ Button.secondary "Leuchten" (fun () -> setFlashOn (flashOn + 1)) ]
                 preview [

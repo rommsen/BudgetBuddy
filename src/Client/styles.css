@@ -820,7 +820,9 @@ nav a:focus-visible {
     transition-duration: 0.01ms !important;
   }
   /* Rückmeldung (ADR 0098): die Meldung steht sofort, das Leuchten steht als Ring, bis die App die Klasse abnimmt. */
-  .feedback-in {
+  .feedback-in,
+  .review-swipe-card.review-swipe-back-left,
+  .review-swipe-card.review-swipe-back-right {
     animation: none !important;
   }
   .feedback-flash:not(:has(> .input-field)),
@@ -1654,6 +1656,22 @@ nav a:focus-visible {
 @keyframes reviewCardEnter {
   from { transform: translateY(10px) scale(0.97); opacity: 0.3; }
   to { transform: none; opacity: 1; }
+}
+/* Eine per „Rückgängig“ zurückgeholte Karte fährt von der Seite herein, zu der sie ging (Skizze `enter-back-l`/
+   `enter-back-r`, ledger-pz5wv). Unter `prefers-reduced-motion` ohne Bewegung (Block oben kürzt jede Animation). */
+.review-swipe-card.review-swipe-back-left {
+  animation: reviewCardBackLeft var(--sf-duration-base) var(--sf-ease-out-cubic);
+}
+.review-swipe-card.review-swipe-back-right {
+  animation: reviewCardBackRight var(--sf-duration-base) var(--sf-ease-out-cubic);
+}
+@keyframes reviewCardBackLeft {
+  from { transform: translateX(-110%); }
+  to { transform: none; }
+}
+@keyframes reviewCardBackRight {
+  from { transform: translateX(110%); }
+  to { transform: none; }
 }
 
 /* Left status bar */

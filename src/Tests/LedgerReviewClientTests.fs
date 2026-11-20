@@ -95,6 +95,14 @@ let private reviewing (queue: LedgerEntryView list) : Model =
 let private cardId (model: Model) = reviewCardOf model |> Option.map idOf
 let private indexOf (model: Model) = model.Review |> Option.map (fun r -> r.Index) |> Option.defaultValue -1
 
+/// Was die Zeile der letzten Aktion zeigt: Ton, Aktion, zweiter Teil, Knopf (ledger-pz5wv).
+let private lineOf (model: Model) =
+    model.Review
+    |> Option.bind (fun r -> r.Last)
+    |> Option.map (fun last ->
+        let line = reviewLastLine last
+        line.Tone, line.Action, line.Detail, line.Button)
+
 let private reviewed (entryId: Guid) : Msg =
     ReviewConfirmed (entryId, Ok { Previous = { IsApproved = false; ClearedState = ReviewUncleared }; Change = ReviewMarkChanged; WriteBack = ReviewMarkSent })
 
@@ -242,7 +250,7 @@ let pureTests =
                   "s", None, None
                   "x", normal, None ]
             for key, card, expected in cases do
-                Expect.equal (reviewKeyAction card key) expected $"{key} auf {card}"
+                Expect.equal (reviewKeyAction card false key) expected $"{key} auf {card}"
 
         testCase "Tasten aus einem Feld, mit Strg oder bei offener Auswahl wirken nicht" <| fun () ->
             let model = reviewing [ entryOf 1 ]
@@ -330,6 +338,13 @@ type private Decision =
     | DecideDiscard
     | DecideNew
 
+/// Was „Rückgängig“ in der Zeile der letzten Aktion zurücknimmt (ledger-pz5wv), aus Sicht des Orakels.
+type private WalkUndo =
+    | WConfirm of Guid
+    | WSkip of Guid
+    | WLena of Guid
+    | WDiscard
+
 /// Was das Orakel über das Durchgehen weiß, ohne den getesteten Code zu fragen.
 type private Walk =
     { Index: int
@@ -341,16 +356,18 @@ type private Walk =
       Targets: Set<Guid>
       /// D wartet noch (vor „Ist neu“).
       DupHeld: bool
-      /// Lena gefragt, „Rückgängig“ steht aus (jüngste zuerst).
-      LenaUndo: Guid list
-      /// Flag-Aufruf läuft (sperrt „Lena fragen“ auf der Karte).
+      /// Lena gefragt, die Antwort steht aus (jüngste zuerst).
+      LenaAsked: Guid list
+      /// Lena wurde für die Karte gefragt (sperrt ein zweites „Lena fragen“ im Orakel).
       FlagSending: Set<Guid>
       /// „Ist neu“ oder „Verwerfen“ wartet auf die Antwort für die gezeigte Karte (sperrt beide Knöpfe).
       Deciding: Guid option
       /// Gesendete Entscheidungen, deren Antwort noch aussteht (auch nach dem Weitergehen).
       Decisions: (Guid * Decision) list
-      /// D verworfen, „Rückgängig“ steht aus.
-      DiscardUndo: bool }
+      /// Das Rückgängig, das die Zeile anbietet.
+      LastUndo: WalkUndo option
+      /// Die Rücknahme nach „Passt“ läuft für diese Buchung (sperrt „Passt“, das Neulesen überspringt sie nicht).
+      Restoring: Guid option }
 
 let private startWalk =
     { Index = 0
@@ -358,15 +375,20 @@ let private startWalk =
       InFlight = []
       Targets = set [ idOf cardA; idOf cardC ]
       DupHeld = true
-      LenaUndo = []
+      LenaAsked = []
       FlagSending = Set.empty
       Deciding = None
       Decisions = []
-      DiscardUndo = false }
+      LastUndo = None
+      Restoring = None }
 
 let private current (w: Walk) = if w.Index < ids.Length then Some ids.[w.Index] else None
 let private isDup (w: Walk) = current w = Some (idOf dupD) && w.DupHeld
 let private moveTo (index: int) (w: Walk) = { w with Index = index; Pending = None; Deciding = None }
+/// Zurück zur Karte `id` (Rückgängig); steht sie schon da, bleibt alles.
+let private backTo (id: Guid) (w: Walk) =
+    let back = ids |> List.findIndex ((=) id)
+    if back <> w.Index then moveTo back w else w
 
 /// Entfernt das erste Vorkommen von `x`.
 let rec private removeFirst (x: 'a) (xs: 'a list) : 'a list =
@@ -375,84 +397,126 @@ let rec private removeFirst (x: 'a) (xs: 'a list) : 'a list =
     | y :: rest when y = x -> rest
     | y :: rest -> y :: removeFirst x rest
 
-/// Alle Ereignisse, die im Zustand kommen können: Name, Nachrichten und das Orakel danach. Jede ausstehende
-/// Antwort kann als nächste kommen, nicht nur die älteste: Ok und Fehler je gesendetem Aufruf.
-let private events (w: Walk) : (string * Msg list * Walk) list =
+let private always (msgs: Msg list) (_: Model) = msgs
+let private unreviewed = { IsApproved = false; ClearedState = ReviewUncleared }
+
+/// Alle Ereignisse, die im Zustand kommen können: Name, Nachrichten (aus dem Modell, für das Neulesen) und das Orakel
+/// danach. Jede ausstehende Antwort kann als nächste kommen, nicht nur die älteste: Ok und Fehler je gesendetem Aufruf.
+/// Seit ledger-pz5wv geht „Rückgängig“ über die Zeile der letzten Aktion: nach Passt, Später, Lena und Verwerfen.
+let private events (w: Walk) : (string * (Model -> Msg list) * Walk) list =
     [ match current w with
       | Some id when not (isDup w) ->
-          if w.Pending.IsNone && w.Targets.Contains id then
-              "Passt", [ ReviewConfirm ], { w with Pending = Some id; InFlight = w.InFlight @ [ id ] }
-          "Später", [ ReviewSkip ], moveTo (w.Index + 1) w
+          if w.Pending.IsNone && w.Targets.Contains id && w.Restoring <> Some id then
+              "Passt", always [ ReviewConfirm ], { w with Pending = Some id; InFlight = w.InFlight @ [ id ]; LastUndo = None }
+          "Später", always [ ReviewSkip ], { moveTo (w.Index + 1) w with LastUndo = Some (WSkip id) }
           if not (w.FlagSending.Contains id) then
-              "Lena", [ ReviewLena ], { moveTo (w.Index + 1) w with LenaUndo = id :: w.LenaUndo; FlagSending = w.FlagSending.Add id }
+              "Lena",
+              always [ ReviewLena ],
+              { moveTo (w.Index + 1) w with LenaAsked = id :: w.LenaAsked; FlagSending = w.FlagSending.Add id; LastUndo = None }
           if not (w.Targets.Contains id) then
-              "Kategorie", categorySet id, { w with Targets = w.Targets.Add id }
+              "Kategorie", always (categorySet id), { w with Targets = w.Targets.Add id }
       | Some id ->
-          "Später", [ ReviewSkip ], moveTo (w.Index + 1) w
+          "Später", always [ ReviewSkip ], { moveTo (w.Index + 1) w with LastUndo = Some (WSkip id) }
           if w.Deciding.IsNone then
-              "Verwerfen", [ ReviewDiscard ], { w with Deciding = Some id; Decisions = w.Decisions @ [ id, DecideDiscard ] }
-              "Ist neu", [ ReviewConfirmNew ], { w with Deciding = Some id; Decisions = w.Decisions @ [ id, DecideNew ] }
+              "Verwerfen", always [ ReviewDiscard ], { w with Deciding = Some id; Decisions = w.Decisions @ [ id, DecideDiscard ]; LastUndo = None }
+              "Ist neu", always [ ReviewConfirmNew ], { w with Deciding = Some id; Decisions = w.Decisions @ [ id, DecideNew ]; LastUndo = None }
       | None -> ()
       for id in List.distinct w.InFlight do
           let answered = { w with InFlight = removeFirst id w.InFlight; Pending = (if w.Pending = Some id then None else w.Pending) }
-          $"Passt-Antwort {id}", [ reviewed id ], (if current w = Some id then moveTo (w.Index + 1) answered else answered)
-          $"Passt-Fehler {id}", [ ReviewConfirmed (id, Error "Netz") ], answered
+          $"Passt-Antwort {id}",
+          always [ reviewed id ],
+          { (if current w = Some id then moveTo (w.Index + 1) answered else answered) with LastUndo = Some (WConfirm id) }
+          $"Passt-Fehler {id}", always [ ReviewConfirmed (id, Error "Netz") ], { answered with LastUndo = None }
       for (id, decision) in List.distinct w.Decisions do
           let answered = { w with Decisions = removeFirst (id, decision) w.Decisions; Deciding = (if w.Deciding = Some id then None else w.Deciding) }
           match decision with
           | DecideDiscard ->
               "Verwerfen-Antwort",
-              [ ReviewDiscarded (id, Ok ()) ],
-              (let after = { answered with DiscardUndo = true }
+              always [ ReviewDiscarded (id, Ok ()) ],
+              (let after = { answered with LastUndo = Some WDiscard }
                if current w = Some id then moveTo (w.Index + 1) after else after)
-              "Verwerfen-Fehler", [ ReviewDiscarded (id, Error "Netz") ], answered
+              "Verwerfen-Fehler", always [ ReviewDiscarded (id, Error "Netz") ], { answered with LastUndo = None }
           | DecideNew ->
-              "Ist-neu-Antwort", [ ReviewConfirmedNew (id, Ok PushToYnabSent) ], { answered with DupHeld = false }
-              "Ist-neu-Fehler", [ ReviewConfirmedNew (id, Error "Netz") ], answered
-      for id in w.LenaUndo do
-          let back = ids |> List.findIndex ((=) id)
-          let after = { w with LenaUndo = w.LenaUndo |> List.filter ((<>) id) }
-          // „Rückgängig“ steht erst im Toast, wenn „Lena fragen“ geantwortet hat; solange der Aufruf läuft,
-          // ist es gesperrt (Zeilen-Sperre, ledger-smv1s).
+              "Ist-neu-Antwort", always [ ReviewConfirmedNew (id, Ok PushToYnabSent) ], { answered with DupHeld = false; LastUndo = None }
+              "Ist-neu-Fehler", always [ ReviewConfirmedNew (id, Error "Netz") ], { answered with LastUndo = None }
+      for id in w.LenaAsked do
           let noFlag = { Color = None; Name = None }
-          $"Lena-Rückgängig {id}",
-          [ LenaFlagSet (id, AssignLena, Ok { Previous = noFlag; Change = FlagChanged; WriteBack = FlagSent })
-            StartUndoFlag (id, noFlag) ],
-          (if back <> w.Index then moveTo back after else after)
-      if w.DiscardUndo then
-          let back = ids |> List.findIndex ((=) (idOf dupD))
-          let after = { w with DiscardUndo = false }
+          $"Lena-Antwort {id}",
+          always [ LenaFlagSet (id, AssignLena, Ok { Previous = noFlag; Change = FlagChanged; WriteBack = FlagSent }) ],
+          { w with LenaAsked = w.LenaAsked |> List.filter ((<>) id); LastUndo = Some (WLena id) }
+      match w.LastUndo with
+      | Some (WSkip id) -> "Später-Rückgängig", always [ ReviewUndoLast ], { backTo id w with LastUndo = None }
+      // Die Karte kommt sofort zurück, die Rücknahme läuft (ledger-pz5wv).
+      | Some (WConfirm id) -> "Passt-Rückgängig", always [ ReviewUndoLast ], { backTo id w with LastUndo = None; Restoring = Some id }
+      | Some (WLena id) -> "Lena-Rückgängig", always [ ReviewUndoLast ], { backTo id w with LastUndo = None }
+      | Some WDiscard ->
           "Verwerfen-Rückgängig",
-          [ StartRestoreDiscardedDuplicate (idOf dupD); DiscardedDuplicateRestored (idOf dupD, Ok ()) ],
-          (if back <> w.Index then moveTo back after else after)
-          "Verwerfen-Rückgängig-Fehler",
-          [ StartRestoreDiscardedDuplicate (idOf dupD); DiscardedDuplicateRestored (idOf dupD, Error "Netz") ],
-          after ]
+          always [ ReviewUndoLast; DiscardedDuplicateRestored (idOf dupD, Ok ()) ],
+          { backTo (idOf dupD) w with LastUndo = None }
+          "Verwerfen-Rückgängig-Fehler", always [ ReviewUndoLast; DiscardedDuplicateRestored (idOf dupD, Error "Netz") ], { w with LastUndo = None }
+      | None -> ()
+      match w.Restoring with
+      | Some id ->
+          "Rücknahme-Antwort",
+          always [ ReviewMarkRestored (id, unreviewed, Ok { Previous = { IsApproved = true; ClearedState = ReviewUncleared }; Change = ReviewMarkChanged; WriteBack = ReviewMarkSent }) ],
+          { w with Restoring = None }
+          // Der Fehler ersetzt die Zeile (rot mit „Erneut“), auch wenn inzwischen eine andere Aktion in ihr stand.
+          "Rücknahme-Fehler", always [ ReviewMarkRestored (id, unreviewed, Error "Netz") ], { w with Restoring = None; LastUndo = None }
+          // Das Neulesen der zurückgeholten Karte kommt vor der Antwort der Rücknahme: der Server meldet sie noch als
+          // geprüft, sie wird trotzdem nicht übersprungen.
+          if current w = Some id then
+              "Neulesen-noch-geprüft",
+              (fun m -> [ ReviewEntryRefreshed (id, m.DetailFor, Ok (m.DetailFor |> Option.map (fun e -> { e with NeedsReview = false }))) ]),
+              w
+      | None ->
+          // Nach der Antwort der Rücknahme meldet das Neulesen sie wieder als zu prüfen: sie bleibt.
+          match current w with
+          | Some id when not (isDup w) ->
+              "Neulesen-offen",
+              (fun m -> [ ReviewEntryRefreshed (id, m.DetailFor, Ok (m.DetailFor |> Option.map (fun e -> { e with NeedsReview = true }))) ]),
+              w
+          | _ -> () ]
+
+/// Das Rückgängig der Zeile, wie das Orakel es sieht.
+let private offeredUndo (model: Model) : WalkUndo option =
+    model.Review
+    |> Option.bind reviewUndoOffered
+    |> Option.map (function
+        | UndoConfirmed (id, _) -> WConfirm id
+        | UndoSkipped id -> WSkip id
+        | UndoLenaAsked (id, _) -> WLena id
+        | UndoDiscarded _ -> WDiscard
+        | UndoPayeeChanged _ -> failwith "kein Payee im Orakel")
 
 let private observe (model: Model) =
     let review = model.Review.Value
-    review.Index, cardId model, review.Confirming, review.Deciding, (reviewCardOf model |> Option.map reviewCardKindOf)
+    review.Index, cardId model, review.Confirming, review.Deciding, (reviewCardOf model |> Option.map reviewCardKindOf), offeredUndo model
 
 let private expected (w: Walk) =
     w.Index,
     current w,
     w.Pending,
     w.Deciding,
-    current w |> Option.map (fun id -> if id = idOf dupD && w.DupHeld then DuplicateCard else NormalCard)
+    current w |> Option.map (fun id -> if id = idOf dupD && w.DupHeld then DuplicateCard else NormalCard),
+    w.LastUndo
 
 [<Tests>]
 let walkTests =
-    testCase "Durchgehen: jede Reihenfolge bis Tiefe 6 landet auf der Karte, die das Orakel erwartet" <| fun () ->
+    testCase "Durchgehen: jede Reihenfolge bis Tiefe 6 landet auf der Karte, die das Orakel erwartet, auch nach Rückgängig" <| fun () ->
         let mutable visited = 0
+        let mutable undone = Set.empty
         let rec walk (depth: int) (path: string list) (model: Model) (w: Walk) =
             visited <- visited + 1
             Expect.equal (observe model) (expected w) (String.concat " → " (List.rev path))
             if depth > 0 then
                 for name, msgs, w' in events w do
-                    let model' = msgs |> List.fold (fun m msg -> step msg m) model
+                    if name.EndsWith "-Rückgängig" || name.StartsWith "Neulesen" then undone <- undone.Add name
+                    let model' = msgs model |> List.fold (fun m msg -> step msg m) model
                     walk (depth - 1) (name :: path) model' w'
         walk 6 [] (reviewing queue) startWalk
         Expect.isGreaterThan visited 1000 "die Aufzählung läuft wirklich"
+        for name in [ "Passt-Rückgängig"; "Später-Rückgängig"; "Lena-Rückgängig"; "Verwerfen-Rückgängig"; "Neulesen-noch-geprüft"; "Neulesen-offen" ] do
+            Expect.contains undone name $"{name} kommt vor"
 
 // ============================================
 // Einzelfälle
@@ -485,11 +549,13 @@ let caseTests =
             let stale = model |> step (ReviewEntryRefreshed (idOf cardB, Some cardA, Ok (Some { cardB with Payee = Some "alt" })))
             Expect.equal (reviewCardOf stale |> Option.bind (fun e -> e.Payee)) cardB.Payee "unverändert"
 
-        testCase "scheitert der Prüfvermerk, bleibt die Karte und ein Toast nennt den Grund" <| fun () ->
+        // ledger-pz5wv: der Fehler steht rot in der Zeile unter „Passt, weiter“, nicht mehr als Toast.
+        testCase "scheitert der Prüfvermerk, bleibt die Karte und die Zeile nennt rot den Grund" <| fun () ->
             let model = reviewing [ cardA; cardC ] |> step ReviewConfirm
             let failed, _, external = run (ReviewConfirmed (idOf cardA, Error "YNAB antwortet nicht")) model
             Expect.equal (cardId failed) (Some (idOf cardA)) "dieselbe Karte"
-            Expect.equal external (ShowToast ("Nicht geprüft: YNAB antwortet nicht", ToastError)) "Grund"
+            Expect.equal external NoOp "kein Toast"
+            Expect.equal (lineOf failed) (Some (FeedbackError, "Nicht geprüft", "YNAB antwortet nicht", Some "Erneut")) "Zeile"
             let ok, _, external = run (reviewed (idOf cardA)) (failed |> step ReviewConfirm)
             Expect.equal (cardId ok) (Some (idOf cardC)) "weiter"
             Expect.equal external NoOp "kein Toast"
@@ -554,40 +620,48 @@ let caseTests =
             let _, again, _ = run (ReviewSuggestionsLoaded (Guid.NewGuid (), Ok [])) after
             Expect.isEmpty (again |> List.filter (function RunReviewRefresh _ -> true | _ -> false)) "kein Neulesen ohne Anlass"
 
-        testCase "Rückgängig nach dem Verwerfen meldet sich mit einem Toast und schickt nur einmal" <| fun () ->
+        // ledger-pz5wv: „Rückgängig“ steht in der Zeile; die Karte steht sichtbar wieder da, kein Toast mehr.
+        testCase "Rückgängig nach dem Verwerfen holt die Karte ohne Toast zurück und schickt nur einmal" <| fun () ->
             let model = reviewing [ dupD; cardA ] |> step ReviewDiscard |> step (ReviewDiscarded (idOf dupD, Ok ()))
-            let started, msgs, _ = run (StartRestoreDiscardedDuplicate (idOf dupD)) model
+            let started, msgs, _ = run ReviewUndoLast model
             Expect.contains msgs (RunRestoreDiscardedDuplicate (idOf dupD)) "gesendet"
+            Expect.isNone (lineOf started) "die Zeile zeigt wieder den Hinweis"
             let _, twice, _ = run (StartRestoreDiscardedDuplicate (idOf dupD)) started
             Expect.isEmpty twice "ein zweiter Tipp schickt nichts"
             let restored, _, external = run (DiscardedDuplicateRestored (idOf dupD, Ok ())) started
-            Expect.equal external (ShowToast (reviewRestoredText, ToastSuccess)) "Toast"
+            Expect.equal external NoOp "kein Toast"
             Expect.equal (cardId restored) (Some (idOf dupD)) "die Karte steht wieder da"
+            Expect.equal (indexOf restored) 0 "an ihrer Stelle"
             let _, again, _ = run (StartRestoreDiscardedDuplicate (idOf dupD)) restored
             Expect.contains again (RunRestoreDiscardedDuplicate (idOf dupD)) "nach der Antwort wieder frei"
             let outside, _, external = run (DiscardedDuplicateRestored (idOf dupD, Ok ())) (started |> step ReviewLeft)
-            Expect.equal external (ShowToast (reviewRestoredText, ToastSuccess)) "auch außerhalb des Durchgehens"
+            Expect.equal external (ShowToast (reviewRestoredText, ToastSuccess)) "außerhalb des Durchgehens der Toast"
             Expect.isFalse (outside.RestoringDuplicates.Contains (idOf dupD)) "Sperre frei"
             let failed, _, external = run (DiscardedDuplicateRestored (idOf dupD, Error "Netz")) started
-            Expect.equal external (ShowToast ("Rückgängig nicht möglich: Netz", ToastError)) "Fehler"
+            Expect.equal external NoOp "Fehler ohne Toast"
+            Expect.equal (lineOf failed) (Some (FeedbackError, "Rückgängig nicht möglich", "Netz", Some "Erneut")) "rot in der Zeile"
             Expect.isFalse (failed.RestoringDuplicates.Contains (idOf dupD)) "Sperre frei nach dem Fehler"
+            let _, retried, _ = run ReviewRetryLast failed
+            Expect.contains retried (RunRestoreDiscardedDuplicate (idOf dupD)) "Erneut schickt die Rücknahme noch einmal"
 
-        testCase "Verwerfen geht weiter und bietet Rückgängig an, Ist neu meldet den Weg nach YNAB" <| fun () ->
+        // ledger-pz5wv: Verwerfen und Ist neu melden sich in der Zeile, Ist neu ohne Rückgängig (Entscheidung Roman 3).
+        testCase "Verwerfen geht weiter und bietet Rückgängig in der Zeile an, Ist neu meldet sich ohne Rückgängig" <| fun () ->
             let model = reviewing [ dupD; cardA ] |> step ReviewDiscard
             let after, _, external = run (ReviewDiscarded (idOf dupD, Ok ())) model
             Expect.equal (cardId after) (Some (idOf cardA)) "weiter"
-            Expect.equal
-                external
-                (ShowToastWithAction (reviewDiscardedText, ToastSuccess, { Label = "Rückgängig"; Kind = UndoDiscardDuplicate (idOf dupD) }))
-                "Toast"
+            Expect.equal external NoOp "kein Toast"
+            Expect.equal (lineOf after) (Some (FeedbackOk, "Verworfen", "Payee v6s7c 1", Some "Rückgängig")) "Zeile"
             let newOne = reviewing [ dupD; cardA ] |> step ReviewConfirmNew
             let confirmed, _, external = run (ReviewConfirmedNew (idOf dupD, Ok PushToYnabSent)) newOne
-            Expect.equal external (ShowToast (reviewConfirmedNewText, ToastSuccess)) "Toast"
+            Expect.equal external NoOp "kein Toast"
+            Expect.equal (lineOf confirmed) (Some (FeedbackOk, "Als neu übernommen", "Payee v6s7c 1", None)) "ohne Rückgängig"
             Expect.equal (reviewCardOf confirmed |> Option.map reviewCardKindOf) (Some NormalCard) "normale Karte an derselben Stelle"
-            let _, _, failed = run (ReviewConfirmedNew (idOf dupD, Ok (PushToYnabFailed "Timeout"))) newOne
-            match failed with
-            | ShowToast (text, ToastWarning) -> Expect.stringContains text "Timeout" "Grund"
-            | other -> failtestf "Warnung erwartet: %A" other
+            let warned, _, external = run (ReviewConfirmedNew (idOf dupD, Ok (PushToYnabFailed "Timeout"))) newOne
+            Expect.equal external NoOp "auch die Warnung ohne Toast"
+            Expect.equal (lineOf warned) (Some (FeedbackWarning, "Als neu übernommen, nicht in YNAB", "Timeout", None)) "gelb mit Grund"
+            // Nach dem Verlassen bleibt der Toast (es gibt keine Zeile mehr).
+            let _, _, outside = run (ReviewConfirmedNew (idOf dupD, Ok PushToYnabSent)) (newOne |> step ReviewLeft)
+            Expect.equal outside (ShowToast (reviewConfirmedNewText, ToastSuccess)) "Toast außerhalb"
 
         // ledger-smv1s: Die Antwort einer Entscheidung aus einem verlassenen Durchgehen löste die laufende
         // Entscheidung einer anderen Karte; ein zweites „Ist neu“ schickte einen zweiten Aufruf.
@@ -706,17 +780,19 @@ let private lenaFailed (entryId: Guid) : Msg = LenaFlagSet (entryId, AssignLena,
 let lenaFailureTests =
     testList "Durchgehen: gescheitertes „Lena fragen“ (ledger-nc708)" [
 
-        testCase "der Fehler holt Karte A zurück, Fehlerzeile und Toast wie außerhalb" <| fun () ->
+        // ledger-pz5wv: der Fehler steht rot in der Zeile mit „Erneut“ statt als Toast.
+        testCase "der Fehler holt Karte A zurück, Fehlerzeile an A und rot in der Zeile" <| fun () ->
             let asked = reviewing [ lenaA; lenaB ] |> step ReviewLena
             Expect.equal (cardId asked) (Some (idOf lenaB)) "nach „Lena fragen“ steht B"
             let failed, _, external = run (lenaFailed (idOf lenaA)) asked
             Expect.equal (cardId failed) (Some (idOf lenaA)) "Karte A ist wieder sichtbar"
             Expect.equal (failed.FlagRows |> Map.tryFind (idOf lenaA)) (Some (FlagCommandFailed "Netz")) "Fehler an A"
-            Expect.equal external (ShowToast ("Flag nicht geändert: Netz", ToastError)) "Toast"
+            Expect.equal external NoOp "kein Toast"
+            Expect.equal (lineOf failed) (Some (FeedbackError, "Flag nicht geändert", "Netz", Some "Erneut")) "Zeile"
 
         // Regression Review a3f7eb1d..982bdf79 (ledger-nc708): der Sprung zurück lief über `closeDetail` und
         // verwarf das offene Memo auf Karte B samt Entwurf. Seit ledger-wg42w öffnet das Memo nur über „Details“.
-        testCase "steht auf Karte B eine Eingabe offen, bleibt B samt Entwurf, Fehlerzeile und Toast wie sonst" <| fun () ->
+        testCase "steht auf Karte B eine Eingabe offen, bleibt B samt Entwurf, Fehlerzeile und Zeile wie sonst" <| fun () ->
             let editing =
                 reviewing [ lenaA; lenaB ]
                 |> step ReviewLena
@@ -728,7 +804,8 @@ let lenaFailureTests =
             Expect.equal failed.MemoEdit (Some { MemoEntryId = idOf lenaB; MemoDraft = "Entwurf" }) "der Entwurf bleibt offen"
             Expect.equal (failed.FlagRows |> Map.tryFind (idOf lenaA)) (Some (FlagCommandFailed "Netz")) "Fehler an A"
             Expect.isEmpty msgs "kein Neulesen einer Karte"
-            Expect.equal external (ShowToast ("Flag nicht geändert: Netz", ToastError)) "Toast"
+            Expect.equal external NoOp "kein Toast"
+            Expect.equal (lineOf failed) (Some (FeedbackError, "Flag nicht geändert", "Netz", Some "Erneut")) "rot in der Zeile"
 
         testCase "außerhalb des Durchgehens ändert der Fehler nur Zeile und Toast" <| fun () ->
             let model, _ = Components.Ledger.State.init ()
@@ -818,4 +895,264 @@ let answerResultTests =
             Expect.equal (matchesOf failed) (Some None) "kein gelesener Treffer, die Karte zeigt das Ereignis"
             let found = model |> step (ReviewMatchLoaded (matchId, Ok (Some cardC)))
             Expect.equal (matchesOf found) (Some (Some cardC)) "Ok übernimmt den Treffer"
+    ]
+
+// ============================================
+// Zeile der letzten Aktion unter „Passt, weiter“ (ledger-pz5wv)
+// ============================================
+
+let private reviewMark (approved: bool) : ReviewMarkState = { IsApproved = approved; ClearedState = ReviewUncleared }
+let private noFlag : FlagState = { Color = None; Name = None }
+let private lenaSet (entryId: Guid) (writeBack: FlagWriteBack) : Msg =
+    LenaFlagSet (entryId, AssignLena, Ok { Previous = noFlag; Change = FlagChanged; WriteBack = writeBack })
+let private hasMsg (pick: Msg -> bool) (msgs: Msg list) = msgs |> List.exists pick
+
+[<Tests>]
+let lastLineTests =
+    testList "Durchgehen: Zeile der letzten Aktion (ledger-pz5wv)" [
+
+        testCase "jede Aktion hat ihren Text, Warnungen und Fehler tragen den Grund" <| fun () ->
+            let id = idOf cardA
+            let line kind outcome act = reviewLastLine { EntryId = id; Kind = kind; Payee = Some "REWE"; Outcome = outcome; Act = act }
+            let undo = Some (LastUndo (UndoSkipped id))
+            let retry = Some (LastRetry (RetryConfirm id))
+            let cases =
+                [ line LastConfirmed LastDone undo, (FeedbackOk, "Passt", "REWE", Some "Rückgängig")
+                  line LastConfirmed (LastNotInYnab "Zeitüberschreitung") undo, (FeedbackWarning, "Passt, nicht in YNAB", "Zeitüberschreitung", Some "Rückgängig")
+                  line LastSkipped LastDone undo, (FeedbackOk, "Später", "REWE", Some "Rückgängig")
+                  line LastLenaAsked LastDone undo, (FeedbackOk, "Lena gefragt", "REWE", Some "Rückgängig")
+                  line LastLenaAsked (LastNotInYnab "Timeout") undo, (FeedbackWarning, "Lena gefragt, nicht in YNAB", "Timeout", Some "Rückgängig")
+                  line LastDiscarded LastDone undo, (FeedbackOk, "Verworfen", "REWE", Some "Rückgängig")
+                  line LastConfirmedNew LastDone None, (FeedbackOk, "Als neu übernommen", "REWE", None)
+                  line LastConfirmedNew (LastNotInYnab "Timeout") None, (FeedbackWarning, "Als neu übernommen, nicht in YNAB", "Timeout", None)
+                  line LastPayeeChanged LastDone undo, (FeedbackOk, "Payee geändert", "REWE", Some "Rückgängig")
+                  line LastPayeeChanged (LastNotInYnab "Timeout") undo, (FeedbackWarning, "Payee geändert, nicht in YNAB", "Timeout", Some "Rückgängig")
+                  line LastConfirmed (LastFailed "Netz") retry, (FeedbackError, "Nicht geprüft", "Netz", Some "Erneut")
+                  line LastConfirmedNew (LastFailed "Netz") retry, (FeedbackError, "Nicht übernommen", "Netz", Some "Erneut")
+                  line LastDiscarded (LastFailed "Netz") retry, (FeedbackError, "Nicht verworfen", "Netz", Some "Erneut")
+                  line LastLenaAsked (LastFailed "Netz") retry, (FeedbackError, "Flag nicht geändert", "Netz", Some "Erneut")
+                  line LastPayeeChanged (LastFailed "Netz") retry, (FeedbackError, "Payee nicht geändert", "Netz", Some "Erneut")
+                  line LastUndone (LastFailed "Netz") retry, (FeedbackError, "Rückgängig nicht möglich", "Netz", Some "Erneut") ]
+            for actual, (tone, action, detail, button) in cases do
+                Expect.equal (actual.Tone, actual.Action, actual.Detail, actual.Button) (tone, action, detail, button) action
+            let noPayee = reviewLastLine { EntryId = id; Kind = LastConfirmed; Payee = None; Outcome = LastDone; Act = undo }
+            Expect.equal noPayee.Detail "ohne Payee" "ohne Payee"
+
+        testCase "Z nimmt die letzte Aktion zurück, nur mit Rückgängig, auch in der Endansicht" <| fun () ->
+            let normal = Some (NormalCard, true)
+            Expect.equal (reviewKeyAction normal true "z") (Some KeyUndo) "mit Rückgängig"
+            Expect.equal (reviewKeyAction normal true "Z") (Some KeyUndo) "groß"
+            Expect.equal (reviewKeyAction normal false "z") None "ohne Rückgängig nichts"
+            Expect.equal (reviewKeyAction None true "z") (Some KeyUndo) "Endansicht"
+            Expect.equal (reviewKeyAction None false "z") None "Endansicht ohne Rückgängig"
+            Expect.equal (reviewKeyAction (Some (DuplicateCard, false)) true "z") (Some KeyUndo) "Duplikat-Karte"
+            let skipped = reviewing [ cardA; cardC ] |> step ReviewSkip
+            let key = Components.Ledger.View.reviewKeyFor
+            Expect.equal (key skipped "BODY" false false "z") (Some KeyUndo) "nach Später"
+            Expect.equal (key skipped "INPUT" false false "z") None "nicht aus einem Eingabefeld"
+            Expect.equal (key skipped "BODY" false true "z") None "nicht mit Strg"
+            Expect.equal (key (reviewing [ cardA ]) "BODY" false false "z") None "ohne letzte Aktion nichts"
+            let atEnd = reviewing [ cardA ] |> step ReviewSkip
+            Expect.equal (key atEnd "BODY" false false "z") (Some KeyUndo) "Endansicht"
+            let back = atEnd |> step (ReviewKey KeyUndo)
+            Expect.equal (cardId back) (Some (idOf cardA)) "Z holt die Karte zurück"
+
+        testCase "Passt schreibt die Zeile ohne Toast, gelb mit Grund, wenn YNAB den Prüfvermerk nicht nimmt" <| fun () ->
+            let confirming = reviewing [ cardA; cardC ] |> step ReviewConfirm
+            let ok, _, external = run (reviewed (idOf cardA)) confirming
+            Expect.equal external NoOp "kein Toast"
+            Expect.equal (lineOf ok) (Some (FeedbackOk, "Passt", "Payee v6s7c 2", Some "Rückgängig")) "Zeile"
+            let warned, _, external =
+                run (ReviewConfirmed (idOf cardA, Ok { Previous = reviewMark false; Change = ReviewMarkChanged; WriteBack = ReviewMarkSendFailed "Zeitüberschreitung" })) confirming
+            Expect.equal external NoOp "auch die Warnung ohne Toast"
+            Expect.equal (lineOf warned) (Some (FeedbackWarning, "Passt, nicht in YNAB", "Zeitüberschreitung", Some "Rückgängig")) "gelb"
+            Expect.equal (cardId warned) (Some (idOf cardC)) "weiter"
+            // Eine neue Aktion nimmt die Zeile weg, die nächste Antwort setzt die neue.
+            let next = ok |> step ReviewConfirm
+            Expect.isNone (lineOf next) "„Passt“ auf der nächsten Karte leert die Zeile"
+
+        testCase "Passt rückgängig holt die Karte von rechts zurück, schickt den Vorzustand, die Zeile zeigt den Hinweis" <| fun () ->
+            let previous = { IsApproved = true; ClearedState = ReviewUncleared }
+            let confirmed =
+                reviewing [ cardA; cardC ]
+                |> step ReviewConfirm
+                |> step (ReviewConfirmed (idOf cardA, Ok { Previous = previous; Change = ReviewMarkChanged; WriteBack = ReviewMarkSent }))
+            Expect.equal (cardId confirmed) (Some (idOf cardC)) "C steht"
+            let undone, msgs, external = run ReviewUndoLast confirmed
+            Expect.equal (cardId undone) (Some (idOf cardA)) "A ist zurück"
+            Expect.equal (indexOf undone) 0 "i von n auf A"
+            Expect.equal undone.Review.Value.ReturnFrom (Some ReturnFromRight) "von rechts"
+            Expect.isNone (lineOf undone) "Hinweis"
+            Expect.contains msgs (RunUndoReviewMark (idOf cardA, previous)) "genau der Vorzustand"
+            Expect.equal external NoOp "kein Toast"
+            let restored, _, external =
+                run (ReviewMarkRestored (idOf cardA, previous, Ok { Previous = reviewMark true; Change = ReviewMarkChanged; WriteBack = ReviewMarkSent })) undone
+            Expect.equal external NoOp "kein Toast nach der Rücknahme"
+            Expect.equal (cardId restored) (Some (idOf cardA)) "A bleibt"
+            Expect.isNone (lineOf restored) "weiter der Hinweis"
+            let warned, _, external =
+                run (ReviewMarkRestored (idOf cardA, previous, Ok { Previous = reviewMark true; Change = ReviewMarkChanged; WriteBack = ReviewMarkSendFailed "Timeout" })) undone
+            Expect.equal external NoOp "Warnung ohne Toast"
+            Expect.equal (lineOf warned) (Some (FeedbackWarning, "Rückgängig, nicht in YNAB", "Timeout", None)) "gelb in der Zeile"
+
+        testCase "scheitert die Rücknahme nach Passt, bleibt die Karte, rot „Rückgängig nicht möglich“, Erneut schickt sie noch einmal" <| fun () ->
+            let previous = reviewMark false
+            let undone =
+                reviewing [ cardA; cardC ]
+                |> step ReviewConfirm
+                |> step (reviewed (idOf cardA))
+                |> step ReviewUndoLast
+            let failed, _, external = run (ReviewMarkRestored (idOf cardA, previous, Error "Netz")) undone
+            Expect.equal external NoOp "kein Toast"
+            Expect.equal (cardId failed) (Some (idOf cardA)) "Karte bleibt"
+            Expect.equal (lineOf failed) (Some (FeedbackError, "Rückgängig nicht möglich", "Netz", Some "Erneut")) "rot"
+            let retried, msgs, _ = run ReviewRetryLast failed
+            Expect.contains msgs (RunUndoReviewMark (idOf cardA, previous)) "dieselbe Rücknahme"
+            Expect.isNone (lineOf retried) "die rote Zeile geht"
+            // Außerhalb des Durchgehens meldet sich der gemeinsame Handler wie im Kassenbuch (Gegentest Prüfvermerk).
+            let outside, _ = Components.Ledger.State.init ()
+            let _, _, external = run (ReviewMarkRestored (idOf cardA, previous, Error "Netz")) outside
+            Expect.equal external (PostFeedback (undoFailedFeedback "Netz")) "Meldung außerhalb"
+
+        testCase "Erneut nach gescheitertem Passt schickt den Prüfvermerk für dieselbe Karte noch einmal" <| fun () ->
+            let failed = reviewing [ cardA; cardC ] |> step ReviewConfirm |> step (ReviewConfirmed (idOf cardA, Error "Netz"))
+            let retried, msgs, _ = run ReviewRetryLast failed
+            Expect.contains msgs (RunReviewConfirm (idOf cardA)) "Prüfvermerk"
+            Expect.equal retried.Review.Value.Confirming (Some (idOf cardA)) "läuft"
+            Expect.isNone (lineOf retried) "die rote Zeile geht"
+
+        testCase "Später schreibt die Zeile, Rückgängig holt die Karte von links ohne Aufruf zurück" <| fun () ->
+            let skipped, _, external = run ReviewSkip (reviewing [ cardA; cardC ])
+            Expect.equal external NoOp "kein Toast"
+            Expect.equal (lineOf skipped) (Some (FeedbackOk, "Später", "Payee v6s7c 2", Some "Rückgängig")) "Zeile"
+            let back, msgs, _ = run ReviewUndoLast skipped
+            Expect.equal (cardId back) (Some (idOf cardA)) "A ist zurück"
+            Expect.equal (indexOf back) 0 "i von n"
+            Expect.equal back.Review.Value.ReturnFrom (Some ReturnFromLeft) "von links"
+            Expect.isNone (lineOf back) "Hinweis"
+            Expect.isFalse (msgs |> hasMsg (function RunUndoReviewMark _ | RunUndoFlag _ -> true | _ -> false)) "kein Aufruf"
+            let _, again, _ = run ReviewUndoLast back
+            Expect.isEmpty again "nur eine Stufe"
+            Expect.equal (cardId (step ReviewUndoLast back)) (Some (idOf cardA)) "ein zweites Rückgängig tut nichts"
+
+        testCase "eine offene Eingabe auf der Karte hält sie fest, Rückgängig tut dann nichts" <| fun () ->
+            let editing =
+                reviewing [ cardA; cardC ]
+                |> step ReviewSkip
+                |> step ReviewShowDetails
+                |> step (StartMemoEdit (idOf cardC))
+            let after, msgs, _ = run ReviewUndoLast editing
+            Expect.equal (cardId after) (Some (idOf cardC)) "C bleibt"
+            Expect.isSome after.MemoEdit "Entwurf bleibt"
+            Expect.isEmpty msgs "nichts geschickt"
+            Expect.isSome (lineOf after) "die Zeile bleibt"
+
+        testCase "Lena fragen meldet sich in der Zeile, Rückgängig holt die Karte und schickt das Flag zurück, ohne Toast" <| fun () ->
+            let asked = reviewing [ lenaA; lenaB ] |> step ReviewLena
+            let answered, _, external = run (lenaSet (idOf lenaA) FlagSent) asked
+            Expect.equal external NoOp "kein Toast"
+            Expect.equal (lineOf answered) (Some (FeedbackOk, "Lena gefragt", "Payee v6s7c 5", Some "Rückgängig")) "Zeile"
+            let warned, _, _ = run (lenaSet (idOf lenaA) (FlagSendFailed "Timeout")) asked
+            Expect.equal (lineOf warned) (Some (FeedbackWarning, "Lena gefragt, nicht in YNAB", "Timeout", Some "Rückgängig")) "gelb"
+            let undone, msgs, _ = run ReviewUndoLast answered
+            Expect.equal (cardId undone) (Some (idOf lenaA)) "A ist zurück"
+            Expect.equal undone.Review.Value.ReturnFrom (Some ReturnFromLeft) "von links"
+            Expect.contains msgs (RunUndoFlag (idOf lenaA, noFlag)) "Flag zurück"
+            let restored, _, external = run (FlagRestored (idOf lenaA, noFlag, Ok { Previous = noFlag; Change = FlagChanged; WriteBack = FlagSent })) undone
+            Expect.equal external NoOp "kein Toast"
+            Expect.isNone (lineOf restored) "Hinweis"
+            let failed, _, external = run (FlagRestored (idOf lenaA, noFlag, Error "Netz")) undone
+            Expect.equal external NoOp "Fehler ohne Toast"
+            Expect.equal (lineOf failed) (Some (FeedbackError, "Rückgängig nicht möglich", "Netz", Some "Erneut")) "rot"
+            let _, again, _ = run ReviewRetryLast failed
+            Expect.contains again (RunUndoFlag (idOf lenaA, noFlag)) "Erneut"
+
+        testCase "Erneut nach gescheitertem Lena fragen schickt das Flag für dieselbe Karte noch einmal" <| fun () ->
+            let failed = reviewing [ lenaA; lenaB ] |> step ReviewLena |> step (lenaFailed (idOf lenaA))
+            let retried, msgs, _ = run ReviewRetryLast failed
+            Expect.contains msgs (RunSetLenaFlag (idOf lenaA, AssignLena)) "dasselbe Flag"
+            Expect.equal (cardId retried) (Some (idOf lenaB)) "die Karte geht wieder weiter"
+
+        testCase "Rückfrage zurücknehmen schreibt keine Zeile und meldet keinen Toast, die vorige Zeile bleibt" <| fun () ->
+            let flagged = { lenaB with Flag = AskLena }
+            let skipped = reviewing [ lenaA; flagged ] |> step ReviewSkip
+            let before = lineOf skipped
+            let withdrawing, msgs, _ = run ReviewLena skipped
+            Expect.contains msgs (RunSetLenaFlag (idOf flagged, WithdrawLena)) "Rücknahme"
+            Expect.equal (cardId withdrawing) (Some (idOf flagged)) "Karte bleibt"
+            let answer = LenaFlagSet (idOf flagged, WithdrawLena, Ok { Previous = { Color = Some "purple"; Name = Some "Lena" }; Change = FlagChanged; WriteBack = FlagSent })
+            let answered, _, external = run answer withdrawing
+            Expect.equal external NoOp "kein Toast"
+            Expect.equal (lineOf answered) before "die Zeile von „Später“ bleibt"
+
+        testCase "Verwerfen und Ist neu scheitern rot in der Zeile, Erneut schickt dieselbe Entscheidung" <| fun () ->
+            let discardFailed = reviewing [ dupD; cardA ] |> step ReviewDiscard |> step (ReviewDiscarded (idOf dupD, Error "Netz"))
+            Expect.equal (lineOf discardFailed) (Some (FeedbackError, "Nicht verworfen", "Netz", Some "Erneut")) "Verwerfen"
+            Expect.equal (cardId discardFailed) (Some (idOf dupD)) "Karte bleibt"
+            let _, msgs, _ = run ReviewRetryLast discardFailed
+            Expect.contains msgs (RunReviewDiscard (idOf dupD)) "Erneut verwirft"
+            let newFailed, _, external = run (ReviewConfirmedNew (idOf dupD, Error "Netz")) (reviewing [ dupD; cardA ] |> step ReviewConfirmNew)
+            Expect.equal external NoOp "kein Toast"
+            Expect.equal (lineOf newFailed) (Some (FeedbackError, "Nicht übernommen", "Netz", Some "Erneut")) "Ist neu"
+            let _, msgs, _ = run ReviewRetryLast newFailed
+            Expect.contains msgs (RunReviewConfirmNew (idOf dupD)) "Erneut übernimmt"
+
+        testCase "der Payee auf der Karte meldet sich in der Zeile mit Rückgängig, Fehler bei geschlossener Auswahl rot mit Erneut" <| fun () ->
+            let editing = reviewing [ cardA; cardC ] |> step (OpenPayeeEdit (idOf cardA))
+            Expect.isSome editing.PayeeEdit "Auswahl über der Karte offen"
+            let sending, msgs, _ = run (StartSavePayee (idOf cardA, Some "Bäckerei Lange")) editing
+            Expect.contains msgs (RunSetPayee (idOf cardA, Some "Bäckerei Lange")) "gesendet"
+            let outcome = { PreviousPayee = cardA.Payee; CurrentPayee = Some "Bäckerei Lange"; PayeeChange = PayeeChanged; PayeeWriteBack = PayeeSent }
+            let saved, _, external = run (PayeeSet (idOf cardA, Ok outcome)) sending
+            Expect.equal external NoOp "kein Toast"
+            Expect.equal (lineOf saved) (Some (FeedbackOk, "Payee geändert", "Bäckerei Lange", Some "Rückgängig")) "neuer Payee"
+            let undone, msgs, _ = run ReviewUndoLast saved
+            Expect.contains msgs (RunUndoPayee (idOf cardA, cardA.Payee)) "voriger Payee"
+            let restored, _, external =
+                run (PayeeRestored (idOf cardA, Ok { outcome with PreviousPayee = Some "Bäckerei Lange"; CurrentPayee = cardA.Payee })) undone
+            Expect.equal external NoOp "kein Toast"
+            Expect.isNone (lineOf restored) "Hinweis"
+            let warned, _, _ = run (PayeeSet (idOf cardA, Ok { outcome with PayeeWriteBack = PayeeSendFailed "Timeout" })) sending
+            Expect.equal (lineOf warned) (Some (FeedbackWarning, "Payee geändert, nicht in YNAB", "Timeout", Some "Rückgängig")) "gelb"
+            // Offene Auswahl: der Fehler steht am Feld (Styleguide §5), nicht in der Zeile.
+            let atField, _, external = run (PayeeSet (idOf cardA, Error "Netz")) sending
+            Expect.equal external NoOp "kein Toast"
+            Expect.isNone (lineOf atField) "keine Zeile, der Fehler steht am Feld"
+            Expect.equal (atField.PayeeEdit |> Option.bind (fun e -> e.PayeeFieldError)) (Some "Netz") "am Feld"
+            let closed, _, external = run (PayeeSet (idOf cardA, Error "Netz")) { sending with PayeeEdit = None }
+            Expect.equal external NoOp "kein Toast"
+            Expect.equal (lineOf closed) (Some (FeedbackError, "Payee nicht geändert", "Netz", Some "Erneut")) "rot"
+            let _, msgs, _ = run ReviewRetryLast closed
+            Expect.contains msgs (RunSetPayee (idOf cardA, Some "Bäckerei Lange")) "Erneut schickt denselben Payee"
+
+        testCase "der Payee in „Details“ schreibt keine Zeile, der Toast bleibt dort bis ledger-p5y9s" <| fun () ->
+            let editing = reviewing [ cardA; cardC ] |> step ReviewShowDetails |> step (OpenPayeeEdit (idOf cardA))
+            let sending = editing |> step (StartSavePayee (idOf cardA, Some "Bäckerei Lange"))
+            let outcome = { PreviousPayee = cardA.Payee; CurrentPayee = Some "Bäckerei Lange"; PayeeChange = PayeeChanged; PayeeWriteBack = PayeeSent }
+            let saved, _, external = run (PayeeSet (idOf cardA, Ok outcome)) sending
+            Expect.isNone (lineOf saved) "keine Zeile"
+            Expect.notEqual external NoOp "die Meldung des Details bleibt"
+
+        testCase "außerhalb des Durchgehens bleibt der Toast nach Lena fragen (Gegentest Flag)" <| fun () ->
+            let model, _ = Components.Ledger.State.init ()
+            let ledger = { model with Entries = Success [ lenaA ]; LenaFlagColor = Success (Some "purple") }
+            let sending = ledger |> step (StartSetLenaFlag (idOf lenaA, AssignLena))
+            let _, _, external = run (lenaSet (idOf lenaA) FlagSent) sending
+            match external with
+            | ShowToastWithAction (_, ToastSuccess, { Kind = UndoFlag (id, _) }) -> Expect.equal id (idOf lenaA) "Toast mit Rückgängig"
+            | other -> failtestf "Toast erwartet: %A" other
+
+        testCase "die Endansicht bietet „Letzte rückgängig“ über die Zeile an und holt die letzte Karte zurück" <| fun () ->
+            let atEnd = reviewing [ cardA ] |> step ReviewConfirm |> step (reviewed (idOf cardA))
+            Expect.isNone (reviewCardOf atEnd) "Endansicht"
+            Expect.isSome (reviewUndoOffered atEnd.Review.Value) "Rückgängig angeboten"
+            let back = atEnd |> step ReviewUndoLast
+            Expect.equal (cardId back) (Some (idOf cardA)) "A ist zurück"
+            let newOnly = reviewing [ dupD ] |> step ReviewConfirmNew |> step (ReviewConfirmedNew (idOf dupD, Ok PushToYnabSent))
+            Expect.isNone (newOnly.Review |> Option.bind reviewUndoOffered) "nach Ist neu kein Rückgängig"
+
+        testCase "Verlassen verwirft die Zeile mit der Sitzung, ein neues Durchgehen beginnt mit dem Hinweis" <| fun () ->
+            let skipped = reviewing [ cardA; cardC ] |> step ReviewSkip
+            let reopened = skipped |> step ReviewLeft |> step ReviewOpened
+            Expect.isNone (lineOf reopened) "Hinweis"
     ]

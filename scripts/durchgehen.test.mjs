@@ -62,7 +62,7 @@ async function swipe(page, locator, dx) {
   await (await touchHold(page, locator, dx))();
 }
 
-test("[flow:durchgehen] Am Handy ein Duplikat verwerfen, ohne Kategorie nach rechts wischen, eine Kategorie wählen, per Wisch bestätigen und bei Alles geprüft ankommen", async () => {
+test("[flow:durchgehen] Am Handy ein Duplikat verwerfen, ohne Kategorie nach rechts wischen, eine Kategorie wählen, per Wisch bestätigen, „Passt“ zurücknehmen, erneut bestätigen und bei Alles geprüft ankommen", async () => {
   const context = await browser.newContext({ viewport: { width: 412, height: 915 }, hasTouch: true, isMobile: true });
   const page = await context.newPage();
   page.setDefaultTimeout(20000);
@@ -92,7 +92,8 @@ test("[flow:durchgehen] Am Handy ein Duplikat verwerfen, ohne Kategorie nach rec
     const release = await touchHold(page, page.locator('[data-testid="review-category"]'), 200);
     await foot.getByText("Erst Kategorie wählen").waitFor();
     await release();
-    await foot.getByText("Wischen: rechts „Passt“, links „Später“").waitFor();
+    // Nach dem Finger steht wieder die letzte Aktion in der Zeile (ledger-pz5wv).
+    await foot.getByText("Verworfen", { exact: true }).waitFor();
     await card.getByText("Markt ohne Kategorie").waitFor();
     assert.equal(await page.getByText("Erst eine Kategorie wählen").count(), 0, "kein Toast");
     assert.equal(await page.locator(".bottom-sheet.active").count(), 0, "der Wisch öffnete das Feld nicht");
@@ -104,11 +105,24 @@ test("[flow:durchgehen] Am Handy ein Duplikat verwerfen, ohne Kategorie nach rec
 
     // Wisch nach rechts: Prüfvermerk, danach die Endansicht.
     await swipe(page, card, 200);
-    await page.locator('[data-testid="review-end"]').getByText("Alles geprüft").waitFor();
+    const end = page.locator('[data-testid="review-end"]');
+    await end.getByText("Alles geprüft").waitFor();
+
+    // „Letzte rückgängig“ holt die Karte zurück, die Zeile zeigt wieder den Hinweis (ledger-pz5wv, kein Toast).
+    await end.getByRole("button", { name: "Letzte rückgängig" }).tap();
+    await card.getByText("Markt ohne Kategorie").waitFor();
+    await foot.getByText("Wischen: rechts „Passt“, links „Später“").waitFor();
+    await page.waitForFunction(() => document.body.innerText.includes("2 von 2"));
+    // Erneut bestätigen: die Karte wird nicht übersprungen, obwohl das Neulesen sie erst nach der Rücknahme offen sieht.
+    await page.getByRole("button", { name: "Passt, weiter" }).tap();
+    await end.getByText("Alles geprüft").waitFor();
+    // Prüfvermerk und Rücknahme melden sich nicht in der Meldungsleiste (die Kategorie der Karte schon, bis ledger-mf2bg).
+    const bars = await page.locator('[data-testid="feedback-bar"]').filter({ visible: true }).allInnerTexts();
+    assert.ok(!bars.some((t) => /Passt|geprüft|Rückgängig nicht/.test(t)), `keine Meldung zu Passt in der Leiste: ${bars.join(" | ")}`);
     assert.deepEqual(
       state.calls.map((c) => c.endpoint),
-      ["discardDuplicateEntry", "setEntryCategory", "setReviewMark"],
-      "verwerfen, Kategorie, Prüfvermerk"
+      ["discardDuplicateEntry", "setEntryCategory", "setReviewMark", "restoreReviewMark", "setReviewMark"],
+      "verwerfen, Kategorie, Prüfvermerk, Rücknahme, Prüfvermerk"
     );
   } finally {
     await context.close();
@@ -116,7 +130,8 @@ test("[flow:durchgehen] Am Handy ein Duplikat verwerfen, ohne Kategorie nach rec
 });
 
 // ledger-s2cg3: Die Seite passt am Handy ohne Scrollen, die Karte nimmt den Rest, langer Inhalt scrollt in ihr. Die Zeile
-// unter dem Hauptknopf hat eine feste Höhe: mit Hinweis, mit „Erst Kategorie wählen“ und leer unter der Duplikat-Karte
+// unter dem Hauptknopf hat eine feste Höhe: mit Hinweis, mit „Erst Kategorie wählen“ und mit der letzten Aktion unter der
+// Duplikat-Karte (ledger-pz5wv)
 // stehen Knöpfe und Zeile an derselben Stelle.
 test("[layout] Am Handy scrollt das Durchgehen nicht, langer Inhalt scrollt in der Karte, und die Zeile unter dem Knopf lässt die Knöpfe nicht springen", async () => {
   const longMemo = { ...REVIEW_QUEUE.amazon, Memo: "Wocheneinkauf fürs Grillfest am Samstag, dazu Getränke und Kohle. ".repeat(12) };
@@ -168,16 +183,17 @@ test("[layout] Am Handy scrollt das Durchgehen nicht, langer Inhalt scrollt in d
     await page.getByRole("button", { name: "Später", exact: true }).tap();
     await page.locator('[data-testid="review-duplicate-card"]').waitFor();
     await settle(page, { where: "durchgehen-duplikat @ 412 px" });
-    const empty = await where();
-    assert.equal(await foot.textContent(), "", "unter der Duplikat-Karte leer");
-    assert.equal(empty.foot, hint.foot, "die Zeile steht an derselben Stelle");
-    assert.equal(empty.height, hint.height, "gleiche Höhe");
+    // Unter der Duplikat-Karte steht die letzte Aktion („Später“, ledger-pz5wv); Knopf und Zeile springen nicht.
+    const last = await where();
+    await foot.getByText("Später", { exact: true }).waitFor();
+    assert.equal(last.foot, hint.foot, "die Zeile steht an derselben Stelle");
+    assert.equal(last.height, hint.height, "gleiche Höhe");
   } finally {
     await context.close();
   }
 });
 
-test("[tastatur] Am PC passen Enter, S, K, L und Esc; Esc schließt erst den Picker, dann die Ansicht", async () => {
+test("[tastatur] Am PC passen Enter, S, K, L, Z und Esc; Esc schließt erst den Picker, dann die Ansicht, Z holt die letzte Karte zurück", async () => {
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
   const page = await context.newPage();
   page.setDefaultTimeout(20000);
@@ -210,6 +226,14 @@ test("[tastatur] Am PC passen Enter, S, K, L und Esc; Esc schließt erst den Pic
     await page.getByText("Dritte Karte").first().waitFor();
     await lena;
 
+    await page.keyboard.press("s");
+    await page.locator('[data-testid="review-end"]').waitFor();
+
+    // Z nimmt „Später“ zurück, auch aus der Endansicht (ledger-pz5wv); die Tastenleiste nennt es.
+    await page.keyboard.press("z");
+    await page.getByText("Dritte Karte").first().waitFor();
+    assert.equal(await position.textContent(), "3 von 3");
+    assert.match(await page.locator('[data-testid="review-keys"]').innerText(), /Z\s*rückgängig/);
     await page.keyboard.press("s");
     await page.locator('[data-testid="review-end"]').waitFor();
 

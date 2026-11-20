@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-20 05:17 -- Task verified and completed: ledger-pz5wv - "Durchgehen ohne Toast (B3): letzte Aktion unter „Passt, weiter“ mit Rückgängig für jede Aktion, Fehler rot an derselben Stelle"
+
+**Type:** Work / Task completion
+**Task:** ledger-pz5wv - "Durchgehen ohne Toast (B3): letzte Aktion unter „Passt, weiter“ mit Rückgängig für jede Aktion, Fehler rot an derselben Stelle"
+**Summary:** Durchgehen ohne Toast: letzte Aktion unter Passt weiter mit Rückgängig, Fehler rot mit Erneut, Taste Z
+**Duration:** 90m
+**Verification:** PASS (iteration 1, nach Merge mit p5y9s und k68sd)
+**Files changed:** 12
+**Tests added:** 17
+**ADRs written:** none
+
+---
+
 ## 2026-11-20 05:08 -- Batch started: [ledger-enjex]
 
 **Type:** Work / Batch start

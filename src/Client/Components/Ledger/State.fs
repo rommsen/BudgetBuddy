@@ -1688,7 +1688,7 @@ let rec private showReviewCardAt (index: int) (model: Model) : Model * Cmd<Msg> 
                 let shown =
                     { cleared with
                         DetailFor = Some entry
-                        Review = Some { review with Index = index; Suggestions = []; DetailShown = false; Confirming = None; Deciding = None } }
+                        Review = Some { review with Index = index; Suggestions = []; DetailShown = false; Confirming = None; Deciding = None; ReturnFrom = None } }
                 let suggestions =
                     match entry.Payee with
                     | Some payee when not (String.IsNullOrWhiteSpace payee) -> Cmd.ofMsg (RunReviewSuggestions (id, payee))
@@ -1699,7 +1699,7 @@ let rec private showReviewCardAt (index: int) (model: Model) : Model * Cmd<Msg> 
                     | _ -> Cmd.none
                 shown, Cmd.batch [ Cmd.ofMsg (RunReviewRefresh id); suggestions; matchLoad ]
         else
-            { cleared with Review = Some { review with Index = List.length ids; Suggestions = []; DetailShown = false; Confirming = None; Deciding = None } },
+            { cleared with Review = Some { review with Index = List.length ids; Suggestions = []; DetailShown = false; Confirming = None; Deciding = None; ReturnFrom = None } },
             Cmd.none
     | _ -> model, Cmd.none
 
@@ -1735,8 +1735,46 @@ let private returnToReviewCard (entryId: Guid) (model: Model) : Model * Cmd<Msg>
         | _ -> model, Cmd.none
     | _ -> model, Cmd.none
 
+/// Ist ein Rückgängig der Zeile gerade gesperrt? Eine offene Eingabe auf der gezeigten Karte hält sie fest, und ein
+/// laufender Aufruf derselben Sperrgruppe lässt keinen zweiten zu.
+let private reviewUndoBlocked (undo: ReviewUndo) (model: Model) : bool =
+    reviewCardEditing model
+    || (match undo with
+        | UndoSkipped _ -> false
+        | UndoConfirmed (entryId, _) -> rowBusy ReviewMarkLock model entryId
+        | UndoLenaAsked (entryId, _) -> rowBusy FlagLock model entryId
+        | UndoDiscarded entryId -> model.RestoringDuplicates.Contains entryId
+        | UndoPayeeChanged (entryId, _) -> (model.PayeeRows |> Map.tryFind entryId) = Some PayeeSending)
+
 let private editReview (f: ReviewSession -> ReviewSession) (model: Model) : Model =
     { model with Review = model.Review |> Option.map f }
+
+/// Setzt die Zeile der letzten Aktion (ledger-pz5wv); `None` zeigt wieder den Wisch-Hinweis.
+let private setReviewLast (last: ReviewLast option) (model: Model) : Model =
+    editReview (fun r -> { r with Last = last }) model
+
+/// Die Zeile einer Aktion an einer Buchung der Schlange, mit ihrem Payee.
+let private reviewLastFor (model: Model) (entryId: Guid) (kind: ReviewLastKind) (outcome: ReviewLastOutcome) (act: ReviewLastAct option) : ReviewLast =
+    let payee =
+        findEntry model entryId
+        |> Option.orElse (model.Review |> Option.bind (fun r -> r.Snapshots |> Map.tryFind entryId))
+        |> Option.bind (fun e -> e.Payee)
+    { EntryId = entryId; Kind = kind; Payee = payee; Outcome = outcome; Act = act }
+
+/// Merkt einen Befehl der Karte, dessen Antwort über einen gemeinsamen Handler kommt.
+let private awaitReview (awaited: ReviewAwait) (model: Model) : Model =
+    editReview (fun r -> { r with Awaiting = r.Awaiting.Add awaited }) model
+
+/// Das gemerkte Warten, das zur Antwort passt, und das Modell ohne es. `None`: die Antwort gehört nicht zur Karte
+/// (etwa aus „Details“ oder außerhalb des Durchgehens).
+let private takeAwait (matches: ReviewAwait -> bool) (model: Model) : (ReviewAwait * Model) option =
+    model.Review
+    |> Option.bind (fun r -> r.Awaiting |> Seq.tryFind matches)
+    |> Option.map (fun found -> found, editReview (fun r -> { r with Awaiting = r.Awaiting.Remove found }) model)
+
+/// Die zurückgeholte Karte kommt von dieser Seite herein, falls sie jetzt gezeigt wird.
+let private markReturn (side: ReviewReturnSide) (entryId: Guid) (model: Model) : Model =
+    if isReviewCard model entryId then editReview (fun r -> { r with ReturnFrom = Some side }) model else model
 
 /// Trägt die Antwort eines Nachladens im Hintergrund ein (ledger-ct3cx). Die Zeilen stehen in der
 /// Reihenfolge des Servers: geänderte mit neuem Stand, gelöschte und nicht mehr passende fehlen, neue
@@ -2663,17 +2701,34 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         model, cmd, NoOp
 
     | ReviewMarkRestored (entryId, previous, Ok outcome) ->
-        let model' = applyUndoReviewMark entryId previous outcome model
-        let external =
-            match outcome.WriteBack with
-            | ReviewMarkSendFailed reason -> PostFeedback (reviewMarkNotInYnabFeedback true reason)
-            | _ -> NoOp
-        model', afterEntryChange entryId model', external
+        match takeAwait ((=) (AwaitUndo (UndoConfirmed (entryId, previous)))) model with
+        // „Rückgängig“ nach „Passt“ im Durchgehen (ledger-pz5wv): die Karte steht schon wieder da, die Zeile zeigt den
+        // Hinweis; nur eine YNAB-Warnung steht gelb in der Zeile, kein Toast.
+        | Some (_, settled) ->
+            let model' = applyUndoReviewMark entryId previous outcome settled
+            let model' =
+                match outcome.WriteBack with
+                | ReviewMarkSendFailed reason -> setReviewLast (Some (reviewLastFor model' entryId LastUndone (LastNotInYnab reason) None)) model'
+                | _ -> model'
+            model', afterEntryChange entryId model', NoOp
+        | None ->
+            let model' = applyUndoReviewMark entryId previous outcome model
+            let external =
+                match outcome.WriteBack with
+                | ReviewMarkSendFailed reason -> PostFeedback (reviewMarkNotInYnabFeedback true reason)
+                | _ -> NoOp
+            model', afterEntryChange entryId model', external
 
-    | ReviewMarkRestored (entryId, _, Error message) ->
-        { model with ReviewMarkRows = model.ReviewMarkRows |> Map.add entryId (ReviewMarkCommandFailed message) },
-        Cmd.none,
-        PostFeedback (undoFailedFeedback message)
+    | ReviewMarkRestored (entryId, previous, Error message) ->
+        let failed = { model with ReviewMarkRows = model.ReviewMarkRows |> Map.add entryId (ReviewMarkCommandFailed message) }
+        let undo = UndoConfirmed (entryId, previous)
+        match takeAwait ((=) (AwaitUndo undo)) failed with
+        // Die Karte bleibt stehen, die Zeile zeigt rot „Rückgängig nicht möglich“ mit „Erneut“.
+        | Some (_, settled) ->
+            setReviewLast (Some (reviewLastFor settled entryId LastUndone (LastFailed message) (Some (LastRetry (RetryUndo undo))))) settled,
+            Cmd.none,
+            NoOp
+        | None -> failed, Cmd.none, PostFeedback (undoFailedFeedback message)
 
     // ============================================
     // Kategorie ändern im Detail (ledger-sfab0, ADR 0055)
@@ -2978,17 +3033,34 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             match target with
             | AssignLena -> { Color = lenaColorOf model.LenaFlagColor; Name = Some lenaFlagName }
             | WithdrawLena -> { Color = None; Name = None }
-        let model' = applyFlagResult entryId newState outcome model
-        let external =
-            match outcome.Change, outcome.WriteBack with
-            | FlagUnchanged, _ -> NoOp
-            | FlagChanged, writeBack ->
-                let text = lenaFlagToastText target
-                let action = { Label = undoToastLabel; Kind = UndoFlag (entryId, outcome.Previous) }
-                match writeBack with
-                | FlagSendFailed reason -> ShowToastWithAction ($"{text}. {flagHintTitle}: {reason}", ToastWarning, action)
-                | _ -> ShowToastWithAction (text, ToastSuccess, action)
-        model', afterEntryChange entryId model', external
+        match takeAwait ((=) (AwaitLena entryId)) model with
+        // „Lena fragen“ auf der Karte (ledger-pz5wv): die Zeile unter „Passt, weiter“ statt Toast. „Rückfrage
+        // zurücknehmen“ schreibt keine Zeile, der Knopf wechselt sichtbar und ist selbst das Rückgängig.
+        | Some (_, settled) ->
+            let model' = applyFlagResult entryId newState outcome settled
+            let model' =
+                match target with
+                | AssignLena ->
+                    let result =
+                        match outcome.WriteBack with
+                        | FlagSendFailed reason -> LastNotInYnab reason
+                        | _ -> LastDone
+                    let undo = Some (LastUndo (UndoLenaAsked (entryId, outcome.Previous)))
+                    setReviewLast (Some (reviewLastFor model' entryId LastLenaAsked result undo)) model'
+                | WithdrawLena -> model'
+            model', afterEntryChange entryId model', NoOp
+        | None ->
+            let model' = applyFlagResult entryId newState outcome model
+            let external =
+                match outcome.Change, outcome.WriteBack with
+                | FlagUnchanged, _ -> NoOp
+                | FlagChanged, writeBack ->
+                    let text = lenaFlagToastText target
+                    let action = { Label = undoToastLabel; Kind = UndoFlag (entryId, outcome.Previous) }
+                    match writeBack with
+                    | FlagSendFailed reason -> ShowToastWithAction ($"{text}. {flagHintTitle}: {reason}", ToastWarning, action)
+                    | _ -> ShowToastWithAction (text, ToastSuccess, action)
+            model', afterEntryChange entryId model', external
 
     // Im Durchgehen ist die Karte nach „Lena fragen“ schon weiter: der Fehler holt sie zurück, damit Roman
     // ihn an der Buchung sieht (ledger-nc708). Außerhalb des Durchgehens bleibt alles, wo es ist. Steht auf
@@ -2997,9 +3069,13 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
     | LenaFlagSet (entryId, _, Error message) ->
         let returned, showCmd =
             if reviewCardEditing model then model, Cmd.none else returnToReviewCard entryId model
-        { returned with FlagRows = returned.FlagRows |> Map.add entryId (FlagCommandFailed message) },
-        showCmd,
-        ShowToast ($"Flag nicht geändert: {message}", ToastError)
+        let failed = { returned with FlagRows = returned.FlagRows |> Map.add entryId (FlagCommandFailed message) }
+        match takeAwait ((=) (AwaitLena entryId)) failed with
+        // Von der Karte aus: rot in der Zeile mit „Erneut“ statt Toast (ledger-pz5wv).
+        | Some (_, settled) ->
+            let line = reviewLastFor settled entryId LastLenaAsked (LastFailed message) (Some (LastRetry (RetryLena entryId)))
+            setReviewLast (Some line) settled, showCmd, NoOp
+        | None -> failed, showCmd, ShowToast ($"Flag nicht geändert: {message}", ToastError)
 
     | StartUndoFlag (entryId, previous) ->
         // Im Durchgehen holt „Rückgängig“ nach „Lena fragen“ die Karte zurück (ledger-v6s7c). Gesperrt
@@ -3020,19 +3096,35 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         model, cmd, NoOp
 
     | FlagRestored (entryId, previous, Ok outcome) ->
-        // Der Rücknahme-Toast hat kein "Rückgängig" (eine Aktion, ein Toast, eine Rücknahme).
-        let model' = applyFlagResult entryId previous outcome model
-        let external =
-            match outcome.WriteBack with
-            | FlagSendFailed reason -> ShowToast ($"{flagHintTitle}: {reason}", ToastWarning)
-            | _ when outcome.Change = FlagUnchanged -> NoOp
-            | _ -> ShowToast (flagRestoredToastText, ToastSuccess)
-        model', afterEntryChange entryId model', external
+        match takeAwait ((=) (AwaitUndo (UndoLenaAsked (entryId, previous)))) model with
+        // „Rückgängig“ aus der Zeile im Durchgehen (ledger-pz5wv): die Karte steht wieder da, kein Toast; nur eine
+        // YNAB-Warnung steht gelb in der Zeile.
+        | Some (_, settled) ->
+            let model' = applyFlagResult entryId previous outcome settled
+            let model' =
+                match outcome.WriteBack with
+                | FlagSendFailed reason -> setReviewLast (Some (reviewLastFor model' entryId LastUndone (LastNotInYnab reason) None)) model'
+                | _ -> model'
+            model', afterEntryChange entryId model', NoOp
+        | None ->
+            // Der Rücknahme-Toast hat kein "Rückgängig" (eine Aktion, ein Toast, eine Rücknahme).
+            let model' = applyFlagResult entryId previous outcome model
+            let external =
+                match outcome.WriteBack with
+                | FlagSendFailed reason -> ShowToast ($"{flagHintTitle}: {reason}", ToastWarning)
+                | _ when outcome.Change = FlagUnchanged -> NoOp
+                | _ -> ShowToast (flagRestoredToastText, ToastSuccess)
+            model', afterEntryChange entryId model', external
 
-    | FlagRestored (entryId, _, Error message) ->
-        { model with FlagRows = model.FlagRows |> Map.add entryId (FlagCommandFailed message) },
-        Cmd.none,
-        ShowToast ($"Rückgängig nicht möglich: {message}", ToastError)
+    | FlagRestored (entryId, previous, Error message) ->
+        let failed = { model with FlagRows = model.FlagRows |> Map.add entryId (FlagCommandFailed message) }
+        let undo = UndoLenaAsked (entryId, previous)
+        match takeAwait ((=) (AwaitUndo undo)) failed with
+        | Some (_, settled) ->
+            setReviewLast (Some (reviewLastFor settled entryId LastUndone (LastFailed message) (Some (LastRetry (RetryUndo undo))))) settled,
+            Cmd.none,
+            NoOp
+        | None -> failed, Cmd.none, ShowToast ($"Rückgängig nicht möglich: {message}", ToastError)
 
     | StartRetryFlag entryId ->
         whenRowIdle FlagLock entryId model (fun () ->
@@ -3458,7 +3550,13 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
                 { model with PayeeEdit = Some { edit with PayeeFieldError = Some reason } }, Cmd.none, NoOp
             | PayeeSaveUnchanged -> { model with PayeeEdit = None }, Cmd.ofMsg RestorePayeeRowFocus, NoOp
             | PayeeSaveSends payee ->
-                { model with
+                // Der Payee auf der Karte (nicht in „Details“) meldet sich in der Zeile unter „Passt, weiter“
+                // (ledger-pz5wv); er ist eine neue Aktion, die vorige Zeile geht.
+                let onCard =
+                    isReviewCard model entryId
+                    && model.Review |> Option.exists (fun r -> reviewEditorPlace r = ReviewEditorPlace.OverCard)
+                let marked = if onCard then model |> awaitReview (AwaitPayee (entryId, payee)) |> setReviewLast None else model
+                { marked with
                     PayeeRows = model.PayeeRows |> Map.add entryId PayeeSending
                     PayeeEdit = Some { edit with PayeeFieldError = None } },
                 Cmd.ofMsg (RunSetPayee (entryId, payee)),
@@ -3475,9 +3573,24 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         model, cmd, NoOp
 
     | PayeeSet (entryId, Ok outcome) ->
-        let model' = applyPayeeResult entryId outcome model
+        let awaited = takeAwait (function AwaitPayee (id, _) -> id = entryId | _ -> false) model
+        let model' = applyPayeeResult entryId outcome (awaited |> Option.map snd |> Option.defaultValue model)
+        let model' =
+            match awaited, outcome.PayeeChange with
+            | Some _, PayeeChanged ->
+                let result =
+                    match outcome.PayeeWriteBack with
+                    | PayeeSendFailed reason -> LastNotInYnab reason
+                    | _ -> LastDone
+                let line =
+                    { reviewLastFor model' entryId LastPayeeChanged result (Some (LastUndo (UndoPayeeChanged (entryId, outcome.PreviousPayee))))
+                        with Payee = outcome.CurrentPayee }
+                setReviewLast (Some line) model'
+            | _ -> model'
         let external =
             match outcome.PayeeChange with
+            // Von der Karte aus steht die Bestätigung in der Zeile (ledger-pz5wv).
+            | _ when awaited.IsSome -> NoOp
             | PayeeChanged ->
                 let text =
                     match outcome.CurrentPayee with
@@ -3500,10 +3613,15 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
     // Die Auswahl bleibt offen, der Grund steht als Feldfehler unter dem Suchfeld. Ist sie inzwischen
     // zu (Detail geschlossen oder gewechselt), nennt ein Toast den Grund (Muster MemoSet).
     | PayeeSet (entryId, Error message) ->
-        let cleared = { model with PayeeRows = model.PayeeRows |> Map.remove entryId }
-        match model.PayeeEdit with
-        | Some edit when edit.PayeeEntryId = entryId ->
+        let awaited = takeAwait (function AwaitPayee (id, _) -> id = entryId | _ -> false) model
+        let cleared = { (awaited |> Option.map snd |> Option.defaultValue model) with PayeeRows = model.PayeeRows |> Map.remove entryId }
+        match model.PayeeEdit, awaited with
+        | Some edit, _ when edit.PayeeEntryId = entryId ->
             { cleared with PayeeEdit = Some { edit with PayeeFieldError = Some message } }, Cmd.none, NoOp
+        // Die Auswahl über der Karte ist zu: rot in der Zeile mit „Erneut“ statt Toast (ledger-pz5wv).
+        | _, Some (AwaitPayee (_, payee), _) ->
+            let line = reviewLastFor cleared entryId LastPayeeChanged (LastFailed message) (Some (LastRetry (RetryPayee (entryId, payee))))
+            setReviewLast (Some line) cleared, Cmd.none, NoOp
         | _ -> cleared, Cmd.none, ShowToast ($"Payee nicht geändert: {message}", ToastError)
 
     | StartUndoPayee (entryId, previous) ->
@@ -3525,19 +3643,30 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         model, cmd, NoOp
 
     | PayeeRestored (entryId, Ok outcome) ->
-        // Der Rücknahme-Toast hat kein "Rückgängig" (eine Aktion, ein Toast, eine Rücknahme).
-        let model' = applyPayeeResult entryId outcome model
+        let awaited = takeAwait (function AwaitUndo (UndoPayeeChanged (id, _)) -> id = entryId | _ -> false) model
+        // Der Rücknahme-Toast hat kein "Rückgängig" (eine Aktion, ein Toast, eine Rücknahme). Aus der Zeile im
+        // Durchgehen kein Toast, eine YNAB-Warnung steht gelb in der Zeile (ledger-pz5wv).
+        let model' = applyPayeeResult entryId outcome (awaited |> Option.map snd |> Option.defaultValue model)
+        let model' =
+            match awaited, outcome.PayeeWriteBack with
+            | Some _, PayeeSendFailed reason -> setReviewLast (Some (reviewLastFor model' entryId LastUndone (LastNotInYnab reason) None)) model'
+            | _ -> model'
         let external =
             match outcome.PayeeWriteBack with
+            | _ when awaited.IsSome -> NoOp
             | PayeeSendFailed reason -> ShowToast ($"{payeeHintTitle}: {reason}", ToastWarning)
             | _ when outcome.PayeeChange = PayeeUnchanged -> NoOp
             | _ -> ShowToast (payeeRestoredToastText, ToastSuccess)
         model', (if outcome.PayeeChange = PayeeChanged then afterEntryChange entryId model' else Cmd.none), external
 
     | PayeeRestored (entryId, Error message) ->
-        { model with PayeeRows = model.PayeeRows |> Map.remove entryId },
-        Cmd.none,
-        ShowToast ($"Rückgängig nicht möglich: {message}", ToastError)
+        let cleared = { model with PayeeRows = model.PayeeRows |> Map.remove entryId }
+        match takeAwait (function AwaitUndo (UndoPayeeChanged (id, _)) -> id = entryId | _ -> false) cleared with
+        | Some (AwaitUndo undo, settled) ->
+            setReviewLast (Some (reviewLastFor settled entryId LastUndone (LastFailed message) (Some (LastRetry (RetryUndo undo))))) settled,
+            Cmd.none,
+            NoOp
+        | _ -> cleared, Cmd.none, ShowToast ($"Rückgängig nicht möglich: {message}", ToastError)
 
     | StartRetryPayee entryId ->
         // Ein Tipp auf "Erneut senden" schickt nichts, solange ein Aufruf zum Payee läuft.
@@ -4715,7 +4844,11 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
 
     // Nur für die gezeigte Karte und nur, wenn sie sich seit dem Start der Abfrage nicht geändert hat.
     | ReviewEntryRefreshed (entryId, basis, Ok fresh) when isReviewCard model entryId && model.DetailFor = basis ->
-        if reviewSkipsEntry fresh then
+        // Läuft für die Karte ein Prüfvermerk (die Rücknahme nach „Passt“, ledger-pz5wv), meldet der Server sie noch als
+        // geprüft: sie wird nicht übersprungen und behält ihren Stand, bis die Antwort ihn setzt.
+        if rowBusy ReviewMarkLock model entryId then
+            model, Cmd.none, NoOp
+        elif reviewSkipsEntry fresh then
             let model', cmd = advanceReview model
             model', cmd, NoOp
         else
@@ -4764,7 +4897,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         | Some review, Some card when review.Confirming.IsNone ->
             whenRowIdle ReviewMarkLock card.Id model (fun () ->
                 if reviewCardKindOf card = NormalCard && reviewHasTarget card && not (rowBusy CategoryLock model card.Id) then
-                    editReview (fun r -> { r with Confirming = Some card.Id }) model,
+                    editReview (fun r -> { r with Confirming = Some card.Id; Last = None }) model,
                     Cmd.ofMsg (RunReviewConfirm card.Id),
                     NoOp
                 else
@@ -4784,26 +4917,37 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         let released = model |> editReview (fun r -> if r.Confirming = Some entryId then { r with Confirming = None } else r)
         // Die Liste des Kassenbuchs zieht mit, falls die Buchung dort geladen ist.
         let listed = applyReviewMarkResult entryId (Some false) (writeBackFailureOf outcome) released
-        let warning =
-            match outcome.WriteBack with
-            | ReviewMarkSendFailed reason -> ShowToast ($"{reviewMarkHintTitle}: {reason}", ToastWarning)
-            | _ -> NoOp
+        // Im Durchgehen steht das Ergebnis in der Zeile unter „Passt, weiter“, gelb bei YNAB-Warnung (ledger-pz5wv);
+        // nur eine Antwort nach dem Verlassen meldet die Warnung noch als Toast.
+        let listed, warning =
+            match listed.Review, outcome.WriteBack with
+            | Some _, writeBack ->
+                let result = match writeBack with ReviewMarkSendFailed reason -> LastNotInYnab reason | _ -> LastDone
+                let line = reviewLastFor listed entryId LastConfirmed result (Some (LastUndo (UndoConfirmed (entryId, outcome.Previous))))
+                setReviewLast (Some line) listed, NoOp
+            | None, ReviewMarkSendFailed reason -> listed, ShowToast ($"{reviewMarkHintTitle}: {reason}", ToastWarning)
+            | None, _ -> listed, NoOp
         if isReviewCard released entryId then
             let model', cmd = advanceReview listed
             model', cmd, warning
         else
             listed, Cmd.none, warning
 
-    // Die Karte bleibt stehen, der Toast nennt den Grund.
+    // Die Karte bleibt stehen (federt zurück), die Zeile nennt rot den Grund mit „Erneut“ (ledger-pz5wv).
     | ReviewConfirmed (entryId, Error message) ->
-        model |> editReview (fun r -> if r.Confirming = Some entryId then { r with Confirming = None } else r),
-        Cmd.none,
-        ShowToast ($"Nicht geprüft: {message}", ToastError)
+        let released = model |> editReview (fun r -> if r.Confirming = Some entryId then { r with Confirming = None } else r)
+        match released.Review with
+        | Some _ ->
+            setReviewLast (Some (reviewLastFor released entryId LastConfirmed (LastFailed message) (Some (LastRetry (RetryConfirm entryId))))) released,
+            Cmd.none,
+            NoOp
+        | None -> released, Cmd.none, ShowToast ($"Nicht geprüft: {message}", ToastError)
 
     | ReviewSkip ->
         match reviewCardOf model with
-        | Some _ ->
-            let model', cmd = advanceReview model
+        | Some card ->
+            let line = reviewLastFor model card.Id LastSkipped LastDone (Some (LastUndo (UndoSkipped card.Id)))
+            let model', cmd = advanceReview (setReviewLast (Some line) model)
             model', cmd, NoOp
         | None -> model, Cmd.none, NoOp
 
@@ -4815,6 +4959,13 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
                 model, Cmd.none, NoOp
             | action ->
                 let flagged, flagCmd, external = updateCore (StartSetLenaFlag (card.Id, action.Target)) model
+                // Die Antwort schreibt die Zeile (ledger-pz5wv); „Lena fragen“ ist eine neue Aktion, „Rückfrage
+                // zurücknehmen“ lässt die vorige Zeile stehen.
+                let flagged =
+                    if (flagged.FlagRows |> Map.tryFind card.Id) = Some FlagSending then
+                        let marked = awaitReview (AwaitLena card.Id) flagged
+                        if action.Target = AssignLena then setReviewLast None marked else marked
+                    else flagged
                 match action.Target with
                 | AssignLena ->
                     let model', cmd = advanceReview flagged
@@ -4837,7 +4988,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
     | ReviewConfirmNew ->
         match model.Review, reviewCardOf model with
         | Some review, Some card when review.Deciding.IsNone && reviewCardKindOf card = DuplicateCard ->
-            editReview (fun r -> { r with Deciding = Some card.Id }) model, Cmd.ofMsg (RunReviewConfirmNew card.Id), NoOp
+            editReview (fun r -> { r with Deciding = Some card.Id; Last = None }) model, Cmd.ofMsg (RunReviewConfirmNew card.Id), NoOp
         | _ -> model, Cmd.none, NoOp
 
     | RunReviewConfirmNew entryId ->
@@ -4866,20 +5017,31 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
                             | PushToYnabSent -> None }
                     released
             | None -> released
-        let toast =
-            match writeBack with
-            | PushToYnabSent -> ShowToast (reviewConfirmedNewText, ToastSuccess)
-            | PushToYnabFailed reason -> ShowToast ($"Als neu übernommen. {pushRetryFailedToastTitle}: {reason}", ToastWarning)
+        // Im Durchgehen die Zeile ohne Rückgängig (Entscheidung Roman 3), gelb mit Grund, wenn YNAB sie nicht nimmt.
+        let withoutHold, toast =
+            match withoutHold.Review, writeBack with
+            | Some _, _ ->
+                let result = match writeBack with PushToYnabFailed reason -> LastNotInYnab reason | PushToYnabSent -> LastDone
+                setReviewLast (Some (reviewLastFor withoutHold entryId LastConfirmedNew result None)) withoutHold, NoOp
+            | None, PushToYnabSent -> withoutHold, ShowToast (reviewConfirmedNewText, ToastSuccess)
+            | None, PushToYnabFailed reason ->
+                withoutHold, ShowToast ($"Als neu übernommen. {pushRetryFailedToastTitle}: {reason}", ToastWarning)
         let refresh = if isReviewCard withoutHold entryId then Cmd.ofMsg (RunReviewRefresh entryId) else Cmd.none
         withoutHold, refresh, toast
 
     | ReviewConfirmedNew (entryId, Error message) ->
-        releaseDeciding entryId model, Cmd.none, ShowToast ($"Nicht übernommen: {message}", ToastError)
+        let released = releaseDeciding entryId model
+        match released.Review with
+        | Some _ ->
+            setReviewLast (Some (reviewLastFor released entryId LastConfirmedNew (LastFailed message) (Some (LastRetry (RetryConfirmNew entryId))))) released,
+            Cmd.none,
+            NoOp
+        | None -> released, Cmd.none, ShowToast ($"Nicht übernommen: {message}", ToastError)
 
     | ReviewDiscard ->
         match model.Review, reviewCardOf model with
         | Some review, Some card when review.Deciding.IsNone && reviewCardKindOf card = DuplicateCard ->
-            editReview (fun r -> { r with Deciding = Some card.Id }) model, Cmd.ofMsg (RunReviewDiscard card.Id), NoOp
+            editReview (fun r -> { r with Deciding = Some card.Id; Last = None }) model, Cmd.ofMsg (RunReviewDiscard card.Id), NoOp
         | _ -> model, Cmd.none, NoOp
 
     | RunReviewDiscard entryId ->
@@ -4893,8 +5055,15 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
 
     | ReviewDiscarded (entryId, Ok ()) ->
         let released = releaseDeciding entryId model
-        let toast =
-            ShowToastWithAction (reviewDiscardedText, ToastSuccess, { Label = undoToastLabel; Kind = UndoDiscardDuplicate entryId })
+        // Im Durchgehen die Zeile „Verworfen“ mit Rückgängig (ledger-pz5wv), nach dem Verlassen der Toast.
+        let released, toast =
+            match released.Review with
+            | Some _ ->
+                let line = reviewLastFor released entryId LastDiscarded LastDone (Some (LastUndo (UndoDiscarded entryId)))
+                setReviewLast (Some line) released, NoOp
+            | None ->
+                released,
+                ShowToastWithAction (reviewDiscardedText, ToastSuccess, { Label = undoToastLabel; Kind = UndoDiscardDuplicate entryId })
         if isReviewCard released entryId then
             let model', cmd = advanceReview released
             model', cmd, toast
@@ -4902,7 +5071,13 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             released, Cmd.none, toast
 
     | ReviewDiscarded (entryId, Error message) ->
-        releaseDeciding entryId model, Cmd.none, ShowToast ($"Nicht verworfen: {message}", ToastError)
+        let released = releaseDeciding entryId model
+        match released.Review with
+        | Some _ ->
+            setReviewLast (Some (reviewLastFor released entryId LastDiscarded (LastFailed message) (Some (LastRetry (RetryDiscard entryId))))) released,
+            Cmd.none,
+            NoOp
+        | None -> released, Cmd.none, ShowToast ($"Nicht verworfen: {message}", ToastError)
 
     | StartRestoreDiscardedDuplicate entryId ->
         if model.RestoringDuplicates.Contains entryId then
@@ -4925,19 +5100,30 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
     // Der Toast meldet es auch außerhalb des Durchgehens, wo keine Karte zurückkommt.
     | DiscardedDuplicateRestored (entryId, Ok ()) ->
         let released = { model with RestoringDuplicates = model.RestoringDuplicates.Remove entryId }
-        match released.Review with
-        | Some _ ->
-            let model', cmd = returnToReviewCard entryId released
-            model', cmd, ShowToast (reviewRestoredText, ToastSuccess)
+        match takeAwait ((=) (AwaitUndo (UndoDiscarded entryId))) released with
+        // „Rückgängig“ aus der Zeile (ledger-pz5wv): die Karte steht sichtbar wieder da, kein Toast.
+        | Some (_, settled) ->
+            let model', cmd = returnToReviewCard entryId settled
+            markReturn ReturnFromLeft entryId model', cmd, NoOp
         | None ->
-            // Außerhalb des Durchgehens kommt keine Karte zurück: die Liste lädt im Hintergrund nach,
-            // damit die Buchung wieder dasteht (ledger-k4n2s Punkt 63).
-            released, Cmd.ofMsg RefreshEntries, ShowToast (reviewRestoredText, ToastSuccess)
+            match released.Review with
+            | Some _ ->
+                let model', cmd = returnToReviewCard entryId released
+                model', cmd, ShowToast (reviewRestoredText, ToastSuccess)
+            | None ->
+                // Außerhalb des Durchgehens kommt keine Karte zurück: die Liste lädt im Hintergrund nach,
+                // damit die Buchung wieder dasteht (ledger-k4n2s Punkt 63).
+                released, Cmd.ofMsg RefreshEntries, ShowToast (reviewRestoredText, ToastSuccess)
 
     | DiscardedDuplicateRestored (entryId, Error message) ->
-        { model with RestoringDuplicates = model.RestoringDuplicates.Remove entryId },
-        Cmd.none,
-        ShowToast ($"Rückgängig nicht möglich: {message}", ToastError)
+        let released = { model with RestoringDuplicates = model.RestoringDuplicates.Remove entryId }
+        let undo = UndoDiscarded entryId
+        match takeAwait ((=) (AwaitUndo undo)) released with
+        | Some (_, settled) ->
+            setReviewLast (Some (reviewLastFor settled entryId LastUndone (LastFailed message) (Some (LastRetry (RetryUndo undo))))) settled,
+            Cmd.none,
+            NoOp
+        | None -> released, Cmd.none, ShowToast ($"Rückgängig nicht möglich: {message}", ToastError)
 
     | ReviewShowDetails ->
         match reviewCardOf model with
@@ -4965,6 +5151,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         | KeySkip -> updateCore ReviewSkip model
         | KeyOpenCategory -> updateCore ReviewOpenCategory model
         | KeyLena -> updateCore ReviewLena model
+        | KeyUndo -> updateCore ReviewUndoLast model
         // Esc schließt erst, was über der Karte offen ist, dann die Ansicht.
         | KeyLeave ->
             if model.CategoryPickerFor.IsSome then
@@ -4973,6 +5160,63 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             elif model.MemoEdit.IsSome then updateCore CancelMemoEdit model
             elif model.Review |> Option.exists (fun r -> r.DetailShown) then updateCore CloseDetail model
             else model, Cmd.none, LeaveReview
+
+    // „Rückgängig“ der Zeile (ledger-pz5wv): nur die letzte Aktion, eine Stufe. Die Karte kommt von der Seite zurück, zu
+    // der sie ging; eine offene Eingabe auf der gezeigten Karte hält sie fest, dann geschieht nichts.
+    | ReviewUndoLast ->
+        match model.Review |> Option.bind reviewUndoOffered with
+        | Some undo when not (reviewUndoBlocked undo model) ->
+            let cleared = setReviewLast None model
+            let awaiting = awaitReview (AwaitUndo undo) cleared
+            match undo with
+            | UndoSkipped entryId ->
+                let returned, cmd = returnToReviewCard entryId cleared
+                markReturn ReturnFromLeft entryId returned, cmd, NoOp
+            // Die Karte kommt sofort zurück; solange die Rücknahme läuft, überspringt das Neulesen sie nicht.
+            | UndoConfirmed (entryId, previous) ->
+                let returned, showCmd = returnToReviewCard entryId awaiting
+                let started, startCmd, external = updateCore (StartUndoReviewMark (entryId, previous)) returned
+                markReturn ReturnFromRight entryId started, Cmd.batch [ showCmd; startCmd ], external
+            // `StartUndoFlag` holt die Karte selbst zurück (ledger-v6s7c).
+            | UndoLenaAsked (entryId, previous) ->
+                let started, cmd, external = updateCore (StartUndoFlag (entryId, previous)) awaiting
+                markReturn ReturnFromLeft entryId started, cmd, external
+            // Die Duplikat-Karte kommt mit der Antwort zurück (`DiscardedDuplicateRestored`).
+            | UndoDiscarded entryId ->
+                updateCore (StartRestoreDiscardedDuplicate entryId) awaiting
+            | UndoPayeeChanged (entryId, previous) ->
+                updateCore (StartUndoPayee (entryId, previous)) awaiting
+        | _ -> model, Cmd.none, NoOp
+
+    // „Erneut“ der Zeile: derselbe Befehl für dieselbe Buchung. Ist sie nicht die gezeigte Karte, kommt sie zuerst zurück
+    // (außer eine Eingabe auf der gezeigten Karte hält sie fest).
+    | ReviewRetryLast ->
+        match model.Review |> Option.bind (fun r -> r.Last) with
+        | Some { Act = Some (LastRetry retry) } ->
+            let onCard (entryId: Guid) (msg: Msg) (start: Model) =
+                if reviewCardEditing model && not (isReviewCard model entryId) then
+                    model, Cmd.none, NoOp
+                else
+                    let returned, showCmd = returnToReviewCard entryId start
+                    let sent, cmd, external = updateCore msg returned
+                    sent, Cmd.batch [ showCmd; cmd ], external
+            match retry with
+            | RetryConfirm entryId -> onCard entryId ReviewConfirm model
+            | RetryConfirmNew entryId -> onCard entryId ReviewConfirmNew model
+            | RetryDiscard entryId -> onCard entryId ReviewDiscard model
+            // Auch „Rückfrage zurücknehmen“ geht hierüber, das keine Zeile schreibt: die rote Zeile geht vorher.
+            | RetryLena entryId -> onCard entryId ReviewLena (setReviewLast None model)
+            | RetryPayee (entryId, payee) when (model.PayeeRows |> Map.tryFind entryId) <> Some PayeeSending ->
+                let marked = model |> setReviewLast None |> awaitReview (AwaitPayee (entryId, payee))
+                { marked with PayeeRows = marked.PayeeRows |> Map.add entryId PayeeSending },
+                Cmd.ofMsg (RunSetPayee (entryId, payee)),
+                NoOp
+            | RetryPayee _ -> model, Cmd.none, NoOp
+            | RetryUndo undo ->
+                let offered = model |> setReviewLast (model.Review |> Option.bind (fun r -> r.Last) |> Option.map (fun l -> { l with Act = Some (LastUndo undo) }))
+                // Ist die Rücknahme gesperrt, bleibt die rote Zeile.
+                if reviewUndoBlocked undo model then model, Cmd.none, NoOp else updateCore ReviewUndoLast offered
+        | _ -> model, Cmd.none, NoOp
 
     | EscapePressed
     | EscapePressedInField ->

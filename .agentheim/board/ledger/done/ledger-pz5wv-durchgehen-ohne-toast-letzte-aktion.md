@@ -1,7 +1,7 @@
 ---
 id: ledger-pz5wv
 title: "Durchgehen ohne Toast (B3): letzte Aktion unter „Passt, weiter“ mit Rückgängig für jede Aktion, Fehler rot an derselben Stelle"
-status: doing
+status: done
 type: feature
 context: ledger
 created: 2026-11-19
@@ -227,3 +227,50 @@ design-system-ytgnc (Baustein) und ledger-s2cg3 (Zeile, Flug und Rückkehr der K
 ledger-gwr9j und diese Task ändern dieselben gemeinsamen Handler in `src/Client/Components/Ledger/State.fs` (`LenaFlagSet`,
 `FlagRestored`, `ReviewMarkRestored`, `MemoSet`, `PayeeSet`, `DiscardedDuplicateRestored`). Damit zwei Worker nicht dieselben
 Zweige umbauen, kommt diese Task nach gwr9j (`depends_on`). Sie baut nur die Zweige für `model.Review` (`isReviewCard`).
+
+
+## Outcome
+
+Zeile der letzten Aktion im Durchgehen (B3, R3, ADR 0098 Ausnahme Durchgehen). `./verify.sh`: `VERIFY: PASS` (dotnet 5328 grün, node 354 grün, Wächter grün). Ein erster Lauf war rot an `[flow:payee-aendern]` (Kassenbuch-Detail, nicht berührt); allein grün in 54 s, der zweite Gesamtlauf grün. Unter Last der parallelen Worktrees ein Zeitfehler.
+
+**Modell** (`src/Client/Components/Ledger/Types.fs`): `ReviewSession` bekommt `Last: ReviewLast option`, `Awaiting: Set<ReviewAwait>`, `ReturnFrom: ReviewReturnSide option` (`reviewStarting` leer, `ReviewLeft` verwirft sie mit der Sitzung). `ReviewLast` = `EntryId`, `Kind` (`ReviewLastKind`), `Payee`, `Outcome` (`LastDone` / `LastNotInYnab` / `LastFailed`), `Act` (`LastUndo of ReviewUndo` / `LastRetry of ReviewRetry`), beides Beschreibungen ohne Funktion. Die Fälle heißen `UndoConfirmed`, `UndoSkipped`, `UndoLenaAsked`, `UndoDiscarded`, `UndoPayeeChanged` (nicht `UndoPayee` usw., weil `ToastActionKind` diese Namen schon trägt). Reine Funktionen: `reviewLastLine` (Ton, Aktion, zweiter Teil, Knopf; Vorschlag der Task), `reviewUndoOffered`, `reviewReturnSideOf`, `reviewUndoEntry`. `reviewKeyAction card undoOffered key` mit `KeyUndo` (Z, nicht aus Feldern, nicht mit Strg/Meta/Alt über `reviewKeyFor`, auch in der Endansicht). Neue Nachrichten `ReviewUndoLast`, `ReviewRetryLast`.
+
+**Gemeinsame Handler** (`State.fs`): nur Antworten auf Befehle der Karte schreiben die Zeile. Dafür merkt die Karte ihre Befehle in `Awaiting` (`AwaitLena`, `AwaitPayee`, `AwaitUndo`); `takeAwait` findet sie bei der Antwort. Antworten ohne Eintrag (Kassenbuch, „Details“ im Durchgehen, ledger-p5y9s) laufen unverändert. Zweige fürs Durchgehen in `LenaFlagSet`, `FlagRestored`, `ReviewMarkRestored`, `PayeeSet`, `PayeeRestored`, `DiscardedDuplicateRestored`; in den eigenen Handlern `ReviewConfirmed`, `ReviewConfirmedNew`, `ReviewDiscarded` gilt `model.Review.IsSome` (nach dem Verlassen bleibt der Toast). Jeder Start (Passt, Lena fragen, Verwerfen, Ist neu, Payee speichern) leert die Zeile, „Rückfrage zurücknehmen“ nicht. Antworten schreiben die Zeile in der Reihenfolge, in der sie ankommen. Ein Fehler ersetzt auch eine neuere Zeile, damit er sichtbar ist.
+
+**Rückgängig** (`ReviewUndoLast`, eine Stufe): Passt holt die Karte sofort zurück (`returnToReviewCard`, `ReturnFromRight`) und schickt `StartUndoReviewMark` mit `outcome.Previous`. Die Falle aus der Task ist gelöst: `ReviewEntryRefreshed` lässt die Karte stehen und übernimmt den Stand nicht, solange `rowBusy ReviewMarkLock`. Später holt ohne Aufruf zurück, Lena über `StartUndoFlag`, Verworfen über `StartRestoreDiscardedDuplicate` (Karte mit der Antwort), Payee über `StartUndoPayee`. `reviewUndoBlocked`: eine offene Eingabe auf der gezeigten Karte (`reviewCardEditing`) oder ein laufender Aufruf derselben Sperrgruppe, dann tut es nichts und die Zeile bleibt. `ReviewRetryLast` schickt denselben Befehl, holt die Karte vorher zurück, wenn sie nicht gezeigt ist. Einblendung: `ReviewCard.SwipeStage.ReturnFrom` (`ReturnLeft`/`ReturnRight`) mit den Klassen `review-swipe-back-left`/`-right` (styles.css, unter `prefers-reduced-motion` ohne Animation).
+
+**DS**: `Feedback.line` (neu, §5 Zeile **Feedback**), `ReviewCard.FootLast` in `ReviewCard.foot` (54 px bleiben: oben 0, unten 6 px, damit der Knopf 48 px hat; §5 Zeile **ReviewCard**). `/styleguide` Abschnitt Feedback: „Zeile der letzten Aktion (Durchgehen)“ mit ok, langem Payee, Warnung, Fehler, ohne Knopf. Echte Testids: `review-foot` (wie bisher), darin `feedback-line` mit `data-tone`, `feedback-line-action`, `feedback-line-detail`, Knopf `[data-feedback-action]`.
+
+**View** (`Ledger/View.fs`): `reviewLastMessage`, `reviewFoot`. Die Zeile steht unter „Passt, weiter“ am Handy und am PC (am PC ohne Aktion leer mit 54 px, damit die Tastenleiste nicht springt) und unter der Duplikat-Karte. Tastenleiste „Z rückgängig“. Endansicht: „Letzte rückgängig“ (`Button.Outline`) und bei Warnung oder Fehler die Zeile darunter ohne eigenen Knopf.
+
+**Abweichungen und Grenzen (bitte prüfen)**
+- Memo auf der Karte: seit ledger-wg42w gibt es dort kein Bearbeiten mehr. Das Memo ändert nur „Details“, das gehört zu ledger-p5y9s. Keine Memo-Zeile gebaut, `reviewMemoToastText` bleibt für „Details“.
+- Payee-Fehler bei offener Auswahl über der Karte: steht wie heute am Feld (Styleguide §5, Regel task-ui-vorgaben). Rot in der Zeile mit „Erneut“ nur, wenn die Auswahl schon zu ist.
+- Lena: die Zeile kommt mit der Antwort (die Karte ist schon weiter). Verworfen rückgängig: die Karte kommt mit der Antwort zurück (wie heute), ohne seitliche Einfahrt (die Duplikat-Karte steht nicht auf der Bühne).
+- Warnung nach einer Rücknahme (YNAB nimmt sie nicht): gelb „Rückgängig, nicht in YNAB · Grund“ ohne Knopf (die Tabelle nennt den Fall nicht, ohne Zeile ginge die Warnung verloren).
+- Endansicht zeigt außer der Warnung auch einen Fehler als Zeile.
+- Am Handy steht nach Kategorie auf der Karte weiter die Meldungsleiste (Toast-Übergang, ledger-mf2bg).
+
+**Tests**
+- `src/Tests/LedgerReviewClientTests.fs`, neue Liste „Durchgehen: Zeile der letzten Aktion (ledger-pz5wv)“ mit 17 Fällen: `reviewLastLine` für jede Zeile der Tabelle samt „ohne Payee“; Z mit und ohne Rückgängig, Endansicht, Duplikat-Karte, aus Eingabefeld und mit Strg nicht (`reviewKeyFor`); Passt Zeile und Warnung ohne Toast; Passt rückgängig (Karte zurück, `i von n`, `ReturnFromRight`, genau der Vorzustand, keine Toasts, Warnung gelb); Rücknahme scheitert (rot, Erneut schickt sie noch einmal) mit Gegentest außerhalb (`PostFeedback (undoFailedFeedback …)`); Erneut nach Passt-Fehler; Später rückgängig ohne Aufruf, nur eine Stufe; offene Eingabe hält die Karte; Lena Zeile, gelb, rückgängig, Rücknahme-Fehler mit Erneut; Erneut nach Lena-Fehler; Rückfrage zurücknehmen ohne Zeile und ohne Toast; Verwerfen und Ist neu rot mit Erneut; Payee auf der Karte (Zeile, gelb, Rückgängig, Fehler am Feld bzw. rot mit Erneut); Payee in „Details“ schreibt keine Zeile; Gegentest Flag außerhalb (`ShowToastWithAction`); Endansicht bietet Rückgängig, nach Ist neu nicht; Verlassen verwirft die Zeile.
+- Umgestellt (Aussage geändert): „scheitert der Prüfvermerk …“ (jetzt rot in der Zeile), „Rückgängig nach dem Verwerfen …“ (über die Zeile, kein Toast, Toast außerhalb bleibt, Fehler mit Erneut), „Verwerfen geht weiter …“ (Zeilen, Ist neu ohne Rückgängig, Toast außerhalb), beide Fälle in `lenaFailureTests` (Zeile statt Toast).
+- Orakel „jede Reihenfolge bis Tiefe 6“: `Walk` mit `LastUndo` und `Restoring`, beobachtet zusätzlich das angebotene Rückgängig. Ereignisse: „Später-/Passt-/Lena-/Verwerfen-Rückgängig“ über `ReviewUndoLast`, Verwerfen-Rückgängig-Fehler, Rücknahme-Antwort und -Fehler, „Neulesen-noch-geprüft“ (Neulesen vor der Antwort der Rücknahme, der Server meldet geprüft) und „Neulesen-offen“ (danach). Die Nachrichten sind jetzt Funktionen des Modells (für `DetailFor` als Basis). Der Test prüft, dass jedes neue Ereignis vorkommt. Gegenprobe: ohne die Sperre in `ReviewEntryRefreshed` rot („… → Passt-Rückgängig → Neulesen-noch-geprüft“), danach wiederhergestellt.
+- Browser: `[flow:durchgehen]` nimmt „Passt“ in der Endansicht mit „Letzte rückgängig“ zurück (Karte wieder da, „2 von 2“, Hinweis in der Zeile) und bestätigt erneut, Aufrufe `…, setReviewMark, restoreReviewMark, setReviewMark`, keine Passt-Meldung in der Leiste; nach dem Verwerfen steht „Verworfen“ in der Zeile. Satz in `FLOWS` nachgezogen. `[tastatur]` um Z (holt „Dritte Karte“ aus der Endansicht zurück, „3 von 3“, Tastenleiste nennt „Z rückgängig“). `[layout]` (Zeile springt nicht) prüft unter der Duplikat-Karte jetzt die Zeile „Später“ statt leer.
+- Sweep (`scripts/layout-states.mjs`): `mockReview(page, queue, { failReviewMark })` und eine Route `restoreReviewMark`. Neue Zustände `durchgehen-letzte-aktion` (320/412/1280, langer Payee, `reach` „Rückgängig“) und `durchgehen-fehler` (412, `reach` „Erneut“), `primary` „Passt, weiter“. Alle 33 Läufe `durchgehen-*` ohne Meldung und ohne Ausnahme.
+
+**Seite neben der Skizze** (eigene Bilder unter `/private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/4b5cf62e-3174-40e3-90f3-4b5312280eb9/scratchpad/result-shots/ledger-pz5wv/`, Skizze unter `/private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/4b5cf62e-3174-40e3-90f3-4b5312280eb9/scratchpad/vf5h6/skizze-shots/`)
+- 07 nach Passt: `07-nach-passt-letzte-aktion.png` gegen `07-nach-passt-412.png`: „✓ Passt Stadtwerke … Rückgängig“ links, Knopf rechts im Akzent. Unterschied: 12 px statt 13 px (genannt).
+- 08 langer Payee: `08-zweite-karte-langer-payee.png` gegen `08-langer-payee-412.png` (und `320-langer-payee-320.png`): Aktion ganz, Payee mit „…“, „Rückgängig“ rechts. Gleich.
+- 09 Warnung: `09-ynab-warnung.png` gegen `09-warnung-412.png`: gelbes „!“, „Passt, nicht in YNAB · Zeitüberschreitung“ (Grund statt Payee) und keine Pille oben, beides genannt.
+- 10 Fehler: `10-fehler-unter-knopf.png` gegen `10-fehler-412.png`: rotes „!“ und rote Aktion „Nicht geprüft“, Grund, „Erneut“, Karte steht. Gleich.
+- 13 Endansicht: `13-endansicht.png` gegen `13-endansicht-412.png` und `13-endansicht-warnung-412.png`: „Alles geprüft“ und Text wie bisher (Abgleich der Skizze), „Zur Übersicht“, darunter „Letzte rückgängig“ ohne Füllung; bei Warnung die gelbe Zeile darunter (Abweichung aus der Task). Die Skizze hat „Von vorn (Skizze)“, nur Prototyp.
+- PC 1280 nach Passt: `pc-nach-passt-1280.png`: Zeile unter „Passt, weiter“ in der Spalte, kein Toast, Tastenleiste mit „Z rückgängig“.
+- Styleguide: `styleguide-line-1280.png`.
+- Offen [human-eye]: die seitliche Einfahrt der zurückgeholten Karte am echten Handy.
+
+**README-Gate**: `npm run check:readme-delta -- --bc ledger` Exit 0. Ganz nachlesen: `## Key commands` WartendeVerwerfen (Zeile 419) passt, `## Key events` EntryHeldAsPossibleDuplicate (Zeile 340) passt (beide ohne Toast-Text).
+
+**Kann-Sammlung ledger**
+- Die `Awaiting`-Einträge eines Befehls, dessen Antwort nie kommt, bleiben bis zum Verlassen in der Sitzung (harmlos, wächst nicht nennenswert).
+- `ReviewLastKind.LastSkipped` hat einen Fehlertext („Nicht übersprungen“), den kein Weg erzeugt (Später ruft nichts auf).
+- `LenaFlagSet` Error holt die Karte weiter auch für Antworten aus „Details“ zurück (unverändert von heute).

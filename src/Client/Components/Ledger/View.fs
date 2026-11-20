@@ -5193,11 +5193,43 @@ let reviewMatchRow
 
 /// Die Tastenleiste am PC (Prototyp `renderDesk`).
 let reviewKeys : (string * string) list =
-    [ "Enter", "passt"; "S", "später"; "K", "Kategorie"; "L", "Lena"; "Esc", "zurück" ]
+    [ "Enter", "passt"; "S", "später"; "K", "Kategorie"; "L", "Lena"; "Z", "rückgängig"; "Esc", "zurück" ]
 
 let reviewSwipeHintText = "Wischen: rechts „Passt“, links „Später“"
 /// Während eines Wischs nach rechts ohne Kategorie in der Zeile unter dem Knopf (ledger-s2cg3, statt eines Toasts).
 let reviewNeedsTargetFootText = "Erst Kategorie wählen"
+
+/// Die Zeile der letzten Aktion als Meldung des DS (`Feedback.line`, ledger-pz5wv): Text aus `reviewLastLine`, der
+/// Knopf schickt „Rückgängig“ bzw. „Erneut“ der Zeile.
+let reviewLastMessage (dispatch: Msg -> unit) (last: ReviewLast) : Feedback.Message =
+    let line = reviewLastLine last
+    { Tone =
+        (match line.Tone with
+         | FeedbackOk -> Feedback.Tone.Ok
+         | FeedbackWarning -> Feedback.Tone.Warning
+         | FeedbackError -> Feedback.Tone.Error
+         | FeedbackRunning -> Feedback.Tone.Running
+         | FeedbackInfo -> Feedback.Tone.Info)
+      Action = line.Action
+      Detail = Some line.Detail
+      Act =
+        line.Button
+        |> Option.map (fun label ->
+            { Label = label
+              OnClick =
+                fun () ->
+                    match last.Act with
+                    | Some (LastRetry _) -> dispatch ReviewRetryLast
+                    | _ -> dispatch ReviewUndoLast }) }
+
+/// Was unter dem Hauptknopf steht: während eines Wischs ohne Ziel „Erst Kategorie wählen“, sonst die letzte Aktion,
+/// ohne sie `idle` (Wisch-Hinweis am Handy, leer am PC und unter der Duplikat-Karte).
+let private reviewFoot (dispatch: Msg -> unit) (review: ReviewSession) (needsTarget: bool) (idle: ReviewCard.FootLine) : ReviewCard.FootLine =
+    if needsTarget then ReviewCard.FootNeed reviewNeedsTargetFootText
+    else
+        match review.Last with
+        | Some last -> ReviewCard.FootLast (reviewLastMessage dispatch last)
+        | None -> idle
 
 /// Der Weg, auf dem Knöpfe und Tasten die Karte am Handy hinausfliegen lassen (Skizze ledger-vf5h6 `leave`).
 type ReviewLeaveSlot = IRefValue<(ReviewCard.SwipeLeave -> (unit -> unit) -> unit) option>
@@ -5239,7 +5271,8 @@ let reviewKeyFor (model: Model) (tagName: string) (isContentEditable: bool) (mod
             | _ -> None
         match model.Review with
         | Some r when r.DetailShown -> if key = "Escape" then Some KeyLeave else None
-        | _ -> reviewKeyAction card key
+        | Some r -> reviewKeyAction card (reviewUndoOffered r).IsSome key
+        | None -> reviewKeyAction card false key
 
 /// Die Tasten des Durchgehens mit Blick auf ein offenes Regel-Formular (`reviewKeyFor`, `routePageKey`). Rein.
 let reviewKeyRoute
@@ -5381,6 +5414,9 @@ let private ReviewNormalCard (dispatch: Msg -> unit) (model: Model) (review: Rev
                   OnRelease = fun dx dy -> dispatch (ReviewSwiped (dx, dy))
                   OnSurface = fun surface -> setNeedsTarget (surface = ReviewCard.SurfaceNoTarget)
                   Leave = leave
+                  ReturnFrom =
+                    review.ReturnFrom
+                    |> Option.map (function ReturnFromLeft -> ReviewCard.ReturnLeft | ReturnFromRight -> ReviewCard.ReturnRight)
                   Card = ReviewCard.cardFill false cardProps content }
         Html.div [
             prop.className "grid grid-cols-2 gap-2"
@@ -5428,16 +5464,17 @@ let private ReviewNormalCard (dispatch: Msg -> unit) (model: Model) (review: Rev
                     IsDisabled = not hasTarget || categoryBusy
                     IsBusy = review.Confirming = Some entry.Id
                     OnClick = fun () -> dispatch ReviewConfirm }
-        if desk then primary
-        else
-            // Knopf und Zeile ohne Abstand dazwischen: die Zeile trägt ihn selbst (Skizze `.ph-foot`).
-            Html.div [
-                prop.className "flex shrink-0 flex-col"
-                prop.children [
-                    primary
-                    ReviewCard.foot (if needsTarget && not hasTarget then ReviewCard.FootNeed reviewNeedsTargetFootText else ReviewCard.FootHint reviewSwipeHintText)
-                ]
+        // Knopf und Zeile ohne Abstand dazwischen: die Zeile trägt ihn selbst (Skizze `.ph-foot`). Am PC steht die Zeile der
+        // letzten Aktion ebenso unter „Passt, weiter“ (ledger-pz5wv), ohne Aktion leer mit derselben Höhe.
+        Html.div [
+            prop.className "flex shrink-0 flex-col"
+            prop.children [
+                primary
+                ReviewCard.foot (
+                    reviewFoot dispatch review (needsTarget && not hasTarget) (if desk then ReviewCard.FootEmpty else ReviewCard.FootHint reviewSwipeHintText)
+                )
             ]
+        ]
         // Kategorieauswahl am Handy: das Sheet über der Seite (die Karte ist kein Sheet).
         if not desk then
             CategoryPicker.sheet pickerOpen (Some $"{payeeLabel entry} · {amountText entry.Amount}") pickerProps
@@ -5485,7 +5522,8 @@ let private reviewDuplicateCard (dispatch: Msg -> unit) (model: Model) (review: 
                         OnClick = fun () -> dispatch ReviewDiscard }
             ]
         ]
-        if not desk then ReviewCard.foot ReviewCard.FootEmpty
+        // Die Zeile der letzten Aktion steht auch unter der Duplikat-Karte (ledger-pz5wv), ohne Aktion leer.
+        ReviewCard.foot (reviewFoot dispatch review false ReviewCard.FootEmpty)
     ]
 
 /// Payee der Karte: am Handy ein Sheet, am PC ein Dialog.
@@ -5506,14 +5544,30 @@ let private reviewEditors (dispatch: Msg -> unit) (model: Model) (entry: LedgerE
                   | None -> () ]
     ]
 
-/// Die Endansicht: „Alles geprüft“ in Grün, die Zahl der durchgegangenen Buchungen, „Zur Übersicht“.
-let private reviewEnd (count: int) (onBack: unit -> unit) =
+/// Die Endansicht: „Alles geprüft“ in Grün, die Zahl der durchgegangenen Buchungen, „Zur Übersicht“. Bietet die letzte
+/// Aktion ein Rückgängig, steht darunter „Letzte rückgängig“ ohne Füllung (Skizze 13, ledger-pz5wv); war sie eine
+/// Warnung, steht ihre gelbe Zeile darunter, sonst ginge die Warnung verloren.
+let private reviewEnd (dispatch: Msg -> unit) (review: ReviewSession) (count: int) (onBack: unit -> unit) =
     Html.div [
         prop.custom ("data-testid", "review-end")
         prop.className "flex flex-col items-center gap-3"
         prop.children [
             Card.sheetMessage "review-end-message" true "Alles geprüft" (reviewDoneText count)
             Button.view { Button.defaultProps with Text = "Zur Übersicht"; Variant = Button.Primary; OnClick = onBack }
+            if (reviewUndoOffered review).IsSome then
+                Button.view
+                    { Button.defaultProps with
+                        Text = "Letzte rückgängig"
+                        Variant = Button.Outline
+                        OnClick = fun () -> dispatch ReviewUndoLast }
+            match review.Last with
+            | Some last when (reviewLastLine last).Tone <> FeedbackOk ->
+                Html.div [
+                    prop.className "w-full max-w-[420px] px-4"
+                    // Ohne eigenen Knopf: „Letzte rückgängig“ darüber nimmt sie schon zurück.
+                    prop.children [ Feedback.line { reviewLastMessage dispatch last with Act = None } ]
+                ]
+            | _ -> ()
         ]
     ]
 
@@ -5560,7 +5614,7 @@ let ReviewPage (model: Model) (dispatch: Msg -> unit) (onBack: unit -> unit) (ru
                       if reviewEditorPlace review = ReviewEditorPlace.OverCard then reviewEditors dispatch model entry desk
                   // Ohne Karte steht die Endansicht: `update` zeigt nach jedem Schritt eine Karte oder überspringt
                   // eine Buchung ohne Stand bis hinter die letzte (`showReviewCardAt`).
-                  | None -> reviewEnd count onBack ]
+                  | None -> reviewEnd dispatch review count onBack ]
         let detail =
             match card with
             | Some entry when desk && review.DetailShown -> detailPanelOrRuleForm today dispatch model ruleForm entry

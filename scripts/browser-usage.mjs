@@ -92,7 +92,7 @@ export const TAGS = {
 /// Zeile hier; je Flow läuft höchstens ein Test.
 export const FLOWS = {
   "uebersicht": "Auf der Übersicht am Handy mit einer ungeprüften Buchung über „Jetzt durchgehen“ in „Zu tun“ ins Durchgehen.",
-  "durchgehen": "Am Handy über Jetzt durchgehen ein Duplikat verwerfen, ohne Kategorie nach rechts wischen (die Karte bleibt, „Erst Kategorie wählen“ unter dem Knopf), eine Kategorie wählen, per Wisch bestätigen und bei Alles geprüft ankommen.",
+  "durchgehen": "Am Handy über Jetzt durchgehen ein Duplikat verwerfen, ohne Kategorie nach rechts wischen (die Karte bleibt, „Erst Kategorie wählen“ unter dem Knopf), eine Kategorie wählen, per Wisch bestätigen, mit „Letzte rückgängig“ zurücknehmen (die Karte ist wieder da, unter dem Knopf der Hinweis), erneut bestätigen und bei Alles geprüft ankommen.",
   "navigation": "Die drei Orte über Leiste (Handy), Rail (Tablet) und Seitenleiste (PC) erreichen, ein Konto aus der Seitenleiste öffnen und über das Zahnrad in die Einstellungen.",
   "geld-zuweisen": "Am Handy eine Kategorie wählen, einen Betrag zuweisen und zur nächsten springen.",
   "geld-verschieben": "Am Handy Geld von einer Kategorie an eine andere abgeben und über „Rückgängig“ in der Zeile zurückholen.",

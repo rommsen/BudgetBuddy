@@ -331,6 +331,8 @@ type FootLine =
     | FootHint of string
     /// „braucht dich“ in `attention`, halbfett („Erst Kategorie wählen“ während eines Wischs ohne Ziel).
     | FootNeed of string
+    /// Die letzte Aktion (ledger-pz5wv): `Feedback.line`, linksbündig, der Knopf mit 48 px Trefferfläche.
+    | FootLast of Feedback.Message
 
 /// Die Zeile unter dem Hauptknopf (Skizze ledger-vf5h6 `.ph-foot`): feste Höhe 54 px samt Abstand, einzeilig, mittig,
 /// 12 px. Die Höhe ist dieselbe, was auch darin steht: die Knöpfe darüber springen nie.
@@ -340,14 +342,25 @@ let foot (line: FootLine) : ReactElement =
         | FootNeed _ -> $"flex h-[54px] shrink-0 items-center justify-center overflow-hidden whitespace-nowrap px-4 pt-1.5 pb-3.5 text-center {FontSizes.xs} {FontWeights.semibold} {Colors.attention}"
         | FootEmpty
         | FootHint _ -> $"flex h-[54px] shrink-0 items-center justify-center overflow-hidden whitespace-nowrap px-4 pt-1.5 pb-3.5 text-center {FontSizes.xs} {Colors.textSecondary}"
-    Html.p [
-        prop.custom ("data-testid", "review-foot")
-        prop.className cls
-        match line with
-        | FootHint text
-        | FootNeed text -> prop.text text
-        | FootEmpty -> ()
-    ]
+        // Der Knopf hat 48 px Trefferfläche: oben kein Abstand, unten 6 px, die Höhe bleibt 54 px.
+        | FootLast _ -> "flex h-[54px] shrink-0 items-center overflow-hidden pl-4 pr-2 pb-1.5"
+    match line with
+    | FootLast message ->
+        Html.div [
+            prop.custom ("data-testid", "review-foot")
+            prop.className cls
+            prop.children [ Feedback.line message ]
+        ]
+    | _ ->
+        Html.p [
+            prop.custom ("data-testid", "review-foot")
+            prop.className cls
+            match line with
+            | FootHint text
+            | FootNeed text -> prop.text text
+            | FootEmpty
+            | FootLast _ -> ()
+        ]
 
 // ============================================
 // Wischen mit Fläche (ledger-s2cg3, Skizze ledger-vf5h6, Option A1)
@@ -406,6 +419,11 @@ type SwipeLeave =
     | LeaveQuiet
 
 /// Die Eigenschaften der Bühne. Die Entscheidung über den Weg kommt als reine Funktion von außen.
+/// Von welcher Seite eine zurückgeholte Karte hereinkommt (Skizze `enter-back-l`/`enter-back-r`).
+type SwipeReturn =
+    | ReturnLeft
+    | ReturnRight
+
 type SwipeStageProps =
     { /// Wischen erlaubt (Handy, normale Karte).
       Enabled: bool
@@ -424,6 +442,8 @@ type SwipeStageProps =
       OnSurface: SwipeSurface -> unit
       /// Hier legt die Bühne ab, wie Knöpfe und Tasten die Karte hinausfliegen lassen.
       Leave: IRefValue<(SwipeLeave -> (unit -> unit) -> unit) option>
+      /// Die Karte kam per „Rückgängig“ zurück (ledger-pz5wv): sie fährt von dieser Seite herein statt sich einzublenden.
+      ReturnFrom: SwipeReturn option
       Card: ReactElement }
 
 [<Literal>]
@@ -515,16 +535,29 @@ let SwipeStage (props: SwipeStageProps) =
                     props.Leave.current <- None }),
         [||]
     )
-    // Eine neue Karte: sie steht an ihrem Platz und blendet sich ein (Skizze `.card.enter`).
+    // Eine neue Karte: sie steht an ihrem Platz und blendet sich ein (Skizze `.card.enter`). Eine zurückgeholte Karte fährt
+    // von der Seite herein, zu der sie ging (Skizze `enter-back-l`/`enter-back-r`).
     React.useEffect (
         (fun () ->
-            match wrapRef.current with
-            | Some el when outside.current || surfaceRef.current <> SurfaceRest ->
+            match wrapRef.current, props.ReturnFrom with
+            | Some el, Some side ->
                 clearTimer ()
                 outside.current <- false
                 setTransform "none" "none"
                 paint SurfaceRest
                 el.classList.remove "review-swipe-enter"
+                el.classList.remove "review-swipe-back-left"
+                el.classList.remove "review-swipe-back-right"
+                el?offsetWidth |> ignore
+                el.classList.add (match side with ReturnLeft -> "review-swipe-back-left" | ReturnRight -> "review-swipe-back-right")
+            | Some el, None when outside.current || surfaceRef.current <> SurfaceRest ->
+                clearTimer ()
+                outside.current <- false
+                setTransform "none" "none"
+                paint SurfaceRest
+                el.classList.remove "review-swipe-enter"
+                el.classList.remove "review-swipe-back-left"
+                el.classList.remove "review-swipe-back-right"
                 el?offsetWidth |> ignore
                 el.classList.add "review-swipe-enter"
             | _ -> ()),
@@ -562,7 +595,10 @@ let SwipeStage (props: SwipeStageProps) =
                       claimed.current <- false
                       suppressClick.current <- false
                       match wrapRef.current with
-                      | Some el -> el.classList.remove "review-swipe-enter"
+                      | Some el ->
+                          el.classList.remove "review-swipe-enter"
+                          el.classList.remove "review-swipe-back-left"
+                          el.classList.remove "review-swipe-back-right"
                       | None -> ())
               prop.onPointerMove (fun e ->
                   if active.current then
