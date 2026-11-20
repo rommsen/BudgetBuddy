@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-20 05:17 -- Batch started: [ledger-mf2bg]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-mf2bg - "Durchgehen: Kategorie und Übertrag auf der Karte am Feld bestätigt (Feld leuchtet, „<Name> · <Betrag> verfügbar“ mit Rückgängig), ohne Toast"
+**Parallel:** yes (neben enjex)
+
+---
+
 ## 2026-11-20 05:17 -- Modeling / Promoted: ledger-mf2bg - "Durchgehen: Kategorie und Übertrag auf der Karte am Feld bestätigt (Feld leuchtet, „<Name> · <Betrag> verfügbar“ mit Rückgängig), ohne Toast"
 
 **Type:** Modeling / Promote

@@ -1,7 +1,7 @@
 ---
 id: ledger-mf2bg
 title: "Durchgehen: Kategorie und Übertrag auf der Karte am Feld bestätigt (Feld leuchtet, „<Name> · <Betrag> verfügbar“ mit Rückgängig), ohne Toast"
-status: todo
+status: doing
 type: feature
 context: ledger
 created: 2026-11-19
