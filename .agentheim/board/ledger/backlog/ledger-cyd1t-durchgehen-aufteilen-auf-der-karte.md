@@ -21,11 +21,12 @@ Roman (2026-11-20): „Man kann im Prüfen-Feature keine Split-Buchung anlegen.�
 Abhebung an der Kasse) lässt sich im Durchgehen sonst nur mit dem Umweg über das Detail sortieren.
 
 ## What
-Vorlage ist die Skizze zu dieser Task (von Roman freizugeben; Option A, entschieden 2026-11-20).
+Vorlage ist die Skizze zu dieser Task (https://claude.ai/artifact/Ko5u9VtVYxY9hFsqCV83LD, Version 2, von Roman freizugeben; Knopf unter dem Feld).
 
-- **Knopf „Aufteilen“** rechts neben dem Feld „Kategorie“ der Normalkarte, in einer Zeile, 8 px Abstand, neutral
-  (`Button.Secondary`), so hoch wie das Feld (52 px), ohne Symbol. Das Feld nimmt den Rest der Breite, der Wert wird
-  gekürzt. Neue DS-Variante „Feld mit Knopf daneben“ an `ReviewCard` auf `/styleguide`. Nicht auf der Duplikat-Karte.
+- **Knopf „Aufteilen“** unter dem Feld „Kategorie“ der Normalkarte (Roman, 2026-11-20: „Aufteilen unter die Kategorie,
+  nicht daneben“; Skizze Version 2), über die volle Breite des Felds, neutral (`Button.Secondary`), ohne Symbol. Das
+  Feld behält die volle Breite. Gibt es keinen DS-Baustein, der gleich aussieht, eine neue Variante an `ReviewCard`
+  auf `/styleguide`. Nicht auf der Duplikat-Karte.
 - **Sperre:** dieselben Gründe wie im Detail (`splitLockTextFor`: wartend, in YNAB gelöscht,
   `SplitEditor.lockReasonFor` mit Tracking-Konto, Abgleich, Übertrag, Ersatz offen, fremde `import_id`). Gesperrt ist
   der Knopf deaktiviert, der Grund steht darunter (12 px gedämpft) und als `title`.
@@ -90,7 +91,7 @@ Vorlage ist die Skizze zu dieser Task (von Roman freizugeben; Option A, entschie
 - [ ] Touch bei 412 px im Editor über der Karte: Betragsfelder ohne Vorzeichen (`inputmode="decimal"`, kein Minus),
       der Wechsel zwischen Betragsfeldern und zur Memo-Zeile schließt die Tastatur nicht (`[fokus]`-Test, falls nicht
       schon vom Editor im Detail gedeckt).
-- [ ] Werte aus dem Styleguide, nichts erfunden; „Feld mit Knopf daneben“ als Variante an `ReviewCard` auf
+- [ ] Werte aus dem Styleguide, nichts erfunden; „Feld mit Knopf darunter“ als Variante an `ReviewCard` auf
       `/styleguide`, Eintrag in `standards/frontend/styleguide.md` nachgezogen.
 - [ ] Seite neben der Skizze verglichen, Abweichungen nur die genannten; Screenshots von BB bei 412 und 1280 px (Karte
       mit Knopf, gesperrter Knopf, aufgeteilte Karte mit Bestätigung, Editor über der Karte) neben den
@@ -104,8 +105,8 @@ Vorlage ist die Skizze zu dieser Task (von Roman freizugeben; Option A, entschie
 
 ## Notes
 - Entschieden (Roman, 2026-11-20, alle Empfehlungen). Offen nur die Skizze:
-  1. Ort des Knopfs: (A) neben dem Feld „Kategorie“, (B) dritter Knopf unter der Karte zwischen „Lena fragen“ und
-     „Später“, (C) Eintrag „Aufteilen …“ in der Kategorieauswahl. Entschieden A: ein Tipp, Karte wird nicht höher,
+  1. Ort des Knopfs: unter dem Feld „Kategorie“ (Roman, 2026-11-20, statt der empfohlenen Lage daneben). Verworfen: (A) neben dem Feld „Kategorie“, (B) dritter Knopf unter der Karte zwischen „Lena fragen“ und
+     „Später“, (C) Eintrag „Aufteilen …“ in der Kategorieauswahl. Grund für die Lage am Feld: ein Tipp,
      die Knöpfe unter der Karte bleiben die, die zur nächsten Karte gehen. B bricht „Rückfrage zurücknehmen“ bei
      412 px auf drei Zeilen um; C braucht zwei Tipps und ändert einen gemeinsamen Baustein.
   2. Feld „Aufgeteilt“ öffnet den Editor (mit Pfeil wie im Detail)? Entschieden: ja.
