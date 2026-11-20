@@ -537,10 +537,6 @@ let private brokenLedger: CommandHandlers.LedgerActivityPort =
     { LoadMonthlyActivity = fun _ _ -> async { return failwith "Kassenbuch weg" }
       LoadFirstEntryDate = fun () -> async { return failwith "Kassenbuch weg" } }
 
-/// Die Gruppe der Tests, die das Server-Log fangen (auch in `BudgetLeadTests`).
-[<Literal>]
-let ServerLogGroup = "Server-Log"
-
 /// Fängt, was der Server ins Fehler-Log schreibt, während `work` läuft.
 let private stderrOf (work: unit -> 'a) : 'a * string =
     let original = Console.Error
@@ -602,8 +598,8 @@ let private ledgerHandlerTests =
     // Kassenbuch und Budget-Streams teilen die In-Memory-DB. Isolation über neue Kategorie-Ids und eigene Monate (die
     // Jahre 2032 bis 2039 gehören nur diesen Tests), je Test; eine Buchung vor der Periode sichert, dass die erste
     // Buchung des Kassenbuchs nicht später liegt (andere Tests können sie nur früher legen).
-    // Die Tests fangen das Server-Log über `Console.SetError`: nie gleichzeitig mit anderen, die es auch tun.
-    testSequencedGroup ServerLogGroup
+    // Geteilt: die In-Memory-DB und das Server-Log über `Console.SetError` (siehe `TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Ausgaben der Periode aus dem Kassenbuch, Lesen eines Monats" [
         testCase "Die Seite zeigt BBs Fehlbetrag, Ausgaben der Periode im Kassenbuch zählen als gedeckt" <| fun () ->
             // Regressionstest budgeting-hbhzf: vorher zeigte die Seite YNABs `goal_under_funded`. Regressionstest
@@ -713,8 +709,8 @@ let private ledgerHandlerTests =
     ]
 
 let private applyTests =
-    // Die Tests fangen das Server-Log über `Console.SetError`: nie gleichzeitig mit anderen, die es auch tun.
-    testSequencedGroup ServerLogGroup
+    // Geteilt: die In-Memory-DB und das Server-Log über `Console.SetError` (siehe `TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Ausgaben der Periode aus dem Kassenbuch, Vorschau und Targets anwenden" [
         testCase "Targets anwenden zählt die Ausgaben der Periode im Kassenbuch als gedeckt" <| fun () ->
             // Regressionstest budgeting-hbhzf: vorher wies Targets anwenden YNABs `goal_under_funded` zu.

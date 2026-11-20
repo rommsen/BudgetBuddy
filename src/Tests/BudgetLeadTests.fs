@@ -476,13 +476,18 @@ let rec private paths (depth: int) : LeadStep list list =
 let private pathsFrom (first: LeadStep) : LeadStep list list =
     paths 2 |> List.map (fun rest -> first :: rest)
 
-/// Wie viele Folgen ab dem ersten Schritt wirklich laufen, abgezählt ohne den Code unter Test. Erneut senden
-/// braucht eine Entscheidung davor: als erster Schritt läuft keine Folge. Lesen und die beiden Änderungen in YNAB
-/// entscheiden nichts, nach ihnen fallen die 12 Folgen mit Erneut senden an zweiter Stelle weg und die 3, in denen
-/// ein weiterer solcher Schritt und dann Erneut senden folgt. Nach jedem anderen Schritt laufen alle 144 Folgen.
+/// Die ersten Schritte, je einer ein Teil der Aufzählung. Erneut senden braucht eine Entscheidung davor: als erster
+/// Schritt bräche jede seiner 144 Folgen vor dem ersten Aufruf ab, der Teil liefe ohne Code unter Test.
+let private firstSteps : LeadStep list =
+    leadSteps |> List.filter (fun s -> s.Name <> "Erneut senden")
+
+/// Wie viele Folgen ab dem ersten Schritt wirklich laufen, abgezählt ohne den Code unter Test. Lesen und die beiden
+/// Änderungen in YNAB entscheiden nichts, nach ihnen fallen die 12 Folgen mit Erneut senden an zweiter Stelle weg
+/// und die 3, in denen ein weiterer solcher Schritt und dann Erneut senden folgt. Nach jedem anderen Schritt laufen
+/// alle 144 Folgen. Von den 12 hoch 3 = 1.728 Folgen laufen damit zusammen 1.539 (3 · 129 + 8 · 144); die 189
+/// übrigen bringen Erneut senden vor jeder Entscheidung (144 ab dem ersten Schritt, 3 · 12 + 3 · 3 danach).
 let private walkedFrom (firstName: string) : int =
     match firstName with
-    | "Erneut senden" -> 0
     | "Lesen"
     | "YNAB ändert a"
     | "YNAB ändert b" -> 144 - 12 - 3
@@ -532,21 +537,15 @@ let private walkPath (connect: unit -> Microsoft.Data.Sqlite.SqliteConnection) (
 
 let private orderTests =
     testList "Reihenfolgen von Lesen und Senden" [
-        // Die Aufzählung aller Folgen aus drei Schritten (Doktrin Punkt 20), ein Testfall je erstem Schritt, jeder
-        // auf einer eigenen Datenbank, damit Expecto die Teile über die Kerne verteilt (infrastructure-x7p2e, vorher
-        // ein Fall mit 16 s). Die festen Wege darunter bleiben Pflicht: Sperre, Wiederholung mit Befehls-Id und
-        // Paarregel brauchen eigene Aufbauten.
-        testCase "Die Teile nach dem ersten Schritt decken jede Folge aus drei Schritten genau einmal ab" <| fun () ->
-            let names (path: LeadStep list) = path |> List.map (fun s -> s.Name)
-            let split = leadSteps |> List.collect pathsFrom |> List.map names
-            Expect.equal (List.length split) 1728 "12 hoch 3 Folgen"
-            Expect.equal (List.sort split) (paths 3 |> List.map names |> List.sort) "dieselben Folgen wie die ganze Aufzählung"
-            Expect.equal (leadSteps |> List.map (fun s -> s.Name) |> List.distinct |> List.length) 12 "zwölf Schritte mit eigenem Namen"
-            // 12 hoch 3 Folgen, ohne die 189, in denen Erneut senden vor jeder Entscheidung käme (144 + 3 · 12 + 3 · 3).
-            Expect.equal (leadSteps |> List.sumBy (fun s -> walkedFrom s.Name)) 1539 "so viele Folgen laufen zusammen"
-
-        for first in leadSteps do
-            testCase $"Jede Folge aus drei Schritten ab „{first.Name}“ hält O1 bis O3 und das Soll des Merkers" <| fun () ->
+        // Die Aufzählung aller Folgen aus drei Schritten (Doktrin Punkt 20), ein Testfall je erstem Schritt
+        // (`firstSteps`), jeder auf einer eigenen Datenbank, damit Expecto die Teile über die Kerne verteilt
+        // (infrastructure-x7p2e, vorher ein Fall mit 16 s). Die festen Wege darunter bleiben Pflicht: Sperre,
+        // Wiederholung mit Befehls-Id und Paarregel brauchen eigene Aufbauten.
+        // `Expecto.Tests.testCase` statt des Wrappers dieses Moduls: der legt das Schema auf der gemeinsamen
+        // Datenbank an, die Teile laufen aber außerhalb der Gruppe `TestGroups.InMemoryDb` und bringen ihr Schema in
+        // `ownBudgetDb` mit.
+        for first in firstSteps do
+            Expecto.Tests.testCase $"Jede Folge aus drei Schritten ab „{first.Name}“ hält O1 bis O3 und das Soll des Merkers" <| fun () ->
                 let anchor, connect = ownBudgetDb ()
                 use _ = anchor
                 let walked = pathsFrom first |> List.filter (walkPath connect) |> List.length
@@ -817,8 +816,8 @@ let private stderrOf (work: unit -> 'a) : 'a * string =
         Console.SetError original
 
 let private readTests =
-    // Fängt das Server-Log über `Console.SetError`, wie die Tests in `UnderfundedTests` (gleiche Gruppe).
-    testSequencedGroup "Server-Log"
+    // Geteilt: die In-Memory-DB und das Server-Log über `Console.SetError` (siehe `TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Lesen und Targets anwenden" [
         // Regressionstest budgeting-hbhzf: vorher lehnte Targets anwenden bei offener Rückschreibung ab
         // (`TargetsOpenWriteBackText`), weil YNABs Fehlbetrag auf YNABs Zugewiesen gerechnet war. BBs Fehlbetrag

@@ -14,5 +14,10 @@ module TestGroups
 /// Dazu gehören auch die Listen der Schreib-Sperre (`LedgerWriteGuardProbe`): ihre Fälle halten einen Spiegel-Lauf
 /// fest und schreiben Buchungen. In einer eigenen Gruppe sah die Sortierung im Lesepfad deren Buchungen im Zähler
 /// „Zu prüfen“ (zwei von zwei Probeläufen rot), und die Befehle der DB-Gruppe warteten an der Sperre.
+///
+/// Auch die Listen, die das Server-Log über `Console.SetError` fangen (`UnderfundedTests`, `BudgetLeadTests`), stehen
+/// hier: sie lesen und schreiben die geteilte DB, und `Console.SetError` gilt prozessweit, darf also nicht zweimal
+/// gleichzeitig umgeleitet sein. Eine eigene Gruppe „Server-Log“ lief parallel zur DB-Gruppe; seit beide Bedürfnisse
+/// in dieser Gruppe liegen, leitet keine andere Liste das Fehler-Log um, solange eine davon läuft.
 [<Literal>]
 let InMemoryDb = "In-Memory-DB"

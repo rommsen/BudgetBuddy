@@ -11,7 +11,7 @@ paths:
 
 Gate: `./verify.sh` (dotnet build, Expecto über die Tests.dll, npm run build, guard:classes, guard:tokens, test:scripts). Fertig ist, was dort `VERIFY: PASS` zeigt. Übersprungene Pflichttests zählen als rot; erlaubt sind nur die Listen "(requires .env)".
 
-Mechanisch geprüft von: `src/Tests/RemotingPipelineTests.fs`, `src/Tests/RemotingEndpointNegativeTests.fs`, `src/Tests/NetworkCallGuardTests.fs`, `src/Tests/TestDatabaseGuardTests.fs`, `src/Tests/ModuleLevelDbInitGuardTests.fs`, `src/Tests/StructureGuardTests.fs`, `scripts/claude-harness-check.test.mjs`, `scripts/browser-test-budget.test.mjs` mit `scripts/run-guards.mjs`.
+Mechanisch geprüft von: `src/Tests/RemotingPipelineTests.fs`, `src/Tests/RemotingEndpointNegativeTests.fs`, `src/Tests/NetworkCallGuardTests.fs`, `src/Tests/TestDatabaseGuardTests.fs`, `src/Tests/ModuleLevelDbInitGuardTests.fs`, `src/Tests/StructureGuardTests.fs`, `src/Tests/TestSequencingGuardTests.fs`, `scripts/claude-harness-check.test.mjs`, `scripts/browser-test-budget.test.mjs` mit `scripts/run-guards.mjs`.
 
 ## Heimat-Ebene
 
@@ -58,7 +58,7 @@ Diese Tests müssen bestehen und werden bei Änderungen am Bereich mitgezogen:
 ## Testdatenbank und Umgebung
 
 15. Tests laufen nie gegen die echte Datenbank. `src/Tests/test.runsettings` setzt `USE_MEMORY_DB=true` und `TZ=Europe/Berlin`, `src/Tests/Main.fs` setzt `USE_MEMORY_DB` zusätzlich für den Direktaufruf; `src/Tests/TestDatabaseGuardTests.fs` stoppt einen Lauf auf einer Datei-DB. Einzeltests mit eigener Verbindung nutzen `Data Source=:memory:`.
-16. Die In-Memory-DB ist für alle Testlisten geteilt und Expecto läuft parallel. Isolation kommt aus eindeutigen Ids. Listen auf der geteilten DB stehen in der Gruppe `testSequencedGroup TestGroups.InMemoryDb` (nacheinander, aber parallel zum Rest); `testSequenced` ohne Gruppe hält alles andere an und bleibt für Fälle, die wirklich allein laufen müssen. Viel Datenbankarbeit (etwa eine Aufzählung) läuft auf einer eigenen Datenbank (`BudgetEventsFixture.isolatedDb`). Über jeder Markierung steht als Kommentar, was die Fälle teilen (Wächter `TestSequencingGuardTests`).
+16. Die In-Memory-DB ist für alle Testlisten geteilt und Expecto läuft parallel. Isolation kommt aus eindeutigen Ids. Listen auf der geteilten DB stehen in der Gruppe `testSequencedGroup TestGroups.InMemoryDb` (nacheinander, aber parallel zum Rest), auch die, die zusätzlich prozessweiten Zustand wie das Server-Log (`Console.SetError`) umleiten; Gruppennamen kommen immer als Konstante aus `TestGroups`; `testSequenced` ohne Gruppe hält alles andere an und bleibt für Fälle, die wirklich allein laufen müssen. Viel Datenbankarbeit (etwa eine Aufzählung) läuft auf einer eigenen Datenbank (`BudgetEventsFixture.isolatedDb`). Über jeder Markierung steht als Kommentar, was die Fälle teilen (Wächter `TestSequencingGuardTests`, auch für den Gruppennamen).
 17. Uhr, Zeitzone und Zufall werden injiziert. Kein `DateTime.Now` im getesteten Code, wo eine Uhr übergeben werden kann.
 
 ## Property-Tests
