@@ -6,7 +6,7 @@ status: accepted
 date: 2026-11-05
 supersedes: []
 superseded_by: []
-related_tasks: [budgeting-zkbbd, budgeting-v7kfw, budgeting-hyn77, budgeting-qm5x9, budgeting-dgrp7, budgeting-dkjc5, budgeting-eh8xe, budgeting-e2z7v]
+related_tasks: [budgeting-zkbbd, budgeting-v7kfw, budgeting-hyn77, budgeting-qm5x9, budgeting-dgrp7, budgeting-dkjc5, budgeting-eh8xe, budgeting-e2z7v, budgeting-m5pqn]
 related_adrs: [0012, 0013, 0065, 0072, 0074, 0079, 0080, 0082, 0083, 0090]
 related_research: []
 ---
@@ -489,3 +489,6 @@ gelbe Rückmeldung mit "Erneut senden" sichtbar statt vermieden.
 
 ## Nachtrag 2026-11-08, umgesetzt (budgeting-e2z7v)
 Erfolg und Fehlschlag des Goal-Schreibens sind Ereignisse im Target-Stream (`TargetWrittenToYnab`, `TargetWriteToYnabFailed`, Actor `YnabMirror`), die letzte Entscheidung gewinnt, kein Zurückziehen-Ereignis. Geplant wird gegen YNABs heutiges Goal (ein `GET /categories` je Senden), gesendet nur, was abweicht (ADR 0072 Punkt 3); `goal_frequency` nur bei anderer Art oder anderem Rhythmus, ein Datum dann im zweiten Aufruf. Eine Änderung direkt in YNAB beobachtet BB nicht. Einzelheiten in ADR 0090.
+
+## Nachtrag 2026-11-20 (ADR 0101, budgeting-m5pqn)
+Zum Grundsatz und zum Nachtrag budgeting-dgrp7 (Punkt 3, Lesen): Das Lesen beobachtet nicht mehr und ruft YNAB nicht. Verfügbar und Zu verteilen sind BBs abgeleitete Werte (ADR 0101 Punkt 4), der Satz „Verfügbar und Zu verteilen bleiben YNABs Werte“ gilt nicht mehr. Beobachten und Echo-Regel (Punkt 3) laufen beim Nachziehen (ADR 0101 Punkt 6).

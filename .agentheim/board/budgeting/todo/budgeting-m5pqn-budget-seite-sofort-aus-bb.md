@@ -1,7 +1,7 @@
 ---
 id: budgeting-m5pqn
 title: "Budget-Monat aus BB: YNAB-Stand je Monat festhalten, getBudgetMonth liest nur die Datenbank, Verfügbar und Zu verteilen leitet BB aus Soll, Kassenbuch und Stand ab"
-status: backlog
+status: todo
 type: feature
 context: budgeting
 created: 2026-11-20
@@ -22,7 +22,7 @@ doch entschieden, dass Budgets führend sind. Also immer zuerst BB.“ (budgetin
 Heute fragt jeder Aufruf YNAB live: `getBudgetMonth` → `budgetMonthWithLedger` → `observeMonthWith` (`GET /months/{m}`)
 und `targetRulesBestEffort` (`GET /categories`). Der Rahmen kostet zwei weitere Aufrufe (budgeting-yx51n).
 
-Teil 1 von 4 nach ADR 0101 (Entwurf): dieser Monat, budgeting-yx51n Rahmen, budgeting-ffjk9 Nachziehen beim Öffnen,
+Teil 1 von 4 nach ADR 0101: dieser Monat, budgeting-yx51n Rahmen, budgeting-ffjk9 Nachziehen beim Öffnen,
 budgeting-vksa6 Monat beim Ortswechsel halten.
 
 ## What
@@ -70,20 +70,13 @@ Quellen je Wert (ADR 0101):
       per Verhalten oder Strukturwächter mit Gegenbeweis belegt.
 - [ ] Pipeline- und Negativtests für `getBudgetMonth` grün; Fixtures in `scripts/*.test.mjs` tragen `CopiedAt` im
       selben Schritt.
-- [ ] ADR 0101 auf `accepted`, Nachträge an ADR 0065 Punkt 1, 0076 Punkt 5 und 0084 (dgrp7-Satz) angehängt; README
-      budgeting nachgezogen, Delta mit `npm run check:readme-delta` geprüft.
+- [ ] README budgeting nachgezogen (ADR 0101 ist angenommen, die Nachträge an 0065, 0076 und 0084 stehen schon), Delta mit `npm run check:readme-delta` geprüft.
 - [ ] `./verify.sh` endet mit `VERIFY: PASS`.
 
 ## Notes
-- Fragen an Roman vor dem Promote (ADR 0101 Punkte 7 und 8 hängen daran):
-  - F1: Vortrag und Zu verteilen bleiben vorerst eine Kopie von YNABs Rechnung, die BB im Hintergrund nachzieht.
-    Zugewiesen, Aktivität und Verfügbar kommen aus BB, die Seite wartet nie. Selbst rechnen später mit
-    Parallelrechnung. Empfehlung: ja.
-  - F2: Aktivität aus dem Kassenbuch: eine in BB erfasste Buchung (Bob, Neue Buchung) senkt Verfügbar sofort, auch
-    bevor sie in YNAB ist. Empfehlung: ja.
-  - F3: Monat ohne Stand (direkt nach dem Deploy, nie geöffneter Monat) einmal wie heute laden. Empfehlung: ja.
-  - F5: Verfügbar ändert sich sofort beim Zuweisen, auch bei offener Rückschreibung; der dgrp7-Satz „Verfügbar und Zu
-    verteilen bleiben YNABs Werte“ fällt. Empfehlung: ja.
+- Entschieden (Roman, 2026-11-20, alle Empfehlungen, ADR 0101 angenommen): F1 Vortrag und Zu verteilen vorerst
+  als YNAB-Stand, F2 Aktivität aus dem Kassenbuch (eine in BB erfasste Buchung senkt Verfügbar sofort), F3 Monat
+  ohne Stand einmal beobachten, F5 Verfügbar sofort abgeleitet, der dgrp7-Satz fällt.
 - Konflikt der Spezialisten: der Architekt wollte die Aktivität aus dem Stand (sonst gemischte Quellen im Vortrag);
   gefolgt wurde dem tactical-modeler, weil der Vortrag beim Nachziehen aus einem einzigen YNAB-Monat gerechnet wird.
 - Die PATCH-Antwort von YNAB wird nicht gebraucht (`YnabClient.setAssignedWith` dekodiert zu `unit`).

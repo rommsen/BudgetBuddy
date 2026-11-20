@@ -54,7 +54,7 @@ dem es Änderungen in YNAB sieht (ADR 0101 Punkt 6).
 - [ ] `./verify.sh` endet mit `VERIFY: PASS`.
 
 ## Notes
-- Frage an Roman vor dem Promote, F4: Hinweis „YNAB-Stand von <Uhrzeit>“ nur, wenn das Nachziehen gescheitert ist,
-  sonst nichts zeigen. Empfehlung: ja. Ort und Form des Hinweises gegen `standards/frontend/styleguide.md` prüfen
+- Entschieden (Roman, 2026-11-20), F4: Hinweis „YNAB-Stand von <Uhrzeit>“ nur, wenn das Nachziehen gescheitert ist,
+  sonst nichts zeigen. Ort und Form des Hinweises gegen `standards/frontend/styleguide.md` prüfen
   (Hinweis am Ort, kein Toast).
 - Der `TakeoverWorker` bleibt auf die Übernahme beschränkt.

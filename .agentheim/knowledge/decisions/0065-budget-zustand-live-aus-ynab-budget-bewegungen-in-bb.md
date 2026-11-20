@@ -6,7 +6,7 @@ status: accepted
 date: 2026-10-26
 supersedes: []
 superseded_by: []
-related_tasks: [budgeting-k7wmd, budgeting-h2zfn, budgeting-afd8h, budgeting-m1bce, budgeting-dyn8g, budgeting-m3x7f]
+related_tasks: [budgeting-k7wmd, budgeting-h2zfn, budgeting-afd8h, budgeting-m1bce, budgeting-dyn8g, budgeting-m3x7f, budgeting-m5pqn]
 related_adrs: [0013, 0050, 0055, 0063, 0085]
 related_research: [ynab-api-targets-zuweisung-2026-10-25]
 ---
@@ -104,3 +104,6 @@ ADR 0084 macht BB im Budget führend. Bis zur Umsetzung der Folge-Tasks gilt die
   und neues Zugewiesen je gewählter Zeile, Zu verteilen davor gleich) und schreibt nur sie. Eine
   Zeile, die zwischen Vorschau und Anwenden neu hinzukommt, meldet kein "Stand hat sich geändert"
   mehr; sie steht in der nächsten Vorschau. Für die gewählten Zeilen gilt Punkt 6 unverändert.
+
+## Nachtrag 2026-11-20 (ADR 0101, budgeting-m5pqn)
+- **Punkt 1:** Zugewiesen und Aktivität führt BB, Vortrag und Zu verteilen hält BB als YNAB-Stand. Die Budget-Seite liest YNAB nicht mehr live (ADR 0101).

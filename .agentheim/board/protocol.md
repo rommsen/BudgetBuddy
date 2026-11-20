@@ -5,6 +5,24 @@ Newest entries on top.
 
 ---
 
+## 2026-11-20 23:18 -- Modeling / Promoted: budgeting-m5pqn - "Budget-Monat aus BB: YNAB-Stand je Monat festhalten, getBudgetMonth liest nur die Datenbank, Verfügbar und Zu verteilen leitet BB aus Soll, Kassenbuch und Stand ab"
+
+**Type:** Modeling / Promote
+**BC:** budgeting
+**From → To:** backlog → todo
+
+---
+
+## 2026-11-20 23:18 -- Modeling / Refined: Romans Antworten zu budgeting-m5pqn, budgeting-ffjk9, budgeting-nyx75, ledger-cyd1t
+
+**Type:** Modeling / Refine
+**BC:** budgeting, ledger
+**Status after:** m5pqn und vksa6 todo, ffjk9 backlog (Abhängigkeiten), nyx75 und cyd1t backlog (Skizze offen)
+**Summary:** Roman hat alle Empfehlungen angenommen. ADR 0101 angenommen, Nachträge an 0065, 0076, 0084; Nachtrag 0088 freigegeben.
+**ADRs written:** 0101 accepted
+
+---
+
 ## 2026-11-20 23:14 -- Modeling / Promoted: budgeting-yx51n - "Budget-Rahmen aus BB: Monatsfenster und Kategorie-Platzierung als YNAB-Stand, der Rahmen der Budget-Seite liest ohne YNAB-Aufruf"
 
 **Type:** Modeling / Promote

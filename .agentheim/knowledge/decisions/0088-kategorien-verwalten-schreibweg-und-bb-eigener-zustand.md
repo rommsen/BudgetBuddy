@@ -6,7 +6,7 @@ status: accepted
 date: 2026-11-08
 supersedes: []
 superseded_by: []
-related_tasks: [budgeting-pscgb, budgeting-sn2sn, budgeting-t7dka]
+related_tasks: [budgeting-pscgb, budgeting-sn2sn, budgeting-t7dka, budgeting-nyx75]
 related_adrs: [0083, 0084, 0086]
 related_research: []
 ---
@@ -56,7 +56,7 @@ Zu Punkt 2: Künftige Zuweisungen prüft BB über sein Soll in den übernommenen
 ## Nachtrag 2026-11-09, Targets anwenden (budgeting-t7dka)
 Zu Punkt 2: Targets anwenden lässt in BB deaktivierte Kategorien ganz weg, auch wenn sie im Monat wegen Aktivität oder Verfügbarem in der Liste stehen (Vorschau, Anwenden und das Feld der Leiste Monatserster, über `targetApplicationLines`). Ist BBs Deaktivieren-Zustand nicht lesbar, halten Vorschau und Anwenden an und es geht nichts nach YNAB; anders als die Budget-Seite gilt hier kein bestes Bemühen, weil es um Geld geht. Verschieben, Zuweisen und Pausieren bleiben unverändert.
 
-## Nachtrag 2026-11-20, Gruppe deaktivieren (budgeting-nyx75, Entwurf bis zur Freigabe der Task)
+## Nachtrag 2026-11-20, Gruppe deaktivieren (budgeting-nyx75, Roman 2026-11-20: alle Empfehlungen angenommen)
 Zu Punkt 2 und 4: Roman will Kategoriegruppen loswerden ("Ich kann keine Budget-Gruppen löschen") und hat am 2026-11-20 "In BB ausblenden" gewählt. Die YNAB-API kann eine Gruppe weder ausblenden noch löschen: `SaveCategoryGroup` hat nur `name`, ein `DELETE` gibt es nur für Buchungen und geplante Buchungen (OpenAPI-Spezifikation Version 1.91.0, gelesen 2026-11-20, Bericht `.agentheim/knowledge/research/ynab-api-kategoriegruppen-ausblenden-2026-11-20.md`). Punkt 4 (kein Löschen) bleibt.
 
 1. **Eigener Zustand je Gruppe.** BB merkt eine deaktivierte Gruppe in einer eigenen Tabelle (`budget_category_group_layout`), nicht als Flag an jeder ihrer Kategorien. Zustand, kein Ereignis (ADR 0083). Nach YNAB geht nichts; BB zeigt wie bei Kategorien den Hinweis, sie dort von Hand auszublenden.

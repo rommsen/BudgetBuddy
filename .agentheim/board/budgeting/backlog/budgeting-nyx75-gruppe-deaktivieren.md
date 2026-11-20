@@ -70,9 +70,9 @@ bleiben deaktiviert und stehen danach einzeln im Abschnitt „Deaktiviert“. BB
   einzeln: Name gedämpft, darunter klein „Gruppe · 3 Kategorien“ (ohne Kategorien „Gruppe · keine Kategorien“), rechts
   „Aktivieren“ (secondary, klein, Name „Gruppe Wohnen aktivieren“). Gruppen in YNABs Folge vor den einzelnen
   Kategorien, n zählt die Einträge.
-- Bedienelement zum Deaktivieren: siehe Frage 1 (Empfehlung: Schalter „Aktiv“ im Gruppen-Formular, `Input.switchRow`,
+- Bedienelement zum Deaktivieren: Schalter „Aktiv“ im Gruppen-Formular, `Input.switchRow`,
   Satz „Deaktiviert verschwindet sie samt ihren Kategorien aus Auswahl und Budget. Buchungen und Historie bleiben. Nur
-  in BB, YNAB bleibt unverändert.“).
+  in BB, YNAB bleibt unverändert.“. Der Knopf am Gruppenkopf heißt „Bearbeiten“, das Formular „Gruppe bearbeiten“.
 - Ablehnung am Schalter (`ErrorDisplay.inline'`), nie als Toast. Ändern sich Schalter und Name zugleich, geht der
   Schalter zuerst an BB, der Name danach nach YNAB.
 - Nach dem Deaktivieren ist „Deaktiviert“ aufgeklappt, der Eintrag leuchtet kurz, rollt ins Bild und trägt „In YNAB noch
@@ -123,13 +123,13 @@ bleiben deaktiviert und stehen danach einzeln im Abschnitt „Deaktiviert“. BB
       im Outcome. [human-eye]
 
 ## Notes
-- Fragen an Roman (Antwort vor dem Promote, dann Skizze zur Freigabe; Nachtrag ADR 0088 ist Entwurf bis dahin):
+- Entschieden (Roman, 2026-11-20, alle Empfehlungen; Nachtrag ADR 0088 freigegeben). Offen nur die Skizze:
   1. Wo deaktiviert man? (a) Schalter „Aktiv“ im Gruppen-Formular, (b) eigener Textknopf am Gruppenkopf.
-     Empfehlung (a): gleiches Muster wie Kategorie, Ablehnung an einem Feld, Kopf bei 412 px nicht überladen.
-  2. Was bringt „Aktivieren“ zurück? Empfehlung: nur die vorher aktiven Kategorien.
-  3. Was wird geprüft? Empfehlung: alle Kategorien der Gruppe, auch einzeln deaktivierte und in YNAB ausgeblendete.
-  4. Knopf am Kopf „Umbenennen“ oder „Bearbeiten“ (Formular „Gruppe bearbeiten“)? Empfehlung: „Bearbeiten“.
-  5. Zusätzlich Ablehnung an der Grenze beim Anlegen oder Verschieben in eine deaktivierte Gruppe? Empfehlung: ja.
+     Entschieden (a).
+  2. Was bringt „Aktivieren“ zurück? Entschieden: nur die vorher aktiven Kategorien.
+  3. Was wird geprüft? Entschieden: alle Kategorien der Gruppe, auch einzeln deaktivierte und in YNAB ausgeblendete.
+  4. Knopf am Kopf „Umbenennen“ oder „Bearbeiten“ (Formular „Gruppe bearbeiten“)? Entschieden: „Bearbeiten“ (Formular „Gruppe bearbeiten“).
+  5. Zusätzlich Ablehnung an der Grenze beim Anlegen oder Verschieben in eine deaktivierte Gruppe? Entschieden: ja.
 - YNAB-API: Ein nicht dokumentiertes `hidden` im `PATCH` wird nicht versucht. Nebenbefund des Berichts: `YnabClient`
   nutzt die alten Pfade `/budgets/{id}`, laut Changelog v1.79.0 weiter gültig, aber nicht mehr dokumentiert.
 - In YNAB ausgeblendete Gruppen fehlen schon heute (`interpretCategoryGroupsResponse`); BBs Deaktivieren bleibt davon

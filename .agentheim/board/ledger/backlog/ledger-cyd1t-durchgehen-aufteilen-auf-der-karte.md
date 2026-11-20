@@ -21,7 +21,7 @@ Roman (2026-11-20): „Man kann im Prüfen-Feature keine Split-Buchung anlegen.�
 Abhebung an der Kasse) lässt sich im Durchgehen sonst nur mit dem Umweg über das Detail sortieren.
 
 ## What
-Vorlage ist die Skizze zu dieser Task (von Roman freizugeben; Stand der Verfeinerung: Option A, siehe Notes).
+Vorlage ist die Skizze zu dieser Task (von Roman freizugeben; Option A, entschieden 2026-11-20).
 
 - **Knopf „Aufteilen“** rechts neben dem Feld „Kategorie“ der Normalkarte, in einer Zeile, 8 px Abstand, neutral
   (`Button.Secondary`), so hoch wie das Feld (52 px), ohne Symbol. Das Feld nimmt den Rest der Breite, der Wert wird
@@ -103,16 +103,16 @@ Vorlage ist die Skizze zu dieser Task (von Roman freizugeben; Stand der Verfeine
       [human-eye]
 
 ## Notes
-- Fragen an Roman vor dem Promote, danach Skizze zur Freigabe:
+- Entschieden (Roman, 2026-11-20, alle Empfehlungen). Offen nur die Skizze:
   1. Ort des Knopfs: (A) neben dem Feld „Kategorie“, (B) dritter Knopf unter der Karte zwischen „Lena fragen“ und
-     „Später“, (C) Eintrag „Aufteilen …“ in der Kategorieauswahl. Empfehlung A: ein Tipp, Karte wird nicht höher,
+     „Später“, (C) Eintrag „Aufteilen …“ in der Kategorieauswahl. Entschieden A: ein Tipp, Karte wird nicht höher,
      die Knöpfe unter der Karte bleiben die, die zur nächsten Karte gehen. B bricht „Rückfrage zurücknehmen“ bei
      412 px auf drei Zeilen um; C braucht zwei Tipps und ändert einen gemeinsamen Baustein.
-  2. Feld „Aufgeteilt“ öffnet den Editor (mit Pfeil wie im Detail)? Empfehlung: ja.
-  3. Knopf bei aufgeteilter Buchung „Aufteilen“ oder „Ändern“? Empfehlung: „Aufteilen“ bleiben.
-  4. Bestätigung am Feld „Kategorie“ oder in der Zeile unter „Passt, weiter“? Empfehlung: am Feld (ledger-mf2bg).
-  5. Taste A am PC? Empfehlung: ja.
-  6. Z ohne Rückgängig bei der jüngsten Bestätigung? Empfehlung: tut nichts.
+  2. Feld „Aufgeteilt“ öffnet den Editor (mit Pfeil wie im Detail)? Entschieden: ja.
+  3. Knopf bei aufgeteilter Buchung „Aufteilen“ oder „Ändern“? Entschieden: „Aufteilen“ bleiben.
+  4. Bestätigung am Feld „Kategorie“ oder in der Zeile unter „Passt, weiter“? Entschieden: am Feld (ledger-mf2bg).
+  5. Taste A am PC? Entschieden: ja.
+  6. Z ohne Rückgängig bei der jüngsten Bestätigung? Entschieden: tut nichts.
 - Vor dem Bauen klären: ob `EscapePressed` im Durchgehen neben `ReviewKey` feuert (`ReviewKeyboard`, View.fs ~5348).
 - `StartSaveSplits` lässt den Editor bis zur Antwort offen; mit gesperrtem Schließen landet die Bestätigung immer auf
   der richtigen Karte. `reviewCardEditing` hält die Karte schon heute fest.

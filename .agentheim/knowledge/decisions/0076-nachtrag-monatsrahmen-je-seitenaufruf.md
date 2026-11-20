@@ -6,7 +6,7 @@ status: accepted
 date: 2026-11-02
 supersedes: []
 superseded_by: []
-related_tasks: [budgeting-g8s3w]
+related_tasks: [budgeting-g8s3w, budgeting-yx51n]
 related_adrs: [0074, 0065]
 related_research: [ynab-reihenfolge-monate-target-schreiben-2026-11-02]
 ---
@@ -39,3 +39,6 @@ ADR 0074 legt fest, dass das Monatsfenster aus `GET /months` und die Reihenfolge
 ## Alternatives considered
 - **Felder in `BudgetMonth`.** Verworfen: jeder Monatswechsel kostete zwei bis drei Anfragen.
 - **Ordnen auf dem Server.** Verworfen: die Server-Abläufe brauchen die Reihenfolge nicht und zahlten sonst bei jedem Lesen eine weitere Anfrage.
+
+## Nachtrag 2026-11-20 (ADR 0101, budgeting-yx51n)
+- **Punkt 5:** Es gibt einen gehaltenen YNAB-Stand für Fenster und Platzierung. Er ist kein Cache vor YNAB, er hat genau einen Schreiber unter Sperre (ADR 0101 Punkt 5).

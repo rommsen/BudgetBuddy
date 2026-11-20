@@ -2,11 +2,11 @@
 id: 0101
 title: Die Budget-Seite liest nur BB. Zugewiesen und Aktivität führt BB, Vortrag, Zu verteilen, Kategorienliste und Monatsfenster hält BB als YNAB-Stand, den das Beobachten nachzieht
 scope: budgeting
-status: proposed
+status: accepted
 date: 2026-11-20
 supersedes: []
 superseded_by: []
-related_tasks: [budgeting-m5pqn]
+related_tasks: [budgeting-m5pqn, budgeting-yx51n, budgeting-ffjk9, budgeting-vksa6]
 related_adrs: [0014, 0065, 0074, 0076, 0083, 0084, 0088]
 related_research: []
 ---
@@ -35,6 +35,8 @@ widersprechen sich unerklärt).
 Befragt: architect und tactical-modeler (Verfeinerung budgeting-m5pqn).
 
 ## Decision
+
+Angenommen von Roman am 2026-11-20 mit allen Empfehlungen: Vortrag und Zu verteilen vorerst als YNAB-Stand (F1), Aktivität aus dem Kassenbuch (F2), ein Monat ohne Stand wird einmal beobachtet (F3), Hinweis nur nach gescheitertem Nachziehen (F4), Verfügbar sofort abgeleitet statt YNABs Wert (F5).
 
 1. **Der Lesepfad ruft YNAB nie.** `getBudgetMonth` und `getBudgetFrame` lesen nur BBs Datenbank: Ereignisse, Zustand,
    Kassenbuch und den YNAB-Stand (Punkt 3). Das Lesen nimmt keine Sperre und beobachtet nicht.
@@ -86,10 +88,10 @@ Befragt: architect und tactical-modeler (Verfeinerung budgeting-m5pqn).
      Ladezustand.
 
 7. **Ein Monat ohne Stand** (nie beobachtet, etwa direkt nach dem Deploy): Das Lesen beobachtet ihn einmal wie heute.
-   Das ist der einzige Lesefall mit YNAB-Aufruf; danach gilt Punkt 1. (Vorschlag, Entscheidung Roman offen.)
+   Das ist der einzige Lesefall mit YNAB-Aufruf; danach gilt Punkt 1. (Roman, 2026-11-20.)
 
 8. **Der Hinweis auf den Stand** steht nur, wenn das Nachziehen gescheitert ist: „YNAB-Stand von <Uhrzeit>“.
-   (Vorschlag, Entscheidung Roman offen.)
+   (Roman, 2026-11-20.)
 
 ## Consequences
 
