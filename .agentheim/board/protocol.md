@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-20 03:36 -- Batch started: [ledger-pz5wv]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-pz5wv - "Durchgehen ohne Toast (B3): letzte Aktion unter „Passt, weiter“ mit Rückgängig für jede Aktion, Fehler rot an derselben Stelle"
+**Parallel:** yes (neben p5y9s und k68sd; sx9v5 bereit, gehalten)
+
+---
+
 ## 2026-11-20 03:30 -- Task verified and completed: budgeting-y1kkr - "„Rückgängig“ nach einer Verschiebung im Sheet „Geld“: Verschiebung in die Gegenrichtung mit demselben Betrag, für Holen, Abgeben und den Fehlbetrag-Knopf, nur wenn alles geschrieben ist"
 
 **Type:** Work / Task completion
