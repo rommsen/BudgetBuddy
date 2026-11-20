@@ -1,7 +1,7 @@
 ---
 id: ledger-pz5wv
 title: "Durchgehen ohne Toast (B3): letzte Aktion unter „Passt, weiter“ mit Rückgängig für jede Aktion, Fehler rot an derselben Stelle"
-status: backlog
+status: todo
 type: feature
 context: ledger
 created: 2026-11-19

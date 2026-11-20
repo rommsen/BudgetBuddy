@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-20 02:55 -- Modeling / Promoted: ledger-pz5wv - "Durchgehen ohne Toast (B3): letzte Aktion unter „Passt, weiter“ mit Rückgängig für jede Aktion, Fehler rot an derselben Stelle"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-20 02:55 -- Modeling / Promoted: ledger-k68sd - "Kassenbuch am Handy ohne Toast (R3), Teil 4: gelöschte Buchung hinterlässt eine Zeile am Platz „… gelöscht · Rückgängig“ statt Toast, Fehler beim Löschen unter dem Knopf"
 
 **Type:** Modeling / Promote
