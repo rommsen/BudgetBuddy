@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-20 01:43 -- Modeling / Promoted: banking-import-ns4re - "Abrufen ohne Toast (R3): Meldungen im Sheet, solange es offen ist; Ergebnis und Fehler nach geschlossenem Sheet in der Meldungsleiste"
+
+**Type:** Modeling / Promote
+**BC:** banking-import
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-20 01:43 -- Modeling / Promoted: banking-import-vwhfm - "Einstellungen ohne Toast (R3): „✓ Gespeichert“ am Abschnitt oder Feld, Fehler rot unter dem Feld, Bankstatus und Push-TAN im Abschnitt, alle Texte deutsch"
 
 **Type:** Modeling / Promote

@@ -1,7 +1,7 @@
 ---
 id: banking-import-ns4re
 title: "Abrufen ohne Toast (R3): Meldungen im Sheet, solange es offen ist; Ergebnis und Fehler nach geschlossenem Sheet in der Meldungsleiste"
-status: backlog
+status: todo
 type: feature
 context: banking-import
 created: 2026-11-19
