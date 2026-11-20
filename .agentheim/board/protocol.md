@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-20 04:14 -- Batch started: [budgeting-sx9v5]
+
+**Type:** Work / Batch start
+**Tasks:** budgeting-sx9v5 - "Targets und Kategorien verwalten am Handy ohne Toast (R3): Ergebnis am Target im Sheet und in der Zeile der Prüfung, Kategorien verwalten mit leuchtender Zeile und Fehler am Feld, Hinweis „nicht neu gelesen“ auf der Seite"
+**Parallel:** yes (neben pz5wv und p5y9s)
+
+---
+
 ## 2026-11-20 03:44 -- Task verified and completed: banking-import-ns4re - "Abrufen ohne Toast (R3): Meldungen im Sheet, solange es offen ist; Ergebnis und Fehler nach geschlossenem Sheet in der Meldungsleiste"
 
 **Type:** Work / Task completion
