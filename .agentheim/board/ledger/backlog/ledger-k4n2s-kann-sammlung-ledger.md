@@ -182,3 +182,4 @@ Sammelstelle für Befunde, die stimmen, aber die Schwelle der Backlog-Disziplin 
 159. **Work-Lauf 2026-11-20 (ledger-enjex)**: `Feedback.sheetLine` mit Ton Fehler zeigt Aktion und Grund ohne Trenner („Nicht geändert YNAB nicht erreichbar“); ein Doppelpunkt wäre lesbarer (betrifft alle Zeilen im Sheet).
 160. **Work-Lauf 2026-11-20 (ledger-enjex)**: die Styleguide-Demo „Feld mit Leuchten und Bestätigung“ zeigt die Knopfzeile mit Bestätigung unter „Lena fragen“ (`Detail.actionRowWith`) noch nicht.
 161. **Work-Lauf 2026-11-20 (ledger-enjex)**: am PC steht ein vom Server abgelehnter Betrag rot im Dialog und zusätzlich in der Hinweisleiste des Panels dahinter („Betrag nicht geändert“, `AmountCommandFailed`).
+162. **Review-Lauf 2026-11-20**: `DeletedRowRestoring` in `DeletedRow.Phase` und `RestoringEntries` führen denselben Zustand doppelt; die Sperre kann aus der Phase kommen, solange es die Zeile gibt.

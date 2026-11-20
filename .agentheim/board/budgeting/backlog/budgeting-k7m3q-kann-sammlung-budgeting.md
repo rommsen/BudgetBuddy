@@ -27,3 +27,4 @@ Kann-Sammlung des BC nach der Regel Backlog-Disziplin in CLAUDE.md. Funde ohne G
 - Work-Lauf 2026-11-20 (budgeting-sx9v5): verlässt man „Targets prüfen“ vor der Antwort auf „übernehmen“, geht die Rückmeldung verloren (auch eine Ablehnung).
 - Work-Lauf 2026-11-20 (budgeting-sx9v5): der Satz „wird gleich neu gelesen“ steht auch nach gescheitertem Neu-Lesen noch da.
 - Work-Lauf 2026-11-20 (budgeting-sx9v5): eine Ablehnung zu einem Target kann im Sheet einer anderen Kategorie landen, wenn inzwischen gewechselt wurde.
+- Review-Lauf 2026-11-20: in Overview stehen `pinSaveNotice` und `pinStep` mit derselben Bedingung (`PinsSaved (Error _)` bei `Pins = Success sent`); die Wurzel könnte `overview'.PinError` nach dem Schritt lesen.
