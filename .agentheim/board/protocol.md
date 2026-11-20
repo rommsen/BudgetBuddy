@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-20 02:54 -- Batch started: [banking-import-ns4re]
+
+**Type:** Work / Batch start
+**Tasks:** banking-import-ns4re - "Abrufen ohne Toast (R3): Meldungen im Sheet, solange es offen ist; Ergebnis und Fehler nach geschlossenem Sheet in der Meldungsleiste"
+**Parallel:** yes (neben y1kkr und p3sk0; sx9v5 bereit, auf die nächste Welle gehalten)
+
+---
+
 ## 2026-11-20 02:45 -- Capture / Captured: budgeting-k7m3q - "Kann-Sammlung budgeting"
 
 **Type:** Capture
