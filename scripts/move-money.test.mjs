@@ -172,7 +172,7 @@ test("[flow:geld-verschieben] Handy: Zeile wählen, Abgeben, Gegenseite suchen, 
   }
 });
 
-test("[flow:verschiebung-erneut-senden] Fehlgeschlagener PATCH: der Hinweis steht in jedem Tab, der Toast bietet Erneut senden an, der Klick sendet dieselbe Anwendung", async () => {
+test("[flow:verschiebung-erneut-senden] Fehlgeschlagener PATCH: der Hinweis steht in jedem Tab, die Meldung bietet Erneut senden an, der Klick sendet dieselbe Anwendung", async () => {
   const { context, page, calls } = await openPage(390, 844, {
     move: () => ({ Ok: report({ Failed: "Rate-Limit" }) }),
     retry: () => ({ Ok: report("Written") }),
@@ -184,7 +184,11 @@ test("[flow:verschiebung-erneut-senden] Fehlgeschlagener PATCH: der Hinweis steh
     await page.locator('.bottom-sheet.active [role="option"]').filter({ hasText: "Urlaub afd8h" }).click();
     await afterPicker(page);
     await page.locator('[data-testid="transfer-submit"] button').click();
-    await page.getByText(/Nicht vollständig verschoben: Rate-Limit/).first().waitFor();
+    // Regel R3 (design-system-gkded): am Handy steht die Rückmeldung in der Leiste, die bis zu den Folge-Tasks unter
+    // dem offenen Sheet liegt.
+    const bar = page.getByTestId("feedback-bar");
+    await bar.getByTestId("feedback-action").filter({ hasText: "Nicht vollständig verschoben" }).waitFor();
+    await bar.getByTestId("feedback-detail").filter({ hasText: "Rate-Limit" }).waitFor();
     // Der Hinweis der offenen Verschiebung steht in jedem Tab des Sheets (aus dem früheren Layout-Test in
     // budget-money-tab.test.mjs hierher gezogen).
     const hint = page.locator('.bottom-sheet.fixed-height.active [data-testid="move-retry"]');
@@ -193,9 +197,10 @@ test("[flow:verschiebung-erneut-senden] Fehlgeschlagener PATCH: der Hinweis steh
       await tab.click();
       await hint.waitFor();
     }
-    await page.locator('button:has-text("Erneut senden"):not([data-testid="move-retry"] button)').click();
-    await page.locator('[data-testid="move-retry"]').waitFor({ state: "detached" });
-    await page.getByText("20,00 € von Lebensmittel afd8h nach Urlaub afd8h").first().waitFor();
+    await page.locator(".bottom-sheet.active").getByRole("button", { name: "Schließen" }).first().click();
+    await page.waitForFunction(() => document.querySelectorAll(".bottom-sheet.active").length === 0);
+    await bar.locator('[data-feedback-action="true"]', { hasText: "Erneut senden" }).click();
+    await bar.getByTestId("feedback-action").filter({ hasText: "20,00 € von Lebensmittel afd8h nach Urlaub afd8h" }).waitFor();
     assert.deepEqual(calls.retry, [["11111111-1111-1111-1111-111111111111"]]);
   } finally {
     await context.close();

@@ -55,7 +55,8 @@ test("[flow:kategorie-anpinnen] Am Handy eine Kategorie im Detail anpinnen, auf 
     assert.equal(await pin.getAttribute("aria-label"), "Auf der Übersicht anpinnen");
     const pinned = page.waitForRequest("**/api/BudgetApi/setPinnedCategories");
     await pin.tap();
-    await page.getByText("Kleidung angepinnt").waitFor();
+    // Am Handy steht die Rückmeldung in der Meldungsleiste (design-system-gkded).
+    await page.getByTestId("feedback-bar").getByTestId("feedback-action").filter({ hasText: "Kleidung angepinnt" }).waitFor();
     assert.equal(await pin.getAttribute("aria-label"), "Von der Übersicht lösen", "der Knopf zeigt den neuen Stand");
     assert.equal(JSON.parse((await pinned).postData())[0].length, 1, "die eine Kategorie gespeichert");
 

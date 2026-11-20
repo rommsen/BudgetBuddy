@@ -160,7 +160,7 @@ test("[flow:memo-setzen] PC: Memo hinzufügen setzt das Memo, Detail und Liste z
   assert.deepEqual(state.setCalls, [{ entryId: idOf(1), text: "  Werkzeug + Lampe " }], "der Client schickt den Entwurf, der Server trimmt");
   assert.ok((await memoRow(panel(page)).textContent()).includes("Werkzeug + Lampe"), "Detail zeigt das neue Memo");
   assert.equal(await memoAction(panel(page)).getAttribute("aria-label"), "Bearbeiten");
-  await page.getByText("Memo gesetzt", { exact: true }).waitFor();
+  await page.locator(".toast-layer").getByText("Memo gesetzt", { exact: true }).waitFor();
 
   // Esc schließt das Detail, das Panel bleibt leer stehen (ledger-cnaz3); die Liste zeigt das neue Memo.
   await page.keyboard.press("Escape");

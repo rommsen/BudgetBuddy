@@ -380,47 +380,147 @@ type ToastAction = {
     Kind: ToastActionKind
 }
 
-/// Toast notification.
-/// `Action`: optionale Schaltfläche am Toast (ledger-th36h); ohne Aktion verhält sich
-/// der Toast wie bisher.
-/// `Exiting` drives the two-phase removal: a toast is first marked exiting (which
-/// triggers the CSS exit animation in the view), then removed from the list after
-/// the exit duration has elapsed. This is what gives toasts a soft fade-out instead
-/// of vanishing abruptly (design-system-004).
-type Toast = {
+/// Ton einer Rückmeldung (Regel R3, ADR 0098, design-system-gkded): ok, Warnung, Fehler, läuft, Info. Die Leiste zeigt
+/// ihn als Zeichen und Farbe (`Feedback.Tone`), der PC-Toast als Variante (Läuft als Info).
+type FeedbackTone =
+    | FeedbackOk
+    | FeedbackWarning
+    | FeedbackError
+    | FeedbackRunning
+    | FeedbackInfo
+
+/// Gleichartige Aktionen, die zu einer Meldung zusammenlaufen. Heute nur „geprüft“ per Wisch.
+type FeedbackGroup = ReviewedBySwipe
+
+/// Die eine Rückmeldung der App (`State.Model.Feedback`). Unter 1024 px zeigt sie die Leiste, ab 1024 px der Toast,
+/// beides aus demselben Wert. `ToastHidden` und `ToastExiting` gelten nur für den Toast am PC: nach 5 s oder ✕ geht
+/// er sanft ab (`ToastExiting`, dann `ToastHidden`); die Leiste zeigt die Meldung weiter, bis eine neue sie ersetzt
+/// oder ein Seitenwechsel den Platz leert.
+type FeedbackMessage = {
     Id: Guid
-    Message: string
-    Type: ToastType
-    Exiting: bool
-    Action: ToastAction option
+    Tone: FeedbackTone
+    /// Obere Zeile, was passiert ist; nie gekürzt.
+    Action: string
+    /// Untere Zeile, Name oder Grund.
+    Detail: string option
+    /// „Rückgängig“, „Erneut senden“, „Neu laden“.
+    Act: ToastAction option
+    /// Gruppe und Zahl der zusammengefassten Aktionen.
+    Group: (FeedbackGroup * int) option
+    /// Trenner zwischen Aktion und Detail im Toast am PC („ · “ oder „: “), damit sein Text der von heute bleibt.
+    ToastSeparator: string
+    ToastHidden: bool
+    ToastExiting: bool
 }
 
-/// Toast lifecycle helpers — pure, so the exiting→removed transition is unit-testable
-/// without an Elmish runtime (design-system-004). The exit duration MUST match the
-/// CSS `animate-toast-out` keyframe duration in `styles.css`.
+/// Der eine Meldungsplatz der App: rein, damit Ersetzen und Zusammenfassen ohne Elmish testbar sind.
+module FeedbackSlot =
+
+    /// Teilt einen Toast-Text von heute am ersten „: “ oder „ · “ in Aktion und Detail (Übergang, bis die Seiten
+    /// Aktion und Detail getrennt setzen). Ohne Trenner ist alles die Aktion.
+    let private splitWith (text: string) : string * string * string option =
+        let found =
+            [ ": "; " · " ]
+            |> List.choose (fun sep ->
+                let i = text.IndexOf(sep, StringComparison.Ordinal)
+                if i > 0 then Some (i, sep) else None)
+        match found with
+        | [] -> text, " · ", None
+        | _ ->
+            let i, sep = found |> List.minBy fst
+            let detail = text.Substring(i + sep.Length).Trim()
+            text.Substring(0, i), sep, (if detail = "" then None else Some detail)
+
+    let splitText (text: string) : string * string option =
+        let action, _, detail = splitWith text
+        action, detail
+
+    /// Der Text des Toasts am PC: „Aktion · Detail“ bzw. „Aktion: Detail“ wie heute, ohne Detail nur die Aktion.
+    let toastText (message: FeedbackMessage) : string =
+        match message.Detail with
+        | Some detail -> message.Action + message.ToastSeparator + detail
+        | None -> message.Action
+
+    let private toneOf (toastType: ToastType) : FeedbackTone =
+        match toastType with
+        | ToastSuccess -> FeedbackOk
+        | ToastWarning -> FeedbackWarning
+        | ToastError -> FeedbackError
+        | ToastInfo -> FeedbackInfo
+
+    /// Die Gruppe einer Aktion: nur der Wisch setzt `UndoReviewMark` (Kassenbuch, `SwipeReviewedDone`).
+    let private groupOf (act: ToastAction option) : (FeedbackGroup * int) option =
+        match act with
+        | Some { Kind = UndoReviewMark _ } -> Some (ReviewedBySwipe, 1)
+        | _ -> None
+
+    /// Eine Meldung aus einem Toast von heute (`ShowToast`, `ShowToastWithAction`).
+    let ofToast (id: Guid) (text: string) (toastType: ToastType) (act: ToastAction option) : FeedbackMessage =
+        let action, separator, detail = splitWith text
+        { Id = id
+          Tone = toneOf toastType
+          Action = action
+          Detail = detail
+          Act = act
+          Group = groupOf act
+          ToastSeparator = separator
+          ToastHidden = false
+          ToastExiting = false }
+
+    /// Text einer zusammengefassten Gruppe.
+    let groupText (group: FeedbackGroup) (count: int) : string =
+        match group with
+        | ReviewedBySwipe -> $"{count} geprüft"
+
+    /// Die Rückgängig-Schritte zweier Meldungen derselben Gruppe als einer, falls sie sich vereinen lassen.
+    let private mergeActs (current: ToastAction option) (incoming: ToastAction option) : ToastAction option =
+        let items (act: ToastAction option) : Shared.Domain.ReviewMarkRestoreItem list option =
+            match act with
+            | Some { Kind = UndoReviewMark (entryId, previous) } -> Some [ { EntryId = entryId; Previous = previous } ]
+            | Some { Kind = UndoReviewMarkBatch batch } -> Some batch
+            | _ -> None
+        match incoming, items current, items incoming with
+        | Some inc, Some a, Some b -> Some { Label = inc.Label; Kind = UndoReviewMarkBatch (a @ b) }
+        | _ -> None
+
+    /// Setzt eine neue Meldung in den Platz. Tragen aktuelle und neue Meldung dieselbe Gruppe und lassen sich ihre
+    /// Rückgängig-Schritte vereinen, wird daraus eine Meldung „{n} geprüft“ mit einem Rückgängig für alle; sonst
+    /// ersetzt die neue Meldung die alte. Die Id ist immer die der neuen Meldung: Zeitgeber der alten tun nichts.
+    let post (current: FeedbackMessage option) (incoming: FeedbackMessage) : FeedbackMessage =
+        match current, incoming.Group with
+        | Some cur, Some (group, added) ->
+            match cur.Group with
+            | Some (curGroup, count) when curGroup = group ->
+                match mergeActs cur.Act incoming.Act with
+                | Some act ->
+                    let n = count + added
+                    { incoming with
+                        Action = groupText group n
+                        Detail = None
+                        Act = Some act
+                        Group = Some (group, n) }
+                | None -> incoming
+            | _ -> incoming
+        | _ -> incoming
+
+    /// Ist die Meldung der Hinweis „Neue Version verfügbar.“ der PWA (ADR 0057)?
+    let isUpdateNotice (message: FeedbackMessage) : bool =
+        match message.Act with
+        | Some { Kind = ReloadForUpdate } -> true
+        | _ -> false
+
+    /// Geht der Toast am PC nach 5 s von selbst? Nicht bei „läuft“ und nicht beim PWA-Hinweis.
+    let autoDismisses (message: FeedbackMessage) : bool =
+        message.Tone <> FeedbackRunning && not (isUpdateNotice message)
+
+/// Abgang des Toasts am PC (design-system-004): die Dauer der Abgangsanimation.
 module Toast =
 
     /// Duration of the exit animation in ms. Kept in lock-step with the
     /// `.animate-toast-out` keyframe in `styles.css`. The MVU timer that finally
-    /// removes a toast waits this long after marking it exiting.
+    /// hides the toast waits this long after marking it exiting.
     [<Literal>]
     let exitDurationMs = 220
-
-    /// Mark the toast with `id` as exiting. Idempotent: re-marking an already-exiting
-    /// toast leaves the list unchanged, so a rapid second dismiss (auto + manual, or a
-    /// double click) does not restart the lifecycle or schedule a duplicate timer.
-    let markExiting (id: Guid) (toasts: Toast list) : Toast list =
-        toasts
-        |> List.map (fun t -> if t.Id = id then { t with Exiting = true } else t)
-
-    /// True if a (still-present) toast with `id` is already marked exiting. Used as the
-    /// double-fire guard before scheduling the removal timer.
-    let isExiting (id: Guid) (toasts: Toast list) : bool =
-        toasts |> List.exists (fun t -> t.Id = id && t.Exiting)
-
-    /// Final removal of the toast with `id` from the list.
-    let remove (id: Guid) (toasts: Toast list) : Toast list =
-        toasts |> List.filter (fun t -> t.Id <> id)
 
 // ============================================
 // Beträge im Eingabefeld

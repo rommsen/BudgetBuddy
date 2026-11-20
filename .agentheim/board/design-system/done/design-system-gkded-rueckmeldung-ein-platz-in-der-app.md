@@ -1,7 +1,7 @@
 ---
 id: design-system-gkded
 title: "Rückmeldung am Handy ohne Toast (Regel R3), Teil 2: ein Meldungsplatz in der App statt Toast-Liste, Leiste unter 1024 px mit „+ Buchung“, Toast am PC höchstens einer, gleiche Wische zusammengefasst, alte Toasts übergangsweise in der Leiste, Sweep-Invariante mit Gegenbeweis"
-status: doing
+status: done
 type: feature
 context: design-system
 created: 2026-11-19
@@ -231,3 +231,77 @@ Skizze lokal (`…` = `/private/tmp/claude-501/-Users-romansachse-src-BudgetBudd
   `heute-kassenbuch-wisch-412.png`, `heute-uebersicht-412.png`
 
 Hinweis Verifier design-system-ytgnc (2026-11-20): das Muster-Bullet der design-system-README nennt noch „Toast … Mobile oben über der Bottom-Nav“ (ADR 0007); mit dieser Task nachziehen.
+
+
+## Outcome
+
+Ein Meldungsplatz statt der Toast-Liste (Regel R3, ADR 0098). Die Seiten senden weiter `ShowToast`, die Wurzel setzt daraus den Platz.
+
+**Modell und Wurzel**
+- `src/Client/Types.fs`: `FeedbackTone`, `FeedbackGroup` (`ReviewedBySwipe`), `FeedbackMessage` und `module FeedbackSlot` mit `post`, `ofToast`, `splitText`, `toastText`, `groupText`, `isUpdateNotice` und `autoDismisses`. Der alte `Toast`-Record und `markExiting`/`isExiting`/`remove` sind entfernt. `Toast.exitDurationMs` bleibt.
+- Abweichung von der Signatur in der Task: `FeedbackMessage` hat zusätzlich das Feld `ToastSeparator` („ · “ oder „: “). Grund: Der PC-Toast soll seinen Text wie heute zeigen, also „Aktion · Detail“ bzw. „Aktion: Detail“. `splitText` allein verliert den Trenner. `splitText` hat die Signatur aus der Task.
+- `src/Client/State.fs`: `Model.Feedback: FeedbackMessage option`. Alle Quellen der Wurzel laufen über `ShowToast`/`ShowToastWithAction` und damit über `postFeedback` → `FeedbackSlot.post`: Fetch, Settings, Rules mit „Regel gelöscht“, Ledger, Pins und Budget. Das gilt auch für den PWA-Hinweis.
+- Neue Nachrichten: `ShowFeedback`, `FeedbackActClicked of Guid` (wirkt nur für die aktuelle Id, leert den Platz) sowie `StartDismissToast`/`ToastExited` für den PC-Toast (`ToastExiting`, dann `ToastHidden`; die Meldung bleibt für die Leiste).
+- `UrlChanged` leert den Platz nur, wenn sich der `pageKey` ändert.
+- Der PWA-Hinweis hat kein Zeitlimit. Wird er ersetzt, wechselt die Seite oder wird ✕/Klick gewählt, gilt er als geschlossen (`NoticeShown = false`).
+
+**Zwei Ansichten** (`src/Client/View.fs`, CSS-getrennt)
+- `Feedback.bar BarPlacement.Docked` sitzt in der Hülle `FeedbackDock`. Diese misst die Höhe nach `--feedback-bar-height` (`Viewport.mirrorChildHeight`).
+- Lage über die Klassen `feedback-dock-nav`, `feedback-dock-edge` (Durchgehen) und `feedback-dock-selection` (über der Auswahl-Leiste am Handy). Die mobile Auswahl-Leiste wird dafür nach `--ledger-mobile-bar-height` gemessen (`MeasuredBar` in `Components/Ledger/View.fs`).
+- Von 768 bis 1023 px beginnt die Leiste rechts der Rail und steht über `--ledger-bottom-bar-height`.
+- „+ Buchung“: Kassenbuch mit `captureFabVisible` und `FromLg`, Übersicht mit `FromMd` und `Quiet = captureQuiet`. Die `data-testid` bleiben `ledger-capture-fab`/`overview-capture-fab`. Ab 768 px blendet die Hülle auf der Übersicht ohne Meldung mit `md:hidden` aus.
+- Entfernt: `captureFab` (Ledger und Overview), `captureFabSpacer`, `.ledger-capture-fab`/`.overview-capture-fab`, `.toast-above-nav` sowie in `Toast.fs` `container`, `containerDefault`, `actionContainer`, `renderItems`, `renderList` und `ToastPosition`.
+- Neu ist `Toast.single`: `hidden lg:flex`, unten rechts, `toast-above-bar`, `toast-layer`.
+- `Navigation.fs`: `shellOffset` und `pageContentFlush` rechnen `--feedback-bar-height` ein.
+- Die Styleguide-Demo „17. Toast“ zeigt einen Toast im Fluss der Seite, damit der Export bei 880 px ihn misst.
+
+**Tests**
+- `src/Tests/FeedbackSlotTests.fs` ersetzt `ToastLifecycleTests.fs` (29 Tests). Abgedeckt:
+  - `post`: ersetzen; 1 → 2 → 3 mit `UndoReviewMarkBatch`; Id der neuen; andere Aktion ersetzt; Gruppe beginnt bei 1; Wisch ohne Rückgängig ersetzt.
+  - `splitText` (beide Trenner, erster gewinnt, ohne Trenner), `ofToast`, `toastText`.
+  - Wurzel: Ersetzen, Zusammenfassen über `ShowToastWithAction`, `ShowFeedback`, Läuft ohne Zeitgeber, Abgang mit `CmdTiming.expectAfter 220`, doppeltes ✕, Zeitgeber einer ersetzten Meldung, Klick aktuell und alt, Seitenwechsel leert, gleicher `pageKey` behält, PWA-Hinweis ersetzt bzw. Seitenwechsel schließt, Erneut senden bei laufender Schlange.
+- `PwaTests.fs` angepasst. Alle Root-Modelle in den Tests haben jetzt `Feedback = None`.
+- Gegenprobe: Ohne den Zusammenfass-Zweig in `post` (`when false && …`) waren 2 Tests rot („1 → 2 → 3“ und „fasst Wische über post zusammen“). Danach wiederhergestellt.
+
+**Sweep** (`scripts/layout-invariants.mjs`)
+- Invariante 12 „Rückmeldung“ ist im Kopfkommentar ergänzt. Bei 5 und 11 gilt der Toast nur ab 1024 px.
+- Sie läuft oben und am Ende gescrollt. Sie zählt nur die feste Leiste `.feedback-bar-docked[data-testid="feedback-bar"]`, die Styleguide-Vorschauen stehen im Fluss. Die Task nennt `[data-feedback="bar"]`, design-system-ytgnc hat `data-testid="feedback-bar"` gebaut.
+- Gegenbeweise in `layout-invariants.test.mjs`:
+  - (a) `--feedback-bar-height: 0` meldet die letzte Zeile als verdeckt. Er ersetzt den Gegenbeweis `ledger-capture-fab-spacer`.
+  - (b) Ein sichtbarer Toast meldet „Toast am Handy“.
+  - (c) Eine Meldung über dem runden + meldet „Knopf der Leiste verdeckt“.
+- Neue Zustände: `kassenbuch-meldung` (320, 390, 412 per Wisch; 900 per Kategorieänderung im Sheet, weil es dort keinen Wisch gibt und G am Ort meldet), `kassenbuch-3-geprueft` (412) und `uebersicht-meldung` (390, 412, 1280).
+- Angepasste Zustände:
+  - Warten auf `[data-feedback-action]` unter 1024 px (`feedbackAction`).
+  - `kassenbuch-kategorie-toast`: Am Handy wird die Leiste nach dem Schließen geprüft, dazu kommt 1280.
+  - `.ledger-capture-fab` → `getByTestId("ledger-capture-fab")`.
+  - `closeLedgerSheet` klickt erneut, falls `Viewport.swallowNextClick` (350 ms nach einer Picker-Wahl) den ersten Klick schluckt. Vorher hat die Einblend-Animation des Toasts das verdeckt.
+- Regression c819eeb: Der Gegenbeweis läuft jetzt bei `uebersicht-meldung` @ 1280, mit Toast über dem offenen Dialog „Angepinnt“. Bei `kassenbuch-kategorie-toast` @ 1280 liegt nichts über dem Toast, das Panel ist keine Ebene darüber. Dort kann der Gegenbeweis nicht anschlagen. Am Handy gibt es den Fall nicht mehr (Entscheidung Roman: Leiste unter dem Sheet).
+- Doktrin Punkt 8 (lokal zurückgedreht, rot gesehen, wiederhergestellt):
+  - ledger-at63w (Abstandshalter unter der Liste, heute `--feedback-bar-height` in `shellOffset`): `pb-24 md:pb-8` ohne die Variable eingesetzt. `kassenbuch` @ 390 meldete Invariante 5 und 12: „Füllbuchung 40 … am Ende gescrollt: von der Meldungsleiste verdeckt“.
+  - design-system-vf94m (Toast mit Aktion unten über dem schwebenden Knopf): `Toast.single` am Handy sichtbar gemacht (`flex … inset-x-4 bottom-[94px]`). `kassenbuch-meldung` @ 412 meldete Invariante 12: „div "Bauhaus geprüftRückgängig": Toast am Handy“.
+
+**Browser-Tests**
+- Am Handy wird die Leiste gesucht: `ledger-capture`, `ledger-payee`, `move-money` (Erneut senden), `kategorie-anpinnen` und `target-check`.
+- `ledger-payee` und `move-money` schließen zuerst das Sheet, weil die Leiste bis ledger-gwr9j unter dem Sheet liegt (Entscheidung Roman).
+- Am PC suchen `ledger-lena`, `ledger-lena-batch`, `ledger-memo` und `ledger-split-editor` den Text im `.toast-layer`, weil die versteckte Leiste denselben Text trägt.
+- Keine neuen Flow-Tests.
+
+**Styleguide** (`standards/frontend/styleguide.md`)
+- §6: zweiphasiger Abgang nur für den PC-Toast, Zustand `Model.Feedback`.
+- §7.13: neue Punkte „Ein Zustand für beide“ und „Übergang“.
+- §5: Zeile Toast mit `single` statt `renderList`.
+
+**Vergleich mit der Skizze** (Screenshots in `/private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/4b5cf62e-3174-40e3-90f3-4b5312280eb9/scratchpad/result-shots/design-system-gkded/`)
+- `kassenbuch-ruhe-412.png` neben `skizze-shots/20-kassenbuch-ruhe.png`: Die Leiste über der Navigation trägt das breite „+ Buchung“ rechts, mit Rand oben. Seitenkopf, Tabs und Suche sind Stand von BB und nicht Teil dieser Task.
+- `kassenbuch-geprueft-412.png` neben `22-…`: ✓, Meldung, „Rückgängig“ im Akzent, rundes +. Abweichung (genannt): „Bauhaus geprüft“ in einer Zeile statt „Geprüft“ / „Bauhaus“ (Übergang `splitText`).
+- `kassenbuch-3-geprueft-412.png` neben `23-…`: „✓ 3 geprüft · Rückgängig“ und rundes +, gleich.
+- `uebersicht-meldung-412.png` neben `30-uebersicht-leiste.png`: Meldung links (hier Fehler rot mit Grund), „+ Buchung“ rechts ruhig. Unterschied zur Skizze: Skizze 30 zeigt „+ Buchung“ mit Meldung breit, die Task verlangt rund mit Meldung (`Feedback.addShape`). Umgesetzt ist die Task, bitte mit Roman klären.
+- `kassenbuch-toast-1280.png` (PC 1280, nach dem Kategoriewechsel): Detail im Panel, keine Leiste. Der Toast steht unten rechts. Auf dem Bild ist er noch in der Einblendung oder schon abgelaufen: das Bild entstand nach `settle`, Lage und Oberstes prüft der Sweep (Invariante 5).
+- [human-eye] Gesamteindruck bleibt für Roman.
+
+**Gate**: `./verify.sh` → `VERIFY: PASS` (dotnet 5242, node 354).
+
+**Kann-Sammlung design-system**
+- Ausnahme `kassenbuch-kategorie-toast` @ 1280, Invariante 5, `[data-testid="detail-history-toggle"]`: Der PC-Toast steht 5 s über „Historie“ am Ende des Details. Gleiche Lage wie vor dieser Task; die Folge-Tasks nehmen Meldungen mit Ort aus dem Toast.
+- `scripts/browser-usage.mjs` `FLOWS` nennt bei `verschiebung-erneut-senden` noch „über den Toast“.

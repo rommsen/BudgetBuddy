@@ -148,7 +148,10 @@ test("[flow:targets-pruefen] Handy: über das Feld Targets prüfen der Leiste Mo
     assert.ok((await page.locator('[data-testid="spark-bars"]').count()) > 0, "die Mini-Balken stehen da");
     assert.equal(sparkStops, 0, "die Mini-Balken haben keinen Tab-Stopp");
     await rowOf(page, "Strom q4v8n").getByRole("button", { name: "150 € übernehmen" }).click();
-    await page.getByText("Strom q4v8n: Target jetzt 150 € monatlich.").waitFor();
+    // Am Handy steht die Rückmeldung in der Meldungsleiste, Aktion und Detail getrennt (design-system-gkded).
+    const bar = page.getByTestId("feedback-bar");
+    await bar.getByTestId("feedback-action").filter({ hasText: "Strom q4v8n" }).waitFor();
+    await bar.getByTestId("feedback-detail").filter({ hasText: "Target jetzt 150 € monatlich." }).waitFor();
 
     const fits = page.locator('[data-testid="target-check-group"]').filter({ hasText: "Passt" });
     await fits.locator('[data-testid="target-check-group-toggle"]').click();

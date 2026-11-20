@@ -169,7 +169,7 @@ test("[flow:lena-fragen-mehrere] PC: Lena fragen für zwei Buchungen, ein Aufruf
     assert.equal(await withdraw.count(), 0, "keine gewählte Buchung ist gefragt: kein Zurücknehmen");
 
     await ask.click();
-    await page.getByText("2 Buchungen an Lena gefragt", { exact: true }).waitFor();
+    await page.locator(".toast-layer").getByText("2 Buchungen an Lena gefragt", { exact: true }).waitFor();
     assert.equal(state.setCalls.length, 1, "genau ein Sammelaufruf");
     assert.equal(state.setCalls[0].flagTarget, "AssignLena");
     assert.deepEqual([...state.setCalls[0].selection.BatchPicked].sort(), [idOf(1), idOf(2)].sort(), "die gewählten Ids");
@@ -183,7 +183,7 @@ test("[flow:lena-fragen-mehrere] PC: Lena fragen für zwei Buchungen, ein Aufruf
     assert.ok(!(await lenaMark(PAYEES[2])).includes("Lena"), "Zeile 3 unberührt");
 
     await page.getByRole("button", { name: "Rückgängig" }).click();
-    await page.getByText("Flag bei 2 Buchungen zurückgesetzt", { exact: true }).waitFor();
+    await page.locator(".toast-layer").getByText("Flag bei 2 Buchungen zurückgesetzt", { exact: true }).waitFor();
     assert.equal(state.restoreCalls.length, 1, "ein Rückgängig-Aufruf für alle");
     assert.deepEqual(state.restoreCalls[0].map((i) => i.EntryId).sort(), [idOf(1), idOf(2)].sort());
     assert.ok((await lenaMark(PAYEES[0])).includes("Lena") === false, "Zeile 1 wieder ohne Kennzeichen");

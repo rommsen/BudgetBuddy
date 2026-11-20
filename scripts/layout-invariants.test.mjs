@@ -49,7 +49,7 @@ test("[layout] Sweep: eine Ausnahme nennt Breite, Invariante und Selektor und un
     for (const e of state.exceptions ?? []) {
       const label = `${state.name}: ${JSON.stringify(e)}`;
       assert.ok(state.widths.includes(e.width), `Breite des Zustands (${label})`);
-      assert.ok(Number.isInteger(e.inv) && e.inv >= 1 && e.inv <= 11, `Invariante 1 bis 11 (${label})`);
+      assert.ok(Number.isInteger(e.inv) && e.inv >= 1 && e.inv <= 12, `Invariante 1 bis 12 (${label})`);
       assert.ok(typeof e.selector === "string" && e.selector.trim() !== "", `Selektor nicht leer (${label})`);
     }
   }
@@ -178,9 +178,10 @@ test("[layout] Gegenbeweis Invariante 5: ein Sheet, das unten aus dem Bild ragt,
   assert.ok(hits.some((v) => v.value.includes("nicht ganz im Bild")), hits.map(formatViolation).join("\n"));
 });
 
-test("[layout] Gegenbeweis Invariante 5: ein Toast hinter dem Sheet meldet seinen Knopf als verdeckt", async () => {
-  // Regression c819eeb: der Toast nach dem Kategoriewechsel lag hinter dem Detail-Sheet.
-  const hits = await brokenFinds("kassenbuch-kategorie-toast", 390, 5, ".toast-layer { z-index: 0 !important; }");
+test("[layout] Gegenbeweis Invariante 5: ein Toast hinter dem offenen Dialog meldet seinen Knopf als verdeckt", async () => {
+  // Regression c819eeb: der Toast nach dem Kategoriewechsel lag hinter dem Detail-Sheet. Seit design-system-gkded steht
+  // der Toast nur ab 1024 px; dort liegt er über einem offenen Dialog (Pins speichern scheitert im Dialog „Angepinnt“).
+  const hits = await brokenFinds("uebersicht-meldung", 1280, 5, ".toast-layer { z-index: 0 !important; }");
   assert.ok(hits.some((v) => v.selector.startsWith("button") && v.value.startsWith("verdeckt")), hits.map(formatViolation).join("\n"));
 });
 
@@ -196,11 +197,31 @@ test("[layout] Gegenbeweis Invariante 5: eine Liste, deren Ende unter der Auswah
   assert.ok(hits.some((v) => v.value.startsWith("am Ende gescrollt verdeckt") && v.value.includes("selection-bar")), hits.map(formatViolation).join("\n"));
 });
 
-test("[layout] Gegenbeweis Invariante 5: eine Liste, deren letzte Buchung unter + Buchung liegt, meldet das Verdecken", async () => {
-  // Review ledger-at63w: der schwebende Knopf "+ Buchung" verdeckte am Handy Betrag und Symbol der letzten Zeile,
-  // weil unter der Liste nur der Platz für die Navigation frei war. Ohne den Abstandshalter tritt das wieder auf.
-  const hits = await brokenFinds("kassenbuch", 390, 5, '[data-testid="ledger-capture-fab-spacer"] { display: none !important; }');
-  assert.ok(hits.some((v) => v.value.startsWith("am Ende gescrollt verdeckt") && v.value.includes("ledger-capture-fab")), hits.map(formatViolation).join("\n"));
+test("[layout] Gegenbeweis Invariante 12 (a): ohne den freigehaltenen Platz der Leiste meldet sie die letzte Zeile als verdeckt", async () => {
+  // Review ledger-at63w: „+ Buchung“ verdeckte am Handy Betrag und Symbol der letzten Zeile, weil unter der Liste nur
+  // der Platz für die Navigation frei war. Seit design-system-gkded steht der Knopf in der Meldungsleiste, deren Höhe
+  // die Seitenhülle über `--feedback-bar-height` freihält; ohne sie tritt das wieder auf.
+  const hits = await brokenFinds("kassenbuch", 390, 12, ":root { --feedback-bar-height: 0px !important; }");
+  assert.ok(hits.some((v) => v.value.startsWith("am Ende gescrollt: von der Meldungsleiste verdeckt")), hits.map(formatViolation).join("\n"));
+});
+
+test("[layout] Gegenbeweis Invariante 12 (b): ein am Handy sichtbarer Toast meldet „Toast am Handy“", async () => {
+  const hits = await brokenFinds("kassenbuch-meldung", 390, 12, ".toast-layer { display: flex !important; bottom: 200px; }");
+  assert.ok(hits.some((v) => v.value.startsWith("Toast am Handy")), hits.map(formatViolation).join("\n"));
+});
+
+test("[layout] Gegenbeweis Invariante 12 (c): eine Meldung über dem runden + meldet den Knopf als verdeckt", async () => {
+  // Regression design-system-vf94m: der Toast mit Aktion stand am Handy unten über dem schwebenden „+ Buchung“.
+  const hits = await brokenFinds(
+    "kassenbuch-meldung",
+    412,
+    12,
+    '[data-testid="feedback-message"] { margin-right: -80px; position: relative; z-index: 1; }'
+  );
+  assert.ok(
+    hits.some((v) => v.selector.includes("ledger-capture-fab") && v.value.startsWith("Knopf der Leiste verdeckt")),
+    hits.map(formatViolation).join("\n")
+  );
 });
 
 test("[layout] Gegenbeweis Invariante 6: ein Sheet, das als Ganzes scrollt, meldet Kopf und Tabs als mitgerückt", async () => {

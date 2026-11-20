@@ -16,22 +16,13 @@ type ToastVariant =
     | Warning
     | Info
 
-/// Toast position on screen
-type ToastPosition =
-    | TopRight
-    | TopLeft
-    | TopCenter
-    | BottomRight
-    | BottomLeft
-    | BottomCenter
-
 /// Die optionale Aktion eines Toasts, z. B. "Rückgängig" (ledger-th36h). Der Toast
 /// zeigt nur die Beschriftung; was der Klick tut, entscheidet `OnAction` des Aufrufers.
 type ToastActionView = {
     Label: string
 }
 
-/// Ein Toast für `renderItems`: wie die Tupel von `renderList`, plus optionale Aktion.
+/// Der eine Toast am PC (`single`): Text, Variante, Abgang und optionale Aktion.
 type ToastItem = {
     Id: Guid
     Message: string
@@ -84,23 +75,6 @@ let private variantToTitle variant =
     | Error -> "Error"
     | Warning -> "Warning"
     | Info -> "Info"
-
-/// Desktop (md and up) anchoring for the chosen position. Mobile placement is
-/// NOT derived from this — `container` builds a deliberate mobile top-strip and
-/// only switches over to these anchors at the `md:` breakpoint. Keeping these
-/// `md:`-prefixed prevents the mobile/desktop inset conflict that made the toast
-/// stretch full-height on phones (design-system-005). All classes are full
-/// string literals so Tailwind's purge keeps them.
-let private positionToClasses position =
-    match position with
-    | TopRight -> "md:top-4 md:right-4"
-    | TopLeft -> "md:top-4 md:left-4"
-    | TopCenter -> "md:top-4 md:left-1/2 md:-translate-x-1/2"
-    // Über einer festen Leiste unten (Auswahl-Leiste, Tastenleiste des Kassenbuchs, §7.13): `toast-above-bar`
-    // (styles.css) liest ihre gemessene Höhe aus `--ledger-bottom-bar-height`, ohne Leiste 0.
-    | BottomRight -> "md:right-4 toast-above-bar"
-    | BottomLeft -> "md:bottom-4 md:left-4"
-    | BottomCenter -> "md:bottom-4 md:left-1/2 md:-translate-x-1/2"
 
 // ============================================
 // Toast Component
@@ -212,35 +186,35 @@ let toastWithTitle (id: Guid) (title: string) (message: string) (variant: ToastV
     }
 
 // ============================================
-// Toast Container Component
+// Der eine Toast am PC
 // ============================================
 
-/// Container for toast notifications (fixed position).
-///
-/// Mobile and desktop placements are built as two deliberate cases, not one
-/// half-overridden (design-system-005). On mobile the container is a compact,
-/// symmetrically inset strip pinned below the header:
-///   `top-16 inset-x-4` — equal left/right inset so the toast's neon left-border
-///   and glow are never clipped at the viewport edge, and `top` alone (no
-///   `bottom`) so the fixed box does NOT stretch the full viewport height.
-/// At the `md:` breakpoint we reset the mobile insets and switch to the chosen
-/// desktop anchor (default bottom-right) with the original `max-w-sm` width.
-let container (position: ToastPosition) (children: ReactElement list) =
+/// Höchstens ein Toast, nur ab 1024 px, unten rechts (Regel R3, ADR 0098, Styleguide §7.13, design-system-gkded).
+/// Unter 1024 px zeigt dieselbe Meldung die Leiste (`Feedback.bar`), deshalb ist der Behälter darunter `hidden`.
+/// `toast-above-bar` (styles.css) hebt ihn über eine feste Leiste unten (Auswahl-Leiste, Tastenleiste des
+/// Kassenbuchs), Ebene `toast-layer` (90) über Panel und Dialog. `onDismiss` startet den Abgang (✕), `onAction`
+/// ist der Klick auf die Aktion.
+let single (item: ToastItem option) (onDismiss: Guid -> unit) (onAction: Guid -> unit) =
     Html.div [
-        prop.className (
-            "fixed toast-layer flex flex-col gap-2 pointer-events-none " +
-            // Mobile: deliberate top strip, symmetric inset (no inherited bottom/right).
-            "top-16 inset-x-4 " +
-            // Desktop: drop the mobile insets, take a bounded width, then anchor.
-            "md:top-auto md:inset-x-auto md:w-full md:max-w-sm " +
-            positionToClasses position
-        )
-        prop.children children
+        prop.className "hidden lg:flex fixed toast-layer flex-col pointer-events-none right-4 w-full max-w-sm toast-above-bar"
+        prop.children [
+            match item with
+            | Some item ->
+                toast {
+                    Id = item.Id
+                    Message = item.Message
+                    Variant = item.Variant
+                    Title = None
+                    AutoDismiss = true
+                    DismissAfterMs = 5000
+                    Exiting = item.Exiting
+                    OnDismiss = onDismiss
+                    Action = item.Action
+                    OnAction = onAction
+                }
+            | None -> Html.none
+        ]
     ]
-
-/// Default container at bottom-right (top on mobile)
-let containerDefault (children: ReactElement list) =
-    container BottomRight children
 
 // ============================================
 // Convenience Functions
@@ -261,71 +235,3 @@ let warning' (id: Guid) (message: string) (onDismiss: Guid -> unit) =
 /// Info toast
 let info' (id: Guid) (message: string) (onDismiss: Guid -> unit) =
     toastSimple id message Info onDismiss
-
-// ============================================
-// Toast List Component (for use in View.fs)
-// ============================================
-
-/// Toasts mit Aktion sitzen am Handy über der Tab-Bar (Handoff Ablauf 1, Screen 1.3),
-/// damit sie weder die Karte noch die Navigation verdecken. Ab `md:` gilt der übliche
-/// Anker. Die Klasse `toast-above-nav` steht in `styles.css`.
-let private actionContainer (children: ReactElement list) =
-    Html.div [
-        prop.className (
-            "fixed toast-layer flex flex-col gap-2 pointer-events-none toast-above-nav " +
-            "inset-x-4 md:inset-x-auto md:w-full md:max-w-sm md:right-4"
-        )
-        prop.children children
-    ]
-
-/// Toast-Liste mit optionalen Aktionen. Toasts ohne Aktion bleiben im bisherigen
-/// Container, Toasts mit Aktion stehen in einem eigenen über der Tab-Bar.
-let renderItems
-    (items: ToastItem list)
-    (onDismiss: Guid -> unit)
-    (onAction: Guid -> unit) =
-
-    let render (item: ToastItem) =
-        toast {
-            Id = item.Id
-            Message = item.Message
-            Variant = item.Variant
-            Title = None
-            AutoDismiss = true
-            DismissAfterMs = 5000
-            Exiting = item.Exiting
-            OnDismiss = onDismiss
-            Action = item.Action
-            OnAction = onAction
-        }
-    let plain, withAction = items |> List.partition (fun i -> i.Action.IsNone)
-
-    Html.div [
-        containerDefault (plain |> List.map render)
-        actionContainer (withAction |> List.map render)
-    ]
-
-/// Render a list of toasts from tuples of (Id, Message, Variant, Exiting).
-/// The `Exiting` flag selects the exit animation for toasts in their fade-out
-/// phase of the two-phase removal (design-system-004). `onDismiss` is called when
-/// the user clicks the close button — the caller is responsible for starting the
-/// exit phase (it should NOT remove the toast immediately).
-let renderList
-    (toasts: (Guid * string * ToastVariant * bool) list)
-    (onDismiss: Guid -> unit) =
-
-    containerDefault [
-        for (id, message, variant, exiting) in toasts do
-            toast {
-                Id = id
-                Message = message
-                Variant = variant
-                Title = None
-                AutoDismiss = true
-                DismissAfterMs = 5000
-                Exiting = exiting
-                OnDismiss = onDismiss
-                Action = None
-                OnAction = ignore
-            }
-    ]

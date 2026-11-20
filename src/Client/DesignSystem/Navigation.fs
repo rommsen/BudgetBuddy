@@ -360,8 +360,12 @@ let sidebarPreview (props: Props) =
 // Seitenrahmen
 // ============================================
 
-/// Der Abstand des Inhalts zur Navigation: unten die Leiste am Handy, links Rail oder Seitenleiste.
-let private shellOffset = $"pb-24 md:pb-8 {NavWidths.contentOffset} pt-[calc(env(safe-area-inset-top)+0.5rem)]"
+/// Der Abstand des Inhalts zur Navigation: unten die Leiste am Handy, links Rail oder Seitenleiste. Unter 1024 px
+/// kommt die Höhe der Meldungsleiste dazu (`--feedback-bar-height`, gemessen in `View.fs`, ohne Leiste 0), damit das
+/// Ende jeder Seite über ihr steht, auch wenn die Aktion umbricht (design-system-gkded).
+let private shellOffset =
+    "pb-[calc(6rem+var(--feedback-bar-height,0px))] md:pb-[calc(2rem+var(--feedback-bar-height,0px))] lg:pb-8 "
+    + $"{NavWidths.contentOffset} pt-[calc(env(safe-area-inset-top)+0.5rem)]"
 
 /// Inhalt mit `container`-Breite.
 let pageContent (children: ReactElement list) =
@@ -372,11 +376,14 @@ let pageContent (children: ReactElement list) =
         ]
     ]
 
-/// Wie `pageContent`, ohne den Abstand unten für die Leiste am Handy: für das Durchgehen, das die Leiste ausblendet
+/// Wie `pageContent`, ohne den Abstand unten für die Navigation am Handy (nur die Meldungsleiste hält ihren Platz frei): für das Durchgehen, das die Leiste ausblendet
 /// und genau so hoch ist wie der sichtbare Bereich (ledger-s2cg3). Ab 1024 px wie `pageContent`.
 let pageContentFlush (children: ReactElement list) =
     Html.main [
-        prop.className $"overflow-x-clip pb-0 lg:pb-8 {NavWidths.contentOffset} pt-[calc(env(safe-area-inset-top)+0.5rem)] animate-fade-in"
+        prop.className (
+            "overflow-x-clip pb-[var(--feedback-bar-height,0px)] lg:pb-8 "
+            + $"{NavWidths.contentOffset} pt-[calc(env(safe-area-inset-top)+0.5rem)] animate-fade-in"
+        )
         prop.children [
             Html.div [ prop.className "container mx-auto px-4"; prop.children children ]
         ]

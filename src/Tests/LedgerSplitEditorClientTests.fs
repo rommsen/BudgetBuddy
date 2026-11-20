@@ -759,7 +759,7 @@ let private rootWith (settings: RemoteData<AppSettingsView>) : State.Model =
     let rulesModel, _ = Components.Rules.State.init ()
     let ledgerModel, _ = Components.Ledger.State.init ()
     { CurrentPage = Page.Ledger
-      Toasts = []
+      Feedback = None
       Pwa = Pwa.initialState
       Settings = { settingsModel with Settings = settings }
       Fetch = Components.Fetch.Types.init

@@ -740,14 +740,6 @@ let captureQuiet (model: Model) : bool =
     | TodosShown [] -> false
     | _ -> true
 
-/// „+ Buchung“ am Handy unten rechts über der Leiste. `fixed`, deshalb rendert ihn der Haupt-`View.fs` außerhalb der
-/// Seitenhülle.
-let captureFab (model: Model) (onCapture: unit -> unit) =
-    Html.div [
-        prop.className "md:hidden overview-capture-fab"
-        prop.children [ Button.fab "overview-capture-fab" captureLabel captureAriaLabel (captureQuiet model) onCapture ]
-    ]
-
 let view (model: Model) (actions: Actions) =
     Primitives.Container.full [
         Html.div [

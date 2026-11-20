@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-20 01:43 -- Task verified and completed: design-system-gkded - "Rückmeldung am Handy ohne Toast (Regel R3), Teil 2: ein Meldungsplatz in der App statt Toast-Liste, Leiste unter 1024 px mit „+ Buchung“, Toast am PC höchstens einer, gleiche Wische zusammengefasst, alte Toasts übergangsweise in der Leiste, Sweep-Invariante mit Gegenbeweis"
+
+**Type:** Work / Task completion
+**Task:** design-system-gkded - "Rückmeldung am Handy ohne Toast (Regel R3), Teil 2: ein Meldungsplatz in der App statt Toast-Liste, Leiste unter 1024 px mit „+ Buchung“, Toast am PC höchstens einer, gleiche Wische zusammengefasst, alte Toasts übergangsweise in der Leiste, Sweep-Invariante mit Gegenbeweis"
+**Summary:** Ein Meldungsplatz statt Toast-Liste, Leiste mit + Buchung unter 1024 px, PC höchstens ein Toast
+**Duration:** 95m
+**Verification:** PASS (iteration 1)
+**Files changed:** 40
+**Tests added:** 32
+**ADRs written:** none
+
+---
+
 ## 2026-11-20 00:40 -- Task verified and completed: ledger-wg42w - "Durchgehen: Memo auf der Karte nur lesen (C3), „Memo“ über dem Text, so lang, wie Platz ist (gemessen); Bearbeiten nur in „Details“, Memo-Sheet und -Dialog der Karte entfallen"
 
 **Type:** Work / Task completion

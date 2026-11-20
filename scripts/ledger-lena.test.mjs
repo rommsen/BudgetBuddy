@@ -191,7 +191,8 @@ test("[flow:lena-fragen] PC: Lena fragen setzt das Kennzeichen, der Knopf wechse
   const mark = row(page, "Rewe Lena").getByTestId("lena-mark");
   await mark.getByRole("img", { name: "Flag" }).waitFor();
   assert.ok((await mark.textContent()).includes("Lena"), "Name am Flag");
-  const toast = page.getByText("Lena gefragt", { exact: true });
+  // Der eine Toast am PC; die Meldungsleiste mit demselben Text ist ab 1024 px ausgeblendet (design-system-gkded).
+  const toast = page.locator(".toast-layer").getByText("Lena gefragt", { exact: true });
   await toast.waitFor();
 
   await page.getByRole("button", { name: "Rückgängig" }).click();

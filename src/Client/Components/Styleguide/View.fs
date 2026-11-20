@@ -1311,72 +1311,71 @@ let private ModalDemo () =
         ]
     ]
 
-/// Toast-Demo per useState — feuert flüchtiges Feedback und zeigt den sanften
-/// Abgang (design-system-004): "Schließen" markiert den Toast als exiting (Exit-
-/// Animation) und entfernt ihn erst nach `Types.Toast.exitDurationMs`. Dieselbe
-/// Zwei-Phasen-Mechanik wie in der App (State.fs), hier lokal nachgebaut, da die
-/// Galerie keinen App-State berührt.
+/// Toast-Demo per useState: der eine Toast am PC (`Toast.single`, ab 1024 px). Ein neuer Toast ersetzt den alten,
+/// "Schließen" markiert ihn als exiting (Exit-Animation) und blendet ihn erst nach `Types.Toast.exitDurationMs` aus.
+/// Dieselbe Zwei-Phasen-Mechanik wie in der App (State.fs), hier lokal nachgebaut, da die Galerie keinen App-State
+/// berührt. Unter 1024 px zeigt die App dieselbe Meldung in der Leiste (Abschnitt 17a).
 [<ReactComponent>]
 let private ToastDemo () =
-    // (Id, Message, Variant, Exiting)
-    let toasts, setToasts = React.useState ([]: (Guid * string * Toast.ToastVariant * bool) list)
-    let toastsRef = React.useRef toasts
-    toastsRef.current <- toasts
+    let current, setCurrent = React.useState (None: Toast.ToastItem option)
+    let currentRef = React.useRef current
+    currentRef.current <- current
 
-    let fire variant message () =
-        setToasts (toastsRef.current @ [ (Guid.NewGuid(), message, variant, false) ])
-    let remove (id: Guid) =
-        setToasts (toastsRef.current |> List.filter (fun (tid, _, _, _) -> tid <> id))
-    // Phase 1: markiere exiting (Exit-Animation startet); Phase 2: entferne nach Ablauf.
+    let fire variant message action () =
+        setCurrent (Some { Id = Guid.NewGuid(); Message = message; Variant = variant; Exiting = false; Action = action })
+    // Phase 1: markiere exiting (Exit-Animation startet); Phase 2: blende nach Ablauf aus.
     let dismiss (id: Guid) =
-        setToasts (toastsRef.current |> List.map (fun (tid, m, v, ex) ->
-            if tid = id then (tid, m, v, true) else (tid, m, v, ex)))
-        Fable.Core.JS.setTimeout (fun () -> remove id) Types.Toast.exitDurationMs |> ignore
-
-    // Toast mit Aktion (ledger-th36h): (Id, Exiting). Klick auf "Rückgängig" schließt ihn.
-    let undoToasts, setUndoToasts = React.useState ([]: (Guid * bool) list)
-    let undoRef = React.useRef undoToasts
-    undoRef.current <- undoToasts
-    let fireUndo () =
-        setUndoToasts (undoRef.current @ [ (Guid.NewGuid(), false) ])
-    let dismissUndo (id: Guid) =
-        setUndoToasts (undoRef.current |> List.map (fun (tid, ex) -> if tid = id then (tid, true) else (tid, ex)))
-        Fable.Core.JS.setTimeout
-            (fun () -> setUndoToasts (undoRef.current |> List.filter (fun (tid, _) -> tid <> id)))
-            Types.Toast.exitDurationMs
-        |> ignore
-    let undoItems : Toast.ToastItem list =
-        undoToasts
-        |> List.map (fun (id, exiting) ->
-            { Id = id
-              Message = "REWE Mitte geprüft"
-              Variant = Toast.Success
-              Exiting = exiting
-              Action = Some { Label = "Rückgängig" } })
+        match currentRef.current with
+        | Some item when item.Id = id && not item.Exiting ->
+            setCurrent (Some { item with Exiting = true })
+            Fable.Core.JS.setTimeout
+                (fun () ->
+                    match currentRef.current with
+                    | Some shown when shown.Id = id -> setCurrent None
+                    | _ -> ())
+                Types.Toast.exitDurationMs
+            |> ignore
+        | _ -> ()
 
     section "17. Toast" [
-        note "Flüchtiges Feedback nach Aktion, mit sanftem Abgang (Exit-Animation). Blockierende Fehler → ErrorDisplay/Modal. Optional mit Aktion (z. B. Rückgängig), dann über der Tab-Bar. styleguide.md §5/§6."
+        note "Nur ab 1024 px und nur für Meldungen ohne Ort: höchstens einer, ein neuer ersetzt den alten, geht nach 5 s, mit ✕. Unter 1024 px die Leiste (17a). styleguide.md §5/§6/§7.13."
         row [
-            // data-ds-card-trigger: Export-Skript klickt hier, damit ein Toast sichtbar
-            // ist, bevor components-toast.html geschrieben wird. Toast.renderList ist
-            // (anders als BottomSheet/Modal) nicht portalt, das data-ds-card unten
-            // erfasst also den echten Container.
+            // data-ds-card-trigger: Export-Skript klickt hier, damit ein Toast sichtbar ist, bevor
+            // components-toast.html geschrieben wird. Der Toast ist nicht portalt, das data-ds-card unten erfasst ihn.
             Html.span [
                 prop.custom ("data-ds-card-trigger", "components-toast")
-                prop.children [ Button.secondary "Erfolg" (fire Toast.Success "Gespeichert.") ]
+                prop.children [ Button.secondary "Erfolg" (fire Toast.Success "Gespeichert." None) ]
             ]
-            Button.secondary "Fehler" (fire Toast.Error "Speichern fehlgeschlagen.")
-            Button.secondary "Info" (fire Toast.Info "3 neue Transaktionen.")
-            Button.secondary "Mit Rückgängig" fireUndo
+            Button.secondary "Fehler" (fire Toast.Error "Speichern fehlgeschlagen." None)
+            Button.secondary "Info" (fire Toast.Info "3 neue Transaktionen." None)
+            Button.secondary "Mit Rückgängig" (fire Toast.Success "REWE Mitte geprüft" (Some { Label = "Rückgängig" }))
         ]
         Html.div [
             prop.custom ("data-ds-card", "components-toast")
             prop.custom ("data-ds-card-name", "Toast")
-            prop.custom ("data-ds-card-subtitle", "Flüchtige Rückmeldung als Erfolg, Fehler oder Info")
+            prop.custom ("data-ds-card-subtitle", "Flüchtige Rückmeldung am PC als Erfolg, Fehler oder Info")
             prop.custom ("data-ds-group", "Feedback")
+            // Im Fluss der Galerie statt `Toast.single` (fest, erst ab 1024 px): so steht der Toast auf jeder Breite.
             prop.children [
-                Toast.renderList toasts dismiss
-                Toast.renderItems undoItems dismissUndo dismissUndo
+                Html.div [
+                    prop.className "flex w-full max-w-sm flex-col"
+                    prop.children [
+                        match current with
+                        | Some item ->
+                            Toast.toast
+                                { Id = item.Id
+                                  Message = item.Message
+                                  Variant = item.Variant
+                                  Title = None
+                                  AutoDismiss = true
+                                  DismissAfterMs = 5000
+                                  Exiting = item.Exiting
+                                  OnDismiss = dismiss
+                                  Action = item.Action
+                                  OnAction = dismiss }
+                        | None -> Html.none
+                    ]
+                ]
             ]
         ]
     ]

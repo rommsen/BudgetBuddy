@@ -113,7 +113,7 @@ const detailTitle = (scope) => scope.locator('[data-testid="detail-title"]');
 // ledger-zfj78: im Sheet steht der Payee als Titel im Kopf des Sheets, der Inhalt beginnt mit dem Betrag.
 const detailContent = (scope) => scope.locator('[data-testid="detail-payee"]');
 
-test("[flow:payee-aendern] Handy: Payee im Detail ändern und entfernen, beides im Toast rückgängig machen, die Tastatur bleibt bis zum Schließen offen", async () => {
+test("[flow:payee-aendern] Handy: Payee im Detail ändern und entfernen, beides in der Meldungsleiste rückgängig machen, die Tastatur bleibt bis zum Schließen offen", async () => {
   const context = await browser.newContext({ viewport: { width: 412, height: 915 }, hasTouch: true, isMobile: true });
   const page = await open(context);
   await page.getByText(BANK_PAYEE, { exact: true }).first().tap();
@@ -144,19 +144,24 @@ test("[flow:payee-aendern] Handy: Payee im Detail ändern und entfernen, beides 
     "Rewe Markt"
   );
   assert.deepEqual(state.setCalls[0], { entryId: idOf(1), text: "Rewe Markt" }, "der neue Payee geht an den Befehl");
-  await page.getByText("Payee geändert · Rewe Markt").first().waitFor();
-
-  await page.locator('[data-toast-action="true"]', { hasText: "Rückgängig" }).tap();
-  await page.waitForFunction(
-    (p) => document.querySelector('.bottom-sheet.active .sheet-header h3')?.textContent === p,
-    BANK_PAYEE
-  );
+  // Regel R3 (design-system-gkded): am Handy steht die Rückmeldung in der Leiste, die bis ledger-gwr9j unter dem
+  // offenen Sheet liegt; „Rückgängig“ ist nach dem Schließen erreichbar.
+  const closeAndUndo = async (action, detail) => {
+    await sheet.getByRole("button", { name: "Schließen" }).tap();
+    await page.waitForFunction(() => document.querySelectorAll(".bottom-sheet.active").length === 0);
+    const bar = page.getByTestId("feedback-bar");
+    await bar.getByTestId("feedback-action").filter({ hasText: action }).waitFor();
+    if (detail) await bar.getByTestId("feedback-detail").filter({ hasText: detail }).waitFor();
+    const before = state.setCalls.length;
+    await bar.locator('[data-feedback-action="true"]', { hasText: "Rückgängig" }).tap();
+    for (let i = 0; i < 200 && state.setCalls.length === before; i++) await new Promise((done) => setTimeout(done, 50));
+  };
+  await closeAndUndo("Payee geändert", "Rewe Markt");
   assert.deepEqual(state.setCalls[1], { entryId: idOf(1), text: BANK_PAYEE }, "Rückgängig schickt den alten Payee über denselben Befehl");
-  // Der getippte Toast geht in seinem Abgang (`Types.Toast.exitDurationMs`) noch mit Knopf aus dem DOM, ein
-  // zweiter Tipp darauf wirkt nicht mehr (`ToastActionClicked`). Erst wenn er weg ist, steht nur noch der nächste da.
-  await page.getByText("Payee geändert · Rewe Markt").waitFor({ state: "detached" });
 
-  // ledger-pkrwd: „Payee entfernen“ antippen übernimmt sofort, der Toast bietet Rückgängig.
+  // ledger-pkrwd: „Payee entfernen“ antippen übernimmt sofort, die Rückmeldung bietet Rückgängig.
+  await page.getByText(BANK_PAYEE, { exact: true }).first().tap();
+  await detailContent(sheet).waitFor();
   await sheet.locator('[data-testid="detail-payee-arrow"]').tap();
   const remove = picker.locator('[data-testid="payee-picker-remove"]');
   await remove.waitFor();
@@ -166,12 +171,7 @@ test("[flow:payee-aendern] Handy: Payee im Detail ändern und entfernen, beides 
     "ohne Payee"
   );
   assert.deepEqual(state.setCalls[2], { entryId: idOf(1), text: null }, "entfernen schickt den Befehl ohne Payee");
-  await page.getByText("Payee entfernt", { exact: true }).first().waitFor();
-  await page.locator('[data-toast-action="true"]', { hasText: "Rückgängig" }).tap();
-  await page.waitForFunction(
-    (p) => document.querySelector('.bottom-sheet.active .sheet-header h3')?.textContent === p,
-    BANK_PAYEE
-  );
+  await closeAndUndo("Payee entfernt", null);
   assert.deepEqual(state.setCalls[3], { entryId: idOf(1), text: BANK_PAYEE }, "Rückgängig setzt den alten Payee mit demselben Befehl");
   await context.close();
 });

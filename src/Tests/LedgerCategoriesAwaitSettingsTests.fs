@@ -23,7 +23,7 @@ let private baseModel (page: Page) : State.Model =
     let ledgerModel, _ = Components.Ledger.State.init ()
     {
         CurrentPage = page
-        Toasts = []
+        Feedback = None
         Pwa = Pwa.initialState
         Settings = settingsModel
         Fetch = Components.Fetch.Types.init

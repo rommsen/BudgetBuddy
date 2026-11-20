@@ -13,7 +13,7 @@
 //   3 Eingabefelder am Handy mindestens 16 px Schrift
 //   4 kein sichtbarer Text abgeschnitten (Ellipse mit `title` ist erlaubt)
 //   5 nichts verdeckt: ein offenes Sheet, Popover oder Dialog liegt ganz im Bild und in jedem Behälter, der
-//     abschneidet; sein Primärknopf und die Knöpfe der Toasts sind das oberste Element; Texte nebeneinander in
+//     abschneidet; sein Primärknopf und (ab 1024 px) die Knöpfe des Toasts sind das oberste Element; Texte nebeneinander in
 //     einer Zeile überdecken sich nicht; am Ende gescrollt verdeckt keine feste Leiste unten und kein
 //     schwebender Knopf in der unteren Hälfte ein Bedienelement
 //   6 Sticky-Köpfe überlappen sich nach dem Scrollen nicht; in einer offenen Ebene bleiben Kopf, Tabs und
@@ -23,7 +23,15 @@
 //   9 kein Layout-Sprung beim Nachladen
 //  10 sichtbarer Text hat mindestens 4,5:1 gegen seinen tatsächlichen Hintergrund (ledger-dn4vy)
 //  11 höchstens eine Ebene: sichtbar ist höchstens ein offenes Sheet oder ein Dialog, kein zweites darüber
-//     (ledger-hme9k); ein Popover in einer Ebene und der Toast zählen nicht
+//     (ledger-hme9k); ein Popover in einer Ebene und (ab 1024 px) der Toast zählen nicht
+//  12 Rückmeldung (Regel R3, ADR 0098, design-system-gkded): unter 1024 px steht kein sichtbares Element in
+//     `.toast-layer` (kein Toast am Handy) und höchstens eine feste Meldungsleiste `[data-testid="feedback-bar"]`; die
+//     Leiste überdeckt kein sichtbares Bedienelement und keinen Text außerhalb ihrer selbst (außer in einer offenen
+//     Ebene darüber), oben und am Ende gescrollt (was sein Scrollbereich noch unter der Leiste hervorholen kann,
+//     zählt nicht); ihre Knöpfe (`[data-feedback-action]`, „+ Buchung“) sind das oberste Element, solange keine
+//     Ebene offen ist; ihre Unterkante liegt auf der Oberkante der Navigation unten bzw. der Auswahl-Leiste oder
+//     einer anderen festen Leiste am Rand, ohne sie am unteren Rand (ein Pixel Toleranz). Ab 1024 px steht
+//     höchstens ein Toast.
 //
 // Farbwerte selbst prüft der Sweep nicht: die entfallenen Farben verbietet der Token-Wächter überall unter
 // src/Client (`entfallene-farbe` in scripts/token-guard.mjs), den Kontrast der Token-Paare
@@ -38,6 +46,9 @@
 // Steht die Lage nicht, wirft `settle`, statt still zu messen. Toleranzen: ein Pixel für Lage und Überlappung
 // (Invarianten 1, 4 bis 9), ein halber Pixel für die Trefferfläche (Invariante 2), keine für die Schrift
 // (Invariante 3). Eine Verletzung nennt Zustand, Breite, Invariante, Selektor und Messwert.
+
+/// Ab hier zeigt die App den Toast statt der Meldungsleiste (Invariante 12, Styleguide §7.13).
+export const TOAST_FROM = 1024;
 
 /// Styleguide-Schwellen.
 export const TOUCH_MIN = 48;
@@ -144,7 +155,7 @@ export async function mark(locator, attribute) {
 
 /// Die Messung im Browser für die Invarianten 1 bis 5, 7 (ohne Tastatur), 8 und 10. Liefert Verletzungen als
 /// `{ inv, selector, value }`.
-function measureInPage({ mobile, touchMin, inputFontMin, contrastMin, checks, reachSelector }) {
+function measureInPage({ mobile, narrow, touchMin, inputFontMin, contrastMin, checks, reachSelector }) {
   const out = [];
   const vw = document.documentElement.clientWidth;
   const vh = window.innerHeight;
@@ -515,13 +526,81 @@ function measureInPage({ mobile, touchMin, inputFontMin, contrastMin, checks, re
     }
   }
 
+  // 12 Rückmeldung: ein Platz, am Handy kein Toast, die Leiste verdeckt nichts und liegt auf ihrer Kante.
+  if (want(12)) {
+    const toasts = [...document.querySelectorAll(".toast-layer > *")].filter(shown);
+    if (narrow) {
+      for (const t of toasts) report(12, t, "Toast am Handy (unter 1024 px zeigt die Leiste die Meldung)");
+      // Nur die Leiste der App (`BarPlacement.Docked`); die Vorschauen im Styleguide stehen im Fluss der Seite.
+      const bars = [...document.querySelectorAll('.feedback-bar-docked[data-testid="feedback-bar"]')].filter(shown);
+      if (bars.length > 1) report(12, '[data-testid="feedback-bar"]', `${bars.length} Leisten`);
+      const bar = bars[0];
+      if (bar) {
+        const b = bar.getBoundingClientRect();
+        // Was ein Scrollbereich (oder die Seite) noch unter der Leiste hervorholen kann, ist nicht verdeckt.
+        const canScrollFurther = (el) => {
+          for (let node = el.parentElement; node && node !== document.body; node = node.parentElement) {
+            const s = getComputedStyle(node);
+            if (["auto", "scroll"].includes(s.overflowY) && node.scrollHeight > node.clientHeight + tol)
+              return node.scrollTop + node.clientHeight < node.scrollHeight - tol;
+          }
+          const root = document.scrollingElement;
+          return root.scrollTop + window.innerHeight < root.scrollHeight - tol;
+        };
+        const candidates = new Set(document.querySelectorAll('button, a[href], input, select, textarea, [role="option"], [role="tab"]'));
+        for (const el of document.body.querySelectorAll("*")) {
+          if ([...el.childNodes].some((n) => n.nodeType === Node.TEXT_NODE && n.textContent.trim())) candidates.add(el);
+        }
+        for (const el of candidates) {
+          if (bar.contains(el) || el.contains(bar)) continue;
+          if (el.closest('.bottom-sheet, .overlay, .toast-layer, [data-layer]')) continue;
+          if (!shown(el) || parked(el)) continue;
+          const r = el.getBoundingClientRect();
+          const box = { left: Math.max(r.left, b.left), top: Math.max(r.top, b.top), right: Math.min(r.right, b.right), bottom: Math.min(r.bottom, b.bottom) };
+          if (box.right - box.left <= tol || box.bottom - box.top <= tol) continue;
+          if (canScrollFurther(el)) continue;
+          const y = (box.top + box.bottom) / 2;
+          for (const x of [box.left + tol + 0.5, (box.left + box.right) / 2, box.right - tol - 0.5]) {
+            const hit = document.elementFromPoint(x, y);
+            if (hit && bar.contains(hit)) {
+              report(12, el, `von der Meldungsleiste verdeckt (${fmt(box)})`);
+              break;
+            }
+          }
+        }
+        if (overlays.length === 0) {
+          for (const el of bar.querySelectorAll("[data-feedback-action], button[data-testid]")) {
+            if (!shown(el)) continue;
+            const hit = topmost(el);
+            if (!hit.ok) report(12, el, `Knopf der Leiste verdeckt von ${hit.hit ? describe(hit.hit) : "nichts"}`);
+          }
+        }
+        // Die Kante darunter: die oberste feste Leiste am unteren Rand unter der Meldungsleiste, sonst der Rand.
+        let edge = vh;
+        for (const el of document.body.querySelectorAll("*")) {
+          if (bar.contains(el) || el.contains(bar)) continue;
+          if (el.closest('.bottom-sheet, .overlay, .toast-layer, [data-layer]')) continue;
+          if (getComputedStyle(el).position !== "fixed" || !shown(el)) continue;
+          const r = el.getBoundingClientRect();
+          if (r.bottom < vh - tol || r.height >= vh / 2) continue;
+          if (r.right <= b.left + tol || r.left >= b.right - tol) continue;
+          edge = Math.min(edge, r.top);
+        }
+        if (Math.abs(b.bottom - edge) > tol) report(12, bar, `Unterkante ${round(b.bottom)} px, erwartet ${round(edge)} px`);
+      }
+    } else if (toasts.length > 1) {
+      report(12, ".toast-layer", `${toasts.length} Toasts`);
+    }
+  }
+
   return out;
 }
 
-/// Invarianten 1 bis 5, 7, 8, 10 und 11 im jetzigen Zustand.
-export async function measure(page, { width, checks = [1, 2, 3, 4, 5, 7, 8, 10, 11], reachSelector = "[data-sweep-primary], [data-sweep-reach]" }) {
+/// Invarianten 1 bis 5, 7, 8, 10, 11 und 12 im jetzigen Zustand.
+export async function measure(page, { width, checks = [1, 2, 3, 4, 5, 7, 8, 10, 11, 12], reachSelector = "[data-sweep-primary], [data-sweep-reach]" }) {
   return page.evaluate(measureInPage, {
     mobile: width < MOBILE_BELOW,
+    narrow: width < TOAST_FROM,
     touchMin: TOUCH_MIN,
     inputFontMin: INPUT_FONT_MIN,
     contrastMin: TEXT_CONTRAST_MIN,
@@ -740,7 +819,7 @@ export async function runState(browser, baseUrl, state, width, { inject = null, 
   page.setDefaultTimeout(20000);
   const found = [];
   const unmocked = new Set();
-  const want = (n) => (checks ?? state.checks ?? [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]).includes(n);
+  const want = (n) => (checks ?? state.checks ?? [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]).includes(n);
   try {
     // Was nicht gemockt ist, antwortet mit 500 und wird gemeldet: ein Fehler-Toast verfälschte die Messung.
     await page.route("**/api/**", (route) => {
@@ -778,7 +857,7 @@ export async function runState(browser, baseUrl, state, width, { inject = null, 
     if (primary && (await mark(primary, "data-sweep-primary")) === 0) throw new Error("Primärknopf nicht gefunden");
     const reach = state.reach?.(page, { width, mobile });
     if (reach && (await mark(reach, "data-sweep-reach")) === 0) throw new Error("reach nicht gefunden");
-    found.push(...(await measure(page, { width, checks: [1, 2, 3, 4, 5, 7, 8, 10, 11].filter(want) })));
+    found.push(...(await measure(page, { width, checks: [1, 2, 3, 4, 5, 7, 8, 10, 11, 12].filter(want) })));
 
     // Mit offener Tastatur: das Feld hat den Fokus, der Viewport halbiert sich, was `keyboard.reach` nennt,
     // bleibt ohne Scrollen sichtbar.
@@ -801,10 +880,12 @@ export async function runState(browser, baseUrl, state, width, { inject = null, 
     // etwas verdeckt.
     if (await hasOpenLayer(page)) {
       if (want(6)) found.push(...(await measureLayerSticky(page, { where })));
-    } else if (want(6) || want(5)) {
+    } else if (want(6) || want(5) || want(12)) {
       const sticky = await measureSticky(page, { where });
       if (want(6)) found.push(...sticky);
       if (want(5)) found.push(...(await measureBottomCover(page, { where })));
+      // Invariante 12 auch am Ende gescrollt: dort kann nichts mehr unter der Leiste hervorkommen.
+      if (want(12)) for (const v of await measure(page, { width, checks: [12] })) found.push({ ...v, value: `am Ende gescrollt: ${v.value}` });
     }
   } finally {
     await context.close();

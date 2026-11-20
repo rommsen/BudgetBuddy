@@ -414,8 +414,53 @@ async function mockLedger(page, { accounts = 3, held = false, withoutPayee = fal
   );
 }
 
+/// Der Knopf der Rückmeldung (design-system-gkded): unter 1024 px in der Meldungsleiste, ab 1024 px im einen Toast.
+const feedbackAction = (page) =>
+  page
+    .locator(page.viewportSize().width < 1024 ? '[data-testid="feedback-bar"] [data-feedback-action="true"]' : '[data-toast-action="true"]')
+    .first();
+
+/// Wischt per Touch nach rechts über die Zeile eines Payees (CDP, wie `scripts/ledger-review-mark.test.mjs`): der
+/// Wisch prüft die Buchung.
+const swipeReviewed = async (page, payee) => {
+  const row = page.locator("button", { hasText: payee }).filter({ visible: true }).first();
+  await row.waitFor();
+  // Mitten ins Bild, damit keine feste Leiste unten über der Zeile liegt.
+  await row.evaluate((el) => el.scrollIntoView({ block: "center", behavior: "instant" }));
+  await frames(page);
+  const box = await row.boundingBox();
+  const cdp = await page.context().newCDPSession(page);
+  const y = box.y + box.height / 2;
+  const x0 = box.x + 24;
+  const point = (x) => [{ x, y, id: 1 }];
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: point(x0) });
+  for (let i = 1; i <= 8; i++) await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: point(x0 + (260 * i) / 8) });
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  await cdp.detach();
+};
+
+/// Der Prüfvermerk antwortet „gesetzt und zu YNAB geschickt“, vorher war die Buchung ungeprüft.
+const mockReviewMark = (page) =>
+  page.route("**/api/LedgerApi/setReviewMark", (r) =>
+    json(r, { Ok: { Previous: { IsApproved: false, ClearedState: "ReviewUncleared" }, Change: "ReviewMarkChanged", WriteBack: "ReviewMarkSent" } })
+  );
+
 const openLedger = async (page) => page.getByText("Bauhaus", { exact: true }).locator("visible=true").first().waitFor();
 const ledgerSheet = (page) => page.locator(".bottom-sheet.active").first();
+
+/// Schließt das offene Sheet über „Schließen“. Nach einer Wahl im Picker schluckt `Viewport.swallowNextClick` den
+/// nächsten Klick innerhalb von 350 ms (Schutz vor dem Geisterklick, ADR 0005); seit am Handy kein Toast mehr
+/// einblendet (design-system-gkded), ist die Seite davor schon ruhig. Deshalb wird erneut geklickt, bis das Sheet zu ist.
+const closeLedgerSheet = async (page) => {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    await ledgerSheet(page).getByRole("button", { name: "Schließen" }).click();
+    const closed = await page
+      .waitForFunction(() => document.querySelectorAll(".bottom-sheet.active").length === 0, null, { timeout: 1000 })
+      .then(() => true, () => false);
+    if (closed) return;
+  }
+  throw new Error("Das Sheet schließt nicht");
+};
 const openLedgerDetail = async (page, payee) => {
   await page.getByText(payee, { exact: true }).first().waitFor();
   await page.getByText(payee, { exact: true }).first().tap();
@@ -475,14 +520,13 @@ const openFilteredOut = async (page, { mobile }) => {
   // Ohne die Optionen des Kategorie-Filters: dessen geschlossenes Sheet steht weiter im DOM (role="option" seit
   // design-system-gcpws).
   await page.locator('[role="option"]:not([id^="category-multi-select-option-"])', { hasText: "Nebenkosten" }).filter({ visible: true }).last().click();
-  await page.locator('[data-toast-action="true"]').first().waitFor();
+  await feedbackAction(page).waitFor();
   await page.locator('[data-testid="filtered-out-note"]').filter({ visible: true }).first().waitFor();
   if (mobile) {
     // Erst wenn der Picker zu ist und das Detail steht, schließt „Schließen“ es.
     await page.waitForFunction(() => document.querySelectorAll(".bottom-sheet.active").length === 1);
     await settle(page, { where: "ausgegraute Zeile, Detail offen" });
-    await ledgerSheet(page).getByRole("button", { name: "Schließen" }).click();
-    await page.waitForFunction(() => document.querySelectorAll(".bottom-sheet.active").length === 0);
+    await closeLedgerSheet(page);
   } else {
     // Ab 1024 px steht das Detail im Panel, das immer da ist (ledger-cnaz3): es schließt zum leeren Panel.
     await settle(page, { where: "ausgegraute Zeile, Detail offen" });
@@ -1562,8 +1606,8 @@ export const STATES = [
       await mockCapture(page, { catchAll: false });
     },
     open: async (page) => {
-      await page.locator(".ledger-capture-fab").getByRole("button").waitFor();
-      await page.locator(".ledger-capture-fab").getByRole("button").tap();
+      await page.getByTestId("ledger-capture-fab").waitFor();
+      await page.getByTestId("ledger-capture-fab").tap();
       await page.locator('.bottom-sheet.active [data-testid="capture-recent"]').waitFor();
       // design-system-ak97z: Fokus im Betragsfeld, ein Tipp auf "Einnahme" nimmt ihn nicht (`Segment.KeepsFocus`).
       const field = page.locator('.bottom-sheet.active [data-testid="capture-amount"] input');
@@ -1603,8 +1647,8 @@ export const STATES = [
       await mockCapture(page, { catchAll: false });
     },
     open: async (page) => {
-      await page.locator(".ledger-capture-fab").getByRole("button").waitFor();
-      await page.locator(".ledger-capture-fab").getByRole("button").tap();
+      await page.getByTestId("ledger-capture-fab").waitFor();
+      await page.getByTestId("ledger-capture-fab").tap();
       const sheet = page.locator(".bottom-sheet.active");
       await sheet.locator('[data-testid="capture-date"]').waitFor();
       // Beide Rechtecke im selben Frame: das Sheet fährt noch ein, getrennte Messungen lägen verschoben.
@@ -1633,8 +1677,8 @@ export const STATES = [
       await mockCapture(page, { catchAll: false });
     },
     open: async (page) => {
-      await page.locator(".ledger-capture-fab").getByRole("button").waitFor();
-      await page.locator(".ledger-capture-fab").getByRole("button").tap();
+      await page.getByTestId("ledger-capture-fab").waitFor();
+      await page.getByTestId("ledger-capture-fab").tap();
       await page.locator('.bottom-sheet.active [data-testid="capture-target"]').tap();
       await page.locator('.bottom-sheet.active [role="option"]').first().waitFor();
       if ((await page.locator(".bottom-sheet.active").count()) !== 1)
@@ -1651,8 +1695,8 @@ export const STATES = [
       await mockCapture(page, { catchAll: false });
     },
     open: async (page) => {
-      await page.locator(".ledger-capture-fab").getByRole("button").waitFor();
-      await page.locator(".ledger-capture-fab").getByRole("button").tap();
+      await page.getByTestId("ledger-capture-fab").waitFor();
+      await page.getByTestId("ledger-capture-fab").tap();
       await page.locator('.bottom-sheet.active [data-testid="capture-account"]').tap();
       await page.locator('.bottom-sheet.active [data-testid="capture-account-list"]').getByText("Tagesgeld ING").waitFor();
       if ((await page.locator(".bottom-sheet.active").count()) !== 1)
@@ -1672,8 +1716,8 @@ export const STATES = [
       await mockCapture(page, { catchAll: false });
     },
     open: async (page) => {
-      await page.locator(".ledger-capture-fab").getByRole("button").waitFor();
-      await page.locator(".ledger-capture-fab").getByRole("button").tap();
+      await page.getByTestId("ledger-capture-fab").waitFor();
+      await page.getByTestId("ledger-capture-fab").tap();
       await page.locator('.bottom-sheet.active [data-testid="capture-recent"]').waitFor();
       const field = page.locator('.bottom-sheet.active [data-testid="capture-amount"] input');
       const submit = page.locator(".bottom-sheet.active").first().getByRole("button", { name: "Buchung anlegen", exact: true });
@@ -1721,8 +1765,8 @@ export const STATES = [
       await page.route("**/api/LedgerApi/getBudgetAccounts", () => {});
     },
     open: async (page) => {
-      await page.locator(".ledger-capture-fab").getByRole("button").waitFor();
-      await page.locator(".ledger-capture-fab").getByRole("button").tap();
+      await page.getByTestId("ledger-capture-fab").waitFor();
+      await page.getByTestId("ledger-capture-fab").tap();
       await page.locator('.bottom-sheet.active [data-testid="capture-account"]').tap();
       await page
         .locator('.bottom-sheet.active [data-testid="capture-account-list"] [role="status"]', { hasText: "Konten werden geladen" })
@@ -1763,20 +1807,92 @@ export const STATES = [
         throw new Error("Die Kategorie-Auswahl im Detail liegt als zweites Sheet über dem Detail");
     },
   },
-  // Regression c819eeb (Toast hinter dem Detail-Sheet): nach dem Kategoriewechsel liegt der Toast oben.
+  // Regression c819eeb (Toast hinter dem Detail-Sheet): am PC liegt der Toast nach dem Kategoriewechsel über dem
+  // Panel (Invariante 5). Am Handy steht kein Toast mehr (R3, design-system-gkded): die Meldung steht nach dem
+  // Schließen des Sheets in der Leiste (bis ledger-gwr9j liegt die Leiste unter einem offenen Sheet, Entscheidung
+  // Roman 2026-11-19), Invariante 12 prüft sie dort.
   {
     name: "kassenbuch-kategorie-toast",
     route: "/ledger",
-    widths: HANDY_WIDTHS,
+    widths: [...HANDY_WIDTHS, 1280],
     mock: mockLedger,
+    open: async (page, { mobile }) => {
+      if (mobile) {
+        const sheet = await openLedgerDetail(page, "Bauhaus");
+        await sheet.locator('[data-testid="detail-category-arrow"]').tap();
+        // ledger-qvjvs: der Picker im Detail bietet auch die Konten an und heißt dann "Ziel wählen".
+        const picker = page.locator(".bottom-sheet.active", { hasText: "Ziel wählen" });
+        await picker.waitFor();
+        await picker.locator('[role="option"]', { hasText: "Nebenkosten" }).last().tap();
+        await feedbackAction(page).waitFor();
+        await page.waitForFunction(() => document.querySelectorAll(".bottom-sheet.active").length === 1);
+        await settle(page, { where: "Kategorie geändert, Detail offen" });
+        await closeLedgerSheet(page);
+      } else {
+        await openLedger(page);
+        await page.getByText("Bauhaus", { exact: true }).locator("visible=true").first().click();
+        await page.locator('[data-testid="detail-category-arrow"]').filter({ visible: true }).first().click();
+        await page.locator('[role="option"]', { hasText: "Nebenkosten" }).filter({ visible: true }).last().click();
+        await feedbackAction(page).waitFor();
+      }
+    },
+    // Der Toast am PC steht unten rechts über dem Panel und deckt dort, solange er steht (5 s), den Knopf „Historie“
+    // am Ende des Details. Schon vor design-system-gkded so (gleiche Lage); die Folge-Tasks nehmen Meldungen mit Ort
+    // aus dem Toast (ledger-gwr9j). Kann-Sammlung design-system.
+    exceptions: [{ width: 1280, inv: 5, selector: '[data-testid="detail-history-toggle"]' }],
+  },
+  // design-system-gkded (Regel R3, ADR 0098): nach einem Wisch (bei 900 px nach einer Kategorieänderung) steht die
+  // Meldung in der Leiste über der Navigation bzw. der Tastenleiste,
+  // „+ Buchung“ wird rund daneben. Regression design-system-vf94m: der Toast mit Aktion stand unten über dem
+  // schwebenden Knopf und verdeckte ihn (Invariante 12 und Gegenbeweis (c) in layout-invariants.test.mjs).
+  {
+    name: "kassenbuch-meldung",
+    route: "/ledger",
+    widths: [320, 390, 412, 900],
+    mock: async (page) => {
+      await mockLedger(page);
+      await mockReviewMark(page);
+    },
+    open: async (page, { mobile }) => {
+      await openLedger(page);
+      if (mobile) await swipeReviewed(page, "Bauhaus");
+      else {
+        // Von 768 bis 1023 px ohne Touch gibt es keinen Wisch, und G meldet am Ort: die Meldung kommt von einer
+        // Kategorieänderung im Detail-Sheet, sichtbar nach dem Schließen.
+        await page.getByText("Bauhaus", { exact: true }).locator("visible=true").first().click();
+        const sheet = ledgerSheet(page);
+        await sheet.locator('[data-testid="detail-category-arrow"]').click();
+        const picker = page.locator(".bottom-sheet.active", { hasText: "Ziel wählen" });
+        await picker.waitFor();
+        await picker.locator('[role="option"]', { hasText: "Nebenkosten" }).last().click();
+        await feedbackAction(page).waitFor();
+        await page.waitForFunction(() => document.querySelectorAll(".bottom-sheet.active").length === 1);
+        await settle(page, { where: "Kategorie geändert, Detail offen" });
+        await closeLedgerSheet(page);
+      }
+      await feedbackAction(page).waitFor();
+      await page.locator('[data-testid="ledger-capture-fab"][data-shape="round"]').waitFor();
+    },
+  },
+  // design-system-gkded: drei Wische nacheinander werden eine Meldung „3 geprüft“ mit einem Rückgängig.
+  {
+    name: "kassenbuch-3-geprueft",
+    route: "/ledger",
+    widths: [412],
+    mock: async (page) => {
+      await mockLedger(page);
+      await mockReviewMark(page);
+    },
     open: async (page) => {
-      const sheet = await openLedgerDetail(page, "Bauhaus");
-      await sheet.locator('[data-testid="detail-category-arrow"]').tap();
-      // ledger-qvjvs: der Picker im Detail bietet auch die Konten an und heißt dann "Ziel wählen".
-      const picker = page.locator(".bottom-sheet.active", { hasText: "Ziel wählen" });
-      await picker.waitFor();
-      await picker.locator('[role="option"]', { hasText: "Nebenkosten" }).last().tap();
-      await page.locator('[data-toast-action="true"]').first().waitFor();
+      await openLedger(page);
+      await swipeReviewed(page, "Bauhaus");
+      await page.locator('[data-testid="feedback-action"]', { hasText: "Bauhaus geprüft" }).waitFor();
+      await swipeReviewed(page, "Rückfrage und Prüfung");
+      await page.locator('[data-testid="feedback-action"]', { hasText: "2 geprüft" }).waitFor();
+      await swipeReviewed(page, "Markiert und zu prüfen");
+      await page.locator('[data-testid="feedback-action"]', { hasText: "3 geprüft" }).waitFor();
+      const bars = await page.locator('[data-testid="feedback-message"]').count();
+      if (bars !== 1) throw new Error(`3 geprüft: ${bars} Meldungen statt einer`);
     },
   },
   // ledger-hg5m5: nach der Kategorie-Änderung steht unter der Kategorie das Angebot „Regel anlegen?“; der Toast mit
@@ -1792,7 +1908,7 @@ export const STATES = [
       const picker = page.locator(".bottom-sheet.active", { hasText: "Ziel wählen" });
       await picker.waitFor();
       await picker.locator('[role="option"]', { hasText: "Nebenkosten" }).last().tap();
-      await page.locator('[data-toast-action="true"]').first().waitFor();
+      await feedbackAction(page).waitFor();
       await page.locator('.bottom-sheet.active [data-testid="rule-offer"]').waitFor();
     },
   },
@@ -2033,7 +2149,7 @@ export const STATES = [
       await openRule(page, "Regel eins");
       const remove = page.locator('[data-testid="rule-form"]').getByRole("button", { name: "Regel löschen", exact: true });
       await (mobile ? remove.tap() : remove.click());
-      await page.locator('[data-toast-action="true"]').first().waitFor();
+      await feedbackAction(page).waitFor();
       await page.locator('[data-testid="rule-form"]').waitFor({ state: "detached" });
     },
   },
@@ -2388,6 +2504,35 @@ export const STATES = [
     },
     // Wie `uebersicht`: bei 320 px bricht der Satz des ersten Eintrags in „Zu tun“ um (§7.4), die Konten rutschen mit.
     exceptions: [{ width: 320, inv: 9, selector: '[data-testid="overview-account"]' }],
+  },
+  // design-system-gkded: auf der Übersicht steht eine Meldung (Speichern der Pins gescheitert) in der Leiste, „+ Buchung“
+  // rund und ruhig daneben (§7.14, „Zu tun“ hat Einträge). Bei 1280 px bleibt der Dialog „Angepinnt“ offen und der
+  // Toast liegt über ihm (Regression c819eeb am PC: der Toast lag hinter der offenen Ebene, Gegenbeweis in
+  // layout-invariants.test.mjs).
+  {
+    name: "uebersicht-meldung",
+    route: "/",
+    widths: [390, 412, 1280],
+    mock: async (page) => {
+      await mockOverview(page);
+      await page.route("**/api/BudgetApi/getPinnedCategories", (r) => json(r, { Ok: [guid(1), guid(2), guid(3)] }));
+      await page.route("**/api/BudgetApi/setPinnedCategories", (r) => json(r, { Error: "YNAB antwortet nicht" }));
+    },
+    open: async (page, { mobile }) => {
+      await page.locator('[data-testid="overview-pins-edit"]').waitFor();
+      if (!mobile) {
+        await page.locator('[data-testid="overview-pins-edit"]').click();
+        await page.locator('[data-testid="pin-sheet-row"]').first().click();
+        await page.locator(".toast-layer", { hasText: "Nicht gespeichert" }).getByRole("button", { name: "Schließen" }).waitFor();
+        return;
+      }
+      await page.locator('[data-testid="overview-pins-edit"]').tap();
+      await page.locator('[data-testid="pin-sheet-row"]').first().tap();
+      await page.locator('[data-testid="feedback-bar"] [data-testid="feedback-message"]').waitFor();
+      await page.locator(".bottom-sheet.active").getByRole("button", { name: "Fertig", exact: true }).tap();
+      await page.waitForFunction(() => document.querySelectorAll(".bottom-sheet.active").length === 0);
+      await page.locator('[data-testid="overview-capture-fab"][data-shape="round"]').waitFor();
+    },
   },
   // budgeting-w9yt4: das Sheet „Angepinnt“, am Handy als Sheet, ab 1024 px als Dialog; „Fertig“ ohne Scrollen erreichbar.
   {

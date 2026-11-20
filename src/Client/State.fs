@@ -15,8 +15,8 @@ type Model = {
     // Navigation
     CurrentPage: Page
 
-    // Toast notifications
-    Toasts: Toast list
+    // Der eine Meldungsplatz (Regel R3, ADR 0098, design-system-gkded): unter 1024 px die Leiste, ab 1024 px der Toast.
+    Feedback: FeedbackMessage option
 
     // Aktualisierung der installierten PWA (infrastructure-bnbdc, ADR 0057)
     Pwa: Pwa.PwaState
@@ -57,12 +57,16 @@ type Msg =
     // Klick auf "Neu laden" oder sofortiges Neuladen: den wartenden Worker freigeben.
     | PwaApplyUpdate
 
-    // Toast (two-phase removal: StartDismissToast marks exiting → ToastExited removes)
+    // Rückmeldung (design-system-gkded). Die Seiten melden weiter per Toast-Text, die Wurzel setzt den Platz.
     | ShowToast of string * ToastType
-    | ShowToastWithAction of string * ToastType * ToastAction  // Toast mit Schaltfläche (ledger-th36h)
-    | ToastActionClicked of Guid  // Klick auf die Aktion: Toast schließen, Aktion ausführen
-    | StartDismissToast of Guid  // phase 1: mark exiting + schedule removal (auto or manual)
-    | ToastExited of Guid        // phase 2: final removal after the exit animation
+    | ShowToastWithAction of string * ToastType * ToastAction  // mit Schaltfläche (ledger-th36h)
+    /// Eine Meldung mit getrennter Aktion und Detail (ohne `FeedbackSlot.splitText`), für die Folge-Tasks.
+    | ShowFeedback of FeedbackMessage
+    /// Klick auf die Aktion der Meldung mit dieser Id: nur die aktuelle leert den Platz und führt die Aktion aus.
+    | FeedbackActClicked of Guid
+    // Toast am PC, zweistufiger Abgang: StartDismissToast markiert den Abgang, ToastExited blendet ihn aus.
+    | StartDismissToast of Guid
+    | ToastExited of Guid
 
     // Child component messages
     | SettingsMsg of Components.Settings.Types.Msg
@@ -141,20 +145,22 @@ let toastActionMsg (kind: ToastActionKind) : Msg =
     | RetryBudgetMove applicationId ->
         BudgetMsg (Components.Budget.Types.RetryMove applicationId)
 
-let private addToastWithAction
-    (message: string)
-    (toastType: ToastType)
-    (action: ToastAction option)
-    (model: Model)
-    : Model * Cmd<Msg> =
-    let toast = { Id = Guid.NewGuid(); Message = message; Type = toastType; Exiting = false; Action = action }
-    // Auto-dismiss runs through the same StartDismissToast path as a manual close,
-    // so both get the soft exit animation.
-    let dismissCmd = delayed autoDismissAfterMs (StartDismissToast toast.Id)
-    { model with Toasts = toast :: model.Toasts }, dismissCmd
+/// Wird der PWA-Hinweis aus dem Platz genommen (ersetzt, Seitenwechsel, ✕ am PC, Klick), steht er wieder nicht da:
+/// das nächste saubere Zurückholen kann ihn (oder das Neuladen) erneut auslösen (`Pwa.decide`).
+let private noticeClosed (model: Model) : Model =
+    match model.Feedback with
+    | Some message when FeedbackSlot.isUpdateNotice message -> { model with Pwa = { model.Pwa with NoticeShown = false } }
+    | _ -> model
 
-let private addToast (message: string) (toastType: ToastType) (model: Model) : Model * Cmd<Msg> =
-    addToastWithAction message toastType None model
+/// Setzt eine Meldung in den einen Platz (`FeedbackSlot.post`): sie ersetzt die alte oder fasst gleiche Wische
+/// zusammen. Der Toast am PC geht nach 5 s über denselben Weg wie ✕, außer bei „läuft“ und beim PWA-Hinweis.
+let private postFeedback (incoming: FeedbackMessage) (model: Model) : Model * Cmd<Msg> =
+    let posted = FeedbackSlot.post model.Feedback incoming
+    { noticeClosed model with Feedback = Some posted },
+    (if FeedbackSlot.autoDismisses posted then delayed autoDismissAfterMs (StartDismissToast posted.Id) else Cmd.none)
+
+let private addToast (message: string) (toastType: ToastType) (action: ToastAction option) (model: Model) : Model * Cmd<Msg> =
+    postFeedback (FeedbackSlot.ofToast (Guid.NewGuid()) message toastType action) model
 
 // ============================================
 // Seiten-Ladekommandos
@@ -413,26 +419,10 @@ let isInputActive (model: Model) : bool =
     ledgerActive || rulesActive || settingsActive || captureActive || fetchActive
     || Components.Budget.Moves.inputActive model.Budget
 
-/// Der Hinweis "Neue Version, neu laden": ein Info-Toast mit Aktion, der nicht nach 5 s
-/// verschwindet (kein Auto-Dismiss-Befehl). Er geht nur durch Schließen oder Klick.
-let private updateNoticeToast : Toast =
-    { Id = Guid.NewGuid()
-      Message = "Neue Version verfügbar."
-      Type = ToastInfo
-      Exiting = false
-      Action = Some { Label = "Neu laden"; Kind = ReloadForUpdate } }
-
-let private isUpdateNotice (toast: Toast) : bool =
-    match toast.Action with
-    | Some { Kind = ReloadForUpdate } -> true
-    | _ -> false
-
-/// Wird der Hinweis geschlossen (Schließen oder Klick), steht er wieder nicht da: das
-/// nächste saubere Zurückholen kann ihn (oder das Neuladen) erneut auslösen.
-let private noticeClosed (id: Guid) (model: Model) : Model =
-    match model.Toasts |> List.tryFind (fun t -> t.Id = id) with
-    | Some toast when isUpdateNotice toast -> { model with Pwa = { model.Pwa with NoticeShown = false } }
-    | _ -> model
+/// Der Hinweis "Neue Version, neu laden": eine Info-Meldung mit Aktion im einen Platz, ohne Zeitlimit auch am PC.
+/// Er geht durch ✕ am PC, Klick, eine neue Meldung oder einen Seitenwechsel.
+let private updateNotice (id: Guid) : FeedbackMessage =
+    FeedbackSlot.ofToast id "Neue Version verfügbar." ToastInfo (Some { Label = "Neu laden"; Kind = ReloadForUpdate })
 
 let private applyUpdateCmd : Cmd<Msg> = [ fun _ -> Pwa.applyUpdate () ]
 let private checkForUpdateCmd : Cmd<Msg> = [ fun _ -> Pwa.checkForUpdate () ]
@@ -443,11 +433,8 @@ let private applyPwaDecision (model: Model) : Model * Cmd<Msg> =
     | Pwa.Nothing -> model, Cmd.none
     | Pwa.ReloadNow -> { model with Pwa = { model.Pwa with Reloading = true } }, applyUpdateCmd
     | Pwa.ShowNotice ->
-        let toast = { updateNoticeToast with Id = Guid.NewGuid() }
-        { model with
-            Toasts = toast :: model.Toasts
-            Pwa = { model.Pwa with NoticeShown = true } },
-        Cmd.none
+        let shown, cmd = postFeedback (updateNotice (Guid.NewGuid())) model
+        { shown with Pwa = { shown.Pwa with NoticeShown = true } }, cmd
 
 // ============================================
 // Init
@@ -465,7 +452,7 @@ let init () : Model * Cmd<Msg> =
 
     let model = {
         CurrentPage = initialPage
-        Toasts = []
+        Feedback = None
         Pwa = Pwa.initialState
         Settings = settingsModel
         Fetch = Components.Fetch.Types.init
@@ -621,6 +608,10 @@ let rec updateWith (ports: UpdatePorts) (msg: Msg) (model: Model) : Model * Cmd<
         if page = model.CurrentPage then
             model, Cmd.none
         else
+            // Die Meldung bleibt bis zur nächsten Aktion oder bis man die Seite verlässt (R3). Kassenbuch,
+            // Buchungs-Detail und Regeln sind dieselbe Seite (`pageKey`), dort bleibt sie.
+            let left = pageKey page <> pageKey model.CurrentPage
+            let model = if left then { noticeClosed model with Feedback = None } else model
             { model with
                 CurrentPage = page
                 SettingsReturn = settingsReturn model.CurrentPage page model.SettingsReturn
@@ -670,34 +661,39 @@ let rec updateWith (ports: UpdatePorts) (msg: Msg) (model: Model) : Model * Cmd<
     // Toast
     // ============================================
     | ShowToast (message, toastType) ->
-        addToast message toastType model
+        addToast message toastType None model
 
     | ShowToastWithAction (message, toastType, action) ->
-        addToastWithAction message toastType (Some action) model
+        addToast message toastType (Some action) model
 
-    | ToastActionClicked id ->
-        // Der Klick schließt den Toast (derselbe zweistufige Abgang wie "Schließen") und
-        // führt die Aktion aus. Ein schon abgehender oder entfernter Toast löst nichts
-        // mehr aus: ein zweiter Klick darf nicht zweimal rückgängig machen.
-        match model.Toasts |> List.tryFind (fun t -> t.Id = id && not t.Exiting) with
-        | Some { Action = Some action } ->
-            { noticeClosed id model with Toasts = Toast.markExiting id model.Toasts },
-            Cmd.batch [ delayed Toast.exitDurationMs (ToastExited id); Cmd.ofMsg (toastActionMsg action.Kind) ]
+    | ShowFeedback message ->
+        postFeedback message model
+
+    | FeedbackActClicked id ->
+        // Nur die aktuelle Meldung löst ihre Aktion aus und leert den Platz. Eine ältere Id (schon ersetzt oder
+        // ausgeführt) tut nichts: ein zweiter Klick darf nicht zweimal rückgängig machen.
+        match model.Feedback with
+        | Some ({ Act = Some act } as message) when message.Id = id ->
+            { noticeClosed model with Feedback = None }, Cmd.ofMsg (toastActionMsg act.Kind)
         | _ -> model, Cmd.none
 
     | StartDismissToast id ->
-        // Double-fire guard: if the toast is already exiting (or already gone),
-        // do nothing — no second removal timer is scheduled. Otherwise mark it
-        // exiting (drives the CSS exit animation) and schedule the final removal
-        // after the exit duration.
-        if Toast.isExiting id model.Toasts then
-            model, Cmd.none
-        else
-            { noticeClosed id model with Toasts = Toast.markExiting id model.Toasts },
+        // Nur der Toast am PC: ein schon abgehender, ausgeblendeter oder ersetzter Toast plant nichts doppelt.
+        match model.Feedback with
+        | Some message when message.Id = id && not message.ToastExiting && not message.ToastHidden ->
+            // ✕ am PWA-Hinweis schließt ihn (wie bisher).
+            { noticeClosed model with Feedback = Some { message with ToastExiting = true } },
             delayed Toast.exitDurationMs (ToastExited id)
+        | _ -> model, Cmd.none
 
     | ToastExited id ->
-        { model with Toasts = Toast.remove id model.Toasts }, Cmd.none
+        match model.Feedback with
+        // Der PWA-Hinweis ist geschlossen und verlässt den Platz.
+        | Some message when message.Id = id && FeedbackSlot.isUpdateNotice message ->
+            { noticeClosed model with Feedback = None }, Cmd.none
+        | Some message when message.Id = id ->
+            { model with Feedback = Some { message with ToastExiting = false; ToastHidden = true } }, Cmd.none
+        | _ -> model, Cmd.none
 
     // ============================================
     // Settings Component

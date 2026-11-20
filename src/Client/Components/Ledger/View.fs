@@ -3727,7 +3727,7 @@ let keyboardHintVisible (model: Model) : bool =
 /// weil die Leiste `fixed` ist. Der Aufrufer gibt jeder Leiste einen eigenen Schlüssel, damit ein Wechsel
 /// einen neuen Knoten bindet.
 [<ReactComponent>]
-let private MeasuredBottomBar (scope: IReactProperty list) (bar: ReactElement) =
+let private MeasuredBar (variable: string) (scope: IReactProperty list) (bar: ReactElement) =
     let disconnect = React.useRef<(unit -> unit) option> None
     let measure =
         React.useCallback (
@@ -3735,11 +3735,15 @@ let private MeasuredBottomBar (scope: IReactProperty list) (bar: ReactElement) =
                 disconnect.current |> Option.iter (fun stop -> stop ())
                 disconnect.current <- None
                 if not (isNull (box element)) then
-                    disconnect.current <- Some (Viewport.mirrorChildHeight "--ledger-bottom-bar-height" element)),
-            [||]
+                    disconnect.current <- Some (Viewport.mirrorChildHeight variable element)),
+            [| box variable |]
         )
     // `scope`: Attribute der Hülle, etwa `data-lena-flag` für die Farbe des Flags an „Lena fragen“.
     Html.div [ prop.ref measure; yield! scope; prop.children [ bar ] ]
+
+/// Die feste Leiste unten am PC, gemessen nach `--ledger-bottom-bar-height`.
+let private MeasuredBottomBar (scope: IReactProperty list) (bar: ReactElement) =
+    MeasuredBar "--ledger-bottom-bar-height" scope bar
 
 /// Die Props des Pickers der Auswahl-Leiste ("Kategorie setzen" für mehrere): nur Kategorien,
 /// keine Konten (Roman, ledger-qvjvs: ein Übertrag geht nur einzeln im Detail).
@@ -3973,21 +3977,29 @@ let selectionBars (dispatch: Msg -> unit) (model: Model) : ReactElement =
     React.fragment [
         if model.SelectionMode then
             let lena, withdraw = lenaActions dispatch model true
-            MultiSelect.barMobile
-                countText
-                totals.Amount
-                selectionAllLabel
-                (isAllSelected model.Selection)
-                (fun () -> dispatch ToggleSelectAll)
-                selectionReviewedLabel
-                run.ReviewBusy
-                locked
-                (fun () -> dispatch StartReviewMarkBatch)
-                category
-                lena
-                withdraw
-                selectionClearLabel
-                (fun () -> dispatch ClearSelection)
+            // Gemessen nach `--ledger-mobile-bar-height`: die Meldungsleiste steht direkt darüber
+            // (`.feedback-dock-selection`, design-system-gkded).
+            React.keyedFragment (
+                "selection-bar-mobile",
+                [ MeasuredBar
+                      "--ledger-mobile-bar-height"
+                      []
+                      (MultiSelect.barMobile
+                          countText
+                          totals.Amount
+                          selectionAllLabel
+                          (isAllSelected model.Selection)
+                          (fun () -> dispatch ToggleSelectAll)
+                          selectionReviewedLabel
+                          run.ReviewBusy
+                          locked
+                          (fun () -> dispatch StartReviewMarkBatch)
+                          category
+                          lena
+                          withdraw
+                          selectionClearLabel
+                          (fun () -> dispatch ClearSelection)) ]
+            )
         match desktopBarFor model with
         | SingleSelectionBar ->
             let lena, withdraw = lenaActions dispatch model false
@@ -4043,15 +4055,10 @@ let private selectionBarSpacers (model: Model) : ReactElement =
             ]
     ]
 
-/// Steht "+ Buchung" am Handy? Nicht bei offenem Formular und nicht im Auswahl-Modus (dort steht die
-/// Auswahl-Leiste).
+/// Steht "+ Buchung" am Handy in der Meldungsleiste (design-system-gkded)? Nicht bei offenem Formular und nicht im
+/// Auswahl-Modus (dort steht die Auswahl-Leiste).
 let captureFabVisible (model: Model) : bool =
     model.Capture.IsNone && not model.SelectionMode
-
-/// Am Handy, solange "+ Buchung" schwebt: unter der Liste Platz für den Knopf (`Button.fab`, 52 px) und seinen
-/// Abstand (16 px), sonst verdeckt er am Ende Betrag und Symbol der letzten Buchung.
-let private captureFabSpacer (model: Model) : ReactElement =
-    if captureFabVisible model then Html.div [ prop.custom ("data-testid", "ledger-capture-fab-spacer"); prop.className "lg:hidden h-[68px]"; prop.ariaHidden true ] else Html.none
 
 /// Die Hinweisleiste über der Liste, wenn eine Kategorieänderung den Sortierschlüssel verschoben
 /// hat (ADR 0055, Punkt 9). Sie steht nur bei `OrderStale`; "Neu laden" setzt die Liste ab
@@ -4564,22 +4571,6 @@ let captureSheet (dispatch: Msg -> unit) (model: Model) : ReactElement =
     | CaptureDialog, None -> Html.none
     | CaptureSheet, _ -> captureSheetView dispatch model model.Capture true
 
-/// Der schwebende Knopf "+ Buchung" am Handy, unten rechts über der Navigation. Er fehlt bei
-/// offenem Formular und im Auswahl-Modus (dort steht die Auswahl-Leiste). `fixed`, deshalb rendert ihn
-/// der Haupt-`View.fs` außerhalb der Seitenhülle mit der Eintrittsanimation (wie `selectionBars`).
-let captureFab (dispatch: Msg -> unit) (model: Model) : ReactElement =
-    if not (captureFabVisible model) then
-        Html.none
-    else
-        Html.div [
-            prop.className "lg:hidden ledger-capture-fab"
-            prop.children [
-                // Gefüllt (`quiet = false`): am Handy hat das Kassenbuch sonst keine Hauptaktion, der Kopf trägt nur
-                // Symbolknöpfe (Styleguide §7.14, ledger-gy77x).
-                Button.fab "ledger-capture-fab" captureOpenLabel captureTitle false (fun () -> dispatch OpenCapture)
-            ]
-        ]
-
 // Wie `Viewport.observeHeight`, nur für die Breite: die Tabellenbreite entscheidet, welche
 // Spalten sichtbar sind (`visibleColumns`, ledger-qh9qx).
 [<Emit(
@@ -4730,7 +4721,6 @@ let private FilterBarColumn
                 orderStaleBar dispatch model
                 entryList dispatch fetch accounts isAllAccounts handyForm tableLayout model
                 selectionBarSpacers model
-                captureFabSpacer model
             ]
                 ]
             ]

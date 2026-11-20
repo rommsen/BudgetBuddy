@@ -642,7 +642,7 @@ let viewTests =
                   Sync = { DaysToFetch = 30; AutoFetchEnabled = true; AutoFetchIntervalMinutes = 360 } }
             let root : State.Model =
                 { CurrentPage = Page.Ledger
-                  Toasts = []
+                  Feedback = None
                   Pwa = Pwa.initialState
                   Settings = { settingsModel with Settings = Success settings }
                   Fetch = Components.Fetch.Types.init

@@ -535,14 +535,10 @@ nav a:focus-visible {
   animation: toastOut 0.22s ease-in both;
 }
 
-/* Toast mit Aktion am Handy: über der Tab-Bar (Handoff Ablauf 1, Screen 1.3). */
-.toast-above-nav {
-  bottom: calc(var(--bottom-nav-height) + 34px + env(safe-area-inset-bottom, 0px));
-}
-/* Am PC über einer festen Leiste unten (Auswahl-Leiste, Tastenleiste des Kassenbuchs, Styleguide §7.13,
-   ledger-cnaz3): `MeasuredBottomBar` schreibt ihre Höhe nach `--ledger-bottom-bar-height`, ohne Leiste gilt 0. */
+/* Der eine Toast am PC (`Toast.single`, ab 1024 px) über einer festen Leiste unten (Auswahl-Leiste, Tastenleiste
+   des Kassenbuchs, Styleguide §7.13, ledger-cnaz3): `MeasuredBottomBar` schreibt ihre Höhe nach
+   `--ledger-bottom-bar-height`, ohne Leiste gilt 0. */
 @media (min-width: 768px) {
-  .toast-above-nav,
   .toast-above-bar {
     bottom: calc(var(--ledger-bottom-bar-height, 0px) + 1rem);
   }
@@ -603,6 +599,28 @@ nav a:focus-visible {
   left: var(--feedback-bar-left, 0px);
   right: 0;
   bottom: var(--feedback-bar-bottom, calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px)));
+}
+/* Wo die Leiste der App sitzt (`View.fs`, Hülle um `Feedback.bar`). Unter 768 px über der Navigation unten
+   (`feedback-dock-nav`), ohne sie am Rand (`feedback-dock-edge`, Durchgehen) oder über der Auswahl-Leiste am Handy
+   (`feedback-dock-selection`, gemessen nach `--ledger-mobile-bar-height`). Von 768 bis 1023 px gibt es keine
+   Navigation unten: die Leiste beginnt rechts der Rail (72 px, `NavWidths.rail`) und steht über einer festen
+   Leiste des Kassenbuchs (`--ledger-bottom-bar-height`), sonst am Rand. */
+.feedback-dock-nav {
+  --feedback-bar-bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px));
+}
+.feedback-dock-edge {
+  --feedback-bar-bottom: env(safe-area-inset-bottom, 0px);
+}
+.feedback-dock-selection {
+  --feedback-bar-bottom: var(--ledger-mobile-bar-height, 0px);
+}
+@media (min-width: 768px) {
+  .feedback-dock-nav,
+  .feedback-dock-edge,
+  .feedback-dock-selection {
+    --feedback-bar-bottom: var(--ledger-bottom-bar-height, env(safe-area-inset-bottom, 0px));
+    --feedback-bar-left: 72px;
+  }
 }
 
 /* Bounce subtle (for attention) */
@@ -2769,8 +2787,8 @@ nav a:focus-visible {
   font-size: 14px;
 }
 
-/* Toasts liegen über allen Sheets, sonst verdeckt am Handy ein offenes Detail-Sheet den Toast samt
-   "Rückgängig" (Regression 2026-10-24). */
+/* Der Toast am PC (ab 1024 px) liegt über Panel, Sheets und Dialogen, sonst verdeckte ein offenes Detail den Toast
+   samt "Rückgängig" (Regression 2026-10-24, c819eeb). Unter 1024 px steht kein Toast, die Leiste liegt unter Sheets. */
 .toast-layer { z-index: 90; }
 
 /* ------------------------------------------------------------------
@@ -2872,17 +2890,6 @@ nav a:focus-visible {
    langen Drücken auf eine Zeile sonst aufgeht. */
 .selection-bar {
   box-shadow: 0 -14px 40px rgba(0, 0, 0, 0.45);
-}
-/* "+ Buchung" am Handy (ledger-at63w, auf der Übersicht ledger-s1weh): schwebt unten rechts über der Navigation, mit dem
-   Seitenrand von 16 px (Styleguide §7.15) als Abstand zur Navigation und zur sicheren Zone unten.
-   Ebene wie `ZIndex.fixed'` (30), damit Sheets und Modals (40) darüber liegen. Den Platz unter der
-   Liste hält `captureFabSpacer` frei. */
-.ledger-capture-fab,
-.overview-capture-fab {
-  position: fixed;
-  right: 16px;
-  bottom: calc(var(--bottom-nav-height) + 16px + env(safe-area-inset-bottom, 0px));
-  z-index: 30;
 }
 .row-longpress {
   -webkit-touch-callout: none;

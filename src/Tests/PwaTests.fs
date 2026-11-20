@@ -24,7 +24,7 @@ let private baseModel () : State.Model =
     let ledgerModel, _ = Components.Ledger.State.init ()
     {
         CurrentPage = Ledger
-        Toasts = []
+        Feedback = None
         Pwa = Pwa.initialState
         Settings = settingsModel
         Fetch = Components.Fetch.Types.init
@@ -90,7 +90,7 @@ let private anEntry : Shared.Domain.LedgerEntryView = {
 }
 
 let private noticeToasts (m: State.Model) =
-    m.Toasts |> List.filter (fun t -> t.Action |> Option.exists (fun a -> a.Kind = ReloadForUpdate))
+    m.Feedback |> Option.toList |> List.filter FeedbackSlot.isUpdateNotice
 
 // ============================================
 // Tests
@@ -157,7 +157,7 @@ let updateTests =
             Expect.isTrue after.Pwa.UpdateWaiting "UpdateWaiting"
             Expect.isTrue after.Pwa.Reloading "Reloading"
             Expect.equal (List.length cmd) 1 "genau ein Cmd"
-            Expect.isEmpty after.Toasts "kein Hinweis"
+            Expect.isNone after.Feedback "kein Hinweis"
         testCase "PwaUpdateWaiting mit offenem Detail zeigt den Hinweis und lädt nicht" <| fun () ->
             let model = baseModel () |> withLedger (fun l -> { l with DetailFor = Some anEntry })
             let after, cmd = State.update State.PwaUpdateWaiting model
@@ -183,17 +183,17 @@ let updateTests =
             let shown, _ = State.update State.PwaUpdateWaiting model
             let toast = List.head (noticeToasts shown)
             let closing, _ = State.update (State.StartDismissToast toast.Id) shown
-            Expect.isTrue (closing.Toasts |> List.exists (fun t -> t.Id = toast.Id && t.Exiting)) "Toast geht ab"
+            Expect.isTrue (closing.Feedback |> Option.exists (fun t -> t.Id = toast.Id && t.ToastExiting)) "Toast geht ab"
             Expect.isFalse closing.Pwa.NoticeShown "NoticeShown wieder false"
             let removed, _ = State.update (State.ToastExited toast.Id) closing
-            Expect.isEmpty removed.Toasts "Toast entfernt"
+            Expect.isNone removed.Feedback "Hinweis verlässt den Platz"
             let again, _ = State.update State.PwaUpdateWaiting removed
             Expect.equal (List.length (noticeToasts again)) 1 "neuer Hinweis bei laufender Eingabe"
         testCase "Der Hinweis-Toast hat keinen Auto-Dismiss: nach PwaUpdateWaiting ist kein Zeitgeber geplant" <| fun () ->
             // Ein normaler Toast liefert einen Cmd (StartDismissToast nach 5 s), der Hinweis nicht.
             let normal, normalCmd = State.update (State.ShowToast ("x", ToastInfo)) (baseModel ())
             Expect.equal (List.length normalCmd) 1 "normaler Toast plant den Abgang"
-            Expect.equal (List.length normal.Toasts) 1 "ein Toast"
+            Expect.isSome normal.Feedback "eine Meldung"
             let busy = baseModel () |> withLedger (fun l -> { l with SortSheetOpen = true })
             let _, noticeCmd = State.update State.PwaUpdateWaiting busy
             Expect.isEmpty noticeCmd "der Hinweis plant keinen Abgang"
@@ -202,7 +202,7 @@ let updateTests =
             let shown, _ = State.update State.PwaUpdateWaiting model
             let toast = List.head (noticeToasts shown)
             Expect.equal (State.toastActionMsg ReloadForUpdate) State.PwaApplyUpdate "Übersetzung"
-            let clicked, _ = State.update (State.ToastActionClicked toast.Id) shown
+            let clicked, _ = State.update (State.FeedbackActClicked toast.Id) shown
             Expect.isFalse clicked.Pwa.NoticeShown "Hinweis geschlossen"
             let applied, cmd = State.update State.PwaApplyUpdate clicked
             Expect.isTrue applied.Pwa.Reloading "Reloading"

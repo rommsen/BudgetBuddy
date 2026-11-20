@@ -40,7 +40,7 @@ test("[flow:buchung-erfassen] Handy: ein Zuletzt-Chip füllt das Formular, Buchu
     await page.goto(`http://127.0.0.1:${frontendPort}/#/ledger`, { waitUntil: "load" });
     await waitForPageLoaded(page, "/ledger");
 
-    await page.locator(".ledger-capture-fab").getByRole("button").tap();
+    await page.getByTestId("ledger-capture-fab").tap();
     const sheet = page.locator(".bottom-sheet.active", { hasText: "Neue Buchung" });
     await sheet.locator('[data-testid="capture-recent"]').waitFor();
 
@@ -53,8 +53,11 @@ test("[flow:buchung-erfassen] Handy: ein Zuletzt-Chip füllt das Formular, Buchu
     await amount.fill("9,20");
     await sheet.getByRole("button", { name: "Buchung anlegen" }).tap();
 
-    await page.getByText("Buchung angelegt · Bar").first().waitFor();
-    await page.locator('[data-toast-action="true"]', { hasText: "Rückgängig" }).first().waitFor();
+    // Regel R3 (design-system-gkded): am Handy steht die Rückmeldung in der Leiste, Aktion und Detail getrennt.
+    const bar = page.getByTestId("feedback-bar");
+    await bar.getByTestId("feedback-action").filter({ hasText: "Buchung angelegt" }).waitFor();
+    await bar.getByTestId("feedback-detail").filter({ hasText: /^Bar/ }).waitFor();
+    await bar.locator('[data-feedback-action="true"]', { hasText: "Rückgängig" }).waitFor();
     assert.equal(calls.add.length, 1, "genau ein Aufruf");
     const [request] = calls.add[0];
     // Fable.Remoting schickt `decimal` als Text.
@@ -99,7 +102,7 @@ test("[fokus] Neue Buchung: am PC Fokus im Betrag, am Handy kein Autofokus", asy
       await mockCapture(page);
       await page.goto(`http://127.0.0.1:${frontendPort}/#/ledger`, { waitUntil: "load" });
       await waitForPageLoaded(page, "/ledger");
-      await page.locator(".ledger-capture-fab").getByRole("button").tap();
+      await page.getByTestId("ledger-capture-fab").tap();
       await page.locator('.bottom-sheet.active [data-testid="capture-amount"] input').waitFor();
       assert.equal(await amountFocused(page), false, "am Handy kein Autofokus");
     } finally {

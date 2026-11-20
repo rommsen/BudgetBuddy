@@ -188,7 +188,7 @@ test("[flow:aufteilen] PC: Aufteilen mit Übertrag über den Picker im Panel: Ta
   await line(panel(page), 1).getByRole("button", { name: "Rest", exact: true }).click();
   assert.equal((await restOf(panel(page)).textContent()).trim(), "0,00 €");
   await save(panel(page)).click();
-  await page.getByText("Aufgeteilt in 2 Zeilen", { exact: true }).waitFor();
+  await page.locator(".toast-layer").getByText("Aufgeteilt in 2 Zeilen", { exact: true }).waitFor();
   assert.equal(state.saveCalls.length, 1, "setEntrySplits genau einmal");
   assert.ok(state.saveCalls[0].lines[1].Target.ToTransfer, "zweite Zeile ist ein Übertrag");
   assert.equal(state.saveCalls[0].lines[1].Amount.Amount, -51.9, "Vorzeichen der Buchung");

@@ -338,7 +338,7 @@ eigene Zeile; §2 und §7 nennen sie, wo sie gelten.
 | **Badge** | Kompakter Status/Label: semantisch (`success`/`warning`/`error`/`info`, `notice` in Gelb für „braucht dich, kein Fehler“, immer mit Wort, ADR 0087 Punkt 3), Domänen-Status (`imported`, `pendingReview`, `autoCategorized`, `uncategorized`), `count` | Klickbare Filter → `Button.ghost`/Pills; lange Texte |
 | **Input** | Alle Formularelemente: `text`/`password`/`email`/`number`, `textarea`, `AutoGrowTextarea` (mitwachsendes mehrzeiliges Feld für einen Text, der einzeilig gemeint ist, aber umbrechen darf, wie das Memo, design-system-x045q: startet einzeilig, wächst mit dem Text, zeigt beim Öffnen den ganzen Text, über `max-h-32` scrollt es in sich, kein Ziehgriff, Schrift 16 px; die Bildschirmtastatur zeigt „Fertig“, Enter fügt keinen Umbruch ein und ruft `OnEnter`; für freien Text mit Absätzen → `textarea`), `select`/`selectSimple`, `checkbox`, `checkboxNative` (die native Checkbox des Browsers ohne eigene Gestalt, in einem `label` mit der Zeile; Vorschau Targets anwenden nach der Skizze), `toggle`, `searchableSelect`, `pickerField` (Auswahlfeld als Knopf nach §7.5: Bezeichnung klein oben, Wert oder gedämpfter Platzhalter, optional der Saldo, Pfeil rechts; hält den Fokus, eine offene Tastatur bleibt offen; erster Nutzer „Neue Buchung“ im Kassenbuch), `selectField` (Auswahlfeld mit Pfeil nach unten, Saldo gleich neben dem Wert, 48 px hoch und 12 px Innenabstand seitlich über `.input-select` in `styles.css`, Prototyp `.field`; die Kontowahl im Kassenbuch unter 1024 px, ledger-d9z3n), `requiredSelectField` (Pflicht-Auswahlfeld in der Form von `selectField`: ohne Wert steht der Platzhalter in Gelb, braucht dich, statt eines roten Fehlertexts unter dem Feld; gesperrt gedämpft und nicht antippbar; der Wochentag eines Targets, budgeting-h2brj), `searchField` (Suchfeld mit Lupe, `type=search`), `searchFieldCompact` (dasselbe am Ende einer Filterleiste am PC: 36 px hoch, Text 14 px, höchstens 280 px breit und rechtsbündig; Kassenbuch ab 1024 px, ledger-cnaz3), `countSwitchRow` (Schalter als Zeile mit kurzer Bezeichnung und gedämpfter Anzahl, ohne Erklärsatz; Filter-Sheet im Kassenbuch), `valueRow` (Zeile mit Bezeichnung links, Wert 14 px und Pfeil rechts, öffnet eine Auswahl; gesetzt im Akzent), `amountFieldClass` (Klasse eines Betragsfelds: Mono, Ziffern gleich breit, ungültig mit roten Ziffern, `hero` groß wie in „Neue Buchung“ und im Sheet „Betrag“), `switchRow` (Schalter als ganze Zeile mit Titel und Erklärsatz, `role switch`, der Satz über `aria-describedby`, aus in `border-strong`; für eine Einstellung mit Folgen wie „Aktiv“ einer Kategorie; ein Schalter mit kurzer Bezeichnung ohne Erklärsatz ist `toggle`, die Checkbox-Form auf einem `input`), plus `group`/`groupWithError`/`formSection` | Reine Anzeige; mobiles Kategorie-/Konto-Auswählen → `BottomSheet` (§7) |
 | **Modal** | Zentrierte Dialoge auf **Desktop**, nur für eine kurze Frage oder eine Auswahl (§7.6): `simple`, `custom`, `fullScreen`, `confirm`/`confirmDanger` (beide mit "Abbrechen"), `alert`, `loading`. Ein offenes Modal bekommt die Tasten zuerst, Esc schließt nur es (§7.8) | Anzeigen, Bearbeiten oder Neuanlegen eines Dings aus einer Liste → Panel (§7.6); mobile Auswahl-Flows → `BottomSheet` (keyboard-fest); persistente Inhalte |
-| **Toast** | Nur ab 1024 px und nur für Meldungen ohne Ort (Platz 3): höchstens einer, geht nach 5 s, mit ✕, aus demselben Zustand wie die Leiste (§7.13); `success`/`error`/`warning'`/`info'`, `renderList` | Unter 1024 px → `Feedback` (§7.13); Rückmeldung, deren Ergebnis man am Ort sieht, auch am PC → `Feedback` am Ort ohne zusätzlichen Toast; blockierende Fehler → `ErrorDisplay`/`Modal`; persistenter Status → `Badge` |
+| **Toast** | Nur ab 1024 px und nur für Meldungen ohne Ort (Platz 3): höchstens einer, geht nach 5 s, mit ✕, aus demselben Zustand wie die Leiste (§7.13); `single` (der eine Toast der App), `success`/`error`/`warning'`/`info'` | Unter 1024 px → `Feedback` (§7.13); Rückmeldung, deren Ergebnis man am Ort sieht, auch am PC → `Feedback` am Ort ohne zusätzlichen Toast; blockierende Fehler → `ErrorDisplay`/`Modal`; persistenter Status → `Badge` |
 | **Feedback** | Jede Rückmeldung unter 1024 px nach den Plätzen in §7.13: `bar` (Meldungsleiste über der Navigation, `BarPlacement.Docked` fest, `Preview` im Fluss; trägt auf Seiten mit „+ Buchung“ den Knopf, breit ohne Meldung, rund mit Meldung), `sheetLine` (Zeile im Sheet über dem Hauptknopf), `fieldNote` (Bestätigung unter einem Feld mit „Rückgängig“), `flash` (Klasse: Feld, Zeile oder Wert leuchtet kurz), `removedRow` („„Regel drei“ gelöscht · Rückgängig“ am Platz). Töne `Ok`, `Warning`, `Error`, `Running`, `Info`. Ab 1024 px die Rückmeldungen am Ort: Bestätigung am Feld, Leuchten, Zeile „gelöscht“ und Zeile im Sheet | Zustand der Seite (etwa „nicht neu gelesen“) → `ErrorDisplay.notice`; blockierende Fehler → `ErrorDisplay`/`Modal`; Fehler zu einer Eingabe → am Feld (`Input.groupWithError`, `ErrorDisplay.inline'`) |
 | **Stats** | KPI-/Kennzahl-Kacheln: `withIcon`, `withTrend`, `transactionCount`, `syncCount`, `grid*`, ohne Farbstreifen; Monatsbalken `monthBars`, `monthBarsChosen` (vorgewählter Balken, nur im Styleguide) und `monthBarsPlaceholder` (beim Laden, gleich hoch); Mini-Balken `sparkBars`, `sparkBarsLabelled` und `sparkBarsPlaceholder` (Seite Targets prüfen); Regeln in §2 Monatsbalken | Vollständige Tabellen → `Table`; einzelner Betrag im Fließtext → `Money` |
 | **Money** | **Jede** Geldanzeige, setzt die Vorzeichen-Farbe automatisch, ohne Glow: `available` (Auswahl, §2), `afterAmount` (Verfügbar danach: fett, rot unter 0, grün bei genau 0), `simple`, `large`, `hero`, `noSign`, `fromMoney`, `accountChoiceRow` (Zeile der Kontowahl im Sheet: Name und Saldo in Primärtext, Trennlinie, beim gewählten Konto nur Haken und Akzentrahmen, dazu `aria-current="true"`; ledger-d9z3n, seit ledger-zf6zg auch die Kontowahl in „Neue Buchung“), `balanceInline` (Kontostand im Fließtext: Mono ohne Plus, negativ Rot, sonst gedämpft oder in der Farbe der Zeile, Größe vom Aufrufer; Kopf am PC und Feld „Konto“ im Kassenbuch, ledger-cnaz3), `accountBalance` (Kontostand ohne führendes Plus, für Kontostände-Leiste und -Liste), `accountListRow` (klickbare Kontozeile: Name links, farbcodierter Betrag rechts, aktiver Zustand mit Akzentlinie), `accountListRowWith` (dieselbe Zeile mit eigenem Wert, etwa `Loading.amountSkeleton` beim Laden oder `balanceUnavailable`, ein gedämpfter Strich nach einem Ladefehler) | Nicht-monetäre Zahlen → `Presets.monoNumber` |
@@ -385,17 +385,17 @@ Bewegung ist subtil, schnell und respektiert Nutzerpräferenzen. Quelle:
   Zeilen eintreffen. Generischer `spinner`/`neonPulse` nur, wo die Form unbekannt ist.
   (Beleg: `infrastructure/done/2026-06-11-mobile-polish-sticky-filter-skeleton-springs`.)
 - **Stagger** für sequentielle Einblendungen über `StaggerDelays.forIndex i`.
-- **Toasts — sanfter Ein- *und* Abgang (Zwei-Phasen-Removal).** Eingang:
-  `.animate-toast-in` (Slide-up + leichtes Scale), bevorzugt den geteilten Federwert
+- **Toast am PC: sanfter Ein- und Abgang (zwei Phasen), nur ab 1024 px.** Eingang:
+  `.animate-toast-in` (Slide-up und leichtes Scale), bevorzugt den geteilten Federwert
   `--sf-spring-out` hinter `@supports`, Fallback `--transition-spring`. Abgang:
-  `.animate-toast-out` (Fade + Slide-down, `ease-in`, 220 ms) — Toasts verschwinden
-  **nie abrupt**. Die Lebenszyklus-Mechanik liegt in der App-State (`State.fs`):
-  `StartDismissToast` markiert den Toast als *exiting* (Exit-Animation startet),
-  `ToastExited` entfernt ihn nach `Types.Toast.exitDurationMs` (= CSS-Dauer). Auto-Dismiss
-  **und** manuelles Schließen laufen über denselben Pfad; ein Doppel-Dismiss ist durch
-  `Toast.isExiting` abgesichert (kein Timer-Leak / keine Doppel-Entfernung). Die
-  Animationsklassen sitzen **nur auf dem inneren Toast-Element**, nie auf dem fixen
-  Container (`css-animation-safety`). (design-system-004.)
+  `.animate-toast-out` (Fade und Slide-down, `ease-in`, 220 ms), der Toast verschwindet
+  **nie abrupt**. Zustand ist der eine Meldungsplatz `Model.Feedback` (`State.fs`, §7.13): `StartDismissToast`
+  markiert den Toast der aktuellen Meldung als abgehend (`ToastExiting`), `ToastExited` blendet ihn nach
+  `Types.Toast.exitDurationMs` (= CSS-Dauer) aus (`ToastHidden`); die Meldung bleibt für die Leiste stehen. Nach 5 s
+  und ✕ laufen über denselben Pfad; ein doppeltes ✕ und der Zeitgeber einer schon ersetzten Meldung tun nichts (die
+  Zeitgeber tragen die Id der Meldung). Läuft und der PWA-Hinweis gehen nicht von selbst. Die Leiste unter 1024 px hat
+  keinen Abgang (sie wird ersetzt, `msgIn`). Die Animationsklassen sitzen **nur auf dem inneren Toast-Element**, nie
+  auf dem fixen Container (`css-animation-safety`). (design-system-004, design-system-gkded.)
 - **Toast-Platzierung:** den Toast gibt es nur ab 1024 px, unten rechts, und nur für Meldungen ohne Ort
   (Platz 3 in §7.13). Unter 1024 px steht statt eines Toasts die Meldungsleiste (`Feedback.bar`) über der
   Navigation. Die innere Toast-Fläche ist voll deckend (`bg-surface-card`); der Container ist
@@ -756,6 +756,16 @@ Dazu gilt:
   letzte Aktion unter „Passt, weiter“, Rückgängig am Feld). Den Toast unten rechts gibt es am PC nur für Meldungen
   ohne Ort (Platz 3): höchstens einer, er geht nach 5 s und hat ein ✕. Liegt dort eine Leiste (Auswahl-Leiste,
   Fußzeile), steht er darüber.
+- **Ein Zustand für beide.** Die App hält genau eine Meldung (`Model.Feedback`, `FeedbackSlot.post` ersetzt oder fasst
+  gleiche Wische zusammen). Unter 1024 px zeigt sie die Leiste, ab 1024 px der Toast, getrennt per CSS. Ein
+  Seitenwechsel leert den Platz; Kassenbuch, Buchungs-Detail und Regeln gelten als eine Seite. Die Leiste liegt über
+  der Navigation unten, ohne sie am unteren Rand, im Auswahl-Modus über der Auswahl-Leiste, von 768 bis 1023 px rechts
+  der Rail; ihre Höhe hält die Seitenhülle frei (`--feedback-bar-height`). Ein offenes Sheet deckt sie.
+- **Übergang (design-system-gkded, bis die Seiten umgestellt sind):** die Seiten melden weiter mit einem Text
+  (`ShowToast`), die App teilt ihn am ersten „: “ oder „ · “ in Aktion und Detail („REWE geprüft“ statt „Geprüft“ /
+  „REWE“). Rückmeldungen, die nach den Plätzen 1 und 2 an den Ort oder ins Sheet gehören, stehen bis dahin in der
+  Leiste (am Handy nach dem Schließen des Sheets sichtbar) bzw. im Toast am PC. Neue Stellen setzen Aktion und Detail
+  getrennt (`ShowFeedback`).
 
 Der Text sagt knapp, was passiert ist („3 geprüft“). Lässt sich die Änderung zurücknehmen, bietet die Rückmeldung
 „Rückgängig“.
