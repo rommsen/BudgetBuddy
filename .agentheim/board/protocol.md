@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-20 02:55 -- Modeling / Promoted: ledger-k68sd - "Kassenbuch am Handy ohne Toast (R3), Teil 4: gelöschte Buchung hinterlässt eine Zeile am Platz „… gelöscht · Rückgängig“ statt Toast, Fehler beim Löschen unter dem Knopf"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-20 02:55 -- Modeling / Promoted: ledger-p5y9s - "Kassenbuch am Handy ohne Toast (R3), Teil 2 Detail I: Rückgängig am Feld im Detail-Sheet als Mechanik, Kategorie, Übertrag und Aufteilen bestätigen am Feld, Fehler am Feld, Übergang beim Schließen"
 
 **Type:** Modeling / Promote

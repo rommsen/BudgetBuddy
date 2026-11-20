@@ -1,7 +1,7 @@
 ---
 id: ledger-k68sd
 title: "Kassenbuch am Handy ohne Toast (R3), Teil 4: gelöschte Buchung hinterlässt eine Zeile am Platz „… gelöscht · Rückgängig“ statt Toast, Fehler beim Löschen unter dem Knopf"
-status: backlog
+status: todo
 type: feature
 context: ledger
 created: 2026-11-19
