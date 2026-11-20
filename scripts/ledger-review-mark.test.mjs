@@ -185,7 +185,11 @@ test("[flow:buchung-pruefen] PC: G auf der markierten Zeile schickt den Aufruf; 
       const row = page.locator("button", { hasText: PAYEES.toReview }).filter({ visible: true }).first();
       await row.waitFor();
       await swipe(page, row, 260);
-      await page.waitForFunction(() => document.body.innerText.includes("geprüft"));
+      // ledger-gwr9j: die Rückmeldung steht in der Leiste über der Navigation, „✓ Geprüft“, darunter der Payee.
+      const bar = page.getByTestId("feedback-bar");
+      await bar.getByTestId("feedback-action").filter({ hasText: /^Geprüft$/ }).waitFor();
+      await bar.getByTestId("feedback-detail").filter({ hasText: PAYEES.toReview }).waitFor();
+      await bar.locator('[data-feedback-action="true"]', { hasText: "Rückgängig" }).waitFor();
       const call = calls.find((c) => c.endpoint === "setReviewMark");
       assert.ok(call, "Handy: der Wisch schickt den Prüfvermerk");
       assert.deepEqual(JSON.parse(call.body), [entries.Entries[0].Id, "Reviewed"], "Handy: Id und Ziel");

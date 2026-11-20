@@ -97,12 +97,12 @@ let tests =
             Expect.isTrue (detailReviewSwitchVisible entry) "Schalter"
             Expect.isTrue (swipeAppliesTo entry) "Wisch"
 
-        testCase "Sammelbefehle nennen übersprungene wartende Buchungen im Toast" <| fun () ->
+        testCase "Sammelbefehle nennen übersprungene wartende Buchungen in der Meldung" <| fun () ->
             let reviewOutcome : ReviewMarkBatchOutcome = { Changed = []; UnchangedCount = 0; FailedCount = 0; HeldCount = 2 }
-            Expect.equal (reviewBatchToastText reviewOutcome) "Keine Buchung geprüft (2 vielleicht doppelt)" "Geprüft"
+            Expect.equal (reviewBatchFeedback reviewOutcome).Detail (Some "2 vielleicht doppelt") "Geprüft"
             Expect.equal (reviewBatchToastType reviewOutcome) ToastWarning "Warnung"
             let flagOutcome : FlagBatchOutcome = { Changed = []; UnchangedCount = 0; FailedCount = 0; HeldCount = 1 }
-            Expect.equal (flagBatchToastText AssignLena flagOutcome) "Keine Buchung an Lena gefragt (1 vielleicht doppelt)" "Lena"
+            Expect.equal (flagBatchFeedback AssignLena flagOutcome).Detail (Some "1 vielleicht doppelt") "Lena"
             Expect.equal (flagBatchToastType flagOutcome) ToastWarning "Warnung"
             let categoryOutcome : CategoryBatchOutcome = { Changed = []; UnchangedCount = 0; Skipped = [ SkipPossibleDuplicate ] }
             Expect.contains (categoryBatchSkipReasons categoryOutcome) "vielleicht doppelt" "Kategorie"

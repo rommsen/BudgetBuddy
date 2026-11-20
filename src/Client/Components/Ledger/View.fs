@@ -2492,6 +2492,7 @@ let private swipeableEntryRow
             prop.children [
                 Swipe.SwipeableRowRight {
                     ActionLabel = swipeActionLabel
+                    ActionIcon = Some (Icons.check Icons.XS Icons.Success)
                     ActionClass = "reviewed"
                     OnCommit = (fun () -> dispatch (StartSwipeReviewed entry.Id))
                     // Deckender Grund, damit die Aktionsfläche erst beim Wischen sichtbar wird.

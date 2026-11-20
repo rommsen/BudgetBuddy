@@ -2149,6 +2149,7 @@ let private SwipeDemo () =
             prop.children [
                 Swipe.SwipeableRow {
                     ActionLabel = "Überspringen"
+                    ActionIcon = None
                     ActionClass = "skip"
                     OnCommit = fun () -> setSwiped true
                     Children =

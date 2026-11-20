@@ -1,7 +1,7 @@
 ---
 id: ledger-gwr9j
 title: "Kassenbuch am Handy ohne Toast (R3), Teil 1 Liste: Texte der Leiste für Wische, Spiegeln, Neue Buchung, Mehrfachauswahl und Ladefehler, „Spiegeln läuft“, Rückgängig nach n Wischen ohne Sprung der Liste"
-status: doing
+status: done
 type: feature
 context: ledger
 created: 2026-11-19
@@ -183,3 +183,65 @@ Skizze (lokal, Worker können das Artifact nicht öffnen):
 - Quelltext: /private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/4b5cf62e-3174-40e3-90f3-4b5312280eb9/scratchpad/vf5h6/skizze.src.html (CSS `.kb-bar`, `.kb-msg`, `.kb-add` ~Zeile 235; Verhalten `KB.prototype` ~Zeile 996; Anhang „Alle Toasts“ ~Zeile 561)
 - Skizze 412 px: /private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/4b5cf62e-3174-40e3-90f3-4b5312280eb9/scratchpad/vf5h6/skizze-shots/20-kassenbuch-ruhe.png, 21-kassenbuch-wisch-eingerastet.png, 22-kassenbuch-geprueft.png, 23-kassenbuch-3-geprueft.png, 24-kassenbuch-abrufen-laeuft.png, 25-kassenbuch-abgerufen.png, 26-kassenbuch-abrufen-fehler.png, 27-kassenbuch-angelegt.png (alle im selben Ordner)
 - Heute: /private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/4b5cf62e-3174-40e3-90f3-4b5312280eb9/scratchpad/shots/vf5h6/heute-kassenbuch-wisch-412.png und /private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/4b5cf62e-3174-40e3-90f3-4b5312280eb9/scratchpad/shots/review-fixes/kassenbuch-412.png
+
+## Verifier note (iteration 1)
+REASONS: Der Screenshot `kassenbuch-spiegel-fehler-1280.png` zeigt keinen Toast, das OUTCOME behauptet einen („Spiegeln gescheitert · YNAB antwortet nicht“ unten rechts). Wahrscheinlich war der Toast nach 5 s schon abgelaufen. Sonst keine Mängel: VERIFY: PASS, README-Delta-Gate Exit 0, Tabelle vollständig umgesetzt; die Abweichung „Prüfvermerk nicht in YNAB“ nach Rückgängig ist begründet.
+SUGGESTED_FIX: PC-Screenshot innerhalb von 5 s nach dem Spiegel-Fehler aufnehmen (auf `.toast-layer` mit „Spiegeln gescheitert“ warten), OUTCOME-Zeile anpassen. Kein Code nötig.
+ITERATION_HINT: likely-fixable
+
+
+## Outcome
+
+Die Kassenbuch-Liste meldet am Handy nur noch in der Meldungsleiste (Regel R3, ADR 0098), am PC dieselbe Meldung als Toast unten rechts. Die Seite setzt Aktion und Detail jetzt selbst; `FeedbackSlot.splitText` ist für diese Wege nicht mehr im Spiel.
+
+**Schnittstelle** (echte Namen statt der vorläufigen der Task)
+- `src/Client/Types.fs`: `FeedbackNote` (Ton, Aktion, Detail, Knopf) und `FeedbackSlot.ofNote` (Id, Gruppe für das Zusammenfassen der Wische, Trenner „ · “ für den PC-Toast). Neue `ToastActionKind`: `RetryMirror`, `RetryLoadMoreEntries`, `RetryRefreshEntries`; `State.toastActionMsg` macht daraus `StartMirror`, `LoadMoreEntries`, `RefreshEntries`.
+- `Components/Ledger/Types.fs`: `ExternalMsg.PostFeedback of FeedbackNote`; die Wurzel (`src/Client/State.fs`) schickt `ShowFeedback (FeedbackSlot.ofNote …)`. Leiste und Knopf heißen im Code `data-testid="feedback-bar"`, `feedback-action`, `feedback-detail`, `[data-feedback-action]` (aus design-system-gkded).
+
+**Texte als reine Funktionen** (`Components/Ledger/Types.fs`, `Capture.fs`)
+- `swipeReviewedFeedback`, `reviewMarkNotInYnabFeedback`, `failedFeedback`, `undoFailedFeedback`, `mirrorRunningFeedback`, `mirrorSummaryDetail`, `mirrorDoneFeedback`, `mirrorFailedFeedback`, `loadMoreFailedFeedback`, `refreshFailedFeedback`, `createdFeedback`, `Capture.createdDetail`, `reviewBatchFeedback`, `categoryBatchFeedback`, `flagBatchFeedback`, `batchRestoredFeedback`.
+- Entfernt: `swipeReviewedToastText`, `reviewBatchToastText`, `categoryBatchToastText`, `flagBatchToastText`, `flagBatchRestoredToastText`, `mirrorSummaryText`, `Capture.createdText`, `State.capturedDiscardedText`.
+- „Spiegeln läuft …“ meldet `StartMirror` und der Hintergrund-Lauf in `MirrorStatusLoaded` (nicht `RunMirror`: der Zweig ruft den Proxy und läuft unter .NET nicht, so bleibt es testbar). Ein Doppeldruck meldet nichts.
+- „✓ Angelegt“: „· Konto“ fehlt nur, wenn die Antwort im Kassenbuch ankommt (`ShowsCreatedEntry`) und der Filter genau das Konto der Buchung zeigt; bei „Alle Konten“ und auf der Übersicht steht das Konto dabei.
+- `SwipeReviewedDone` trägt jetzt den Payee (`string option`) statt des fertigen Satzes.
+
+**Rückgängig nach n Wischen ohne Sprung**: `ReviewMarkBatchRestored` trägt die Vorzustände (`ReviewMarkRestoreItem list * Result`). `applyUndoReviewMarkBatch` (`State.fs`) setzt jede geänderte geladene Zeile auf ihren Vorzustand und holt weggewischte an ihren Platz zurück (die zuletzt gewischte zuerst). Statt `rebuildEntries` (Skeleton, Scrollstand weg) folgt `RefreshEntries` im Hintergrund, das Seitenversatz und Zähler auf den Stand des Servers setzt; das gilt auch für das Sammel-Rückgängig der Auswahl.
+
+**Aktionsfläche des Wischs**: `Swipe.SwipeableRowProps.ActionIcon` (neu, Styleguide-Demo `None`), im Kassenbuch `Icons.check` vor „Geprüft“, `gap: 4px` in `.tx-swipe-action`.
+
+**Abweichungen** (bitte prüfen)
+- Zeile 2472 und 4076 der Tabelle (Prüfvermerk nach Rückgängig nicht in YNAB): gelb wie verlangt, aber mit der Aktion „Prüfvermerk nicht in YNAB“ statt „Geprüft, nicht in YNAB“. Nach „Rückgängig“ ist die Buchung wieder zu prüfen; „Geprüft, …“ wäre dort falsch. Der Text ist der Titel des Hinweises an der Zeile.
+- Zeile 1868 nennt keine Aktion: „Liste nicht aktualisiert“ gewählt.
+- Sammel-Prüfen ohne Änderung: „Keine geprüft“ (die Tabelle nennt nur „n geprüft“). Kategorie und Lena behalten ihren bisherigen Satz als Aktion („3 Buchungen nach Drogerie verschoben“), die Zusätze stehen in der zweiten Zeile, mit „. “ getrennt.
+
+**Tests** (`src/Tests`, 14 neue, bestehende auf `PostFeedback` umgestellt)
+- `LedgerReviewMarkClientTests.fs`: Geprüft mit Payee und Rückgängig samt ausgelöster Nachricht, „ohne Payee“, „Nicht geprüft“, „Rückgängig nicht möglich“, gelb nach Rückgängig, drei Wische über `FeedbackSlot.post` zu „3 geprüft“ ohne zweite Zeile mit einem `UndoReviewMarkBatch` für alle, Rückgängig nach drei Wischen: alle zu prüfen an ihrem Platz, `Entries` bleibt geladen, nur `RefreshEntries`.
+- `LedgerReviewMarkBatchClientTests.fs`, `LedgerCategoryBatchClientTests.fs`, `LedgerLenaFlagBatchClientTests.fs`, `LedgerHeldDuplicateClientTests.fs`: Aktion, zweite Zeile, Ton, Rückgängig (und `toastActionMsg` für Kategorie), Fehler rot, Zurückgesetzt.
+- `LedgerCaptureClientTests.fs`: Angelegt ohne Payee, Payee in anderem Konto, `createdDetail` für alle Fälle, gelb ohne Rückgängig, „Nicht angelegt“, Verwerfen ohne Meldung, Verwerfen gescheitert.
+- `LedgerPageTests.fs`, `LedgerBackgroundRefreshTests.fs`, `LedgerDetailTests.fs`, `OverviewTodoTests.fs`: Spiegeln läuft (Knopf und Hintergrund), Gespiegelt, `mirrorSummaryDetail`, Spiegeln gescheitert mit `RetryMirror` → `StartMirror`, Nicht nachgeladen mit `RetryLoadMoreEntries`, Liste nicht aktualisiert mit `RetryRefreshEntries`, Route gelb/rot.
+- Gegenprobe: `ReviewMarkBatchRestored` lokal auf den alten Neuaufbau zurückgedreht: 3 Tests rot (Filter „Rückgängig“), danach wiederhergestellt.
+
+**Browser und Sweep** (`scripts/`)
+- `[flow:buchung-pruefen]` (`ledger-review-mark.test.mjs`) wartet auf „Geprüft“, den Payee und „Rückgängig“ in der Leiste statt auf `innerText.includes("geprüft")`.
+- `[flow:buchung-erfassen]` (`ledger-capture.test.mjs`) findet „Angelegt“, „Bäckerei Lange · -9,20 € · Bar“ und „Rückgängig“ in der Leiste und prüft, dass kein Toast sichtbar ist. `ledger-lena-batch.test.mjs` sucht am PC „Zurückgesetzt · Flag bei 2 Buchungen“.
+- `layout-states.mjs`: `kassenbuch-meldung` heißt jetzt `kassenbuch-leiste-geprueft` (prüft „Geprüft“ und „Bauhaus“), `kassenbuch-3-geprueft` heißt `kassenbuch-leiste-3-geprueft` (320, 390, 412, ohne zweite Zeile). Neu: `kassenbuch-leiste-spiegel-fehler` (320, 390, 412), `kassenbuch-leiste-angelegt` (412), `kassenbuch-auswahl-meldung` (412, Meldung über der Auswahl-Leiste, kein „+ Buchung“). `kassenbuch-spiegel-laeuft` wartet unter 1024 px auf „Spiegeln läuft …“ in der Leiste. Die Gegenbeweise (b) und (c) in `layout-invariants.test.mjs` zeigen auf den neuen Namen.
+- Schon aus design-system-gkded erfüllt, hier nur geprüft: alle Sweep-Zustände tippen „+ Buchung“ in der Leiste (`getByTestId("ledger-capture-fab")`), der Gegenbeweis 12 (a) zeigt auf `--feedback-bar-height`.
+
+**Vergleich mit der Skizze** (Bilder in `/private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/4b5cf62e-3174-40e3-90f3-4b5312280eb9/scratchpad/result-shots/ledger-gwr9j/`, Skizze in `…/scratchpad/vf5h6/skizze-shots/`)
+- Ruhe: `20-kassenbuch-ruhe.png` gegen `kassenbuch-leiste-angelegt-412.png` vor dem Anlegen bzw. Stand gkded (`result-shots/design-system-gkded/kassenbuch-ruhe-412.png`): „+ Buchung“ breit in der Leiste, unverändert.
+- Wisch eingerastet: `21-…` gegen `kassenbuch-wisch-eingerastet-412.png`: grüne Fläche mit Häkchen und „Geprüft“. Gleich.
+- Geprüft: `22-…` gegen `kassenbuch-leiste-geprueft-412.png`: ✓, „Geprüft“, „Bauhaus“, „Rückgängig“ im Akzent, rundes +. Gleich.
+- 3 geprüft: `23-…` gegen `kassenbuch-leiste-3-geprueft-412.png`: „✓ 3 geprüft“, „Rückgängig“, rundes +. Gleich.
+- Spiegeln läuft: `24-kassenbuch-abrufen-laeuft.png` gegen `kassenbuch-spiegel-laeuft-412.png`: gedämpft ohne Zeichen „Spiegeln läuft …“ (Wort nach Entscheidung Roman), dazu der Hinweis an der Liste und der Spinner im Kopf (Entscheidung Roman 2).
+- Spiegeln gescheitert: `26-…` gegen `kassenbuch-leiste-spiegel-fehler-412.png`: rotes „!“, „Spiegeln gescheitert“, Grund, „Erneut“. Gleich bis auf das Wort.
+- Angelegt: `27-…` gegen `kassenbuch-leiste-angelegt-412.png`: „✓ Angelegt“, „Bäckerei Lange · -8,60 € · Bar“ (Konto, weil die Liste Girokonto zeigt), „Rückgängig“, rundes +.
+- PC 1280: `kassenbuch-spiegel-fehler-1280.png` (Iteration 2 neu aufgenommen, 800 ms nach dem Erscheinen, innerhalb der 5 s): keine Leiste sichtbar (0), unten rechts genau ein Toast über der Tastenleiste mit rotem Zeichen, „Spiegeln gescheitert · YNAB antwortet nicht“, „Erneut“ und ✕. Das Bild aus Iteration 1 entstand während der Einblendung (`animate-toast-in`, Opazität des Toasts noch 0), darum fehlte der Toast dort. Am Code lag es nicht, der Code ist unverändert.
+- Kopf, Tabs und Suche weichen ab wie in der Task genannt (BB behält Abrufen, Tabs, Suche). [human-eye] Gesamteindruck bleibt für Roman.
+
+**README-Gate**: `npm run check:readme-delta -- --bc ledger` Exit 0. Ganz nachlesen: `## Key commands` PrüfvermerkSetzen (Zeile 400) passt, BuchungErfassen (Zeile 411) passt (beide nennen keinen Toast-Text).
+
+**Gate**: `./verify.sh` → `VERIFY: PASS` (dotnet 5257, node 354).
+
+**Kann-Sammlung ledger**
+- Die Übersicht-Variante in „Buchung erfassen“ (README) nennt noch den schwebenden `Button.fab`; das gehört zu budgeting-gtrgk.
+- `Swipe.SwipeableRowProps.ActionIcon` ist neu im DS; die Styleguide-Seite zeigt die Variante mit Zeichen noch nicht.

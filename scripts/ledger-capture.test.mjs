@@ -53,11 +53,13 @@ test("[flow:buchung-erfassen] Handy: ein Zuletzt-Chip füllt das Formular, Buchu
     await amount.fill("9,20");
     await sheet.getByRole("button", { name: "Buchung anlegen" }).tap();
 
-    // Regel R3 (design-system-gkded): am Handy steht die Rückmeldung in der Leiste, Aktion und Detail getrennt.
+    // Regel R3 (design-system-gkded): am Handy steht die Rückmeldung in der Leiste, Aktion und Detail getrennt, kein
+    // Toast. ledger-gwr9j: „✓ Angelegt“, darunter „Payee · Betrag“, „· Konto“, weil die Buchung nicht im gezeigten Konto liegt.
     const bar = page.getByTestId("feedback-bar");
-    await bar.getByTestId("feedback-action").filter({ hasText: "Buchung angelegt" }).waitFor();
-    await bar.getByTestId("feedback-detail").filter({ hasText: /^Bar/ }).waitFor();
+    await bar.getByTestId("feedback-action").filter({ hasText: /^Angelegt$/ }).waitFor();
+    await bar.getByTestId("feedback-detail").filter({ hasText: /^Bäckerei Lange · -9,20 € · Bar$/ }).waitFor();
     await bar.locator('[data-feedback-action="true"]', { hasText: "Rückgängig" }).waitFor();
+    assert.equal(await page.locator(".toast-layer").filter({ visible: true }).count(), 0, "kein Toast am Handy");
     assert.equal(calls.add.length, 1, "genau ein Aufruf");
     const [request] = calls.add[0];
     // Fable.Remoting schickt `decimal` als Text.

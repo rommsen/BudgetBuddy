@@ -513,12 +513,12 @@ let captureTests =
                 (messages |> List.contains (State.LedgerMsg (Components.Ledger.Types.OpenRouteEntry entryId)))
                 "kein Detail der neuen Buchung"
             Expect.contains messages (State.OverviewMsg ReloadRequested) "Zu tun zieht nach"
-            let toast =
+            let feedback =
                 messages
                 |> List.tryPick (function
-                    | State.ShowToastWithAction (text, _, _) -> Some text
+                    | State.ShowFeedback message -> Some (message.Action, message.Detail)
                     | _ -> None)
-            Expect.equal toast (Some "Buchung angelegt · Bar · -8,60 €") "Konto und Betrag"
+            Expect.equal feedback (Some ("Angelegt", Some "Bar · -8,60 €")) "Konto und Betrag (ledger-gwr9j)"
 
         // Bug (Review ledger-s1weh): das Formular trug beim Öffnen fest, ob nach dem Anlegen das Detail kommt. Am PC im
         // Kassenbuch begonnen und auf der Übersicht gespeichert, lud es das Detail im Kassenbuch; aus der Übersicht

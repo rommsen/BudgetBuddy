@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 15
 - **Todo:** 0
-- **Doing:** 1
-- **Done:** 157
+- **Doing:** 0
+- **Done:** 158
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,11 +22,11 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **ledger-gwr9j** — "Kassenbuch am Handy ohne Toast (R3), Teil 1 Liste: Texte der Leiste für Wische, Spiegeln, Neue Buchung, Mehrfachauswahl und Ladefehler, „Spiegeln läuft“, Rückgängig nach n Wischen ohne Sprung der Liste" (feature) — `doing/ledger-gwr9j-kassenbuch-ohne-toast.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)
 <!-- done-list:start -->
+- **ledger-gwr9j** — "Kassenbuch am Handy ohne Toast (R3), Teil 1 Liste: Texte der Leiste für Wische, Spiegeln, Neue Buchung, Mehrfachauswahl und Ladefehler, „Spiegeln läuft“, Rückgängig nach n Wischen ohne Sprung der Liste" (feature) — `done/ledger-gwr9j-kassenbuch-ohne-toast.md`
 - **ledger-wg42w** — "Durchgehen: Memo auf der Karte nur lesen (C3), „Memo“ über dem Text, so lang, wie Platz ist (gemessen); Bearbeiten nur in „Details“, Memo-Sheet und -Dialog der Karte entfallen" (feature) — `done/ledger-wg42w-durchgehen-memo-nur-lesen.md`
 - **ledger-s2cg3** — "Durchgehen am Handy: Wischen mit Fläche darunter (A1), Karte füllt den Platz bis zu den Knöpfen, Seite ohne Scrollen" (feature) — `done/ledger-s2cg3-durchgehen-wischen-mit-flaeche.md`
 - **ledger-pz028** — "Kassenbuch-State aufräumen: drei Antworten tragen Result, das Quick-Add-Konto kommt aus den Settings des Root statt aus einem eigenen Abruf, die toten Kategorien-Zweige fallen weg, „Weitere laden“ und Nachladen teilen einen Zustand statt LoadingMore (Components/Ledger/State.fs, Types.fs)" (refactor) — `done/ledger-pz028-aufraeumen-antworten-quickadd-ladezustand.md`

@@ -691,9 +691,17 @@ let reducerTests =
             let updated, _, external = Components.Ledger.State.update (EntriesPageLoaded (0, 1, Error "Netzwerkfehler")) loaded
             Expect.equal updated.Entries loaded.Entries "Die bereits geladene Liste bleibt stehen"
             Expect.isFalse (nextPageLoading updated) "Das Nachladen ist beendet, auch bei einem Fehler"
-            match external with
-            | ShowToast (message, ToastError) -> Expect.stringContains message "Netzwerkfehler" "Der Fehler wird genannt"
-            | other -> failtestf "Erwartet Fehler-Toast, war %A" other
+            Expect.equal
+                external
+                (PostFeedback
+                    { Tone = FeedbackError
+                      Action = "Nicht nachgeladen"
+                      Detail = Some "Netzwerkfehler"
+                      Act = Some { Label = "Erneut"; Kind = RetryLoadMoreEntries } })
+                "rot mit Erneut (ledger-gwr9j)"
+            match State.toastActionMsg RetryLoadMoreEntries with
+            | State.LedgerMsg LoadMoreEntries -> ()
+            | other -> failtestf "„Erneut“ lädt die Seite, war %A" other
         }
 
         test "Nachladen am Listenende laedt die naechste Seite" {
@@ -796,27 +804,47 @@ let reducerTests =
             Expect.equal running.Entries (Success entries) "Die Liste bleibt unveraendert stehen"
         }
 
-        test "Erfolgreicher Spiegel-Lauf endet mit Zusammenfassung als Toast" {
+        test "Erfolgreicher Spiegel-Lauf endet mit „✓ Gespiegelt“ und der Zusammenfassung (ledger-gwr9j)" {
             let running = { freshModel () with MirrorRunning = true }
             let updated, _, external =
                 Components.Ledger.State.update (MirrorFinished (Ok summary)) running
             Expect.isFalse updated.MirrorRunning "Der Lauf ist vorbei"
-            match external with
-            | ShowToast (message, ToastSuccess) ->
-                Expect.stringContains message "3" "Die Zahl der neuen Buchungen steht drin"
-                Expect.stringContains message "1" "Die Zahl der geaenderten Buchungen steht drin"
-            | other -> failtestf "Erwartet Erfolgs-Toast, war %A" other
+            Expect.equal
+                external
+                (PostFeedback { Tone = FeedbackOk; Action = "Gespiegelt"; Detail = Some (mirrorSummaryDetail summary); Act = None })
+                "Meldung"
         }
 
-        test "Gescheiterter Spiegel-Lauf zeigt den Fehlertext" {
+        test "Zusammenfassung des Spiegel-Laufs: Teile mit 0 entfallen, ohne Änderung „nichts Neues“" {
+            let s (n: int) (c: int) (d: int) = { summary with NewEntries = n; ChangedEntries = c; DeletedEntries = d }
+            Expect.equal (mirrorSummaryDetail (s 3 1 0)) "3 neu, 1 geändert" "0 gelöscht entfällt"
+            Expect.equal (mirrorSummaryDetail (s 0 2 1)) "2 geändert, 1 gelöscht" "0 neu entfällt"
+            Expect.equal (mirrorSummaryDetail (s 0 0 0)) "nichts Neues" "alles 0"
+        }
+
+        test "Der Spiegel-Lauf meldet „Spiegeln läuft …“ gedämpft bis zum Ergebnis, ein zweiter Druck nicht (ledger-gwr9j)" {
+            let running, _, external = Components.Ledger.State.update StartMirror (freshModel ())
+            Expect.equal external (PostFeedback { Tone = FeedbackRunning; Action = "Spiegeln läuft …"; Detail = None; Act = None }) "Meldung"
+            let _, _, again = Components.Ledger.State.update StartMirror running
+            Expect.equal again NoOp "Doppeldruck meldet nichts"
+        }
+
+        test "Gescheiterter Spiegel-Lauf: „Spiegeln gescheitert“ mit Grund und „Erneut“, das den Lauf neu startet" {
             let running = { freshModel () with MirrorRunning = true }
             let updated, _, external =
                 Components.Ledger.State.update (MirrorFinished (Error "YNAB-Limit erreicht")) running
             Expect.isFalse updated.MirrorRunning "Auch ein Fehler beendet den Lauf"
-            match external with
-            | ShowToast (message, ToastError) ->
-                Expect.stringContains message "YNAB-Limit erreicht" "Der Fehler wird nicht geschluckt (ADR 0014)"
-            | other -> failtestf "Erwartet Fehler-Toast, war %A" other
+            Expect.equal
+                external
+                (PostFeedback
+                    { Tone = FeedbackError
+                      Action = "Spiegeln gescheitert"
+                      Detail = Some "YNAB-Limit erreicht"
+                      Act = Some { Label = "Erneut"; Kind = RetryMirror } })
+                "Der Fehler wird nicht geschluckt (ADR 0014)"
+            match State.toastActionMsg RetryMirror with
+            | State.LedgerMsg StartMirror -> ()
+            | other -> failtestf "„Erneut“ startet den Lauf, war %A" other
         }
 
         test "Detail öffnet sich für die angetippte Buchung" {
@@ -860,9 +888,10 @@ let reducerTests =
             let entries = [ entryView 1 -42.5m false ]
             let withEntries, _, _ =
                 Components.Ledger.State.update (EntriesPageLoaded (0, 0, Ok (page entries 1))) (freshModel ())
-            let updated, cmd, _ = Components.Ledger.State.update (MirrorStatusLoaded (0, Ok (Some staleStatus))) withEntries
+            let updated, cmd, external = Components.Ledger.State.update (MirrorStatusLoaded (0, Ok (Some staleStatus))) withEntries
             Expect.isTrue updated.MirrorRunning "der Hintergrund-Lauf ist gestartet"
             Expect.contains (dispatched cmd) RunMirror "genau ein Auslöser für den Hintergrund-Lauf"
+            Expect.equal external (PostFeedback mirrorRunningFeedback) "auch er meldet „Spiegeln läuft …“ (ledger-gwr9j)"
             Expect.equal updated.Entries (Success entries) "die Liste bleibt stehen, während der Hintergrund-Lauf läuft (ADR 0014)"
         }
 

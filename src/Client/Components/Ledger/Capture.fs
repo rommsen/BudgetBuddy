@@ -221,18 +221,16 @@ let templateLabel (template: LedgerBookingTemplate) : string =
     let sign = if template.IsOutflow then "" else "+"
     $"{template.Payee} · {sign}{amountText template.Amount}"
 
-/// Der Satz der Rückmeldung nach dem Anlegen: Konto und Betrag (Styleguide §7.13, ledger-s1weh), eine Ausgabe
-/// mit Minus. Ohne bekannten Betrag nur das Konto. Rein.
-let createdText (created: LedgerBookingCreated) (amount: decimal option) : string =
-    let what =
-        match amount with
-        | Some a ->
-            let money = Client.DesignSystem.Money.formatAmountText true true a "EUR"
-            $"{created.AccountName} · {money}"
-        | None -> created.AccountName
-    match created.PushFailure with
-    | None -> $"Buchung angelegt · {what}"
-    | Some reason -> $"Buchung angelegt · {what}, noch nicht in YNAB: {reason}"
+/// Die zweite Zeile der Meldung „✓ Angelegt“ (ledger-gwr9j, Entscheidung Roman): „Payee · Betrag“, dahinter „· Konto“
+/// nur, wenn die Buchung nicht im gezeigten Konto liegt; ohne Payee „Konto · Betrag“. Eine Ausgabe mit Minus, ohne
+/// bekannten Betrag fehlt er. Rein.
+let createdDetail (payee: string option) (accountName: string) (amount: decimal option) (inShownAccount: bool) : string =
+    let money = amount |> Option.map (fun a -> Client.DesignSystem.Money.formatAmountText true true a "EUR")
+    let parts =
+        match payee |> Option.filter (fun p -> not (String.IsNullOrWhiteSpace p)) with
+        | Some name -> [ Some (name.Trim()); money; (if inShownAccount then None else Some accountName) ]
+        | None -> [ Some accountName; money ]
+    parts |> List.choose id |> String.concat " · "
 
 /// Der Betrag des gerade angelegten Formulars mit Vorzeichen: eine Ausgabe negativ. `None`, wenn er nicht lesbar
 /// ist. Rein.

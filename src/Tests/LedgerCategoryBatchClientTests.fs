@@ -196,18 +196,22 @@ let doneTests =
             Expect.contains sent LoadCategories "Kategorien laden unbedingt neu"
             Expect.isFalse m.OrderStale "bei Datumssortierung bleibt die Reihenfolge"
             match external with
-            | ShowToastWithAction (text, ToastSuccess, action) ->
-                Expect.equal text "3 Buchungen nach Drogerie w29y6 verschoben" "Toast nennt Zahl und Kategorie"
-                Expect.equal action.Kind (UndoCategoryBatch threeChanged.Changed) "Rücknahme für alle"
-            | other -> failtest $"erwartet Erfolgs-Toast mit Aktion, war {other}"
+            | PostFeedback { Tone = FeedbackOk; Action = text; Detail = None; Act = Some action } ->
+                Expect.equal text "3 Buchungen nach Drogerie w29y6 verschoben" "Aktion nennt Zahl und Kategorie"
+                Expect.equal action (({ Label = "Rückgängig"; Kind = UndoCategoryBatch threeChanged.Changed }): ToastAction) "Rücknahme für alle"
+                match State.toastActionMsg action.Kind with
+                | State.LedgerMsg (StartUndoCategoryBatch changes) -> Expect.equal changes threeChanged.Changed "löst die Sammel-Rücknahme aus"
+                | other -> failtestf "unerwartete Nachricht: %A" other
+            | other -> failtest $"erwartet Meldung mit Rückgängig, war {other}"
 
         testCase "ohne geänderte Buchung: Toast ohne Aktion, kein LoadCategories" <| fun () ->
             let outcome = outcomeOf [] 2 [ SkipSplit ]
             let _, sent, external = run (CategoryBatchDone (Some (catId 2), Ok outcome)) { selectedModel () with BatchRunning = Some CategoryBatchRun }
             Expect.isFalse (List.contains LoadCategories sent) "nichts geändert"
             match external with
-            | ShowToast (text, ToastInfo) -> Expect.stringContains text "Keine Buchung geändert" "Satz"
-            | other -> failtest $"erwartet Info-Toast ohne Aktion, war {other}"
+            | PostFeedback { Tone = FeedbackInfo; Action = "Keine Buchung geändert"; Detail = Some detail; Act = None } ->
+                Expect.equal detail "3 übersprungen (Split, schon dort)" "Zusatz in der zweiten Zeile"
+            | other -> failtest $"erwartet Info-Meldung ohne Aktion, war {other}"
 
         testCase "Fehlschlag nach YNAB: Zeile trägt den Grund, Toast warnt" <| fun () ->
             let outcome =
@@ -216,16 +220,17 @@ let doneTests =
             Expect.equal (rowOf 1 m).CategorizationWriteBackFailure (Some "Timeout") "Grund an der Zeile"
             Expect.isNone (rowOf 2 m).CategorizationWriteBackFailure "gesendet: kein Fehlschlag"
             match external with
-            | ShowToastWithAction (text, ToastWarning, _) -> Expect.stringContains text "Kategorie nicht in YNAB: Timeout" "Grund im Toast"
-            | other -> failtest $"erwartet Warn-Toast mit Aktion, war {other}"
+            | PostFeedback { Tone = FeedbackWarning; Detail = Some detail; Act = Some _ } ->
+                Expect.equal detail "Kategorie nicht in YNAB: Timeout" "Grund in der zweiten Zeile"
+            | other -> failtest $"erwartet gelbe Meldung mit Rückgängig, war {other}"
 
         testCase "Fehler des Befehls: Aktionen frei, Fehler-Toast, Auswahl bleibt" <| fun () ->
             let m, _, external = run (CategoryBatchDone (None, Error "kaputt")) { selectedModel () with BatchRunning = Some CategoryBatchRun }
             Expect.isNone m.BatchRunning "frei"
             Expect.equal m.Selection (selectedModel ()).Selection "Auswahl bleibt"
             match external with
-            | ShowToast (text, ToastError) -> Expect.stringContains text "kaputt" "Meldung"
-            | other -> failtest $"erwartet Fehler-Toast, war {other}"
+            | PostFeedback note -> Expect.equal note { Tone = FeedbackError; Action = "Kategorie nicht geändert"; Detail = Some "kaputt"; Act = None } "Meldung"
+            | other -> failtest $"erwartet rote Meldung, war {other}"
 
         testCase "Sortierung nach Kategorie: OrderStale und RunRefreshTotals wie im Einzelweg" <| fun () ->
             let model = { selectedModel () with Sort = { Field = SortByCategory; Direction = SortAsc } }
@@ -297,40 +302,46 @@ let undoTests =
             Expect.equal (restored.TotalCount, restored.LocallyRemoved) (5, 0) "Treffer und Versatz zurück"
             Expect.contains sent LoadCategories "Kategorien laden neu"
             match external with
-            | ShowToast (text, ToastSuccess) -> Expect.equal text "Kategorie bei 3 Buchungen zurückgesetzt" "ein Toast, keine Aktion"
-            | other -> failtest $"erwartet Toast ohne Aktion, war {other}"
+            | PostFeedback note ->
+                Expect.equal note { Tone = FeedbackOk; Action = "Zurückgesetzt"; Detail = Some "Kategorie bei 3 Buchungen"; Act = None } "eine Meldung, keine Aktion"
+            | other -> failtest $"erwartet Meldung ohne Aktion, war {other}"
 
         testCase "scheitert eine Gruppe der Rücknahme, meldet der Toast den Fehler" <| fun () ->
             let ok = outcomeOf [ change 1 (Some (choice 2)) CategorySent ] 0 []
             let _, _, external =
                 run (CategoryBatchRestored [ Some (choice 1), Ok ok; None, Error "kaputt" ]) (selectedModel ())
             match external with
-            | ShowToast (text, ToastError) -> Expect.stringContains text "kaputt" "Fehler genannt"
-            | other -> failtest $"erwartet Fehler-Toast, war {other}"
+            | PostFeedback note -> Expect.equal note { Tone = FeedbackError; Action = "Rückgängig nicht möglich"; Detail = Some "kaputt"; Act = None } "Fehler genannt"
+            | other -> failtest $"erwartet rote Meldung, war {other}"
     ]
 
 [<Tests>]
 let textTests =
     testList "Kategorie setzen für die Auswahl: Texte (ledger-w29y6)" [
 
-        testCase "Toast-Satz: Zahl, Kategorie, übersprungene mit Gründen" <| fun () ->
+        testCase "Meldung: Aktion mit Zahl und Kategorie, zweite Zeile die übersprungenen mit Gründen (ledger-gwr9j)" <| fun () ->
             let outcome = outcomeOf [ for n in 1..2 -> change n None CategorySent ] 1 [ SkipSplit; SkipTransfer; SkipDeletedInYnab ]
+            let note = categoryBatchFeedback (Some "Drogerie") outcome
+            Expect.equal note.Action "2 Buchungen nach Drogerie verschoben" "Aktion"
+            Expect.equal note.Detail (Some "4 übersprungen (Split, Übertrag, gelöscht, schon dort)") "Zusätze"
+            let one = categoryBatchFeedback (Some "Drogerie") (outcomeOf [ change 1 None CategorySent ] 0 [])
+            Expect.equal (one.Action, one.Detail) ("1 Buchung nach Drogerie verschoben", None) "Einzahl, nichts übersprungen"
             Expect.equal
-                (categoryBatchToastText (Some "Drogerie") outcome)
-                "2 Buchungen nach Drogerie verschoben, 4 übersprungen (Split, Übertrag, gelöscht, schon dort)"
-                "Satz mit Gründen"
-            Expect.equal
-                (categoryBatchToastText (Some "Drogerie") (outcomeOf [ change 1 None CategorySent ] 0 []))
-                "1 Buchung nach Drogerie verschoben"
-                "Einzahl, nichts übersprungen"
-            Expect.equal
-                (categoryBatchToastText None (outcomeOf [ change 1 None CategorySent; change 2 None CategorySent ] 0 []))
+                (categoryBatchFeedback None (outcomeOf [ change 1 None CategorySent; change 2 None CategorySent ] 0 [])).Action
                 "Kategorie bei 2 Buchungen entfernt"
                 "ohne Kategorie"
 
-        testCase "der offene Split-Fehlschlag zählt im Toast als Split" <| fun () ->
-            let text = categoryBatchToastText (Some "X") (outcomeOf [ change 1 None CategorySent ] 0 [ SkipSplitNotAdjusted ])
-            Expect.stringContains text "1 übersprungen (Split)" "Split"
+        testCase "zweite Zeile: übersprungene und der Weg nach YNAB mit Punkt getrennt" <| fun () ->
+            let outcome =
+                outcomeOf [ change 1 None (CategorySendFailed "weg"); change 2 None (CategorySendFailed "weg") ] 0 [ SkipTransfer ]
+            Expect.equal
+                (categoryBatchFeedback (Some "X") outcome).Detail
+                (Some "1 übersprungen (Übertrag). Kategorie nicht in YNAB: weg (bei 2 Buchungen)")
+                "beide Zusätze"
+
+        testCase "der offene Split-Fehlschlag zählt in der Meldung als Split" <| fun () ->
+            let note = categoryBatchFeedback (Some "X") (outcomeOf [ change 1 None CategorySent ] 0 [ SkipSplitNotAdjusted ])
+            Expect.equal note.Detail (Some "1 übersprungen (Split)") "Split"
 
         testCase "Unterzeile des Sheets: n Buchungen · Summe" <| fun () ->
             let text = selectionPickerSubtitle 12 (eur -340.20m)

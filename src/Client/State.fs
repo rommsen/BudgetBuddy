@@ -142,6 +142,9 @@ let toastActionMsg (kind: ToastActionKind) : Msg =
         LedgerMsg (Components.Ledger.Types.StartRestoreDiscardedDuplicate entryId)
     | RetryBudgetMove applicationId ->
         BudgetMsg (Components.Budget.Types.RetryMove applicationId)
+    | RetryMirror -> LedgerMsg Components.Ledger.Types.StartMirror
+    | RetryLoadMoreEntries -> LedgerMsg Components.Ledger.Types.LoadMoreEntries
+    | RetryRefreshEntries -> LedgerMsg Components.Ledger.Types.RefreshEntries
 
 /// Wird der PWA-Hinweis aus dem Platz genommen (ersetzt, Seitenwechsel, ✕ am PC, Klick), steht er wieder nicht da:
 /// das nächste saubere Zurückholen kann ihn (oder das Neuladen) erneut auslösen (`Pwa.decide`).
@@ -904,6 +907,7 @@ let rec updateWith (ports: UpdatePorts) (msg: Msg) (model: Model) : Model * Cmd<
             | Components.Ledger.Types.ShowToast (message, toastType) -> Cmd.ofMsg (ShowToast (message, toastType))
             | Components.Ledger.Types.ShowToastWithAction (message, toastType, action) ->
                 Cmd.ofMsg (ShowToastWithAction (message, toastType, action))
+            | Components.Ledger.Types.PostFeedback note -> Cmd.ofMsg (ShowFeedback (FeedbackSlot.ofNote (Guid.NewGuid()) note))
             | Components.Ledger.Types.LeaveReview -> Cmd.ofMsg (NavigateTo Overview)
             // „Regel anlegen“ an einer Buchung (ledger-hg5m5): das Formular des Tabs „Regeln“, vorbelegt; die Auswahl
             // der Kategorie braucht die Kategorien des Tabs.

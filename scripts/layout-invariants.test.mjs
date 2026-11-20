@@ -206,14 +206,14 @@ test("[layout] Gegenbeweis Invariante 12 (a): ohne den freigehaltenen Platz der 
 });
 
 test("[layout] Gegenbeweis Invariante 12 (b): ein am Handy sichtbarer Toast meldet „Toast am Handy“", async () => {
-  const hits = await brokenFinds("kassenbuch-meldung", 390, 12, ".toast-layer { display: flex !important; bottom: 200px; }");
+  const hits = await brokenFinds("kassenbuch-leiste-geprueft", 390, 12, ".toast-layer { display: flex !important; bottom: 200px; }");
   assert.ok(hits.some((v) => v.value.startsWith("Toast am Handy")), hits.map(formatViolation).join("\n"));
 });
 
 test("[layout] Gegenbeweis Invariante 12 (c): eine Meldung über dem runden + meldet den Knopf als verdeckt", async () => {
   // Regression design-system-vf94m: der Toast mit Aktion stand am Handy unten über dem schwebenden „+ Buchung“.
   const hits = await brokenFinds(
-    "kassenbuch-meldung",
+    "kassenbuch-leiste-geprueft",
     412,
     12,
     '[data-testid="feedback-message"] { margin-right: -80px; position: relative; z-index: 1; }'

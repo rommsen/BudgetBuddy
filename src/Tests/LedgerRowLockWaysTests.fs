@@ -235,7 +235,7 @@ let private reviewMarkGroup : LockGroup =
         | RunRetryReviewMark id ->
             Some { Entry = id; Ok = ReviewMarkRetried (id, Ok ReviewMarkSent); Error = ReviewMarkRetried (id, Error "weg") }
         | RunSwipeReviewed id ->
-            Some { Entry = id; Ok = SwipeReviewedDone (id, "Geprüft", Ok reviewMarkOutcome); Error = SwipeReviewedDone (id, "Geprüft", Error "weg") }
+            Some { Entry = id; Ok = SwipeReviewedDone (id, Some "Geprüft", Ok reviewMarkOutcome); Error = SwipeReviewedDone (id, Some "Geprüft", Error "weg") }
         | RunUndoReviewMark (id, previous) ->
             Some { Entry = id; Ok = ReviewMarkRestored (id, previous, Ok reviewMarkOutcome); Error = ReviewMarkRestored (id, previous, Error "weg") }
         | RunReviewConfirm id ->

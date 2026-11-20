@@ -21,6 +21,8 @@ type SwipeDirection =
 type SwipeableRowProps = {
     /// Label revealed behind the row while swiping (e.g. "Überspringen")
     ActionLabel: string
+    /// Zeichen vor dem Label, etwa das Häkchen bei „✓ Geprüft“ (ledger-gwr9j, Skizze 21)
+    ActionIcon: ReactElement option
     /// Visual variant of the action background: "skip" | "include"
     ActionClass: string
     /// Called once when the swipe passes the commit threshold
@@ -161,7 +163,12 @@ let private SwipeRowCore (direction: SwipeDirection, props: SwipeableRowProps) =
                 prop.className ("tx-swipe-action " + props.ActionClass + (if direction = SwipeRight then " from-left" else ""))
                 prop.ref actionRef
                 prop.ariaHidden true
-                prop.text props.ActionLabel
+                prop.children [
+                    match props.ActionIcon with
+                    | Some icon -> icon
+                    | None -> ()
+                    Html.span props.ActionLabel
+                ]
             ]
             Html.div [
                 prop.className "tx-swipe-content"

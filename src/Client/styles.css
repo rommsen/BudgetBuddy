@@ -1496,6 +1496,7 @@ nav a:focus-visible {
   display: flex;
   align-items: center;
   justify-content: flex-end;
+  gap: 4px;
   padding-right: 18px;
   font-size: 12px;
   font-weight: 600;

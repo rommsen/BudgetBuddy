@@ -579,13 +579,13 @@ let routeEntryTests =
             let model, _, external = Components.Ledger.State.update (RouteEntryLoaded (idOf 7, Ok None)) start
             Expect.isNone model.DetailFor "kein Detail"
             Expect.isNone model.PendingRouteEntry "nichts mehr offen"
-            Expect.equal external (ShowToast ("Buchung nicht gefunden", ToastWarning)) "Hinweis"
+            Expect.equal external (PostFeedback { Tone = FeedbackWarning; Action = "Buchung nicht gefunden"; Detail = None; Act = None }) "gelb (ledger-gwr9j)"
 
         testCase "ein Fehler meldet sich, ohne ein Detail zu öffnen" <| fun () ->
             let start = modelWith (rows 1) |> pending 7
             let model, _, external = Components.Ledger.State.update (RouteEntryLoaded (idOf 7, Error "weg")) start
             Expect.isNone model.PendingRouteEntry "nichts mehr offen"
-            Expect.equal external (ShowToast ("Buchung nicht geladen: weg", ToastError)) "Grund"
+            Expect.equal external (PostFeedback { Tone = FeedbackError; Action = "Buchung nicht geladen"; Detail = Some "weg"; Act = None }) "rot mit Grund (ledger-gwr9j)"
 
         testCase "eine späte Antwort nach dem Verlassen der Route öffnet nichts" <| fun () ->
             let left = modelWith (rows 1) |> pending 7 |> step (LeaveRouteEntry OtherPage)
@@ -813,7 +813,7 @@ let private changeAnswers : (string * (Guid -> Msg)) list =
       "ReviewMarkSet", fun id -> ReviewMarkSet (id, Reviewed, Ok okOutcome)
       "ReviewMarkRetried", fun id -> ReviewMarkRetried (id, Ok ReviewMarkSent)
       "ReviewMarkRestored", fun id -> ReviewMarkRestored (id, okOutcome.Previous, Ok okOutcome)
-      "SwipeReviewedDone", fun id -> SwipeReviewedDone (id, "Geprüft", Ok okOutcome)
+      "SwipeReviewedDone", fun id -> SwipeReviewedDone (id, Some "Geprüft", Ok okOutcome)
       "PushRetried", fun id -> PushRetried (id, Ok PushToYnabSent)
       "MemoSet", fun id -> MemoSet (id, Ok memoOk)
       "MemoRestored", fun id -> MemoRestored (id, Ok memoOk)

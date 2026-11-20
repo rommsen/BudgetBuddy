@@ -526,17 +526,42 @@ type ReviewMarkHint = {
 let needsReviewOf (state: ReviewMarkState) : bool =
     not state.IsApproved || state.ClearedState = ReviewUncleared
 
-/// Der Text des Toasts nach der Wisch-Geste: "<Payee> geprüft". Ohne Payee steht die
-/// Anzeige der Liste ("ohne Payee") da.
-let swipeReviewedToastText (payee: string option) : string =
-    let name = payee |> Option.defaultValue "ohne Payee"
-    $"{name} geprüft"
-
 /// Die Beschriftung der Aktionsfläche hinter der Zeile beim Wischen nach rechts.
 let swipeActionLabel = "Geprüft"
 
 /// Die Beschriftung der Toast-Aktion.
 let undoToastLabel = "Rückgängig"
+
+/// Der Knopf einer Meldung nach einem gescheiterten Laden (ledger-gwr9j): „Erneut“.
+let retryLabel = "Erneut"
+
+/// Der Ton einer Meldung zur Art eines Toasts von heute.
+let feedbackToneOf (toastType: ToastType) : FeedbackTone =
+    match toastType with
+    | ToastSuccess -> FeedbackOk
+    | ToastWarning -> FeedbackWarning
+    | ToastError -> FeedbackError
+    | ToastInfo -> FeedbackInfo
+
+/// Eine Meldung ohne Knopf.
+let feedbackNote (tone: FeedbackTone) (action: string) (detail: string option) : FeedbackNote =
+    { Tone = tone; Action = action; Detail = detail; Act = None }
+
+/// Die Meldung nach dem Wisch (ledger-gwr9j, Skizze 22): „✓ Geprüft“, darunter der Payee (ohne Payee die Anzeige der
+/// Liste „ohne Payee“), dazu „Rückgängig“ mit dem Vorzustand aus der Antwort.
+let swipeReviewedFeedback (payee: string option) (entryId: Guid) (previous: Shared.Domain.ReviewMarkState) : FeedbackNote =
+    { Tone = FeedbackOk
+      Action = "Geprüft"
+      Detail = Some (payee |> Option.defaultValue "ohne Payee")
+      Act = Some { Label = undoToastLabel; Kind = UndoReviewMark (entryId, previous) } }
+
+/// Ein Befehl ist gescheitert: rot, oben was nicht ging, darunter der Grund.
+let failedFeedback (action: string) (reason: string) : FeedbackNote =
+    feedbackNote FeedbackError action (Some reason)
+
+/// „Rückgängig nicht möglich“ mit Grund, rot.
+let undoFailedFeedback (reason: string) : FeedbackNote =
+    failedFeedback "Rückgängig nicht möglich" reason
 
 /// Der Grund, aus dem jede Aktion an einer wartenden Buchung gesperrt ist („doppelt?“, ADR 0093
 /// Punkt 6), oder `None`, wenn sie nicht wartet. Erster Zweig jeder Sperre im Kassenbuch. Rein.
@@ -2011,29 +2036,6 @@ let selectionAllLabel = "Alle"
 /// Die primäre Aktion der Auswahl-Leiste (ledger-nhwrt): setzt "Geprüft" für die Auswahl.
 let selectionReviewedLabel = "Geprüft"
 
-/// Der Satz des Toasts nach "Geprüft" für die Auswahl (Handoff 1.12): "n Buchungen geprüft",
-/// bei Bedarf mit den Zahlen ohne Änderung, nicht in YNAB und nicht an YNAB gesendet.
-let reviewBatchToastText (outcome: Shared.Domain.ReviewMarkBatchOutcome) : string =
-    let changed = List.length outcome.Changed
-    let sendFailed =
-        outcome.Changed
-        |> List.filter (fun c ->
-            match c.WriteBack with
-            | Shared.Domain.ReviewMarkSendFailed _ -> true
-            | _ -> false)
-        |> List.length
-    let head =
-        match changed with
-        | 0 -> "Keine Buchung geprüft"
-        | 1 -> "1 Buchung geprüft"
-        | n -> $"{Client.DesignSystem.Money.formatCount n} Buchungen geprüft"
-    let notes =
-        [ if outcome.UnchangedCount > 0 then $"{outcome.UnchangedCount} ohne Änderung"
-          if outcome.FailedCount > 0 then $"{outcome.FailedCount} nicht in YNAB"
-          if outcome.HeldCount > 0 then $"{outcome.HeldCount} vielleicht doppelt"
-          if sendFailed > 0 then $"{sendFailed} nicht an YNAB gesendet" ]
-    if List.isEmpty notes then head else head + " (" + String.concat ", " notes + ")"
-
 /// Die Art des Toasts nach "Geprüft" für die Auswahl: Warnung, sobald etwas nicht
 /// geklappt hat (nicht in YNAB, nicht gesendet), Info ohne Änderung, sonst Erfolg.
 let reviewBatchToastType (outcome: Shared.Domain.ReviewMarkBatchOutcome) : ToastType =
@@ -2046,6 +2048,33 @@ let reviewBatchToastType (outcome: Shared.Domain.ReviewMarkBatchOutcome) : Toast
     if anySendFailed || outcome.FailedCount > 0 || outcome.HeldCount > 0 then ToastWarning
     elif List.isEmpty outcome.Changed then ToastInfo
     else ToastSuccess
+
+/// Die Meldung nach "Geprüft" für die Auswahl (Handoff 1.12, ledger-gwr9j): oben "n geprüft", darunter bei Bedarf
+/// die Zahlen ohne Änderung, nicht in YNAB, vielleicht doppelt und nicht an YNAB gesendet; "Rückgängig", wenn sich
+/// etwas geändert hat. Der Ton kommt aus `reviewBatchToastType`.
+let reviewBatchFeedback (outcome: Shared.Domain.ReviewMarkBatchOutcome) : FeedbackNote =
+    let changed = List.length outcome.Changed
+    let sendFailed =
+        outcome.Changed
+        |> List.filter (fun c ->
+            match c.WriteBack with
+            | Shared.Domain.ReviewMarkSendFailed _ -> true
+            | _ -> false)
+        |> List.length
+    let notes =
+        [ if outcome.UnchangedCount > 0 then $"{outcome.UnchangedCount} ohne Änderung"
+          if outcome.FailedCount > 0 then $"{outcome.FailedCount} nicht in YNAB"
+          if outcome.HeldCount > 0 then $"{outcome.HeldCount} vielleicht doppelt"
+          if sendFailed > 0 then $"{sendFailed} nicht an YNAB gesendet" ]
+    { Tone = feedbackToneOf (reviewBatchToastType outcome)
+      Action = (if changed = 0 then "Keine geprüft" else $"{Client.DesignSystem.Money.formatCount changed} geprüft")
+      Detail = (if List.isEmpty notes then None else Some (String.concat ", " notes))
+      Act =
+        if changed = 0 then None
+        else
+            let items : Shared.Domain.ReviewMarkRestoreItem list =
+                outcome.Changed |> List.map (fun c -> { EntryId = c.EntryId; Previous = c.Previous })
+            Some { Label = undoToastLabel; Kind = UndoReviewMarkBatch items } }
 
 // ============================================
 // "Kategorie setzen" für die ganze Auswahl (ledger-w29y6)
@@ -2085,40 +2114,43 @@ let categoryBatchSendFailures (outcome: Shared.Domain.CategoryBatchOutcome) : st
         | Shared.Domain.CategorySendFailed reason -> Some reason
         | _ -> None)
 
-/// Der Satz des Toasts nach "Kategorie setzen" für die Auswahl: "n Buchungen nach <Kategorie>
-/// verschoben" (bei `None`: "Kategorie bei n Buchungen entfernt"), bei Bedarf mit
-/// ", m übersprungen (Split, Übertrag, gelöscht)" und dem Hinweis "Kategorie nicht in YNAB"
-/// samt erstem Grund, wenn der Weg nach YNAB bei Buchungen gescheitert ist.
-let categoryBatchToastText (targetName: string option) (outcome: Shared.Domain.CategoryBatchOutcome) : string =
-    let changed = List.length outcome.Changed
-    let countText = Client.DesignSystem.Money.formatCount changed
-    let head =
-        match changed, targetName with
-        | 0, _ -> "Keine Buchung geändert"
-        | 1, Some name -> $"1 Buchung nach {name} verschoben"
-        | n, Some name -> $"{Client.DesignSystem.Money.formatCount n} Buchungen nach {name} verschoben"
-        | 1, None -> "Kategorie bei 1 Buchung entfernt"
-        | _, None -> $"Kategorie bei {countText} Buchungen entfernt"
-    let skipped = categoryBatchSkippedCount outcome
-    let withSkipped =
-        if skipped > 0 then
-            let reasons = categoryBatchSkipReasons outcome
-            let reasonText = String.concat ", " reasons
-            $"{head}, {Client.DesignSystem.Money.formatCount skipped} übersprungen ({reasonText})"
-        else
-            head
-    match categoryBatchSendFailures outcome with
-    | [] -> withSkipped
-    | [ reason ] -> $"{withSkipped}. {categoryHintTitle}: {reason}"
-    | reason :: rest ->
-        $"{withSkipped}. {categoryHintTitle}: {reason} (bei {List.length rest + 1} Buchungen)"
-
 /// Die Art des Toasts: Warnung, sobald der Weg nach YNAB gescheitert ist, Info ohne Änderung,
 /// sonst Erfolg.
 let categoryBatchToastType (outcome: Shared.Domain.CategoryBatchOutcome) : ToastType =
     if not (List.isEmpty (categoryBatchSendFailures outcome)) then ToastWarning
     elif List.isEmpty outcome.Changed then ToastInfo
     else ToastSuccess
+
+/// Wie viele Buchungen der Weg nach YNAB betrifft, als Zusatz zum ersten Grund: " (bei n Buchungen)" ab zwei.
+let private sendFailureText (title: string) (failures: string list) : string option =
+    match failures with
+    | [] -> None
+    | [ reason ] -> Some $"{title}: {reason}"
+    | reason :: rest -> Some $"{title}: {reason} (bei {List.length rest + 1} Buchungen)"
+
+/// Die Meldung nach "Kategorie setzen" für die Auswahl (ledger-gwr9j): oben "n Buchungen nach <Kategorie> verschoben"
+/// (bei `None`: "Kategorie bei n Buchungen entfernt"), darunter bei Bedarf "m übersprungen (Split, Übertrag, gelöscht)"
+/// und "Kategorie nicht in YNAB: <erster Grund>"; "Rückgängig", wenn sich etwas geändert hat.
+let categoryBatchFeedback (targetName: string option) (outcome: Shared.Domain.CategoryBatchOutcome) : FeedbackNote =
+    let changed = List.length outcome.Changed
+    let countText = Client.DesignSystem.Money.formatCount changed
+    let head =
+        match changed, targetName with
+        | 0, _ -> "Keine Buchung geändert"
+        | 1, Some name -> $"1 Buchung nach {name} verschoben"
+        | _, Some name -> $"{countText} Buchungen nach {name} verschoben"
+        | 1, None -> "Kategorie bei 1 Buchung entfernt"
+        | _, None -> $"Kategorie bei {countText} Buchungen entfernt"
+    let skipped = categoryBatchSkippedCount outcome
+    let notes =
+        [ if skipped > 0 then
+              let reasonText = String.concat ", " (categoryBatchSkipReasons outcome)
+              yield $"{Client.DesignSystem.Money.formatCount skipped} übersprungen ({reasonText})"
+          yield! sendFailureText categoryHintTitle (categoryBatchSendFailures outcome) |> Option.toList ]
+    { Tone = feedbackToneOf (categoryBatchToastType outcome)
+      Action = head
+      Detail = (if List.isEmpty notes then None else Some (String.concat ". " notes))
+      Act = (if changed = 0 then None else Some { Label = undoToastLabel; Kind = UndoCategoryBatch outcome.Changed }) }
 
 /// Die Gruppen der Rücknahme: die geänderten Buchungen nach ihrer vorherigen Kategorie
 /// gruppiert (`None`: ohne Kategorie), in der Reihenfolge des ersten Auftretens. Je Gruppe
@@ -2159,11 +2191,17 @@ let flagBatchSendFailures (outcome: Shared.Domain.FlagBatchOutcome) : string lis
         | Shared.Domain.FlagSendFailed reason -> Some reason
         | _ -> None)
 
-/// Der Satz des Toasts nach "Lena fragen" bzw. "Rückfrage zurücknehmen" für die Auswahl:
-/// "n Buchungen an Lena gefragt" bzw. "Rückfrage bei n Buchungen zurückgenommen", bei Bedarf
-/// mit den Zahlen "ohne Änderung" und "nicht in YNAB" (gelöscht oder unbekannt) und dem Hinweis
-/// "Flag nicht in YNAB" samt erstem Grund, wenn der Weg nach YNAB bei Buchungen gescheitert ist.
-let flagBatchToastText (target: Shared.Domain.LenaFlagTarget) (outcome: Shared.Domain.FlagBatchOutcome) : string =
+/// Die Art des Toasts: Warnung, sobald etwas nicht geklappt hat (nicht in YNAB, nicht gesendet),
+/// Info ohne Änderung, sonst Erfolg.
+let flagBatchToastType (outcome: Shared.Domain.FlagBatchOutcome) : ToastType =
+    if not (List.isEmpty (flagBatchSendFailures outcome)) || outcome.FailedCount > 0 || outcome.HeldCount > 0 then ToastWarning
+    elif List.isEmpty outcome.Changed then ToastInfo
+    else ToastSuccess
+
+/// Die Meldung nach "Lena fragen" bzw. "Rückfrage zurücknehmen" für die Auswahl (ledger-gwr9j): oben "n Buchungen an
+/// Lena gefragt" bzw. "Rückfrage bei n Buchungen zurückgenommen", darunter bei Bedarf die Zahlen ohne Änderung, nicht in
+/// YNAB und vielleicht doppelt sowie "Flag nicht in YNAB: <erster Grund>"; "Rückgängig", wenn sich etwas geändert hat.
+let flagBatchFeedback (target: Shared.Domain.LenaFlagTarget) (outcome: Shared.Domain.FlagBatchOutcome) : FeedbackNote =
     let changed = List.length outcome.Changed
     let count = Client.DesignSystem.Money.formatCount changed
     let head =
@@ -2174,27 +2212,23 @@ let flagBatchToastText (target: Shared.Domain.LenaFlagTarget) (outcome: Shared.D
         | Shared.Domain.WithdrawLena, 0 -> "Keine Rückfrage zurückgenommen"
         | Shared.Domain.WithdrawLena, 1 -> "Rückfrage bei 1 Buchung zurückgenommen"
         | Shared.Domain.WithdrawLena, _ -> $"Rückfrage bei {count} Buchungen zurückgenommen"
-    let notes =
+    let counts =
         [ if outcome.UnchangedCount > 0 then $"{Client.DesignSystem.Money.formatCount outcome.UnchangedCount} ohne Änderung"
           if outcome.FailedCount > 0 then $"{Client.DesignSystem.Money.formatCount outcome.FailedCount} nicht in YNAB"
           if outcome.HeldCount > 0 then $"{Client.DesignSystem.Money.formatCount outcome.HeldCount} vielleicht doppelt" ]
-    let withNotes = if List.isEmpty notes then head else head + " (" + String.concat ", " notes + ")"
-    match flagBatchSendFailures outcome with
-    | [] -> withNotes
-    | [ reason ] -> $"{withNotes}. {flagHintTitle}: {reason}"
-    | reason :: rest -> $"{withNotes}. {flagHintTitle}: {reason} (bei {List.length rest + 1} Buchungen)"
+    let notes =
+        [ if not (List.isEmpty counts) then yield String.concat ", " counts
+          yield! sendFailureText flagHintTitle (flagBatchSendFailures outcome) |> Option.toList ]
+    { Tone = feedbackToneOf (flagBatchToastType outcome)
+      Action = head
+      Detail = (if List.isEmpty notes then None else Some (String.concat ". " notes))
+      Act = (if changed = 0 then None else Some { Label = undoToastLabel; Kind = UndoFlagBatch outcome.Changed }) }
 
-/// Die Art des Toasts: Warnung, sobald etwas nicht geklappt hat (nicht in YNAB, nicht gesendet),
-/// Info ohne Änderung, sonst Erfolg.
-let flagBatchToastType (outcome: Shared.Domain.FlagBatchOutcome) : ToastType =
-    if not (List.isEmpty (flagBatchSendFailures outcome)) || outcome.FailedCount > 0 || outcome.HeldCount > 0 then ToastWarning
-    elif List.isEmpty outcome.Changed then ToastInfo
-    else ToastSuccess
-
-/// Der Toast nach dem gemeinsamen "Rückgängig" der Sammelaktion.
-let flagBatchRestoredToastText (count: int) : string =
+/// Die Meldung nach dem gemeinsamen "Rückgängig" einer Sammelaktion (ledger-gwr9j): „✓ Zurückgesetzt“, darunter
+/// was („Kategorie“ oder „Flag“) bei wie vielen Buchungen.
+let batchRestoredFeedback (what: string) (count: int) : FeedbackNote =
     let noun = if count = 1 then "Buchung" else "Buchungen"
-    $"Flag bei {Client.DesignSystem.Money.formatCount count} {noun} zurückgesetzt"
+    feedbackNote FeedbackOk "Zurückgesetzt" (Some $"{what} bei {Client.DesignSystem.Money.formatCount count} {noun}")
 
 /// Ist ein Filter aktiv, der die Kategorie betrifft (Kategorie-Chips oder "Ohne Kategorie")?
 let categoryFilterActive (filters: Filters) : bool =
@@ -2599,9 +2633,9 @@ type Msg =
     /// Wisch nach rechts an einer Karte (Handy). Wirkt nur auf eine zu prüfende Zeile.
     | StartSwipeReviewed of Guid
     | RunSwipeReviewed of Guid
-    /// Antwort auf die Geste; der Payee-Name ist festgehalten, bevor die Zeile die Liste
-    /// verlässt (Text des Toasts).
-    | SwipeReviewedDone of Guid * string * Result<ReviewMarkOutcome, string>
+    /// Antwort auf die Geste; der Payee ist festgehalten, bevor die Zeile die Liste
+    /// verlässt (zweite Zeile der Meldung).
+    | SwipeReviewedDone of Guid * payee: string option * Result<ReviewMarkOutcome, string>
     /// Klick auf "Rückgängig" im Toast: stellt den Vorzustand aus der Antwort wieder her.
     | StartUndoReviewMark of Guid * ReviewMarkState
     | RunUndoReviewMark of Guid * ReviewMarkState
@@ -2813,7 +2847,8 @@ type Msg =
     /// Klick auf "Rückgängig" im Toast: stellt die Vorzustände des Stapels wieder her.
     | StartUndoReviewMarkBatch of ReviewMarkRestoreItem list
     | RunUndoReviewMarkBatch of ReviewMarkRestoreItem list
-    | ReviewMarkBatchRestored of Result<ReviewMarkBatchOutcome, string>
+    /// Antwort, mit den Vorzuständen, auf die die Zeilen zurückgehen.
+    | ReviewMarkBatchRestored of ReviewMarkRestoreItem list * Result<ReviewMarkBatchOutcome, string>
 
     // ============================================
     // Tastaturfokus und Taste G (ledger-rjb8w, PC)
@@ -3042,14 +3077,66 @@ type ExternalMsg =
     | ShowToast of string * ToastType
     /// Ein Toast mit Schaltfläche (ledger-th36h: "Rückgängig").
     | ShowToastWithAction of string * ToastType * ToastAction
+    /// Eine Meldung mit getrennter Aktion und Detail für den einen Meldungsplatz (ledger-gwr9j, ADR 0098).
+    | PostFeedback of FeedbackNote
     /// Das Durchgehen ist zu Ende oder wird verlassen: zurück zur Übersicht (ledger-v6s7c).
     | LeaveReview
     /// Das Regel-Formular für diese Buchung öffnen, vorbelegt mit Payee und Kategorie (ledger-hg5m5).
     | OpenRuleForEntry of entryId: Guid * payee: string * categoryId: YnabCategoryId option
 
-/// Die Zusammenfassung eines Spiegel-Laufs als Satz.
-let mirrorSummaryText (summary: MirrorRunSummary) : string =
-    $"Spiegel-Lauf fertig: {summary.NewEntries} neu, {summary.ChangedEntries} geändert, {summary.DeletedEntries} gelöscht"
+// ============================================
+// Meldungen der Liste (ledger-gwr9j, ADR 0098)
+// ============================================
+
+/// Der Spiegel-Lauf läuft: gedämpft, ohne Zeichen, bis zum Ergebnis (Wort „Spiegeln“, Entscheidung Roman).
+let mirrorRunningFeedback : FeedbackNote = feedbackNote FeedbackRunning "Spiegeln läuft …" None
+
+/// Die Zusammenfassung eines Spiegel-Laufs für die zweite Zeile: „3 neu, 1 geändert“, Teile mit 0 entfallen, ohne
+/// jede Änderung „nichts Neues“.
+let mirrorSummaryDetail (summary: MirrorRunSummary) : string =
+    let parts =
+        [ if summary.NewEntries > 0 then $"{summary.NewEntries} neu"
+          if summary.ChangedEntries > 0 then $"{summary.ChangedEntries} geändert"
+          if summary.DeletedEntries > 0 then $"{summary.DeletedEntries} gelöscht" ]
+    if List.isEmpty parts then "nichts Neues" else String.concat ", " parts
+
+/// „✓ Gespiegelt“ mit der Zusammenfassung.
+let mirrorDoneFeedback (summary: MirrorRunSummary) : FeedbackNote =
+    feedbackNote FeedbackOk "Gespiegelt" (Some (mirrorSummaryDetail summary))
+
+/// „Spiegeln gescheitert“ mit Grund und „Erneut“ (startet den Lauf neu).
+let mirrorFailedFeedback (reason: string) : FeedbackNote =
+    { failedFeedback "Spiegeln gescheitert" reason with Act = Some { Label = retryLabel; Kind = RetryMirror } }
+
+/// Die nächste Seite kam nicht: rot mit Grund und „Erneut“ (lädt sie noch einmal).
+let loadMoreFailedFeedback (reason: string) : FeedbackNote =
+    { failedFeedback "Nicht nachgeladen" reason with Act = Some { Label = retryLabel; Kind = RetryLoadMoreEntries } }
+
+/// Das Nachladen im Hintergrund scheiterte, die Liste steht: gelb mit Grund und „Erneut“.
+let refreshFailedFeedback (reason: string) : FeedbackNote =
+    { feedbackNote FeedbackWarning "Liste nicht aktualisiert" (Some reason) with
+        Act = Some { Label = retryLabel; Kind = RetryRefreshEntries } }
+
+/// Die Meldung nach "Buchung anlegen" (ledger-gwr9j, Skizze 27): „✓ Angelegt“ mit „Rückgängig“; scheiterte der Weg
+/// nach YNAB, gelb „Angelegt, nicht in YNAB“ mit dem Grund und ohne Rückgängig.
+let createdFeedback
+    (created: LedgerBookingCreated)
+    (payee: string option)
+    (amount: decimal option)
+    (inShownAccount: bool)
+    : FeedbackNote =
+    match created.PushFailure with
+    | None ->
+        { Tone = FeedbackOk
+          Action = "Angelegt"
+          Detail = Some (Capture.createdDetail payee created.AccountName amount inShownAccount)
+          Act = Some { Label = undoToastLabel; Kind = UndoCapturedBooking created.EntryId } }
+    | Some reason -> feedbackNote FeedbackWarning "Angelegt, nicht in YNAB" (Some reason)
+
+/// Der Prüfvermerk steht in BB, YNAB hat ihn nicht: gelb mit Grund. Nach dem Wisch „Geprüft, nicht in YNAB“, nach
+/// „Rückgängig“ der Titel des Hinweises an der Zeile, weil die Buchung dann wieder zu prüfen ist.
+let reviewMarkNotInYnabFeedback (afterUndo: bool) (reason: string) : FeedbackNote =
+    feedbackNote FeedbackWarning (if afterUndo then reviewMarkHintTitle else "Geprüft, nicht in YNAB") (Some reason)
 
 /// Wie lange ein Spiegel-Lauf gilt, bevor er beim Seitenaufruf oder beim PWA-Vordergrund
 /// einen neuen Hintergrund-Lauf auslöst (ADR 0014, Frische-Kriterium).

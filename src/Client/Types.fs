@@ -370,6 +370,12 @@ type ToastActionKind =
     /// "Erneut senden" nach einer teilweise gescheiterten Verschiebung (budgeting-afd8h):
     /// die Anwendungs-Id kommt aus dem Bericht des Servers.
     | RetryBudgetMove of applicationId: string
+    /// „Erneut“ nach „Spiegeln gescheitert“ im Kassenbuch (ledger-gwr9j): startet den Spiegel-Lauf neu.
+    | RetryMirror
+    /// „Erneut“ nach „Nicht nachgeladen“ im Kassenbuch (ledger-gwr9j): lädt die nächste Seite.
+    | RetryLoadMoreEntries
+    /// „Erneut“ nach „Liste nicht aktualisiert“ im Kassenbuch (ledger-gwr9j): lädt die Liste im Hintergrund nach.
+    | RetryRefreshEntries
 
 /// Die optionale Aktion eines Toasts: Beschriftung und was der Klick auslöst.
 type ToastAction = {
@@ -408,6 +414,17 @@ type FeedbackMessage = {
     ToastSeparator: string
     ToastHidden: bool
     ToastExiting: bool
+}
+
+/// Eine Meldung, wie eine Seite sie meldet (ledger-gwr9j): Ton, Aktion, Detail und Knopf getrennt. Id, Gruppe und
+/// den Zustand des PC-Toasts setzt die Wurzel (`FeedbackSlot.ofNote`).
+type FeedbackNote = {
+    Tone: FeedbackTone
+    /// Obere Zeile, was passiert ist; nie gekürzt.
+    Action: string
+    /// Untere Zeile, Name oder Grund.
+    Detail: string option
+    Act: ToastAction option
 }
 
 /// Der eine Meldungsplatz der App: rein, damit Ersetzen und Zusammenfassen ohne Elmish testbar sind.
@@ -474,6 +491,18 @@ module FeedbackSlot =
           Act = act
           Group = groupOf act
           ToastSeparator = separator
+          ToastHidden = false
+          ToastExiting = false }
+
+    /// Eine Meldung aus der Meldung einer Seite. Am PC steht sie als „Aktion · Detail“.
+    let ofNote (id: Guid) (note: FeedbackNote) : FeedbackMessage =
+        { Id = id
+          Tone = note.Tone
+          Action = note.Action
+          Detail = note.Detail
+          Act = note.Act
+          Group = groupOf note.Act
+          ToastSeparator = " · "
           ToastHidden = false
           ToastExiting = false }
 

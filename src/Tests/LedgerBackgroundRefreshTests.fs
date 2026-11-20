@@ -243,7 +243,17 @@ let refreshTests =
             Expect.equal after.Entries model.Entries "die Liste bleibt"
             Expect.equal after.Selection model.Selection "die Auswahl bleibt"
             Expect.isFalse (refreshRunning after) "das Nachladen ist zu Ende"
-            Expect.equal external (ShowToast ("Liste konnte nicht aktualisiert werden: keine Verbindung", ToastWarning)) "Warnung"
+            Expect.equal
+                external
+                (PostFeedback
+                    { Tone = FeedbackWarning
+                      Action = "Liste nicht aktualisiert"
+                      Detail = Some "keine Verbindung"
+                      Act = Some { Label = "Erneut"; Kind = RetryRefreshEntries } })
+                "gelb mit Erneut (ledger-gwr9j)"
+            match State.toastActionMsg RetryRefreshEntries with
+            | State.LedgerMsg RefreshEntries -> ()
+            | other -> failtestf "„Erneut“ lädt die Liste nach, war %A" other
         }
 
         test "Eine Antwort nach einem Filterwechsel oder einem späteren Nachladen wird verworfen" {

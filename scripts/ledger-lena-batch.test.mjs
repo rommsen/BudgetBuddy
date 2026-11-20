@@ -183,7 +183,7 @@ test("[flow:lena-fragen-mehrere] PC: Lena fragen für zwei Buchungen, ein Aufruf
     assert.ok(!(await lenaMark(PAYEES[2])).includes("Lena"), "Zeile 3 unberührt");
 
     await page.getByRole("button", { name: "Rückgängig" }).click();
-    await page.locator(".toast-layer").getByText("Flag bei 2 Buchungen zurückgesetzt", { exact: true }).waitFor();
+    await page.locator(".toast-layer").getByText("Zurückgesetzt · Flag bei 2 Buchungen", { exact: true }).waitFor();
     assert.equal(state.restoreCalls.length, 1, "ein Rückgängig-Aufruf für alle");
     assert.deepEqual(state.restoreCalls[0].map((i) => i.EntryId).sort(), [idOf(1), idOf(2)].sort());
     assert.ok((await lenaMark(PAYEES[0])).includes("Lena") === false, "Zeile 1 wieder ohne Kennzeichen");

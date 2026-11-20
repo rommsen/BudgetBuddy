@@ -186,17 +186,79 @@ let swipeReviewedTests =
             Expect.equal (model.ReviewMarkRows |> Map.tryFind e.Id) (Some ReviewMarkSending) "Zeile sendet"
             Expect.equal (dispatchedMsgs cmd) [ RunSwipeReviewed e.Id ] "genau ein Aufruf folgt"
 
-        testCase "Antwort: Toast '<Payee> geprüft' mit Rückgängig und dem Vorzustand aus der Antwort" <| fun () ->
+        testCase "Antwort: Meldung „✓ Geprüft“ / Payee mit Rückgängig und dem Vorzustand aus der Antwort (ledger-gwr9j)" <| fun () ->
             let e = entryView 1 true
             let previous = { IsApproved = true; ClearedState = ReviewUncleared }
             let _, _, external =
-                update (SwipeReviewedDone (e.Id, swipeReviewedToastText e.Payee, Ok (swipeOutcome previous))) (modelWith false [ e ])
+                update (SwipeReviewedDone (e.Id, e.Payee, Ok (swipeOutcome previous))) (modelWith false [ e ])
             match external with
-            | ShowToastWithAction (text, ToastSuccess, action) ->
-                Expect.equal text "Payee 1 geprüft" "Toast-Text"
-                Expect.equal action.Label "Rückgängig" "Aktion"
-                Expect.equal action.Kind (UndoReviewMark (e.Id, previous)) "Vorzustand aus der Antwort"
-            | other -> failtestf "Toast mit Aktion erwartet, war %A" other
+            | PostFeedback note ->
+                Expect.equal note.Tone FeedbackOk "Ton ok (✓)"
+                Expect.equal note.Action "Geprüft" "Aktion"
+                Expect.equal note.Detail (Some "Payee 1") "zweite Zeile: Payee"
+                Expect.equal note.Act (Some { Label = "Rückgängig"; Kind = UndoReviewMark (e.Id, previous) }) "Rückgängig mit Vorzustand"
+                match State.toastActionMsg (UndoReviewMark (e.Id, previous)) with
+                | State.LedgerMsg (StartUndoReviewMark (id, p)) -> Expect.equal (id, p) (e.Id, previous) "löst den Einzelweg aus"
+                | other -> failtestf "unerwartete Nachricht: %A" other
+            | other -> failtestf "Meldung erwartet, war %A" other
+
+        testCase "Wisch ohne Payee: zweite Zeile „ohne Payee“ wie in der Liste" <| fun () ->
+            let note = swipeReviewedFeedback None (Guid.NewGuid()) uncleared
+            Expect.equal note.Detail (Some "ohne Payee") "Anzeige der Liste"
+
+        testCase "Fehler der Geste: „Nicht geprüft“ rot mit Grund, die Zeile bleibt zu prüfen" <| fun () ->
+            let e = entryView 1 true
+            let model, _, external = update (SwipeReviewedDone (e.Id, e.Payee, Error "YNAB antwortet nicht")) (modelWith false [ e ])
+            Expect.equal external (PostFeedback { Tone = FeedbackError; Action = "Nicht geprüft"; Detail = Some "YNAB antwortet nicht"; Act = None }) "Meldung"
+            Expect.isTrue (entriesOf model |> List.head).NeedsReview "zu prüfen"
+
+        testCase "Rückgängig gescheitert: „Rückgängig nicht möglich“ rot mit Grund" <| fun () ->
+            let e = entryView 1 true
+            let _, _, external = update (ReviewMarkRestored (e.Id, uncleared, Error "weg")) (modelWith false [ e ])
+            Expect.equal external (PostFeedback { Tone = FeedbackError; Action = "Rückgängig nicht möglich"; Detail = Some "weg"; Act = None }) "Meldung"
+
+        testCase "Rückgängig, YNAB nimmt es nicht an: gelb „Prüfvermerk nicht in YNAB“ mit Grund" <| fun () ->
+            let e = entryView 1 false
+            let failed = { swipeOutcome uncleared with WriteBack = ReviewMarkSendFailed "Limit" }
+            let _, _, external = update (ReviewMarkRestored (e.Id, uncleared, Ok failed)) (modelWith false [ e ])
+            Expect.equal external (PostFeedback { Tone = FeedbackWarning; Action = "Prüfvermerk nicht in YNAB"; Detail = Some "Limit"; Act = None }) "Meldung"
+
+        testCase "Drei Wische: eine Meldung „3 geprüft“ ohne zweite Zeile, Rückgängig nimmt alle drei zurück (ledger-gwr9j)" <| fun () ->
+            let a, b, c = entryView 1 true, entryView 2 true, entryView 3 true
+            let notes =
+                [ a; b; c ]
+                |> List.map (fun e ->
+                    match update (SwipeReviewedDone (e.Id, e.Payee, Ok (swipeOutcome uncleared))) (modelWith false [ e ]) with
+                    | _, _, PostFeedback note -> note
+                    | _, _, other -> failtestf "Meldung erwartet, war %A" other)
+            let slot =
+                notes
+                |> List.fold (fun current note -> Some (FeedbackSlot.post current (FeedbackSlot.ofNote (Guid.NewGuid()) note))) None
+                |> Option.get
+            Expect.equal slot.Action "3 geprüft" "zusammengefasst"
+            Expect.equal slot.Detail None "ohne zweite Zeile"
+            Expect.equal slot.Tone FeedbackOk "✓"
+            let items : ReviewMarkRestoreItem list = [ a; b; c ] |> List.map (fun e -> { EntryId = e.Id; Previous = uncleared })
+            Expect.equal slot.Act (Some { Label = "Rückgängig"; Kind = UndoReviewMarkBatch items }) "ein Rückgängig für alle"
+
+        testCase "Rückgängig nach drei Wischen: alle wieder zu prüfen an ihrem Platz, die Liste bleibt geladen (ledger-gwr9j)" <| fun () ->
+            let a, b, c, d = entryView 1 true, entryView 2 true, entryView 3 true, entryView 4 true
+            let start = modelWith true [ a; b; c; d ]
+            let swipe (m: Model) (e: LedgerEntryView) =
+                let m', _, _ = update (SwipeReviewedDone (e.Id, e.Payee, Ok (swipeOutcome uncleared))) m
+                m'
+            let swiped = [ b; a; d ] |> List.fold swipe start
+            Expect.equal (entriesOf swiped |> List.map (fun e -> e.Id)) [ c.Id ] "drei Zeilen verlassen die Liste (Chip)"
+            let items : ReviewMarkRestoreItem list = [ b; a; d ] |> List.map (fun e -> { EntryId = e.Id; Previous = uncleared })
+            let outcome : ReviewMarkBatchOutcome =
+                { Changed = items |> List.map (fun i -> { EntryId = i.EntryId; Previous = { IsApproved = true; ClearedState = ReviewCleared }; WriteBack = ReviewMarkSent })
+                  UnchangedCount = 0; FailedCount = 0; HeldCount = 0 }
+            let restored, cmd, external = update (ReviewMarkBatchRestored (items, Ok outcome)) swiped
+            Expect.equal (entriesOf restored |> List.map (fun e -> e.Id)) [ a.Id; b.Id; c.Id; d.Id ] "jede Zeile an ihrem Platz, Liste nicht neu aufgebaut"
+            Expect.isTrue (entriesOf restored |> List.forall (fun e -> e.NeedsReview)) "alle wieder zu prüfen"
+            Expect.equal restored.NeedsReviewCount 4 "Zähler"
+            Expect.equal (dispatchedMsgs cmd) [ RefreshEntries ] "nur Nachladen im Hintergrund, kein Neuaufbau"
+            Expect.equal external NoOp "keine Meldung, die Leiste ist seit dem Tipp leer"
 
         testCase "Rückgängig ruft restoreReviewMark mit genau diesem Vorzustand auf (approved, Uncleared)" <| fun () ->
             let e = entryView 1 true
@@ -235,20 +297,23 @@ let swipeReviewedTests =
         testCase "Antwort ohne Änderung erzeugt keinen Toast mit Rückgängig" <| fun () ->
             let e = entryView 1 true
             let unchanged = { swipeOutcome uncleared with Change = ReviewMarkUnchanged; WriteBack = ReviewMarkNotSent }
-            let _, _, external = update (SwipeReviewedDone (e.Id, "x", Ok unchanged)) (modelWith false [ e ])
+            let _, _, external = update (SwipeReviewedDone (e.Id, None, Ok unchanged)) (modelWith false [ e ])
             Expect.equal external NoOp "NoChange"
 
         testCase "Fehlschlag beim Zurückschreiben: Toast nennt 'Prüfvermerk nicht in YNAB' mit Grund, Zeile trägt den Hinweis" <| fun () ->
             let e = entryView 1 true
             let failed = { swipeOutcome uncleared with WriteBack = ReviewMarkSendFailed "Keine Verbindung zu YNAB" }
-            let model, _, external = update (SwipeReviewedDone (e.Id, "x", Ok failed)) (modelWith true [ e ])
-            Expect.equal external (ShowToast ("Prüfvermerk nicht in YNAB: Keine Verbindung zu YNAB", ToastError)) "Fehler-Toast"
+            let model, _, external = update (SwipeReviewedDone (e.Id, None, Ok failed)) (modelWith true [ e ])
+            Expect.equal
+                external
+                (PostFeedback { Tone = FeedbackWarning; Action = "Geprüft, nicht in YNAB"; Detail = Some "Keine Verbindung zu YNAB"; Act = None })
+                "gelbe Meldung (ledger-gwr9j)"
             Expect.equal (entriesOf model |> List.head).ReviewMarkWriteBackFailure (Some "Keine Verbindung zu YNAB") "Hinweis an der Zeile"
 
         testCase "Mit aktivem Chip verschwindet die Zeile nach dem Wisch, nach Rückgängig kommt sie zurück, Zähler stimmt" <| fun () ->
             let a, b, c = entryView 1 true, entryView 2 true, entryView 3 true
             let start = modelWith true [ a; b; c ]
-            let swiped, _, _ = update (SwipeReviewedDone (b.Id, "x", Ok (swipeOutcome uncleared))) start
+            let swiped, _, _ = update (SwipeReviewedDone (b.Id, None, Ok (swipeOutcome uncleared))) start
             Expect.equal (entriesOf swiped |> List.map (fun e -> e.Id)) [ a.Id; c.Id ] "Zeile verlässt die Liste"
             Expect.equal swiped.NeedsReviewCount 2 "Zähler sinkt"
             Expect.equal swiped.TotalCount 2 "Treffer sinken"
@@ -262,7 +327,7 @@ let swipeReviewedTests =
 
         testCase "Rückgängig nimmt den lokalen Seitenversatz zurück, die nächste Seite lädt die Buchung nicht doppelt" <| fun () ->
             let a, b = entryView 1 true, entryView 2 true
-            let swiped, _, _ = update (SwipeReviewedDone (a.Id, "x", Ok (swipeOutcome uncleared))) (modelWith true [ a; b ])
+            let swiped, _, _ = update (SwipeReviewedDone (a.Id, None, Ok (swipeOutcome uncleared))) (modelWith true [ a; b ])
             Expect.equal swiped.LocallyRemoved 1 "Zeile hat die Liste verlassen"
             let restored, _, _ = update (ReviewMarkRestored (a.Id, uncleared, Ok (swipeOutcome uncleared))) swiped
             Expect.equal restored.LocallyRemoved 0 "Zeile ist zurück, Versatz zurückgenommen"
@@ -271,7 +336,7 @@ let swipeReviewedTests =
 
         testCase "Ohne aktiven Chip bleibt die Zeile stehen, Rückgängig setzt sie auf zu prüfen und hebt den Zähler" <| fun () ->
             let a, b = entryView 1 true, entryView 2 true
-            let swiped, _, _ = update (SwipeReviewedDone (a.Id, "x", Ok (swipeOutcome uncleared))) (modelWith false [ a; b ])
+            let swiped, _, _ = update (SwipeReviewedDone (a.Id, None, Ok (swipeOutcome uncleared))) (modelWith false [ a; b ])
             Expect.isFalse (entriesOf swiped |> List.head).NeedsReview "geprüft"
             Expect.equal swiped.NeedsReviewCount 1 "Zähler sinkt"
             let restored, _, _ = update (ReviewMarkRestored (a.Id, uncleared, Ok (swipeOutcome uncleared))) swiped
@@ -285,7 +350,7 @@ let swipeReviewedTests =
 
         testCase "Eine neu geladene Liste vergisst die gemerkten Zeilen" <| fun () ->
             let a = entryView 1 true
-            let swiped, _, _ = update (SwipeReviewedDone (a.Id, "x", Ok (swipeOutcome uncleared))) (modelWith true [ a ])
+            let swiped, _, _ = update (SwipeReviewedDone (a.Id, None, Ok (swipeOutcome uncleared))) (modelWith true [ a ])
             Expect.isNonEmpty (Map.toList swiped.SwipedAway) "Zeile gemerkt"
             let reloaded, _, _ = update LoadEntries swiped
             Expect.isEmpty reloaded.SwipedAway "nach dem Neuladen nichts mehr gemerkt"

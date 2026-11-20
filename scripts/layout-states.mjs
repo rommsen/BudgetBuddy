@@ -1939,8 +1939,9 @@ export const STATES = [
   // Meldung in der Leiste über der Navigation bzw. der Tastenleiste,
   // „+ Buchung“ wird rund daneben. Regression design-system-vf94m: der Toast mit Aktion stand unten über dem
   // schwebenden Knopf und verdeckte ihn (Invariante 12 und Gegenbeweis (c) in layout-invariants.test.mjs).
+  // ledger-gwr9j: am Handy „✓ Geprüft“, darunter der Payee, rechts „Rückgängig“ (Skizze 22).
   {
-    name: "kassenbuch-meldung",
+    name: "kassenbuch-leiste-geprueft",
     route: "/ledger",
     widths: [320, 390, 412, 900],
     mock: async (page) => {
@@ -1966,13 +1967,19 @@ export const STATES = [
       }
       await feedbackAction(page).waitFor();
       await page.locator('[data-testid="ledger-capture-fab"][data-shape="round"]').waitFor();
+      if (mobile) {
+        const bar = page.getByTestId("feedback-bar");
+        await bar.getByTestId("feedback-action").filter({ hasText: /^Geprüft$/ }).waitFor();
+        await bar.getByTestId("feedback-detail").filter({ hasText: "Bauhaus" }).waitFor();
+      }
     },
   },
-  // design-system-gkded: drei Wische nacheinander werden eine Meldung „3 geprüft“ mit einem Rückgängig.
+  // design-system-gkded, ledger-gwr9j: drei Wische nacheinander werden eine Meldung „✓ 3 geprüft“ ohne zweite Zeile mit
+  // einem Rückgängig (Skizze 23).
   {
-    name: "kassenbuch-3-geprueft",
+    name: "kassenbuch-leiste-3-geprueft",
     route: "/ledger",
-    widths: [412],
+    widths: [...HANDY_WIDTHS, 412],
     mock: async (page) => {
       await mockLedger(page);
       await mockReviewMark(page);
@@ -1980,13 +1987,78 @@ export const STATES = [
     open: async (page) => {
       await openLedger(page);
       await swipeReviewed(page, "Bauhaus");
-      await page.locator('[data-testid="feedback-action"]', { hasText: "Bauhaus geprüft" }).waitFor();
+      await page.locator('[data-testid="feedback-detail"]', { hasText: "Bauhaus" }).waitFor();
       await swipeReviewed(page, "Rückfrage und Prüfung");
       await page.locator('[data-testid="feedback-action"]', { hasText: "2 geprüft" }).waitFor();
       await swipeReviewed(page, "Markiert und zu prüfen");
       await page.locator('[data-testid="feedback-action"]', { hasText: "3 geprüft" }).waitFor();
       const bars = await page.locator('[data-testid="feedback-message"]').count();
       if (bars !== 1) throw new Error(`3 geprüft: ${bars} Meldungen statt einer`);
+      if ((await page.locator('[data-testid="feedback-bar"] [data-testid="feedback-detail"]').count()) !== 0)
+        throw new Error("3 geprüft: die Meldung hat eine zweite Zeile");
+    },
+  },
+  // ledger-gwr9j (Skizze 26): scheitert der Spiegel-Lauf, steht „Spiegeln gescheitert“ rot mit Grund und „Erneut“ in
+  // der Leiste.
+  {
+    name: "kassenbuch-leiste-spiegel-fehler",
+    route: "/ledger",
+    widths: [...HANDY_WIDTHS, 412],
+    mock: async (page) => {
+      await mockLedger(page);
+      await page.route("**/api/LedgerApi/mirrorYnabBudget", (r) => json(r, { Error: "YNAB antwortet nicht" }));
+    },
+    open: async (page) => {
+      await openLedger(page);
+      await page.getByRole("button", { name: "Jetzt spiegeln", exact: true }).filter({ visible: true }).first().tap();
+      const bar = page.getByTestId("feedback-bar");
+      await bar.getByTestId("feedback-action").filter({ hasText: "Spiegeln gescheitert" }).waitFor();
+      await bar.getByTestId("feedback-detail").filter({ hasText: "YNAB antwortet nicht" }).waitFor();
+      await bar.locator('[data-feedback-action="true"]', { hasText: "Erneut" }).waitFor();
+    },
+  },
+  // ledger-gwr9j (Skizze 27): nach „Buchung anlegen“ steht „✓ Angelegt“, darunter „Payee · Betrag · Konto“ (gebucht
+  // auf Bar, die Liste zeigt das Girokonto), rechts „Rückgängig“; „+ Buchung“ wird rund.
+  {
+    name: "kassenbuch-leiste-angelegt",
+    route: "/ledger",
+    widths: [412],
+    mock: async (page) => {
+      await mockApp(page);
+      await mockCapture(page, { catchAll: false });
+    },
+    open: async (page) => {
+      await page.getByTestId("ledger-capture-fab").waitFor();
+      await page.getByTestId("ledger-capture-fab").tap();
+      const sheet = page.locator(".bottom-sheet.active", { hasText: "Neue Buchung" });
+      await sheet.getByRole("button", { name: "Bäckerei Lange · 8,60" }).tap();
+      await sheet.getByRole("button", { name: "Buchung anlegen" }).tap();
+      await page.getByTestId("feedback-bar").getByTestId("feedback-detail").filter({ hasText: "Bäckerei Lange · -8,60 € · Bar" }).waitFor();
+      const bar = page.getByTestId("feedback-bar");
+      await bar.getByTestId("feedback-action").filter({ hasText: /^Angelegt$/ }).waitFor();
+      await bar.locator('[data-feedback-action="true"]', { hasText: "Rückgängig" }).waitFor();
+      await page.locator('[data-testid="ledger-capture-fab"][data-shape="round"]').waitFor();
+    },
+  },
+  // ledger-gwr9j (Entscheidung Roman): im Auswahl-Modus steht eine Meldung ohne Knopf direkt über der Auswahl-Leiste,
+  // die Liste endet über beiden.
+  {
+    name: "kassenbuch-auswahl-meldung",
+    route: "/ledger",
+    widths: [412],
+    mock: async (page) => {
+      await mockLedger(page);
+      await mockReviewMark(page);
+      await page.route("**/api/SettingsApi/getLenaFlagSettings", (r) => json(r, { SavedColor: null, SuggestedColor: null }));
+    },
+    open: async (page) => {
+      await openLedger(page);
+      await swipeReviewed(page, "Rückfrage und Prüfung");
+      await feedbackAction(page).waitFor();
+      await openMobileSelection(page);
+      const bar = page.getByTestId("feedback-bar");
+      await bar.getByTestId("feedback-action").filter({ hasText: /^Geprüft$/ }).waitFor();
+      if ((await page.getByTestId("ledger-capture-fab").count()) !== 0) throw new Error("Auswahl-Modus: „+ Buchung“ in der Leiste");
     },
   },
   // ledger-hg5m5: nach der Kategorie-Änderung steht unter der Kategorie das Angebot „Regel anlegen?“; der Toast mit
@@ -2134,7 +2206,12 @@ export const STATES = [
       await mockLedger(page);
       await mockRunningMirror(page);
     },
-    open: async (page) => page.getByText("Spiegel läuft. Die Liste bleibt so lange stehen.").waitFor(),
+    // ledger-gwr9j (Skizze 24): am Handy steht der Lauf zusätzlich gedämpft in der Leiste.
+    open: async (page) => {
+      await page.getByText("Spiegel läuft. Die Liste bleibt so lange stehen.").waitFor();
+      if (page.viewportSize().width < 1024)
+        await page.getByTestId("feedback-bar").getByTestId("feedback-action").filter({ hasText: "Spiegeln läuft …" }).waitFor();
+    },
   },
   {
     name: "kassenbuch-nach-spiegel",

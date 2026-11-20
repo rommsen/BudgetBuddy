@@ -502,6 +502,31 @@ let private applyUndoReviewMark
     let reinserted = reinsertSwipedAway entryId model
     applyReviewMarkResult entryId (Some (needsReviewOf previous)) (writeBackFailureOf outcome) reinserted
 
+/// Ergebnis von "Rückgängig" für mehrere Prüfvermerke (Wische hintereinander oder die Auswahl, ledger-gwr9j): jede
+/// geänderte geladene Zeile bekommt ihren Vorzustand, weggewischte kommen an ihren Platz zurück, die zuletzt
+/// gewischte zuerst. Die Liste bleibt geladen, damit sie an ihrer Stelle stehen bleibt. Rein.
+let private applyUndoReviewMarkBatch
+    (items: ReviewMarkRestoreItem list)
+    (outcome: ReviewMarkBatchOutcome)
+    (model: Model)
+    : Model =
+    let changeById = outcome.Changed |> List.map (fun c -> c.EntryId, c) |> Map.ofList
+    items
+    |> List.rev
+    |> List.fold
+        (fun current item ->
+            match changeById |> Map.tryFind item.EntryId with
+            | Some change ->
+                let failureOf (entry: LedgerEntryView) =
+                    match change.WriteBack with
+                    | ReviewMarkSendFailed reason -> Some reason
+                    | ReviewMarkSent -> None
+                    | ReviewMarkNotSent -> entry.ReviewMarkWriteBackFailure
+                reinsertSwipedAway item.EntryId current
+                |> applyReviewMarkResult item.EntryId (Some (needsReviewOf item.Previous)) failureOf
+            | None -> current)
+        model
+
 // ============================================
 // Kategorie ändern im Detail (ledger-sfab0, ADR 0055)
 // ============================================
@@ -1337,7 +1362,6 @@ let private submitCapture (capture: Capture.CaptureState) (model: Model) : Model
         (if errors.AmountMessage.IsSome then Cmd.ofMsg RevealCaptureAmountError else Cmd.none),
         NoOp
 
-let capturedDiscardedText = "Buchung zurückgenommen"
 let entryDeletedText = "Buchung gelöscht, auch in YNAB"
 let entryRestoredText = "Buchung wiederhergestellt"
 
@@ -1809,7 +1833,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         // bleibt stehen, nur der Hinweis erscheint als Toast.
         { model with ListActivity = afterPage model.ListActivity },
         refreshAfterPage model.ListActivity,
-        ShowToast ($"Weitere Buchungen konnten nicht geladen werden: {message}", ToastError)
+        PostFeedback (loadMoreFailedFeedback message)
 
     | LoadMoreEntries ->
         // Reiner Wächter: kein zweiter Nachlade-Aufruf waehrend einer laeuft, keiner
@@ -1866,7 +1890,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         // Die Liste bleibt mit Auswahl stehen, nur der Hinweis erscheint.
         { model with ListActivity = ListIdle },
         Cmd.none,
-        ShowToast ($"Liste konnte nicht aktualisiert werden: {message}", ToastWarning)
+        PostFeedback (refreshFailedFeedback message)
 
     | ToggleIncludeDeleted ->
         // Reine Zustandsänderung plus Neuaufbau über `rebuildWith` (dieselbe Teilung wie
@@ -1995,7 +2019,8 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         // gegen einen zweiten Tab oder einen zeitgleichen Lauf-nach-Push.
         let model' = { model with LastMirrorRun = Success status }
         if not model.MirrorRunning && isMirrorStale DateTime.UtcNow status then
-            { model' with MirrorRunning = true }, Cmd.ofMsg RunMirror, NoOp
+            // Auch der Lauf im Hintergrund meldet sich in der Leiste, bis sein Ergebnis die Meldung ersetzt (ledger-gwr9j).
+            { model' with MirrorRunning = true }, Cmd.ofMsg RunMirror, PostFeedback mirrorRunningFeedback
         else
             model', Cmd.none, NoOp
 
@@ -2010,7 +2035,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         if model.MirrorRunning then
             model, Cmd.none, NoOp
         else
-            { model with MirrorRunning = true }, Cmd.ofMsg RunMirror, NoOp
+            { model with MirrorRunning = true }, Cmd.ofMsg RunMirror, PostFeedback mirrorRunningFeedback
 
     | BookingsScrollRemembered y -> { model with BookingsScroll = Some y }, Cmd.none, NoOp
     | BookingsScrollDropped -> { model with BookingsScroll = None }, Cmd.none, NoOp
@@ -2033,14 +2058,14 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         // derselbe bleibt und eine Liste steht, sonst als Neuaufbau (ledger-ct3cx).
         { model with MirrorRunning = false },
         Cmd.batch [ Cmd.ofMsg RefreshAccounts; Cmd.ofMsg LoadBalances; Cmd.ofMsg LoadMirrorStatus ],
-        ShowToast (mirrorSummaryText summary, ToastSuccess)
+        PostFeedback (mirrorDoneFeedback summary)
 
     | MirrorFinished (Error message) ->
         // Ein Fehler wird sichtbar gemacht, nie still geschluckt (ADR 0014): als
         // Toast jetzt und als Lauf-Status dauerhaft.
         { model with MirrorRunning = false },
         Cmd.ofMsg LoadMirrorStatus,
-        ShowToast ($"Spiegel-Lauf gescheitert: {message}", ToastError)
+        PostFeedback (mirrorFailedFeedback message)
 
     // ============================================
     // Filterleiste und Summenzeile (ledger-j8xq4)
@@ -2423,33 +2448,27 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             match model.Entries with
             | Success entries -> entries |> List.tryFind (fun e -> e.Id = entryId) |> Option.bind (fun e -> e.Payee)
             | _ -> None
-        let text = swipeReviewedToastText payee
         let cmd =
             Cmd.OfAsync.either
                 (Api.ledger.setReviewMark entryId)
                 Reviewed
-                (fun result -> SwipeReviewedDone (entryId, text, result))
-                (fun ex -> SwipeReviewedDone (entryId, text, Error ex.Message))
+                (fun result -> SwipeReviewedDone (entryId, payee, result))
+                (fun ex -> SwipeReviewedDone (entryId, payee, Error ex.Message))
         model, cmd, NoOp
 
-    | SwipeReviewedDone (entryId, text, Ok outcome) ->
+    | SwipeReviewedDone (entryId, payee, Ok outcome) ->
         let model' = applySwipeReviewed entryId outcome model
         let external =
             match outcome.WriteBack with
-            | ReviewMarkSendFailed reason -> ShowToast ($"{reviewMarkHintTitle}: {reason}", ToastError)
+            | ReviewMarkSendFailed reason -> PostFeedback (reviewMarkNotInYnabFeedback false reason)
             | _ when outcome.Change = ReviewMarkUnchanged -> NoOp
-            | _ ->
-                ShowToastWithAction (
-                    text,
-                    ToastSuccess,
-                    { Label = undoToastLabel; Kind = UndoReviewMark (entryId, outcome.Previous) }
-                )
+            | _ -> PostFeedback (swipeReviewedFeedback payee entryId outcome.Previous)
         model', afterEntryChange entryId model', external
 
     | SwipeReviewedDone (entryId, _, Error message) ->
         { model with ReviewMarkRows = model.ReviewMarkRows |> Map.add entryId (ReviewMarkCommandFailed message) },
         Cmd.none,
-        ShowToast ($"Prüfvermerk nicht gesetzt: {message}", ToastError)
+        PostFeedback (failedFeedback "Nicht geprüft" message)
 
     | StartUndoReviewMark (entryId, previous) ->
         whenRowIdle ReviewMarkLock entryId model (fun () ->
@@ -2470,14 +2489,14 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         let model' = applyUndoReviewMark entryId previous outcome model
         let external =
             match outcome.WriteBack with
-            | ReviewMarkSendFailed reason -> ShowToast ($"{reviewMarkHintTitle}: {reason}", ToastError)
+            | ReviewMarkSendFailed reason -> PostFeedback (reviewMarkNotInYnabFeedback true reason)
             | _ -> NoOp
         model', afterEntryChange entryId model', external
 
     | ReviewMarkRestored (entryId, _, Error message) ->
         { model with ReviewMarkRows = model.ReviewMarkRows |> Map.add entryId (ReviewMarkCommandFailed message) },
         Cmd.none,
-        ShowToast ($"Rückgängig nicht möglich: {message}", ToastError)
+        PostFeedback (undoFailedFeedback message)
 
     // ============================================
     // Kategorie ändern im Detail (ledger-sfab0, ADR 0055)
@@ -3556,23 +3575,22 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         let amount = model.Capture |> Option.bind (fun c -> Capture.signedAmount c.Form)
         let openDetail =
             if showsEntry && model.DetailForm = DetailPanel then Cmd.ofMsg (OpenRouteEntry created.EntryId) else Cmd.none
-        let toast =
-            match created.PushFailure with
-            | None ->
-                ShowToastWithAction (
-                    Capture.createdText created amount,
-                    ToastSuccess,
-                    { Label = undoToastLabel; Kind = UndoCapturedBooking created.EntryId }
-                )
-            | Some _ -> ShowToast (Capture.createdText created amount, ToastWarning)
+        let payee = model.Capture |> Option.map (fun c -> c.Form.Payee)
+        let bookedAccount = model.Capture |> Option.bind (fun c -> c.Form.AccountId)
+        // Gezeigt ist ein Konto nur im Kassenbuch mit Filter auf genau dieses Konto; auf der Übersicht oder bei
+        // „Alle Konten“ steht das Konto mit in der Meldung.
+        let inShownAccount =
+            match model.SelectedFilter, bookedAccount with
+            | Some (OneAccount shown), Some booked -> showsEntry && shown = booked
+            | _ -> false
         { model with Capture = None },
         Cmd.batch [ Cmd.ofMsg RefreshEntries; Cmd.ofMsg LoadBalances; openDetail ],
-        toast
+        PostFeedback (createdFeedback created payee amount inShownAccount)
 
     | CaptureSubmitted (Error message) ->
         match model.Capture with
         | Some capture -> { model with Capture = Some { capture with Saving = false; ServerErrors = [ message ] } }, Cmd.none, NoOp
-        | None -> model, Cmd.none, ShowToast (message, ToastError)
+        | None -> model, Cmd.none, PostFeedback (failedFeedback "Nicht angelegt" message)
 
     | StartDiscardCaptured entryId ->
         // Ein zweiter Tipp auf "Rückgängig" schickt nichts, solange die Rücknahme läuft.
@@ -3598,11 +3616,12 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             if model.DetailFor |> Option.exists (fun d -> d.Id = entryId) then closeDetail model
             else
                 model
-        model', Cmd.batch [ Cmd.ofMsg RefreshEntries; Cmd.ofMsg LoadBalances ], ShowToast (capturedDiscardedText, ToastSuccess)
+        // Keine Meldung: die Zeile ist weg, die Leiste ist seit dem Tipp auf „Rückgängig“ leer (ledger-gwr9j).
+        model', Cmd.batch [ Cmd.ofMsg RefreshEntries; Cmd.ofMsg LoadBalances ], NoOp
 
     | CapturedDiscarded (entryId, Error message) ->
         { model with DiscardingCaptured = model.DiscardingCaptured.Remove entryId },
-        Cmd.none, ShowToast ($"Rückgängig nicht möglich: {message}", ToastError)
+        Cmd.none, PostFeedback (undoFailedFeedback message)
 
     | StartDeleteEntry entryId ->
         // Ein zweiter Tipp auf "Buchung löschen" schickt nichts, solange das Löschen läuft.
@@ -3871,10 +3890,10 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         model'', Cmd.batch [ listCmd; historyCmd ], NoOp
 
     | RouteEntryLoaded (entryId, Ok None) when model.PendingRouteEntry = Some entryId ->
-        { model with PendingRouteEntry = None }, Cmd.none, ShowToast ("Buchung nicht gefunden", ToastWarning)
+        { model with PendingRouteEntry = None }, Cmd.none, PostFeedback (feedbackNote FeedbackWarning "Buchung nicht gefunden" None)
 
     | RouteEntryLoaded (entryId, Error message) when model.PendingRouteEntry = Some entryId ->
-        { model with PendingRouteEntry = None }, Cmd.none, ShowToast ($"Buchung nicht geladen: {message}", ToastError)
+        { model with PendingRouteEntry = None }, Cmd.none, PostFeedback (failedFeedback "Buchung nicht geladen" message)
 
     // Antwort zu einer inzwischen verlassenen Route.
     | RouteEntryLoaded _ -> model, Cmd.none, NoOp
@@ -4030,21 +4049,12 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
 
     | ReviewMarkBatchDone (Ok outcome) ->
         let model', reload = applyReviewMarkBatch outcome model
-        let toastType = reviewBatchToastType outcome
-        let text = reviewBatchToastText outcome
-        let external =
-            if List.isEmpty outcome.Changed then
-                ShowToast (text, toastType)
-            else
-                let items =
-                    outcome.Changed |> List.map (fun c -> { EntryId = c.EntryId; Previous = c.Previous })
-                ShowToastWithAction (text, toastType, { Label = undoToastLabel; Kind = UndoReviewMarkBatch items })
-        model', (if reload then Cmd.ofMsg RefreshEntries else Cmd.none), external
+        model', (if reload then Cmd.ofMsg RefreshEntries else Cmd.none), PostFeedback (reviewBatchFeedback outcome)
 
     | ReviewMarkBatchDone (Error message) ->
         { model with BatchRunning = None },
         Cmd.none,
-        ShowToast ($"Prüfvermerk nicht gesetzt: {message}", ToastError)
+        PostFeedback (failedFeedback "Nicht geprüft" message)
 
     | StartUndoReviewMarkBatch items ->
         // Wie jedes Sammel-Rückgängig nur ohne laufenden Sammelaufruf; gesperrt bleibt es still.
@@ -4058,14 +4068,14 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             Cmd.OfAsync.either
                 Api.ledger.restoreReviewMarkBatch
                 items
-                ReviewMarkBatchRestored
-                (fun ex -> ReviewMarkBatchRestored (Error ex.Message))
+                (fun result -> ReviewMarkBatchRestored (items, result))
+                (fun ex -> ReviewMarkBatchRestored (items, Error ex.Message))
         model, cmd, NoOp
 
-    | ReviewMarkBatchRestored (Ok outcome) ->
-        // Viele der Buchungen waren unter `AllExcept` nie geladen: die Liste lädt neu, statt
-        // Zeilen einzeln zurückzustecken. Das setzt auch Seitenversatz und Zähler auf den
-        // Stand des Servers.
+    | ReviewMarkBatchRestored (items, Ok outcome) ->
+        // Die geladenen Zeilen stehen sofort wieder auf ihrem Vorzustand, weggewischte an ihrem Platz (ledger-gwr9j):
+        // die Liste bleibt stehen, auch ihr Scrollstand. Unter `AllExcept` waren viele Buchungen nie geladen; das
+        // Nachladen im Hintergrund holt sie und setzt Seitenversatz und Zähler auf den Stand des Servers.
         let sendFailed =
             outcome.Changed
             |> List.tryPick (fun c ->
@@ -4074,13 +4084,12 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
                 | _ -> None)
         let external =
             match sendFailed with
-            | Some reason -> ShowToast ($"{reviewMarkHintTitle}: {reason}", ToastError)
+            | Some reason -> PostFeedback (reviewMarkNotInYnabFeedback true reason)
             | None -> NoOp
-        let rebuilt, load = rebuildEntries { model with BatchRunning = None }
-        rebuilt, load, external
+        applyUndoReviewMarkBatch items outcome { model with BatchRunning = None }, Cmd.ofMsg RefreshEntries, external
 
-    | ReviewMarkBatchRestored (Error message) ->
-        { model with BatchRunning = None }, Cmd.none, ShowToast ($"Rückgängig nicht möglich: {message}", ToastError)
+    | ReviewMarkBatchRestored (_, Error message) ->
+        { model with BatchRunning = None }, Cmd.none, PostFeedback (undoFailedFeedback message)
 
     // ============================================
     // "Kategorie setzen" für die ganze Auswahl (ledger-w29y6)
@@ -4132,19 +4141,12 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
                 { CategoryId = id
                   CategoryName = category |> Option.map (fun c -> c.Name) |> Option.defaultValue "" })
         let model', cmd = applyCategoryBatch targetChoice outcome model
-        let text = categoryBatchToastText (category |> Option.map (fun c -> c.Name)) outcome
-        let toastType = categoryBatchToastType outcome
-        let external =
-            if List.isEmpty outcome.Changed then
-                ShowToast (text, toastType)
-            else
-                ShowToastWithAction (text, toastType, { Label = undoToastLabel; Kind = UndoCategoryBatch outcome.Changed })
-        model', cmd, external
+        model', cmd, PostFeedback (categoryBatchFeedback (category |> Option.map (fun c -> c.Name)) outcome)
 
     | CategoryBatchDone (_, Error message) ->
         { model with BatchRunning = None },
         Cmd.none,
-        ShowToast ($"Kategorie nicht geändert: {message}", ToastError)
+        PostFeedback (failedFeedback "Kategorie nicht geändert" message)
 
     | StartUndoCategoryBatch changes ->
         if model.BatchRunning.IsSome then
@@ -4194,12 +4196,10 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         let firstFailure = outcomes |> List.tryPick (fun o -> categoryBatchSendFailures o |> List.tryHead)
         let external =
             match firstError, firstFailure with
-            | Some message, _ -> ShowToast ($"Rückgängig nicht möglich: {message}", ToastError)
-            | None, Some reason -> ShowToast ($"{categoryHintTitle}: {reason}", ToastWarning)
+            | Some message, _ -> PostFeedback (undoFailedFeedback message)
+            | None, Some reason -> PostFeedback (feedbackNote FeedbackWarning categoryHintTitle (Some reason))
             | None, None when restored = 0 -> NoOp
-            | None, None ->
-                let noun = if restored = 1 then "Buchung" else "Buchungen"
-                ShowToast ($"Kategorie bei {Client.DesignSystem.Money.formatCount restored} {noun} zurückgesetzt", ToastSuccess)
+            | None, None -> PostFeedback (batchRestoredFeedback "Kategorie" restored)
         model', cmd, external
 
     // ============================================
@@ -4234,19 +4234,12 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             | AssignLena -> { Color = lenaColorOf model.LenaFlagColor; Name = Some lenaFlagName }
             | WithdrawLena -> { Color = None; Name = None }
         let model' = applyFlagBatch (fun _ -> newState) true outcome model
-        let text = flagBatchToastText target outcome
-        let toastType = flagBatchToastType outcome
-        let external =
-            if List.isEmpty outcome.Changed then
-                ShowToast (text, toastType)
-            else
-                ShowToastWithAction (text, toastType, { Label = undoToastLabel; Kind = UndoFlagBatch outcome.Changed })
-        model', Cmd.none, external
+        model', Cmd.none, PostFeedback (flagBatchFeedback target outcome)
 
     | LenaBatchDone (_, Error message) ->
         { model with BatchRunning = None },
         Cmd.none,
-        ShowToast ($"Flag nicht geändert: {message}", ToastError)
+        PostFeedback (failedFeedback "Flag nicht geändert" message)
 
     | StartUndoFlagBatch changes ->
         if model.BatchRunning.IsSome then
@@ -4271,15 +4264,15 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         let model' = applyFlagBatch newStateOf false outcome model
         let external =
             match flagBatchSendFailures outcome |> List.tryHead with
-            | Some reason -> ShowToast ($"{flagHintTitle}: {reason}", ToastWarning)
+            | Some reason -> PostFeedback (feedbackNote FeedbackWarning flagHintTitle (Some reason))
             | None when List.isEmpty outcome.Changed -> NoOp
-            | None -> ShowToast (flagBatchRestoredToastText (List.length outcome.Changed), ToastSuccess)
+            | None -> PostFeedback (batchRestoredFeedback "Flag" (List.length outcome.Changed))
         model', Cmd.none, external
 
     | FlagBatchRestored (_, Error message) ->
         { model with BatchRunning = None },
         Cmd.none,
-        ShowToast ($"Rückgängig nicht möglich: {message}", ToastError)
+        PostFeedback (undoFailedFeedback message)
 
     // ============================================
     // Tastaturfokus und Taste G (ledger-rjb8w, PC)

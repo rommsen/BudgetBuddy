@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-11-20 02:55 -- Task verified and completed: ledger-gwr9j - "Kassenbuch am Handy ohne Toast (R3), Teil 1 Liste: Texte der Leiste für Wische, Spiegeln, Neue Buchung, Mehrfachauswahl und Ladefehler, „Spiegeln läuft“, Rückgängig nach n Wischen ohne Sprung der Liste"
+
+**Type:** Work / Task completion
+**Task:** ledger-gwr9j - "Kassenbuch am Handy ohne Toast (R3), Teil 1 Liste: Texte der Leiste für Wische, Spiegeln, Neue Buchung, Mehrfachauswahl und Ladefehler, „Spiegeln läuft“, Rückgängig nach n Wischen ohne Sprung der Liste"
+**Summary:** Kassenbuch am Handy ohne Toast, Teil 1: Liste meldet in der Leiste, Rückgängig nach n Wischen ohne Neuaufbau
+**Duration:** 120m
+**Verification:** PASS (iteration 2: Screenshot nachgeholt; Sweep-Flackern unter Last, einzeln grün)
+**Files changed:** 25
+**Tests added:** 14
+**ADRs written:** none
+
+---
+
+## 2026-11-20 02:55 -- Verification failed: ledger-gwr9j - Kassenbuch ohne Toast, Teil 1
+
+**Type:** Work / Verification failure
+**Task:** ledger-gwr9j
+**Iteration:** 2 of 3
+**Reasons:** verify.sh rot nur im Layout-Sweep unter Last 10 bis 30, wechselnde Zustände außerhalb des Diffs (regeln-panel, kassenbuch-viele-konten-auswahl); bekanntes Flackern
+**Iteration hint:** likely-fixable
+**Next:** Conductor hat den Sweep allein wiederholt: grün; integriert ohne Re-Dispatch
+
+---
+
 ## 2026-11-20 02:54 -- Batch started: [banking-import-ns4re]
 
 **Type:** Work / Batch start

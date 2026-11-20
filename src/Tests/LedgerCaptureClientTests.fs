@@ -398,10 +398,31 @@ let submitTests =
             Expect.isNone model'.Capture "zu"
             Expect.contains sent RefreshEntries "Liste lädt im Hintergrund nach"
             match external with
-            | ShowToastWithAction (text, ToastSuccess, action) ->
-                Expect.equal text "Buchung angelegt · Bar · -1,00 €" "Konto und Betrag (§7.13)"
-                Expect.equal action.Kind (UndoCapturedBooking (created None).EntryId) "Rückgängig"
+            | PostFeedback note ->
+                Expect.equal note.Tone FeedbackOk "✓"
+                Expect.equal note.Action "Angelegt" "Aktion (ledger-gwr9j)"
+                Expect.equal note.Detail (Some "Bar · -1,00 €") "ohne Payee: Konto · Betrag"
+                Expect.equal note.Act (Some { Label = "Rückgängig"; Kind = UndoCapturedBooking (created None).EntryId }) "Rückgängig"
             | other -> failtest $"Rückmeldung mit Rückgängig erwartet: {other}"
+
+        testCase "nach dem Anlegen mit Payee in einem anderen als dem gezeigten Konto: „Payee · Betrag · Konto“" <| fun () ->
+            let model =
+                opened (Some (OneAccount giro))
+                |> step (ChooseCaptureAccount bar)
+                |> step (SetCapturePayee "Bäckerei Kuhn")
+                |> step (SetCaptureAmount "4,20")
+                |> step SubmitCapture
+            match run (CaptureSubmitted (Ok (created None))) model with
+            | _, _, PostFeedback note -> Expect.equal note.Detail (Some "Bäckerei Kuhn · -4,20 € · Bar") "Konto dahinter"
+            | _, _, other -> failtest $"Meldung erwartet: {other}"
+
+        testCase "zweite Zeile nach „Angelegt“: Payee · Betrag, Konto nur außerhalb des gezeigten Kontos, ohne Payee Konto · Betrag" <| fun () ->
+            let detail = Components.Ledger.Capture.createdDetail
+            Expect.equal (detail (Some "Bäckerei Kuhn") "Bar" (Some -4.2m) true) "Bäckerei Kuhn · -4,20 €" "im gezeigten Konto"
+            Expect.equal (detail (Some "Bäckerei Kuhn") "Bar" (Some -4.2m) false) "Bäckerei Kuhn · -4,20 € · Bar" "anderes Konto"
+            Expect.equal (detail None "Bar" (Some -4.2m) true) "Bar · -4,20 €" "ohne Payee"
+            Expect.equal (detail (Some "  ") "Bar" (Some 10m) false) "Bar · +10,00 €" "leerer Payee zählt als ohne"
+            Expect.equal (detail (Some "Lohn") "Giro" None true) "Lohn" "ohne lesbaren Betrag"
 
         testCase "am PC zeigt das Panel danach die neue Buchung" <| fun () ->
             let model = { (opened (Some (OneAccount bar))) with DetailForm = DetailPanel } |> step (SetCaptureAmount "1") |> step SubmitCapture
@@ -416,9 +437,15 @@ let submitTests =
         testCase "ein gescheiterter Push meldet sich als Warnung ohne Rückgängig" <| fun () ->
             let model = opened (Some (OneAccount bar)) |> step (SetCaptureAmount "1") |> step SubmitCapture
             match run (CaptureSubmitted (Ok (created (Some "YNAB nicht erreichbar")))) model with
-            | _, _, ShowToast (text, ToastWarning) ->
-                Expect.stringContains text "noch nicht in YNAB" "Hinweis"
+            | _, _, PostFeedback note ->
+                Expect.equal note { Tone = FeedbackWarning; Action = "Angelegt, nicht in YNAB"; Detail = Some "YNAB nicht erreichbar"; Act = None } "gelb, ohne Rückgängig"
             | _, _, other -> failtest $"Warnung erwartet: {other}"
+
+        testCase "Fehler beim Anlegen nach geschlossenem Formular: „Nicht angelegt“ rot mit Grund" <| fun () ->
+            match run (CaptureSubmitted (Error "Das Konto ist geschlossen.")) (baseModel None) with
+            | _, _, PostFeedback note ->
+                Expect.equal note { Tone = FeedbackError; Action = "Nicht angelegt"; Detail = Some "Das Konto ist geschlossen."; Act = None } "Meldung"
+            | _, _, other -> failtest $"Meldung erwartet: {other}"
 
         testCase "Rückgängig an der Rückmeldung startet das Verwerfen der Buchung" <| fun () ->
             let id = (created None).EntryId
@@ -432,7 +459,12 @@ let submitTests =
             let model', sent, external = run (CapturedDiscarded (entry.Id, Ok ())) model
             Expect.isNone model'.DetailFor "Detail zu"
             Expect.contains sent RefreshEntries "Liste lädt im Hintergrund nach"
-            Expect.equal external (ShowToast (Components.Ledger.State.capturedDiscardedText, ToastSuccess)) "Rückmeldung"
+            Expect.equal external NoOp "keine Meldung: die Zeile ist weg, die Leiste ist seit dem Tipp leer (ledger-gwr9j)"
+
+        testCase "Verwerfen gescheitert: „Rückgängig nicht möglich“ rot mit Grund" <| fun () ->
+            let id = (created None).EntryId
+            let _, _, external = run (CapturedDiscarded (id, Error "weg")) (baseModel None)
+            Expect.equal external (PostFeedback { Tone = FeedbackError; Action = "Rückgängig nicht möglich"; Detail = Some "weg"; Act = None }) "Meldung"
     ]
 
 /// Alle Reihenfolgen von zwei Tipps auf "Buchung anlegen" und der Antwort (Erfolg oder Fehler),

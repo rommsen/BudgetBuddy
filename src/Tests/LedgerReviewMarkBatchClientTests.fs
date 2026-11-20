@@ -148,39 +148,42 @@ let doneTests =
             let model', _, external = update (ReviewMarkBatchDone (Error "Netz weg")) model
             Expect.isNone model'.BatchRunning "wieder frei"
             Expect.equal model'.Selection model.Selection "Auswahl bleibt"
-            match external with
-            | ShowToast (text, ToastError) -> Expect.stringContains text "Netz weg" "Grund im Toast"
-            | other -> failtest $"erwartet Fehler-Toast, war {other}"
+            Expect.equal external (PostFeedback { Tone = FeedbackError; Action = "Nicht geprüft"; Detail = Some "Netz weg"; Act = None }) "Meldung"
     ]
 
 [<Tests>]
 let toastTests =
     testList "Geprüft für die Auswahl: Toast (ledger-nhwrt)" [
 
-        testCase "der Toast nennt 'n Buchungen geprüft' und trägt Rückgängig mit allen Vorzuständen" <| fun () ->
+        testCase "die Meldung nennt „n geprüft“ und trägt Rückgängig mit allen Vorzuständen (ledger-gwr9j)" <| fun () ->
             let model = { modelWith false 3 3 with Selection = Picked (Set.ofList (rowIds [ 1; 2; 3 ])) }
             let outcome = outcomeOf [ change 1 ReviewMarkSent; change 2 ReviewMarkSent; change 3 ReviewMarkSent ] 0 0
             let _, _, external = update (ReviewMarkBatchDone (Ok outcome)) model
             match external with
-            | ShowToastWithAction (text, ToastSuccess, action) ->
-                Expect.equal text "3 Buchungen geprüft" "Satz"
+            | PostFeedback { Tone = FeedbackOk; Action = text; Detail = None; Act = Some action } ->
+                Expect.equal text "3 geprüft" "Aktion"
                 Expect.equal action.Label "Rückgängig" "Beschriftung"
                 match action.Kind with
                 | UndoReviewMarkBatch items ->
                     Expect.equal (items |> List.map (fun i -> i.EntryId)) (rowIds [ 1; 2; 3 ]) "eine Rücknahme für alle"
                     Expect.equal (items |> List.map (fun i -> i.Previous)) (outcome.Changed |> List.map (fun c -> c.Previous)) "Vorzustände aus der Antwort"
                 | other -> failtest $"erwartet UndoReviewMarkBatch, war {other}"
-            | other -> failtest $"erwartet Toast mit Aktion, war {other}"
+            | other -> failtest $"erwartet Meldung mit Rückgängig, war {other}"
 
-        testCase "ohne Änderung und mit Fehlschlägen nennt der Satz die Zahlen" <| fun () ->
-            let text =
-                reviewBatchToastText (outcomeOf [ change 1 ReviewMarkSent; change 2 (ReviewMarkSendFailed "x") ] 2 3)
-            Expect.equal text "2 Buchungen geprüft (2 ohne Änderung, 3 nicht in YNAB, 1 nicht an YNAB gesendet)" "alle Zahlen"
-            Expect.equal (reviewBatchToastText (outcomeOf [ change 1 ReviewMarkSent ] 0 0)) "1 Buchung geprüft" "Einzahl"
-            Expect.equal
-                (reviewBatchToastText (outcomeOf [] 2 3))
-                "Keine Buchung geprüft (2 ohne Änderung, 3 nicht in YNAB)"
-                "nichts geändert"
+        testCase "ohne Änderung und mit Fehlschlägen nennt die zweite Zeile die Zahlen" <| fun () ->
+            let note = reviewBatchFeedback (outcomeOf [ change 1 ReviewMarkSent; change 2 (ReviewMarkSendFailed "x") ] 2 3)
+            Expect.equal note.Action "2 geprüft" "Aktion"
+            Expect.equal note.Detail (Some "2 ohne Änderung, 3 nicht in YNAB, 1 nicht an YNAB gesendet") "alle Zahlen"
+            Expect.equal note.Tone FeedbackWarning "gelb"
+            Expect.equal (reviewBatchFeedback (outcomeOf [ change 1 ReviewMarkSent ] 0 0)).Action "1 geprüft" "Einzahl"
+            let none = reviewBatchFeedback (outcomeOf [] 2 3)
+            Expect.equal (none.Action, none.Detail) ("Keine geprüft", Some "2 ohne Änderung, 3 nicht in YNAB") "nichts geändert"
+            Expect.isNone none.Act "ohne Änderung kein Rückgängig"
+
+        testCase "Fehler des Aufrufs: „Nicht geprüft“ rot mit Grund" <| fun () ->
+            let model = { modelWith false 2 2 with Selection = Picked (Set.ofList (rowIds [ 1 ])) }
+            let _, _, external = update (ReviewMarkBatchDone (Error "weg")) model
+            Expect.equal external (PostFeedback { Tone = FeedbackError; Action = "Nicht geprüft"; Detail = Some "weg"; Act = None }) "Meldung"
 
         testCase "die Art des Toasts: Erfolg, Warnung bei Problemen, Info ohne Änderung" <| fun () ->
             Expect.equal (reviewBatchToastType (outcomeOf [ change 1 ReviewMarkSent ] 1 0)) ToastSuccess "Erfolg"
@@ -192,8 +195,8 @@ let toastTests =
             let model = { modelWith false 2 2 with Selection = Picked (Set.ofList (rowIds [ 1 ])) }
             let _, _, external = update (ReviewMarkBatchDone (Ok (outcomeOf [] 1 0))) model
             match external with
-            | ShowToast (_, ToastInfo) -> ()
-            | other -> failtest $"erwartet Info-Toast ohne Aktion, war {other}"
+            | PostFeedback { Tone = FeedbackInfo; Act = None } -> ()
+            | other -> failtest $"erwartet Info-Meldung ohne Aktion, war {other}"
 
         testCase "die Wurzel übersetzt die Aktion in die Rückgängig-Nachricht mit den Vorzuständen" <| fun () ->
             let items : ReviewMarkRestoreItem list =
@@ -214,32 +217,33 @@ let undoTests =
             let _, cmd, _ = update (StartUndoReviewMarkBatch items) (modelWith false 2 2)
             Expect.equal (messagesOf cmd) [ RunUndoReviewMarkBatch items ] "ein Aufruf mit genau diesen Vorzuständen"
 
-        testCase "nach Erfolg lädt die Liste neu (resetEntries) statt Zeilen einzeln zurückzustecken" <| fun () ->
-            let model = { modelWith true 2 2 with LocallyRemoved = 5; NextPage = 3 }
+        // ledger-gwr9j: der Neuaufbau verlor den Scrollstand. Die Liste bleibt geladen, die Zeilen stehen sofort auf dem
+        // Vorzustand, das Nachladen im Hintergrund setzt Seitenversatz und Zähler auf den Stand des Servers.
+        testCase "nach Erfolg bleibt die Liste stehen, die Zeilen sind wieder zu prüfen, sie lädt im Hintergrund nach" <| fun () ->
+            let model = { modelWith false 2 2 with NextPage = 1 }
+            let reviewed = { model with Entries = Success (entriesOf model |> List.map (fun e -> { e with NeedsReview = false })) }
+            let items : ReviewMarkRestoreItem list = [ { EntryId = (row 1).Id; Previous = { IsApproved = false; ClearedState = ReviewUncleared } } ]
             let outcome = outcomeOf [ change 1 ReviewMarkSent ] 0 0
-            let model', cmd, external = update (ReviewMarkBatchRestored (Ok outcome)) model
-            Expect.equal model'.Entries Loading "Liste wird neu geladen"
-            Expect.equal model'.LocallyRemoved 0 "Seitenversatz auf den Stand des Servers"
-            Expect.equal model'.NextPage 0 "ab Seite 0"
-            Expect.equal (messagesOf cmd) [ RunLoadEntriesPage 0 ] "genau eine Abfrage der Seite 0"
-            Expect.equal external NoOp "kein Toast bei Erfolg"
+            let model', cmd, external = update (ReviewMarkBatchRestored (items, Ok outcome)) reviewed
+            Expect.isTrue (entriesOf model' |> List.find (fun e -> e.Id = (row 1).Id)).NeedsReview "Zeile 1 wieder zu prüfen"
+            Expect.isFalse (entriesOf model' |> List.find (fun e -> e.Id = (row 2).Id)).NeedsReview "Zeile 2 nicht betroffen"
+            Expect.equal model'.NextPage 1 "kein Neuaufbau ab Seite 0"
+            Expect.equal model'.BatchRunning None "Aktion frei"
+            Expect.equal (messagesOf cmd) [ RefreshEntries ] "Nachladen im Hintergrund"
+            Expect.equal external NoOp "keine Meldung bei Erfolg"
 
-        testCase "ein Fehlschlag beim Zurückschreiben zeigt den Hinweis, die Liste lädt trotzdem neu" <| fun () ->
+        testCase "ein Fehlschlag beim Zurückschreiben zeigt gelb „Prüfvermerk nicht in YNAB“, die Liste lädt nach" <| fun () ->
             let outcome = outcomeOf [ change 1 (ReviewMarkSendFailed "Limit") ] 0 0
-            let _, cmd, external = update (ReviewMarkBatchRestored (Ok outcome)) (modelWith true 2 2)
-            Expect.equal (messagesOf cmd) [ RunLoadEntriesPage 0 ] "genau eine Abfrage der Seite 0"
-            match external with
-            | ShowToast (text, ToastError) -> Expect.stringContains text "Limit" "Grund"
-            | other -> failtest $"erwartet Fehler-Toast, war {other}"
+            let _, cmd, external = update (ReviewMarkBatchRestored ([], Ok outcome)) (modelWith true 2 2)
+            Expect.equal (messagesOf cmd) [ RefreshEntries ] "Nachladen im Hintergrund"
+            Expect.equal external (PostFeedback { Tone = FeedbackWarning; Action = "Prüfvermerk nicht in YNAB"; Detail = Some "Limit"; Act = None }) "Meldung"
 
-        testCase "Fehler des Aufrufs: Toast, Liste bleibt" <| fun () ->
+        testCase "Fehler des Aufrufs: „Rückgängig nicht möglich“ rot, Liste bleibt" <| fun () ->
             let model = modelWith true 2 2
-            let model', cmd, external = update (ReviewMarkBatchRestored (Error "weg")) model
+            let model', cmd, external = update (ReviewMarkBatchRestored ([], Error "weg")) model
             Expect.equal model'.Entries model.Entries "Liste unverändert"
             Expect.isEmpty (messagesOf cmd) "kein Neuladen"
-            match external with
-            | ShowToast (text, ToastError) -> Expect.stringContains text "weg" "Grund"
-            | other -> failtest $"erwartet Fehler-Toast, war {other}"
+            Expect.equal external (PostFeedback { Tone = FeedbackError; Action = "Rückgängig nicht möglich"; Detail = Some "weg"; Act = None }) "Meldung"
     ]
 
 // ============================================
@@ -317,8 +321,8 @@ let private answersOf (call: BatchCall) : (string * Msg) list =
         [ "Lena Ok", LenaBatchDone (AssignLena, Ok flagOutcome)
           "Lena Error", LenaBatchDone (AssignLena, Error "weg") ]
     | UndoReviewCall ->
-        [ "Rückgängig Geprüft Ok", ReviewMarkBatchRestored (Ok (outcomeOf [ change 1 ReviewMarkSent ] 0 0))
-          "Rückgängig Geprüft Error", ReviewMarkBatchRestored (Error "weg") ]
+        [ "Rückgängig Geprüft Ok", ReviewMarkBatchRestored ([], Ok (outcomeOf [ change 1 ReviewMarkSent ] 0 0))
+          "Rückgängig Geprüft Error", ReviewMarkBatchRestored ([], Error "weg") ]
     | UndoCategoryCall ->
         [ "Rückgängig Kategorie Ok", CategoryBatchRestored [ None, Ok categoryOutcome ]
           "Rückgängig Kategorie Error", CategoryBatchRestored [ None, Error "weg" ] ]

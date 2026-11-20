@@ -135,10 +135,10 @@ let reducerTests =
             Expect.isFalse model'.SelectionMode "Auswahl-Modus endet"
             Expect.isNone model'.BatchRunning "Sperre frei"
             match external with
-            | ShowToastWithAction (text, ToastSuccess, action) ->
-                Expect.equal text "2 Buchungen an Lena gefragt" "Satz"
-                Expect.equal action.Kind (UndoFlagBatch result.Changed) "Rückgängig mit den Vorzuständen"
-            | other -> failtest $"Toast mit Rückgängig erwartet, war {other}"
+            | PostFeedback { Tone = FeedbackOk; Action = text; Detail = None; Act = Some action } ->
+                Expect.equal text "2 Buchungen an Lena gefragt" "Aktion"
+                Expect.equal action (({ Label = "Rückgängig"; Kind = UndoFlagBatch result.Changed }): ToastAction) "Rückgängig mit den Vorzuständen"
+            | other -> failtest $"Meldung mit Rückgängig erwartet, war {other}"
 
         testCase "Fehlschlag je Buchung: die Zeile trägt den Grund, der Toast ist eine Warnung" <| fun () ->
             let model = { (modelWith [ entryOf 1; entryOf 2 ] |> selecting [ 1; 2 ]) with BatchRunning = Some LenaBatchRun }
@@ -147,9 +147,9 @@ let reducerTests =
             Expect.equal (rowOf 1 model').FlagWriteBackFailure None "gesendet"
             Expect.equal (rowOf 2 model').FlagWriteBackFailure (Some "Keine Verbindung") "gescheitert"
             match external with
-            | ShowToastWithAction (text, ToastWarning, _) ->
-                Expect.stringContains text "Flag nicht in YNAB: Keine Verbindung" "Hinweis mit Grund"
-            | other -> failtest $"Warnung erwartet, war {other}"
+            | PostFeedback { Tone = FeedbackWarning; Detail = Some detail; Act = Some _ } ->
+                Expect.equal detail "Flag nicht in YNAB: Keine Verbindung" "Hinweis mit Grund in der zweiten Zeile"
+            | other -> failtest $"gelbe Meldung erwartet, war {other}"
 
         testCase "ohne Änderung: Info-Toast ohne Rückgängig, die Auswahl endet trotzdem" <| fun () ->
             let model = { (modelWith [ lenaEntry 1 ] |> selecting [ 1 ]) with BatchRunning = Some LenaBatchRun }
@@ -157,8 +157,9 @@ let reducerTests =
             let model', _, external = run (LenaBatchDone (AssignLena, Ok result)) model
             Expect.equal model'.Selection NoSelection "Auswahl endet"
             match external with
-            | ShowToast (text, ToastInfo) -> Expect.equal text "Keine Buchung an Lena gefragt (1 ohne Änderung)" "Satz"
-            | other -> failtest $"Info-Toast erwartet, war {other}"
+            | PostFeedback note ->
+                Expect.equal note { Tone = FeedbackInfo; Action = "Keine Buchung an Lena gefragt"; Detail = Some "1 ohne Änderung"; Act = None } "Meldung"
+            | other -> failtest $"Info-Meldung erwartet, war {other}"
 
         testCase "Fehler des Aufrufs: Sperre frei, Auswahl bleibt, Fehler-Toast" <| fun () ->
             let model = { (modelWith [ entryOf 1 ] |> selecting [ 1 ]) with BatchRunning = Some LenaBatchRun }
@@ -166,8 +167,8 @@ let reducerTests =
             Expect.isNone model'.BatchRunning "Sperre frei"
             Expect.notEqual model'.Selection NoSelection "Auswahl bleibt"
             match external with
-            | ShowToast (text, ToastError) -> Expect.stringContains text "kaputt" "Grund"
-            | other -> failtest $"Fehler-Toast erwartet, war {other}"
+            | PostFeedback note -> Expect.equal note { Tone = FeedbackError; Action = "Flag nicht geändert"; Detail = Some "kaputt"; Act = None } "Meldung"
+            | other -> failtest $"rote Meldung erwartet, war {other}"
 
         testCase "Zurücknehmen bei aktivem Chip: die Zeilen bleiben ausgegraut stehen, der Zähler sinkt" <| fun () ->
             let rows = [ lenaEntry 1; lenaEntry 2; lenaEntry 3 ]
@@ -205,8 +206,9 @@ let reducerTests =
             Expect.equal restored.AskLenaCount 0 "Zähler zurück"
             Expect.isNone restored.BatchRunning "Sperre frei"
             match external with
-            | ShowToast (text, ToastSuccess) -> Expect.equal text "Flag bei 2 Buchungen zurückgesetzt" "Satz"
-            | other -> failtest $"Erfolgs-Toast ohne Rückgängig erwartet, war {other}"
+            | PostFeedback note ->
+                Expect.equal note { Tone = FeedbackOk; Action = "Zurückgesetzt"; Detail = Some "Flag bei 2 Buchungen"; Act = None } "Meldung"
+            | other -> failtest $"Meldung ohne Rückgängig erwartet, war {other}"
 
         testCase "Rückgängig bei aktivem Chip macht ausgegraute Zeilen wieder zum Treffer" <| fun () ->
             let rows = [ lenaEntry 1; lenaEntry 2 ]
@@ -234,8 +236,8 @@ let reducerTests =
             let failed, _, external = run (FlagBatchRestored (items, Error "kaputt")) model
             Expect.isNone failed.BatchRunning "Sperre frei"
             match external with
-            | ShowToast (_, ToastError) -> ()
-            | other -> failtest $"Fehler-Toast erwartet, war {other}"
+            | PostFeedback { Tone = FeedbackError; Action = "Rückgängig nicht möglich"; Detail = Some "kaputt" } -> ()
+            | other -> failtest $"rote Meldung erwartet, war {other}"
 
         testCase "Der Toast-Knopf Rückgängig wird zur Nachricht des Kassenbuchs" <| fun () ->
             let changes = [ change 1 noFlagState FlagSent ]
@@ -256,17 +258,17 @@ let textTests =
             Expect.equal (selectionLenaDisabledReason (Success None)) (Some lenaColorMissingReason) "Grund"
             Expect.isNone (selectionLenaDisabledReason (Success (Some "purple"))) "frei"
 
-        testCase "Toast-Sätze für Zurücknehmen mit Zählern" <| fun () ->
+        testCase "Meldung für Zurücknehmen: Zähler in der zweiten Zeile" <| fun () ->
             let result : FlagBatchOutcome = { Changed = [ change 1 lenaState FlagSent ]; UnchangedCount = 2; FailedCount = 1; HeldCount = 0 }
-            Expect.equal
-                (flagBatchToastText WithdrawLena result)
-                "Rückfrage bei 1 Buchung zurückgenommen (2 ohne Änderung, 1 nicht in YNAB)"
-                "Satz"
+            let note = flagBatchFeedback WithdrawLena result
+            Expect.equal note.Action "Rückfrage bei 1 Buchung zurückgenommen" "Aktion"
+            Expect.equal note.Detail (Some "2 ohne Änderung, 1 nicht in YNAB") "Zähler"
+            Expect.equal note.Tone FeedbackWarning "gelb"
             Expect.equal (flagBatchToastType result) ToastWarning "nicht in YNAB ist eine Warnung"
             Expect.equal (flagBatchToastType { result with FailedCount = 0 }) ToastSuccess "Erfolg"
             Expect.equal (flagBatchToastType ({ Changed = []; UnchangedCount = 3; FailedCount = 0; HeldCount = 0 }: FlagBatchOutcome)) ToastInfo "Info"
 
         testCase "mehrere Fehlschläge nennen den ersten Grund und die Zahl" <| fun () ->
             let result = outcome [ change 1 noFlagState (FlagSendFailed "weg"); change 2 noFlagState (FlagSendFailed "weg") ]
-            Expect.stringContains (flagBatchToastText AssignLena result) "Flag nicht in YNAB: weg (bei 2 Buchungen)" "Satz"
+            Expect.equal (flagBatchFeedback AssignLena result).Detail (Some "Flag nicht in YNAB: weg (bei 2 Buchungen)") "zweite Zeile"
     ]
