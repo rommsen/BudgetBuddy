@@ -1,7 +1,7 @@
 ---
 id: banking-import-vwhfm
 title: "Einstellungen ohne Toast (R3): „✓ Gespeichert“ am Abschnitt oder Feld, Fehler rot unter dem Feld, Bankstatus und Push-TAN im Abschnitt, alle Texte deutsch"
-status: backlog
+status: todo
 type: feature
 context: banking-import
 created: 2026-11-19
