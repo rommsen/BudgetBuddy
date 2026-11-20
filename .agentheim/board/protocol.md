@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-20 02:45 -- Batch started: [budgeting-y1kkr, budgeting-p3sk0]
+
+**Type:** Work / Batch start
+**Tasks:** budgeting-y1kkr - "„Rückgängig“ nach einer Verschiebung im Sheet „Geld“: Verschiebung in die Gegenrichtung mit demselben Betrag, für Holen, Abgeben und den Fehlbetrag-Knopf, nur wenn alles geschrieben ist", budgeting-p3sk0 - "Angepinnt ohne Meldung (R3): Anpinnen und Lösen im Kategorie-Detail ohne Toast, die Kategorie leuchtet auf der Übersicht im Bereich „Angepinnt“ kurz, ein Fehler beim Speichern steht am Ort"
+**Parallel:** yes (2 neue Worker neben vwhfm; sx9v5 und ns4re bereit, auf die nächste Welle gehalten, MAX_PARALLEL 3)
+
+---
+
 ## 2026-11-20 02:45 -- Modeling / Promoted: budgeting-y1kkr - "„Rückgängig“ nach einer Verschiebung im Sheet „Geld“: Verschiebung in die Gegenrichtung mit demselben Betrag, für Holen, Abgeben und den Fehlbetrag-Knopf, nur wenn alles geschrieben ist"
 
 **Type:** Modeling / Promote

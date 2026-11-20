@@ -1,7 +1,7 @@
 ---
 id: budgeting-p3sk0
 title: "Angepinnt ohne Meldung (R3): Anpinnen und Lösen im Kategorie-Detail ohne Toast, die Kategorie leuchtet auf der Übersicht im Bereich „Angepinnt“ kurz, ein Fehler beim Speichern steht am Ort"
-status: todo
+status: doing
 type: feature
 context: budgeting
 created: 2026-11-19
