@@ -10,7 +10,7 @@ Catalog of this bounded context's tasks by status.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 4
+- **Backlog:** 6
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 73
@@ -108,6 +108,8 @@ prior-art matcher additionally checks `done-archive/` when present.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **budgeting-nyx75** — "Kategorie-Gruppe in BB deaktivieren: die Gruppe verschwindet samt ihren Kategorien aus Budget-Liste und Pickern, in YNAB bleibt sie" (feature) — `backlog/budgeting-nyx75-gruppe-deaktivieren.md`
+- **budgeting-m5pqn** — "Budget-Seite sofort da: BB liest den Monat aus seinem eigenen Stand statt bei jedem Aufruf live aus YNAB" (feature) — `backlog/budgeting-m5pqn-budget-seite-sofort-aus-bb.md`
 - **budgeting-k7m3q** — "Kann-Sammlung budgeting" (chore) — `backlog/budgeting-k7m3q-kann-sammlung-budgeting.md`
 - **budgeting-wnkgj** — "Budget-Seite angleichen (Teil D): Kopf, Gruppensummen, Panel am PC, Kategorie-Detail, Dialog „Targets anwenden“, Leerflächen am PC" (feature) — `backlog/budgeting-wnkgj-budget-angleichen.md`
 - **budgeting-h9c3w** — "Kann-Sammlung budgeting" (chore) — `backlog/budgeting-h9c3w-review-befunde-sammlung.md`

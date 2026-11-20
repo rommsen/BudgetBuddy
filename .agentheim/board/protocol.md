@@ -5,6 +5,42 @@ Newest entries on top.
 
 ---
 
+## 2026-11-20 23:00 -- Modeling / Captured: budgeting-nyx75 - "Kategorie-Gruppe in BB deaktivieren: die Gruppe verschwindet samt ihren Kategorien aus Budget-Liste und Pickern, in YNAB bleibt sie"
+
+**Type:** Modeling / Capture
+**BC:** budgeting
+**Filed to:** backlog
+**Summary:** Gruppe in BB deaktivieren wie eine Kategorie (budgeting-sn2sn), in YNAB bleibt sie.
+
+---
+
+## 2026-11-20 23:00 -- Modeling / Captured: budgeting-m5pqn - "Budget-Seite sofort da: BB liest den Monat aus seinem eigenen Stand statt bei jedem Aufruf live aus YNAB"
+
+**Type:** Modeling / Capture
+**BC:** budgeting
+**Filed to:** backlog
+**Summary:** Budget-Seite rendert aus BBs eigenem Stand ohne YNAB-Abfrage im Lesepfad; braucht Architekt beim Verfeinern.
+
+---
+
+## 2026-11-20 23:00 -- Modeling / Captured: ledger-cyd1t - "Durchgehen: Aufteilen direkt auf der Karte, ohne Umweg über „Details“"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Aufteilen direkt auf der Karte im Durchgehen statt über Details; nimmt Abweichung (a) aus ledger-v6s7c zurück.
+
+---
+
+## 2026-11-20 23:00 -- Modeling / Captured: ledger-sbbh8 - "Durchgehen ordnet neueste zuerst: nach den wartenden Duplikaten kommen die Buchungen nach Datum absteigend, damit nach „Später“ nicht wieder dieselben alten vorne stehen"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** todo
+**Summary:** Durchgehen ordnet nach den wartenden Duplikaten neueste zuerst (Roman, 2026-11-20), direkt in todo.
+
+---
+
 ## 2026-11-20 20:31 -- Work session ended
 
 **Type:** Work / Session end
