@@ -2980,6 +2980,23 @@ let private reviewCardSection =
                 ReviewCard.foot ReviewCard.FootEmpty
             ]
         ]
+        subTitle "ReviewCard.fieldIn und ReviewCard.fieldNote (Kategorie am Feld bestätigt)"
+        note "Nach einer Kategorie oder einem Übertrag auf der Karte (ledger-mf2bg, R3 Punkt 1): das Feld leuchtet kurz (FieldFlash, Rand und Ring im Akzent, 0,7 s, ohne Bewegung steht der Ring), darunter 12 px gedämpft „<Name> · <Betrag> verfügbar“, der Betrag in Mono in text-secondary, rechts „Rückgängig“ im Akzent mit 48 px Trefferfläche. Ohne bekannten Betrag nur der Name, sonst „Kategorie entfernt“ oder „Gegenbuchung angelegt“. Warnung und Fehler stehen in der Zeile unter „Passt, weiter“ (Feedback.line). Kein Toast."
+        Html.div [
+            prop.className "max-w-md flex flex-col gap-3"
+            prop.children [
+                ReviewCard.card false [] [
+                    ReviewCard.payee "Amazon Payments" false "" None
+                    ReviewCard.fieldIn ReviewCard.FieldFlash "demo-review-flash" "Kategorie" (Some "Bahn") "Kategorie wählen" false (Some ignore)
+                    ReviewCard.fieldNote "Bahn" (Some "84,20 €") { Label = "Rückgängig"; OnClick = ignore }
+                    ReviewCard.caption "demo-review-suggested" "Vorgeschlagen"
+                ]
+                ReviewCard.card false [] [
+                    ReviewCard.fieldIn ReviewCard.FieldRest "demo-review-transfer" "Kategorie" (Some "→ Tagesgeld") "Kategorie wählen" false (Some ignore)
+                    ReviewCard.fieldNote "Gegenbuchung angelegt" None { Label = "Rückgängig"; OnClick = ignore }
+                ]
+            ]
+        ]
         subTitle "ReviewCard.memoBlock"
         note "Das Memo auf der Karte nur zum Lesen (ledger-wg42w): „Memo“ in 12 px gedämpft, darunter der Text über die volle Breite, Linie unten, kein Pfeil, kein Knopf; ohne Memo fehlt der Block. Der Text steht ganz da, solange die Karte nicht überläuft; sonst endet er mit „…“ in der letzten Zeile, die noch passt (mindestens eine), und trägt den ganzen Text als title. Bearbeiten geht nur in „Details“. Unten: kurz, und lang in einer niedrigen Karte (gekürzt)."
         Html.div [

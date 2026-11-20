@@ -102,6 +102,12 @@ test("[flow:durchgehen] Am Handy ein Duplikat verwerfen, ohne Kategorie nach rec
     const sheet = page.locator(".bottom-sheet.active").first();
     await sheet.getByText("Lebensmittel", { exact: true }).first().tap();
     await page.getByRole("button", { name: "Passt, weiter" }).waitFor();
+    // Bestätigt am Feld mit „Rückgängig“, ohne Meldung in der Leiste (ledger-mf2bg).
+    const fieldNote = card.locator('[data-testid="review-field-note"]');
+    await fieldNote.getByText("Lebensmittel", { exact: false }).waitFor();
+    await fieldNote.getByRole("button", { name: "Rückgängig" }).waitFor();
+    const barsAfterCategory = await page.locator('[data-testid="feedback-bar"]').filter({ visible: true }).allInnerTexts();
+    assert.ok(!barsAfterCategory.some((t) => /Kategorie|Lebensmittel/.test(t)), `keine Meldung zur Kategorie in der Leiste: ${barsAfterCategory.join(" | ")}`);
 
     // Wisch nach rechts: Prüfvermerk, danach die Endansicht.
     await swipe(page, card, 200);
@@ -116,9 +122,9 @@ test("[flow:durchgehen] Am Handy ein Duplikat verwerfen, ohne Kategorie nach rec
     // Erneut bestätigen: die Karte wird nicht übersprungen, obwohl das Neulesen sie erst nach der Rücknahme offen sieht.
     await page.getByRole("button", { name: "Passt, weiter" }).tap();
     await end.getByText("Alles geprüft").waitFor();
-    // Prüfvermerk und Rücknahme melden sich nicht in der Meldungsleiste (die Kategorie der Karte schon, bis ledger-mf2bg).
+    // Prüfvermerk, Rücknahme und Kategorie der Karte melden sich nicht in der Meldungsleiste (ledger-mf2bg).
     const bars = await page.locator('[data-testid="feedback-bar"]').filter({ visible: true }).allInnerTexts();
-    assert.ok(!bars.some((t) => /Passt|geprüft|Rückgängig nicht/.test(t)), `keine Meldung zu Passt in der Leiste: ${bars.join(" | ")}`);
+    assert.ok(!bars.some((t) => /Passt|geprüft|Rückgängig nicht|Kategorie/.test(t)), `keine Meldung zu Passt oder Kategorie in der Leiste: ${bars.join(" | ")}`);
     assert.deepEqual(
       state.calls.map((c) => c.endpoint),
       ["discardDuplicateEntry", "setEntryCategory", "setReviewMark", "restoreReviewMark", "setReviewMark"],

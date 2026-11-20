@@ -178,3 +178,4 @@ Sammelstelle für Befunde, die stimmen, aber die Schwelle der Backlog-Disziplin 
 155. **Work-Lauf 2026-11-20 (ledger-k68sd)**: am PC springt die Pfeilnavigation (`MoveFocus`) über die Zeile am Platz hinweg, weil sie nicht in `Entries` steht.
 156. **Work-Lauf 2026-11-20 (ledger-p5y9s)**: die Zeile der Bestätigung am Feld trägt `border-b` wie die Feldzeilen; unter „Kategorie“ entstehen zwei Linien knapp übereinander, ohne Rahmen wäre sie näher an Skizze 06.
 157. **Work-Lauf 2026-11-20 (Verifier ledger-p5y9s)**: in `Components/Ledger/View.fs` hängt der Doc-Kommentar „Die Betragszeile …“ jetzt an `noteTone`, `detailAmountRow` hat keine Doku mehr.
+158. **Work-Lauf 2026-11-20 (ledger-mf2bg)**: der Mock `setEntryCategory` in `mockReview` (`scripts/layout-states.mjs`) setzt immer den Namen „Lebensmittel“, auch bei einer anderen Kategorie.

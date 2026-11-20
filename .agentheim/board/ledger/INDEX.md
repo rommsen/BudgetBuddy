@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 10
 - **Todo:** 0
-- **Doing:** 2
-- **Done:** 161
+- **Doing:** 1
+- **Done:** 162
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,12 +22,12 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **ledger-mf2bg** — "Durchgehen: Kategorie und Übertrag auf der Karte am Feld bestätigt (Feld leuchtet, „<Name> · <Betrag> verfügbar“ mit Rückgängig), ohne Toast" (feature) — `doing/ledger-mf2bg-durchgehen-kategorie-am-feld.md`
 - **ledger-enjex** — "Kassenbuch am Handy ohne Toast (R3), Teil 3 Detail II: Memo, Betrag und Payee mit Rückgängig am Feld, Lena-Knopf wechselt ohne Text, Erneut senden ohne Meldung; Schlussprüfung kein Toast im Kassenbuch am Handy" (feature) — `doing/ledger-enjex-detail-ohne-toast-memo-betrag-payee-lena.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)
 <!-- done-list:start -->
+- **ledger-mf2bg** — "Durchgehen: Kategorie und Übertrag auf der Karte am Feld bestätigt (Feld leuchtet, „<Name> · <Betrag> verfügbar“ mit Rückgängig), ohne Toast" (feature) — `done/ledger-mf2bg-durchgehen-kategorie-am-feld.md`
 - **ledger-pz5wv** — "Durchgehen ohne Toast (B3): letzte Aktion unter „Passt, weiter“ mit Rückgängig für jede Aktion, Fehler rot an derselben Stelle" (feature) — `done/ledger-pz5wv-durchgehen-ohne-toast-letzte-aktion.md`
 - **ledger-p5y9s** — "Kassenbuch am Handy ohne Toast (R3), Teil 2 Detail I: Rückgängig am Feld im Detail-Sheet als Mechanik, Kategorie, Übertrag und Aufteilen bestätigen am Feld, Fehler am Feld, Übergang beim Schließen" (feature) — `done/ledger-p5y9s-detail-ohne-toast-kategorie-uebertrag-aufteilen.md`
 - **ledger-k68sd** — "Kassenbuch am Handy ohne Toast (R3), Teil 4: gelöschte Buchung hinterlässt eine Zeile am Platz „… gelöscht · Rückgängig“ statt Toast, Fehler beim Löschen unter dem Knopf" (feature) — `done/ledger-k68sd-geloeschte-buchung-als-zeile-am-platz.md`

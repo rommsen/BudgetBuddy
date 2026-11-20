@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-20 05:51 -- Task verified and completed: ledger-mf2bg - "Durchgehen: Kategorie und Übertrag auf der Karte am Feld bestätigt (Feld leuchtet, „<Name> · <Betrag> verfügbar“ mit Rückgängig), ohne Toast"
+
+**Type:** Work / Task completion
+**Task:** ledger-mf2bg - "Durchgehen: Kategorie und Übertrag auf der Karte am Feld bestätigt (Feld leuchtet, „<Name> · <Betrag> verfügbar“ mit Rückgängig), ohne Toast"
+**Summary:** Durchgehen: Kategorie und Übertrag auf der Karte am Feld bestätigt, ohne Toast
+**Duration:** 30m
+**Verification:** PASS (iteration 1)
+**Files changed:** 9
+**Tests added:** 15
+**ADRs written:** none
+
+---
+
 ## 2026-11-20 05:17 -- Batch started: [ledger-mf2bg]
 
 **Type:** Work / Batch start

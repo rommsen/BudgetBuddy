@@ -1382,6 +1382,12 @@ type ReviewRetry =
     | RetryLena of Guid
     | RetryPayee of Guid * payee: string option
     | RetryUndo of ReviewUndo
+    /// Kategorie auf der Karte (ledger-mf2bg): dieselbe Kategorie noch einmal.
+    | RetryCategory of Guid * YnabCategoryId option
+    /// Übertrag auf der Karte: dasselbe Konto noch einmal.
+    | RetryTransfer of Guid * YnabAccountId
+    /// „Rückgängig“ am Feld der Karte: dieselbe Rücknahme noch einmal (`UndoCategory`, `UndoTransfer`).
+    | RetryFieldUndo of ToastActionKind
 
 /// Der Knopf der Zeile.
 type ReviewLastAct =
@@ -1398,6 +1404,10 @@ type ReviewLastKind =
     | LastPayeeChanged
     /// Nur als Fehler: „Rückgängig nicht möglich“.
     | LastUndone
+    /// Kategorie auf der Karte (ledger-mf2bg): nur als Warnung oder Fehler, die Bestätigung steht am Feld.
+    | LastCategoryChanged
+    /// Übertrag auf der Karte: nur als Warnung oder Fehler.
+    | LastTransferSet
 
 /// Wie die Aktion ausging: erledigt, erledigt, aber nicht in YNAB (gelb, mit Grund), gescheitert (rot, mit Grund).
 type ReviewLastOutcome =
@@ -1422,6 +1432,23 @@ type ReviewAwait =
     | AwaitLena of Guid
     | AwaitPayee of Guid * payee: string option
     | AwaitUndo of ReviewUndo
+
+/// Die Bestätigung am Feld „Kategorie“ der Karte (ledger-mf2bg, R3 Punkt 1): „<Name> · <Betrag> verfügbar“,
+/// „Kategorie entfernt“ oder „Gegenbuchung angelegt“, daneben „Rückgängig“. Sie bleibt, bis die Karte wechselt oder die
+/// Kategorie wieder geändert wird.
+type ReviewFieldNote = {
+    EntryId: Guid
+    /// Der Text vor dem Betrag: der Name der Kategorie, „Kategorie entfernt“ oder „Gegenbuchung angelegt“.
+    Text: string
+    /// Was die Kategorie danach verfügbar hat, schon formatiert („84,20 €“); `None` ohne bekannten Betrag.
+    Available: string option
+    /// Die Rücknahme, dieselbe Art wie früher im Toast (`UndoCategory`, `UndoTransfer`).
+    Undo: ToastActionKind
+    /// Leuchtet das Feld noch (`detailNoteFlashMs`)?
+    Flashing: bool
+    /// Wann sie kam (Zähler der Sitzung): für Taste Z und das Ende des Leuchtens.
+    Stamp: int
+}
 
 /// Von welcher Seite eine zurückgeholte Karte hereinkommt (Skizze `enter-back-l`/`enter-back-r`).
 type ReviewReturnSide =
@@ -1454,6 +1481,12 @@ type ReviewSession = {
     Awaiting: Set<ReviewAwait>
     /// Die gezeigte Karte kam per „Rückgängig“ zurück, von dieser Seite (nur für die Einblendung).
     ReturnFrom: ReviewReturnSide option
+    /// Die Bestätigung am Feld „Kategorie“ der gezeigten Karte (ledger-mf2bg); beim Kartenwechsel leer.
+    FieldNote: ReviewFieldNote option
+    /// Zähler der Sitzung: jede Zeile der letzten Aktion und jede Bestätigung am Feld bekommt die nächste Nummer.
+    Clock: int
+    /// Die Nummer der jetzigen Zeile der letzten Aktion (`Last`).
+    LastStamp: int
 }
 
 /// Ein frisches Durchgehen: die Schlange lädt.
@@ -1468,7 +1501,10 @@ let reviewStarting : ReviewSession =
       Matches = Map.empty
       Last = None
       Awaiting = Set.empty
-      ReturnFrom = None }
+      ReturnFrom = None
+      FieldNote = None
+      Clock = 0
+      LastStamp = 0 }
 
 /// Die Seite, auf der die Karte nach „Rückgängig“ wieder hereinkommt: „Passt“ ging nach rechts, alles andere nach links.
 let reviewReturnSideOf (undo: ReviewUndo) : ReviewReturnSide =
@@ -1486,6 +1522,20 @@ let reviewUndoOffered (review: ReviewSession) : ReviewUndo option =
     match review.Last with
     | Some { Act = Some (LastUndo undo) } -> Some undo
     | _ -> None
+
+/// Was Taste Z zurücknimmt (ledger-mf2bg): die Kategorie am Feld oder die Zeile unter „Passt, weiter“.
+type ReviewUndoTarget =
+    | UndoAtField of ToastActionKind
+    | UndoAtLine of ReviewUndo
+
+/// Die jüngste Aktion mit Rückgängig: die Bestätigung am Feld, wenn sie jünger ist als die Zeile unter dem Knopf (oder
+/// die Zeile kein Rückgängig anbietet), sonst die Zeile. Ohne beides `None`. Rein.
+let reviewUndoTarget (review: ReviewSession) : ReviewUndoTarget option =
+    match review.FieldNote, reviewUndoOffered review with
+    | Some note, Some undo -> if note.Stamp > review.LastStamp then Some (UndoAtField note.Undo) else Some (UndoAtLine undo)
+    | Some note, None -> Some (UndoAtField note.Undo)
+    | None, Some undo -> Some (UndoAtLine undo)
+    | None, None -> None
 
 /// Was die Zeile der letzten Aktion zeigt: Ton, Aktion (nie gekürzt), zweiter Teil (Payee oder Grund, gekürzt mit „…“)
 /// und die Beschriftung des Knopfs.
@@ -1508,6 +1558,8 @@ let reviewLastLine (last: ReviewLast) : ReviewLastLine =
         | LastConfirmedNew -> "Als neu übernommen"
         | LastPayeeChanged -> "Payee geändert"
         | LastUndone -> "Rückgängig"
+        | LastCategoryChanged -> "Kategorie geändert"
+        | LastTransferSet -> "Übertrag gesetzt"
     let failedText =
         match last.Kind with
         | LastConfirmed -> "Nicht geprüft"
@@ -1517,6 +1569,8 @@ let reviewLastLine (last: ReviewLast) : ReviewLastLine =
         | LastConfirmedNew -> "Nicht übernommen"
         | LastPayeeChanged -> "Payee nicht geändert"
         | LastUndone -> "Rückgängig nicht möglich"
+        | LastCategoryChanged -> "Kategorie nicht geändert"
+        | LastTransferSet -> "Übertrag nicht gesetzt"
     let button =
         match last.Act with
         | Some (LastUndo _) -> Some "Rückgängig"
@@ -1618,18 +1672,16 @@ let reviewKeyAction (card: (ReviewCardKind * bool) option) (undoOffered: bool) (
     | ("l" | "L"), Some (NormalCard, _) -> Some KeyLena
     | _ -> None
 
-/// Der Toast nach einer Kategorie auf der Karte: Name und was die Kategorie danach verfügbar hat.
-let reviewCategoryToastText (name: string option) (available: Money option) : string =
+/// Die Bestätigung am Feld nach einer Kategorie auf der Karte (ledger-mf2bg): Name und was die Kategorie danach
+/// verfügbar hat („Bahn“, „84,20 €“), ohne bekannten Betrag nur der Name, ohne Kategorie „Kategorie entfernt“. Rein.
+let reviewCategoryNoteText (name: string option) (available: Money option) : string * string option =
     match name, available with
-    | Some n, Some a -> $"Kategorie: {n} · {Client.DesignSystem.Money.formatAmountText false true a.Amount a.Currency} verfügbar"
-    | Some n, None -> $"Kategorie: {n}"
-    | None, _ -> "Kategorie entfernt"
+    | Some n, Some a -> n, Some (Client.DesignSystem.Money.formatAmountText false true a.Amount a.Currency)
+    | Some n, None -> n, None
+    | None, _ -> "Kategorie entfernt", None
 
-/// Der Toast nach einem Übertrag auf der Karte.
-let reviewTransferToastText (name: string option) : string =
-    match name with
-    | Some n -> $"Übertrag nach {n} · Gegenbuchung angelegt"
-    | None -> "Übertrag gesetzt · Gegenbuchung angelegt"
+/// Die Bestätigung am Feld nach einem Übertrag auf der Karte; das Feld zeigt „→ <Konto>“.
+let reviewTransferNoteText = "Gegenbuchung angelegt"
 
 /// Der Toast nach dem Memo auf der Karte.
 let reviewMemoToastText (current: string option) : string =
@@ -3226,6 +3278,10 @@ type Msg =
     | ReviewUndoLast
     /// „Erneut“ in der Zeile der letzten Aktion.
     | ReviewRetryLast
+    /// „Rückgängig“ an der Bestätigung unter dem Feld „Kategorie“ der Karte (ledger-mf2bg).
+    | ReviewUndoField
+    /// Das Leuchten des Felds „Kategorie“ der Karte endet, nur für die Bestätigung mit dieser Nummer.
+    | ReviewFieldFlashEnded of stamp: int
 
 /// Was Esc bei offenem Formular „Neue Buchung“ tut, im Dialog wie im Panel: erst die offene Auswahl darin schließen,
 /// dann das Formular wie „Abbrechen“. Das Popover der Kategorie behandelt Esc selbst und hält das Ereignis an. Während

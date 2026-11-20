@@ -1688,7 +1688,7 @@ let rec private showReviewCardAt (index: int) (model: Model) : Model * Cmd<Msg> 
                 let shown =
                     { cleared with
                         DetailFor = Some entry
-                        Review = Some { review with Index = index; Suggestions = []; DetailShown = false; Confirming = None; Deciding = None; ReturnFrom = None } }
+                        Review = Some { review with Index = index; Suggestions = []; DetailShown = false; Confirming = None; Deciding = None; ReturnFrom = None; FieldNote = None } }
                 let suggestions =
                     match entry.Payee with
                     | Some payee when not (String.IsNullOrWhiteSpace payee) -> Cmd.ofMsg (RunReviewSuggestions (id, payee))
@@ -1699,7 +1699,7 @@ let rec private showReviewCardAt (index: int) (model: Model) : Model * Cmd<Msg> 
                     | _ -> Cmd.none
                 shown, Cmd.batch [ Cmd.ofMsg (RunReviewRefresh id); suggestions; matchLoad ]
         else
-            { cleared with Review = Some { review with Index = List.length ids; Suggestions = []; DetailShown = false; Confirming = None; Deciding = None; ReturnFrom = None } },
+            { cleared with Review = Some { review with Index = List.length ids; Suggestions = []; DetailShown = false; Confirming = None; Deciding = None; ReturnFrom = None; FieldNote = None } },
             Cmd.none
     | _ -> model, Cmd.none
 
@@ -1751,7 +1751,12 @@ let private editReview (f: ReviewSession -> ReviewSession) (model: Model) : Mode
 
 /// Setzt die Zeile der letzten Aktion (ledger-pz5wv); `None` zeigt wieder den Wisch-Hinweis.
 let private setReviewLast (last: ReviewLast option) (model: Model) : Model =
-    editReview (fun r -> { r with Last = last }) model
+    editReview
+        (fun r ->
+            match last with
+            | Some _ -> { r with Last = last; Clock = r.Clock + 1; LastStamp = r.Clock + 1 }
+            | None -> { r with Last = None })
+        model
 
 /// Die Zeile einer Aktion an einer Buchung der Schlange, mit ihrem Payee.
 let private reviewLastFor (model: Model) (entryId: Guid) (kind: ReviewLastKind) (outcome: ReviewLastOutcome) (act: ReviewLastAct option) : ReviewLast =
@@ -1771,6 +1776,54 @@ let private takeAwait (matches: ReviewAwait -> bool) (model: Model) : (ReviewAwa
     model.Review
     |> Option.bind (fun r -> r.Awaiting |> Seq.tryFind matches)
     |> Option.map (fun found -> found, editReview (fun r -> { r with Awaiting = r.Awaiting.Remove found }) model)
+
+/// Meldet die Zeile unter dem Knopf eine Aktion am Feld „Kategorie“ dieser Buchung (Warnung, Fehler, gescheiterte
+/// Rücknahme am Feld)?
+let private isFieldLine (entryId: Guid) (last: ReviewLast) : bool =
+    last.EntryId = entryId
+    && (match last.Kind, last.Act with
+        | (LastCategoryChanged | LastTransferSet), _ -> true
+        | LastUndone, Some (LastRetry (RetryFieldUndo _)) -> true
+        | _ -> false)
+
+/// Nimmt die Bestätigung am Feld der Karte und eine Zeile zu diesem Feld weg (neue Kategorie, gelungene Rücknahme).
+let private clearReviewField (entryId: Guid) (model: Model) : Model =
+    editReview
+        (fun r ->
+            { r with
+                FieldNote = r.FieldNote |> Option.filter (fun n -> n.EntryId <> entryId)
+                Last = r.Last |> Option.filter (fun l -> not (isFieldLine entryId l)) })
+        model
+
+/// Die Bestätigung am Feld „Kategorie“ der Karte (ledger-mf2bg): das Feld leuchtet `detailNoteFlashMs`, darunter Text
+/// und „Rückgängig“.
+let private postReviewFieldNote (entryId: Guid) (text: string, available: string option) (undo: ToastActionKind) (model: Model) : Model * Cmd<Msg> =
+    match model.Review with
+    | Some r ->
+        let stamp = r.Clock + 1
+        let note = { EntryId = entryId; Text = text; Available = available; Undo = undo; Flashing = true; Stamp = stamp }
+        { model with Review = Some { r with FieldNote = Some note; Clock = stamp } },
+        Cmd.OfAsync.perform (fun () -> async { do! Async.Sleep detailNoteFlashMs }) () (fun () -> ReviewFieldFlashEnded stamp)
+    | None -> model, Cmd.none
+
+/// Eine Aktion am Feld der Karte ging nach BB, aber nicht nach YNAB: gelb in der Zeile unter dem Knopf, ohne Knopf (das
+/// Rückgängig steht am Feld).
+let private reviewFieldNotInYnab (entryId: Guid) (kind: ReviewLastKind) (reason: string) (model: Model) : Model =
+    setReviewLast (Some (reviewLastFor model entryId kind (LastNotInYnab reason) None)) model
+
+/// Ein Befehl am Feld der Karte scheiterte: das Feld behält den alten Wert, rot in der Zeile unter dem Knopf mit
+/// „Erneut“, kein Toast. Die Zeile der Buchung trägt den Befehlsfehler wie bisher (Hinweisleiste in „Details“).
+let private reviewFieldFailed (entryId: Guid) (reason: string) (kind: ReviewLastKind) (retry: ReviewRetry) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
+    let failedRow = { model with CategoryRows = model.CategoryRows |> Map.add entryId (CategoryCommandFailed reason) }
+    setReviewLast (Some (reviewLastFor failedRow entryId kind (LastFailed reason) (Some (LastRetry retry)))) failedRow, Cmd.none, NoOp
+
+/// Nach einer gelungenen Rücknahme am Feld der Karte: der alte Wert steht im Feld, die Bestätigung ist weg, keine
+/// Meldung („… zurückgesetzt“ entfällt). Nimmt YNAB sie nicht, steht das gelb unter dem Knopf.
+let private reviewFieldRestored (entryId: Guid) (outcome: CategoryChangeOutcome) (model: Model, cmd: Cmd<Msg>) : Model * Cmd<Msg> * ExternalMsg =
+    let cleared = clearReviewField entryId model
+    match outcome.WriteBack with
+    | CategorySendFailed reason -> reviewFieldNotInYnab entryId LastUndone reason cleared, cmd, NoOp
+    | _ -> cleared, cmd, NoOp
 
 /// Die zurückgeholte Karte kommt von dieser Seite herein, falls sie jetzt gezeigt wird.
 let private markReturn (side: ReviewReturnSide) (entryId: Guid) (model: Model) : Model =
@@ -2781,7 +2834,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         whenRowIdle CategoryLock entryId model (fun () ->
             match findEntry model entryId with
             | Some entry when categoryLockFor entry = CategoryEditable ->
-                { clearDetailNote entryId model with
+                { clearDetailNote entryId (clearReviewField entryId model) with
                     CategoryRows = model.CategoryRows |> Map.add entryId CategorySending
                     CategoryPickerFor = None
                     CategorySuggestions = []
@@ -2818,6 +2871,9 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         let payee = findEntry model entryId |> Option.bind (fun e -> e.Payee)
         let cmd = Cmd.batch [ cmd; afterEntryChange entryId model' ]
         match outcome.Change, outcome.WriteBack with
+        // Die Karte des Durchgehens ohne „Details“ (ledger-mf2bg): gelb unter dem Knopf statt Toast.
+        | CategoryUnchanged, CategorySendFailed reason when route = NoteOnReviewCard ->
+            reviewFieldNotInYnab entryId LastCategoryChanged reason model', cmd, NoOp
         | CategoryUnchanged, CategorySendFailed reason ->
             reportDetailNote
                 route
@@ -2828,14 +2884,18 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         | CategoryChanged, writeBack ->
             let failure = match writeBack with CategorySendFailed reason -> Some reason | _ -> None
             let undo = undoKindFor entryId outcome
-            // Die Karte des Durchgehens ohne „Details“ meldet wie bisher (ledger-pz5wv).
-            let onCard =
-                let text = reviewCategoryToastText newName (categoryOfId model' newId |> Option.bind (fun c -> c.Available))
-                let action = { Label = undoToastLabel; Kind = undo }
-                match failure with
-                | Some reason -> ShowToastWithAction ($"{text}. {categoryHintTitle}: {reason}", ToastWarning, action)
-                | None -> ShowToastWithAction (text, ToastSuccess, action)
-            reportDetailNote route (categoryChangedNote entryId payee newId.IsNone failure undo) onCard (model', cmd)
+            match route with
+            // Die Karte des Durchgehens ohne „Details“ (ledger-mf2bg): das Feld leuchtet, darunter Name und Verfügbares
+            // mit „Rückgängig“; nimmt YNAB sie nicht, steht das gelb unter dem Knopf. Kein Toast.
+            | NoteOnReviewCard ->
+                let text = reviewCategoryNoteText newName (categoryOfId model' newId |> Option.bind (fun c -> c.Available))
+                let noted, timer = postReviewFieldNote entryId text undo model'
+                let noted = failure |> Option.fold (fun m reason -> reviewFieldNotInYnab entryId LastCategoryChanged reason m) noted
+                noted, Cmd.batch [ cmd; timer ], NoOp
+            | _ -> reportDetailNote route (categoryChangedNote entryId payee newId.IsNone failure undo) NoOp (model', cmd)
+
+    | EntryCategorySet (entryId, newId, Error message) when detailNoteRoute model entryId = NoteOnReviewCard ->
+        reviewFieldFailed entryId message LastCategoryChanged (RetryCategory (entryId, newId)) model
 
     | EntryCategorySet (entryId, _, Error message) ->
         categoryCommandFailed entryId message (failedDetailNote entryId AtCategory "Nicht geändert" "Kategorie nicht geändert" message) model
@@ -2864,13 +2924,19 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         let model', cmd = applyCategoryResult entryId newId fallback false outcome model |> afterTransferCleared entryId outcome
         let name = categoryOfId model newId |> Option.map (fun c -> c.Name) |> Option.orElse fallback
         let cmd = Cmd.batch [ cmd; afterEntryChange entryId model' ]
-        restoredReport
-            (detailNoteRoute model entryId)
-            entryId
-            AtCategory
-            outcome
-            (categoryRestoredToastText name)
-            (clearDetailNote entryId model', cmd)
+        if detailNoteRoute model entryId = NoteOnReviewCard then
+            reviewFieldRestored entryId outcome (model', cmd)
+        else
+            restoredReport
+                (detailNoteRoute model entryId)
+                entryId
+                AtCategory
+                outcome
+                (categoryRestoredToastText name)
+                (clearDetailNote entryId model', cmd)
+
+    | EntryCategoryRestored (entryId, previous, Error message) when detailNoteRoute model entryId = NoteOnReviewCard ->
+        reviewFieldFailed entryId message LastUndone (RetryFieldUndo (UndoCategory (entryId, previous))) model
 
     | EntryCategoryRestored (entryId, _, Error message) ->
         categoryCommandFailed entryId message (undoFailedDetailNote entryId AtCategory message) model
@@ -2879,7 +2945,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         whenRowIdle CategoryLock entryId model (fun () ->
             match findEntry model entryId with
             | Some entry when categoryLockFor entry = CategoryEditable ->
-                let model = if undo then model else clearDetailNote entryId model
+                let model = if undo then model else clearDetailNote entryId (clearReviewField entryId model)
                 { model with
                     CategoryRows = model.CategoryRows |> Map.add entryId CategorySending
                     CategoryPickerFor = None
@@ -2906,12 +2972,16 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         let refresh = if outcome.Change = CategoryChanged then Cmd.ofMsg (RunRefreshEntry entryId) else Cmd.none
         let cmd = Cmd.batch [ refresh; afterEntryChange entryId model' ]
         let route = detailNoteRoute model entryId
-        // Die Karte des Durchgehens ohne „Details“ meldet wie bisher (ledger-pz5wv).
-        let toastOf text =
-            match failed with
-            | Some reason -> $"{text}. {categoryHintTitle}: {reason}", ToastWarning
-            | None -> text, ToastSuccess
         match outcome.Change, failed with
+        // Die Karte des Durchgehens ohne „Details“ (ledger-mf2bg): „Gegenbuchung angelegt“ am Feld, Warnung gelb und
+        // Rücknahme ohne Meldung wie bei der Kategorie. Kein Toast.
+        | CategoryUnchanged, Some reason when route = NoteOnReviewCard ->
+            reviewFieldNotInYnab entryId (if undo then LastUndone else LastTransferSet) reason model', cmd, NoOp
+        | CategoryChanged, _ when undo && route = NoteOnReviewCard -> reviewFieldRestored entryId outcome (model', cmd)
+        | CategoryChanged, _ when route = NoteOnReviewCard ->
+            let noted, timer = postReviewFieldNote entryId (reviewTransferNoteText, None) (undoKindFor entryId outcome) model'
+            let noted = failed |> Option.fold (fun m reason -> reviewFieldNotInYnab entryId LastTransferSet reason m) noted
+            noted, Cmd.batch [ cmd; timer ], NoOp
         | CategoryUnchanged, Some reason ->
             reportDetailNote
                 route
@@ -2924,12 +2994,11 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         | CategoryChanged, _ ->
             let kind = undoKindFor entryId outcome
             let payee = findEntry model entryId |> Option.bind (fun e -> e.Payee)
-            let text, toastType = toastOf (reviewTransferToastText name)
-            reportDetailNote
-                route
-                (transferSetNote entryId name payee failed kind)
-                (ShowToastWithAction (text, toastType, { Label = undoToastLabel; Kind = kind }))
-                (model', cmd)
+            reportDetailNote route (transferSetNote entryId name payee failed kind) NoOp (model', cmd)
+
+    | EntryTransferSet (entryId, account, undo, Error message) when detailNoteRoute model entryId = NoteOnReviewCard ->
+        if undo then reviewFieldFailed entryId message LastUndone (RetryFieldUndo (UndoTransfer (entryId, account))) model
+        else reviewFieldFailed entryId message LastTransferSet (RetryTransfer (entryId, account)) model
 
     | EntryTransferSet (entryId, _, undo, Error message) ->
         let note =
@@ -5151,7 +5220,11 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         | KeySkip -> updateCore ReviewSkip model
         | KeyOpenCategory -> updateCore ReviewOpenCategory model
         | KeyLena -> updateCore ReviewLena model
-        | KeyUndo -> updateCore ReviewUndoLast model
+        // Z nimmt die jüngste Aktion mit Rückgängig zurück: die Kategorie am Feld oder die Zeile (ledger-mf2bg).
+        | KeyUndo ->
+            match model.Review |> Option.bind reviewUndoTarget with
+            | Some (UndoAtField _) -> updateCore ReviewUndoField model
+            | _ -> updateCore ReviewUndoLast model
         // Esc schließt erst, was über der Karte offen ist, dann die Ansicht.
         | KeyLeave ->
             if model.CategoryPickerFor.IsSome then
@@ -5212,11 +5285,35 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
                 Cmd.ofMsg (RunSetPayee (entryId, payee)),
                 NoOp
             | RetryPayee _ -> model, Cmd.none, NoOp
+            // Am Feld der Karte (ledger-mf2bg): derselbe Befehl, die rote Zeile geht vorher.
+            | RetryCategory (entryId, newId) -> onCard entryId (StartSetEntryCategory (entryId, newId)) (setReviewLast None model)
+            | RetryTransfer (entryId, account) -> onCard entryId (StartSetEntryTransfer (entryId, account, false)) (setReviewLast None model)
+            | RetryFieldUndo kind ->
+                match kind, detailNoteUndoMsg kind with
+                | (UndoCategory (entryId, _) | UndoTransfer (entryId, _)), Some msg -> onCard entryId msg (setReviewLast None model)
+                | _ -> model, Cmd.none, NoOp
             | RetryUndo undo ->
                 let offered = model |> setReviewLast (model.Review |> Option.bind (fun r -> r.Last) |> Option.map (fun l -> { l with Act = Some (LastUndo undo) }))
                 // Ist die Rücknahme gesperrt, bleibt die rote Zeile.
                 if reviewUndoBlocked undo model then model, Cmd.none, NoOp else updateCore ReviewUndoLast offered
         | _ -> model, Cmd.none, NoOp
+
+    // „Rückgängig“ an der Bestätigung unter dem Feld der Karte (ledger-mf2bg): dieselbe Rücknahme wie früher im Toast.
+    // Die Bestätigung bleibt, bis die Antwort kommt; ein zweiter Tipp sendet nichts (`whenRowIdle`).
+    | ReviewUndoField ->
+        match model.Review |> Option.bind (fun r -> r.FieldNote) with
+        | Some note when isReviewCard model note.EntryId ->
+            match detailNoteUndoMsg note.Undo with
+            | Some msg -> updateCore msg model
+            | None -> model, Cmd.none, NoOp
+        | _ -> model, Cmd.none, NoOp
+
+    | ReviewFieldFlashEnded stamp ->
+        editReview
+            (fun r -> { r with FieldNote = r.FieldNote |> Option.map (fun n -> if n.Stamp = stamp then { n with Flashing = false } else n) })
+            model,
+        Cmd.none,
+        NoOp
 
     | EscapePressed
     | EscapePressedInField ->

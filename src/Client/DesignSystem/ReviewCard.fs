@@ -103,15 +103,28 @@ let amount (text: string) : ReactElement =
         prop.text text
     ]
 
+/// Der Zustand des Felds „Kategorie“ der Karte.
+type FieldState =
+    | FieldRest
+    /// Rand und Ring in `attention`: ein Wisch nach rechts ohne Kategorie zeigt, wo sie fehlt (Skizze `.field.need`).
+    | FieldNeed
+    /// Das Feld leuchtet kurz nach einer Wahl (`Feedback.flash`, Skizze `.field.flash`, ledger-mf2bg); die App nimmt
+    /// den Zustand nach 0,7 s wieder ab.
+    | FieldFlash
+
 /// Das Feld „Kategorie“ der Karte (Bauart `Input.pickerField`): Beschriftung klein, darunter der Wert.
 /// Fehlt der Wert, steht `placeholder` in Gelb („braucht dich“). Ohne `onClick` (eine aufgeteilte Buchung)
 /// ist es kein Knopf und hat keinen Pfeil.
 let rec field (testId: string) (label: string) (value: string option) (placeholder: string) (isOpen: bool) (onClick: (unit -> unit) option) : ReactElement =
-    fieldNeeding false testId label value placeholder isOpen onClick
+    fieldIn FieldRest testId label value placeholder isOpen onClick
 
 /// Wie `field`; mit `need` tragen Rand und Ring die Farbe `attention` (Skizze `.field.need`): ein Wisch nach rechts
 /// ohne Kategorie zeigt, wo sie fehlt.
 and fieldNeeding (need: bool) (testId: string) (label: string) (value: string option) (placeholder: string) (isOpen: bool) (onClick: (unit -> unit) option) : ReactElement =
+    fieldIn (if need then FieldNeed else FieldRest) testId label value placeholder isOpen onClick
+
+/// Wie `field` in einem Zustand (`FieldState`): ruhig, „braucht dich“ oder leuchtend nach einer Wahl.
+and fieldIn (state: FieldState) (testId: string) (label: string) (value: string option) (placeholder: string) (isOpen: bool) (onClick: (unit -> unit) option) : ReactElement =
     let content =
         [ Html.span [
               prop.className "flex min-w-0 flex-1 flex-col"
@@ -123,9 +136,12 @@ and fieldNeeding (need: bool) (testId: string) (label: string) (value: string op
               ]
           ]
           if onClick.IsSome then Icons.chevronRight Icons.SM Icons.Default ]
+    let baseCls = "input-field w-full flex items-center gap-3 px-4 py-2 min-h-[52px] text-left"
     let cls =
-        if need then "input-field input-need w-full flex items-center gap-3 px-4 py-2 min-h-[52px] text-left"
-        else "input-field w-full flex items-center gap-3 px-4 py-2 min-h-[52px] text-left"
+        match state with
+        | FieldNeed -> $"{baseCls} input-need"
+        | FieldFlash -> $"{baseCls} {Feedback.flash}"
+        | FieldRest -> baseCls
     match onClick with
     | Some click ->
         Html.button [
@@ -138,6 +154,41 @@ and fieldNeeding (need: bool) (testId: string) (label: string) (value: string op
             prop.children content
         ]
     | None -> Html.div [ prop.custom ("data-testid", testId); prop.className cls; prop.children content ]
+
+/// Die Bestätigung unter dem Feld „Kategorie“ der Karte (ledger-mf2bg, Skizze ledger-vf5h6 `.cap`, R3 Punkt 1):
+/// 12 px gedämpft „<Name> · <Betrag> verfügbar“, der Betrag in Mono in `text-secondary`; ohne Betrag nur der Text
+/// („Bahn“, „Kategorie entfernt“, „Gegenbuchung angelegt“). Rechts daneben der Knopf im Akzent, halbfett, 48 px
+/// Trefferfläche, die je 12 px (den Abstand der Karte) über die Zeile hinausreicht.
+let fieldNote (text: string) (available: string option) (act: Feedback.Act) : ReactElement =
+    Html.div [
+        prop.custom ("data-testid", "review-field-note")
+        prop.custom ("aria-live", "polite")
+        prop.className $"flex flex-wrap items-center gap-x-2 {FontSizes.xs} {Colors.textMuted}"
+        prop.children [
+            Html.span [
+                prop.className "min-w-0 break-words"
+                prop.children [
+                    Html.text text
+                    match available with
+                    | Some amount ->
+                        Html.text " · "
+                        Html.span [ prop.className $"{Fonts.mono} tabular-nums {Colors.textSecondary}"; prop.text amount ]
+                        Html.text " verfügbar"
+                    | None -> Html.none
+                ]
+            ]
+            Html.button [
+                prop.type' "button"
+                prop.custom ("data-feedback-action", "true")
+                prop.className (
+                    $"-my-3 inline-flex items-center {TouchTargets.alwaysMinHeight} px-1 {FontSizes.xs} {FontWeights.semibold} "
+                    + $"{Colors.accent} whitespace-nowrap touch-manipulation"
+                )
+                prop.onClick (fun _ -> act.OnClick ())
+                prop.text act.Label
+            ]
+        ]
+    ]
 
 /// Ein kleiner Text unter einem Feld, gedämpft („aus Bestellnummer“, „Vorgeschlagen“).
 let caption (testId: string) (text: string) : ReactElement =

@@ -5271,7 +5271,7 @@ let reviewKeyFor (model: Model) (tagName: string) (isContentEditable: bool) (mod
             | _ -> None
         match model.Review with
         | Some r when r.DetailShown -> if key = "Escape" then Some KeyLeave else None
-        | Some r -> reviewKeyAction card (reviewUndoOffered r).IsSome key
+        | Some r -> reviewKeyAction card (reviewUndoTarget r).IsSome key
         | None -> reviewKeyAction card false key
 
 /// Die Tasten des Durchgehens mit Blick auf ein offenes Regel-Formular (`reviewKeyFor`, `routePageKey`). Rein.
@@ -5338,12 +5338,19 @@ let private ReviewNormalCard (dispatch: Msg -> unit) (model: Model) (review: Rev
     let hasTarget = reviewHasTarget entry
     let lena = lenaActionFor model.LenaFlagColor entry
     let categoryBusy = (model.CategoryRows |> Map.tryFind entry.Id) = Some CategorySending
+    // Die Bestätigung am Feld nach Kategorie oder Übertrag auf der Karte (ledger-mf2bg).
+    let fieldNote = review.FieldNote |> Option.filter (fun n -> n.EntryId = entry.Id)
+    let flashing = fieldNote |> Option.exists (fun n -> n.Flashing)
     let field =
         match reviewCategoryValue model entry with
         | ReviewSplit -> ReviewCard.field "review-category" "Kategorie" (Some "Aufgeteilt") "" false None
         | value ->
             let shown = match value with ReviewCategoryNamed n -> Some n | _ -> None
-            ReviewCard.fieldNeeding (needsTarget && not hasTarget) "review-category" "Kategorie" shown "Kategorie wählen" pickerOpen (Some (fun () -> dispatch ReviewOpenCategory))
+            let state =
+                if needsTarget && not hasTarget then ReviewCard.FieldNeed
+                elif flashing then ReviewCard.FieldFlash
+                else ReviewCard.FieldRest
+            ReviewCard.fieldIn state "review-category" "Kategorie" shown "Kategorie wählen" pickerOpen (Some (fun () -> dispatch ReviewOpenCategory))
     let content = [
             ReviewCard.meta (reviewMetaText today (reviewAccountName model entry.AccountId) entry)
             ReviewCard.payee
@@ -5359,6 +5366,10 @@ let private ReviewNormalCard (dispatch: Msg -> unit) (model: Model) (review: Rev
                     if desk then CategoryPicker.popoverWithWidth "w-full" pickerOpen pickerProps
                 ]
             ]
+            match fieldNote with
+            | Some note ->
+                ReviewCard.fieldNote note.Text note.Available { Label = "Rückgängig"; OnClick = fun () -> dispatch ReviewUndoField }
+            | None -> ()
             if entry.CategoryFromOrderId then ReviewCard.caption "review-order-id" "aus Bestellnummer"
             match reviewSuggestionChips model entry with
             | [] -> ()

@@ -2839,6 +2839,36 @@ export const STATES = [
     primary: reviewPrimary("Passt, weiter"),
     reach: (page) => page.locator('[data-testid="review-foot"]').getByRole("button", { name: "Rückgängig" }),
   },
+  // ledger-mf2bg: Kategorie aus „Vorgeschlagen“ auf der Karte. Das Feld zeigt den Wert, darunter „Bahn · <Betrag>
+  // verfügbar“ mit „Rückgängig“ am Feld; kein Toast und keine Meldung in der Leiste, am Handy wie am PC.
+  {
+    name: "durchgehen-kategorie-feld",
+    route: "/review",
+    widths: [320, 412, 1280],
+    mock: async (page) => {
+      await mockReview(page, [REVIEW_QUEUE.amazon]);
+      // „Bahn“ mit Verfügbarem (im gemeinsamen Fixture ohne), damit die Zeile am Feld den Betrag zeigt.
+      await page.route("**/api/YnabApi/getCategories", (r) =>
+        json(r, {
+          Ok: buildCategoriesFixture().map((c) => (c.Id.YnabCategoryId === CATEGORY_IDS.bahn ? { ...c, Available: eur(105.7) } : c)),
+        })
+      );
+    },
+    open: async (page) => {
+      const chips = page.locator('[data-testid="review-suggestions"]').first();
+      await chips.waitFor();
+      await chips.getByRole("button", { name: "Bahn", exact: true }).click();
+      const note = page.locator('[data-testid="review-field-note"]').filter({ visible: true }).first();
+      await note.waitFor();
+      const text = await note.textContent();
+      if (!/^Bahn · .+ verfügbar/.test(text)) throw new Error(`Unter „Kategorie“ steht „${text}“ statt „Bahn · … verfügbar“`);
+      await expectNoToast(page, "Kategorie auf der Karte");
+      const bars = await page.locator('[data-testid="feedback-bar"]').filter({ visible: true }).allInnerTexts();
+      if (bars.some((t) => /Kategorie|Bahn/.test(t))) throw new Error(`Meldung in der Leiste: ${bars.join(" | ")}`);
+    },
+    primary: reviewPrimary("Passt, weiter"),
+    reach: (page) => page.locator('[data-testid="review-field-note"]').getByRole("button", { name: "Rückgängig" }),
+  },
   // ledger-pz5wv: scheitert „Passt“, bleibt die Karte und die Zeile zeigt rot den Grund mit „Erneut“.
   {
     name: "durchgehen-fehler",

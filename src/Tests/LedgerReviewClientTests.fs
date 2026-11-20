@@ -684,14 +684,16 @@ let caseTests =
                 let _, msgs, _ = run ReviewConfirmNew after
                 Expect.isEmpty msgs $"{answer}: kein zweiter Aufruf"
 
+        // ledger-mf2bg: die Bestätigung steht am Feld, nicht mehr im Toast.
         testCase "die Kategorie auf der Karte meldet Name und Verfügbares" <| fun () ->
             let model = reviewing [ cardB ]
             let msgs = categorySet (idOf cardB)
             let started = step msgs.Head model
-            let _, _, external = run msgs.[1] started
-            match external with
-            | ShowToastWithAction (text, _, _) -> Expect.stringStarts text "Kategorie: Lebensmittel · " "Name"
-            | other -> failtestf "Toast erwartet: %A" other
+            let after, _, external = run msgs.[1] started
+            Expect.equal external NoOp "kein Toast"
+            let note = after.Review.Value.FieldNote
+            Expect.equal (note |> Option.map (fun n -> n.Text)) (Some "Lebensmittel") "Name"
+            Expect.isSome (note |> Option.bind (fun n -> n.Available)) "Verfügbares"
 
         testCase "Details öffnet das Detail über der Karte, Schließen lässt die Karte stehen und liest sie neu" <| fun () ->
             let model = reviewing [ cardA; cardC ]
@@ -1155,4 +1157,185 @@ let lastLineTests =
             let skipped = reviewing [ cardA; cardC ] |> step ReviewSkip
             let reopened = skipped |> step ReviewLeft |> step ReviewOpened
             Expect.isNone (lineOf reopened) "Hinweis"
+    ]
+
+// ============================================
+// Kategorie und Übertrag auf der Karte am Feld bestätigt (ledger-mf2bg)
+// ============================================
+
+let private tagesgeld = YnabAccountId (Guid.Parse "0195e800-0000-7000-8000-0000000000bb")
+let private fieldNoteOf (model: Model) = model.Review |> Option.bind (fun r -> r.FieldNote)
+let private changed previous : CategoryChangeOutcome =
+    { Previous = previous; Change = CategoryChanged; WriteBack = CategorySent; PreviousTransferAccountId = None }
+let private foodChoice : CategoryChoice = { CategoryId = YnabCategoryId food; CategoryName = "Lebensmittel" }
+
+/// Die Karte bekommt eine Kategorie über den Vorschlag, die Antwort ist da.
+let private picked (outcome: CategoryChangeOutcome) (newId: YnabCategoryId option) (model: Model) : Model * Msg list * ExternalMsg =
+    let id = (reviewCardOf model).Value.Id
+    run (EntryCategorySet (id, newId, Ok outcome)) (step (StartSetEntryCategory (id, newId)) model)
+
+/// Die Karte wird ein Übertrag auf Tagesgeld, die Antwort ist da.
+let private transferred (outcome: CategoryChangeOutcome) (model: Model) : Model * Msg list * ExternalMsg =
+    let id = (reviewCardOf model).Value.Id
+    run (EntryTransferSet (id, tagesgeld, false, Ok outcome)) (step (StartSetEntryTransfer (id, tagesgeld, false)) model)
+
+[<Tests>]
+let fieldNoteTests =
+    testList "Durchgehen: Kategorie am Feld der Karte (ledger-mf2bg)" [
+
+        testCase "die Texte am Feld: Name mit Verfügbarem, nur Name, entfernt" <| fun () ->
+            let name, available = reviewCategoryNoteText (Some "Bahn") (Some (eur 84.2m))
+            Expect.equal name "Bahn" "Name"
+            Expect.isSome available "Betrag"
+            Expect.stringContains available.Value "84,20" "Betrag formatiert"
+            Expect.equal (reviewCategoryNoteText (Some "Bahn") None) ("Bahn", None) "ohne Verfügbares"
+            Expect.equal (reviewCategoryNoteText None (Some (eur 1m))) ("Kategorie entfernt", None) "entfernt"
+            Expect.equal reviewTransferNoteText "Gegenbuchung angelegt" "Übertrag"
+
+        testCase "Kategorie auf der Karte: Feld leuchtet, Name und Verfügbares am Feld mit Rückgängig, kein Toast" <| fun () ->
+            let after, _, external = reviewing [ cardB ] |> picked (changed None) (Some (YnabCategoryId food))
+            Expect.equal external NoOp "kein Toast"
+            let note = (fieldNoteOf after).Value
+            Expect.equal note.EntryId (idOf cardB) "Buchung"
+            Expect.equal note.Text "Lebensmittel" "Name"
+            Expect.isSome note.Available "Verfügbares"
+            Expect.isTrue note.Flashing "leuchtet"
+            Expect.equal note.Undo (UndoCategory (idOf cardB, None)) "Rückgängig"
+            Expect.isNone (lineOf after) "keine Zeile unter dem Knopf"
+
+        testCase "ohne bekanntes Verfügbares nur der Name, ohne Kategorie „Kategorie entfernt“" <| fun () ->
+            let model = { reviewing [ cardB ] with Categories = Success [ { categories.Head with Available = None } ] }
+            let after, _, external = model |> picked (changed None) (Some (YnabCategoryId food))
+            Expect.equal external NoOp "kein Toast"
+            Expect.equal (fieldNoteOf after |> Option.map (fun n -> n.Text, n.Available)) (Some ("Lebensmittel", None)) "nur Name"
+            let removed, _, external = reviewing [ cardA ] |> picked (changed (Some foodChoice)) None
+            Expect.equal external NoOp "kein Toast"
+            let note = (fieldNoteOf removed).Value
+            Expect.equal (note.Text, note.Available) ("Kategorie entfernt", None) "entfernt"
+            Expect.equal note.Undo (UndoCategory (idOf cardA, Some foodChoice)) "Rückgängig stellt sie wieder her"
+
+        testCase "Übertrag auf der Karte: „Gegenbuchung angelegt“ am Feld, kein Toast" <| fun () ->
+            let after, _, external = reviewing [ cardA ] |> transferred (changed (Some foodChoice))
+            Expect.equal external NoOp "kein Toast"
+            let note = (fieldNoteOf after).Value
+            Expect.equal (note.Text, note.Available) ("Gegenbuchung angelegt", None) "Text"
+            Expect.equal note.Undo (UndoCategory (idOf cardA, Some foodChoice)) "Rückgängig"
+
+        testCase "das Leuchten endet nur für die eigene Bestätigung" <| fun () ->
+            let after, _, _ = reviewing [ cardB ] |> picked (changed None) (Some (YnabCategoryId food))
+            let stamp = (fieldNoteOf after).Value.Stamp
+            Expect.isTrue (fieldNoteOf (step (ReviewFieldFlashEnded (stamp + 1)) after)).Value.Flashing "fremde Nummer"
+            Expect.isFalse (fieldNoteOf (step (ReviewFieldFlashEnded stamp) after)).Value.Flashing "eigene Nummer"
+
+        testCase "der Kartenwechsel und eine neue Kategorie nehmen die Bestätigung weg" <| fun () ->
+            let after, _, _ = reviewing [ cardB; cardC ] |> picked (changed None) (Some (YnabCategoryId food))
+            Expect.isNone (fieldNoteOf (step ReviewSkip after)) "Karte gewechselt"
+            Expect.isNone (fieldNoteOf (step (StartSetEntryCategory (idOf cardB, None)) after)) "neue Kategorie"
+
+        testCase "Rückgängig am Feld stellt die Kategorie zurück, ohne Meldung" <| fun () ->
+            let after, _, _ = reviewing [ cardB ] |> picked (changed None) (Some (YnabCategoryId food))
+            let undoing, msgs, _ = run ReviewUndoField after
+            Expect.contains msgs (RunUndoCategory (idOf cardB, None)) "dieselbe Rücknahme wie früher im Toast"
+            let restored, _, external = run (EntryCategoryRestored (idOf cardB, None, Ok (changed (Some foodChoice)))) undoing
+            Expect.equal external NoOp "keine Meldung"
+            Expect.isNone (fieldNoteOf restored) "Zeile weg"
+            Expect.isNone (lineOf restored) "keine Zeile unter dem Knopf"
+            Expect.isNone (reviewCardOf restored).Value.CategoryId "alter Wert im Feld"
+
+        testCase "Rückgängig am Feld macht die Buchung wieder zum Übertrag, ohne Meldung" <| fun () ->
+            let wasTransfer = { changed (Some foodChoice) with PreviousTransferAccountId = Some tagesgeld }
+            let after, _, _ = reviewing [ cardA ] |> picked wasTransfer (Some (YnabCategoryId food))
+            let undoing, msgs, _ = run ReviewUndoField after
+            Expect.contains msgs (RunSetEntryTransfer (idOf cardA, tagesgeld, true)) "Übertrag zurück"
+            let restored, _, external = run (EntryTransferSet (idOf cardA, tagesgeld, true, Ok (changed (Some foodChoice)))) undoing
+            Expect.equal external NoOp "keine Meldung"
+            Expect.isNone (fieldNoteOf restored) "Zeile weg"
+
+        testCase "YNAB nimmt die Kategorie nicht: Zeile am Feld bleibt, gelb unter dem Knopf" <| fun () ->
+            let failedSend = { changed None with WriteBack = CategorySendFailed "Zeitüberschreitung" }
+            let after, _, external = reviewing [ cardB ] |> picked failedSend (Some (YnabCategoryId food))
+            Expect.equal external NoOp "kein Toast"
+            Expect.isSome (fieldNoteOf after) "Zeile am Feld bleibt"
+            Expect.equal (lineOf after) (Some (FeedbackWarning, "Kategorie geändert, nicht in YNAB", "Zeitüberschreitung", None)) "gelb"
+            let transfer, _, external = reviewing [ cardA ] |> transferred { failedSend with Previous = Some foodChoice }
+            Expect.equal external NoOp "kein Toast"
+            Expect.isSome (fieldNoteOf transfer) "Zeile am Feld"
+            Expect.equal (lineOf transfer) (Some (FeedbackWarning, "Übertrag gesetzt, nicht in YNAB", "Zeitüberschreitung", None)) "gelb"
+
+        testCase "Kategorie scheitert: alter Wert, rot unter dem Knopf, Erneut schickt sie noch einmal" <| fun () ->
+            let model = reviewing [ cardB ] |> step (StartSetEntryCategory (idOf cardB, Some (YnabCategoryId food)))
+            let failed, _, external = run (EntryCategorySet (idOf cardB, Some (YnabCategoryId food), Error "Netz")) model
+            Expect.equal external NoOp "kein Toast"
+            Expect.isNone (reviewCardOf failed).Value.CategoryId "alter Wert"
+            Expect.isNone (fieldNoteOf failed) "keine Bestätigung"
+            Expect.equal (lineOf failed) (Some (FeedbackError, "Kategorie nicht geändert", "Netz", Some "Erneut")) "rot"
+            Expect.equal (cardId failed) (Some (idOf cardB)) "Karte bleibt"
+            let retried, msgs, _ = run ReviewRetryLast failed
+            Expect.contains msgs (RunSetEntryCategory (idOf cardB, Some (YnabCategoryId food))) "derselbe Befehl"
+            Expect.isNone (lineOf retried) "Zeile geht"
+
+        testCase "Übertrag scheitert: rot unter dem Knopf, Erneut schickt ihn noch einmal" <| fun () ->
+            let model = reviewing [ cardA ] |> step (StartSetEntryTransfer (idOf cardA, tagesgeld, false))
+            let failed, _, external = run (EntryTransferSet (idOf cardA, tagesgeld, false, Error "Netz")) model
+            Expect.equal external NoOp "kein Toast"
+            Expect.equal (lineOf failed) (Some (FeedbackError, "Übertrag nicht gesetzt", "Netz", Some "Erneut")) "rot"
+            let _, msgs, _ = run ReviewRetryLast failed
+            Expect.contains msgs (RunSetEntryTransfer (idOf cardA, tagesgeld, false)) "derselbe Befehl"
+
+        testCase "Rückgängig am Feld scheitert: rot unter dem Knopf, Erneut schickt die Rücknahme noch einmal" <| fun () ->
+            let after, _, _ = reviewing [ cardB ] |> picked (changed None) (Some (YnabCategoryId food))
+            let undoing = step ReviewUndoField after
+            let failed, _, external = run (EntryCategoryRestored (idOf cardB, None, Error "Netz")) undoing
+            Expect.equal external NoOp "kein Toast"
+            Expect.equal (lineOf failed) (Some (FeedbackError, "Rückgängig nicht möglich", "Netz", Some "Erneut")) "rot"
+            let _, msgs, _ = run ReviewRetryLast failed
+            Expect.contains msgs (RunUndoCategory (idOf cardB, None)) "dieselbe Rücknahme"
+            let transfer =
+                reviewing [ cardA ]
+                |> picked { changed (Some foodChoice) with PreviousTransferAccountId = Some tagesgeld } (Some (YnabCategoryId food))
+                |> fun (m, _, _) -> step ReviewUndoField m
+            let failed, _, external = run (EntryTransferSet (idOf cardA, tagesgeld, true, Error "Netz")) transfer
+            Expect.equal external NoOp "kein Toast"
+            Expect.equal (lineOf failed) (Some (FeedbackError, "Rückgängig nicht möglich", "Netz", Some "Erneut")) "rot"
+            let _, msgs, _ = run ReviewRetryLast failed
+            Expect.contains msgs (RunSetEntryTransfer (idOf cardA, tagesgeld, true)) "dieselbe Rücknahme"
+
+        testCase "Z nimmt die jüngste Aktion zurück: Feld oder Zeile (reine Funktion)" <| fun () ->
+            let id = idOf cardA
+            let note stamp =
+                Some { EntryId = id; Text = "Bahn"; Available = None; Undo = UndoCategory (id, None); Flashing = false; Stamp = stamp }
+            let line act = Some { EntryId = id; Kind = LastConfirmed; Payee = None; Outcome = LastDone; Act = act }
+            let session fieldNote last lastStamp = { reviewStarting with FieldNote = fieldNote; Last = last; LastStamp = lastStamp }
+            let undoLine = Some (LastUndo (UndoSkipped id))
+            Expect.equal (reviewUndoTarget (session (note 3) (line undoLine) 2)) (Some (UndoAtField (UndoCategory (id, None)))) "Feld jünger"
+            Expect.equal (reviewUndoTarget (session (note 1) (line undoLine) 2)) (Some (UndoAtLine (UndoSkipped id))) "Zeile jünger"
+            Expect.equal (reviewUndoTarget (session (note 1) (line (Some (LastRetry (RetryConfirm id)))) 2)) (Some (UndoAtField (UndoCategory (id, None)))) "Zeile ohne Rückgängig"
+            Expect.equal (reviewUndoTarget (session None (line undoLine) 2)) (Some (UndoAtLine (UndoSkipped id))) "nur Zeile"
+            Expect.equal (reviewUndoTarget (session None None 0)) None "nichts"
+
+        testCase "Z im Durchgehen: nach der Kategorie die Kategorie, nach Später auf der nächsten Karte die Zeile" <| fun () ->
+            let after, _, _ = reviewing [ cardB; cardC ] |> picked (changed None) (Some (YnabCategoryId food))
+            Expect.equal (Components.Ledger.View.reviewKeyFor after "" false false "z") (Some KeyUndo) "Z angeboten"
+            let _, msgs, _ = run (ReviewKey KeyUndo) after
+            Expect.contains msgs (RunUndoCategory (idOf cardB, None)) "Kategorie zurück"
+            // Die Zeile unter dem Knopf ist jünger als die Kategorie: Z nimmt die Zeile.
+            let skipped = after |> step ReviewSkip
+            let lastFirst = { skipped with Review = skipped.Review |> Option.map (fun r -> { r with FieldNote = (fieldNoteOf after) |> Option.map (fun n -> { n with EntryId = idOf cardC }) }) }
+            let back, _, _ = run (ReviewKey KeyUndo) lastFirst
+            Expect.equal (cardId back) (Some (idOf cardB)) "Später zurück"
+
+        testCase "außerhalb des Durchgehens bleibt die Rückmeldung der Kategorie wie bisher (ledger-p5y9s)" <| fun () ->
+            let model, _ = Components.Ledger.State.init ()
+            let model = { model with Categories = Success categories; Entries = Success [ cardB ] }
+            let started = step (StartSetEntryCategory (idOf cardB, Some (YnabCategoryId food))) model
+            let after, _, external = run (EntryCategorySet (idOf cardB, Some (YnabCategoryId food), Ok (changed None))) started
+            match external with
+            | PostFeedback note -> Expect.isSome note.Act "Leiste mit Rückgängig"
+            | other -> failtestf "Leiste erwartet: %A" other
+            Expect.isNone after.Review "kein Durchgehen"
+            let failed, _, external = run (EntryCategorySet (idOf cardB, Some (YnabCategoryId food), Error "Netz")) started
+            match external with
+            | PostFeedback note -> Expect.equal note.Tone FeedbackError "rot in der Leiste"
+            | other -> failtestf "Leiste erwartet: %A" other
+            Expect.isNone failed.Review "kein Durchgehen"
     ]
