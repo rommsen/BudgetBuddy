@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-20 01:43 -- Modeling / Promoted: budgeting-p3sk0 - "Angepinnt ohne Meldung (R3): Anpinnen und Lösen im Kategorie-Detail ohne Toast, die Kategorie leuchtet auf der Übersicht im Bereich „Angepinnt“ kurz, ein Fehler beim Speichern steht am Ort"
+
+**Type:** Modeling / Promote
+**BC:** budgeting
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-20 01:43 -- Modeling / Promoted: budgeting-sx9v5 - "Targets und Kategorien verwalten am Handy ohne Toast (R3): Ergebnis am Target im Sheet und in der Zeile der Prüfung, Kategorien verwalten mit leuchtender Zeile und Fehler am Feld, Hinweis „nicht neu gelesen“ auf der Seite"
 
 **Type:** Modeling / Promote
