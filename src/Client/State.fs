@@ -60,7 +60,7 @@ type Msg =
     // Rückmeldung (design-system-gkded). Die Seiten melden weiter per Toast-Text, die Wurzel setzt den Platz.
     | ShowToast of string * ToastType
     | ShowToastWithAction of string * ToastType * ToastAction  // mit Schaltfläche (ledger-th36h)
-    /// Eine Meldung mit getrennter Aktion und Detail (ohne `FeedbackSlot.splitText`), für die Folge-Tasks.
+    /// Eine Meldung mit getrennter Aktion und Detail (ohne `FeedbackSlot.splitText`).
     | ShowFeedback of FeedbackMessage
     /// Dieselbe Meldung, aber nur auf freien Platz (`FeedbackSlot.isFree`), etwa der Spiegel im Hintergrund.
     | ShowFeedbackIfFree of FeedbackMessage
@@ -1062,14 +1062,8 @@ let rec updateWith (ports: UpdatePorts) (msg: Msg) (model: Model) : Model * Cmd<
             | Components.Budget.Types.ShowToast (message, toastType) -> Cmd.ofMsg (ShowToast (message, toastType))
             | Components.Budget.Types.ShowToastWithAction (message, toastType, action) ->
                 Cmd.ofMsg (ShowToastWithAction (message, toastType, action))
-            // `Budget.update` setzt eine Meldung mit Ort selbst an ihren Platz (budgeting-gtrgk); kommt sie doch, geht sie
-            // in die Leiste.
-            | Components.Budget.Types.ShowLine line ->
-                match Components.Budget.State.lineToast line with
-                | Components.Budget.Types.ShowToastWithAction (message, toastType, action) ->
-                    Cmd.ofMsg (ShowToastWithAction (message, toastType, action))
-                | Components.Budget.Types.ShowToast (message, toastType) -> Cmd.ofMsg (ShowToast (message, toastType))
-                | _ -> Cmd.none
+            // `Budget.update` löst eine Meldung mit Ort selbst auf (`routeSheetLine`, budgeting-gtrgk), hier kommt keine an.
+            | Components.Budget.Types.ShowLine _ -> Cmd.none
             | Components.Budget.Types.JumpToEntry entryId -> Cmd.ofMsg (NavigateTo (LedgerEntry entryId))
             | Components.Budget.Types.ShowGeneralHistory -> Cmd.ofMsg (NavigateTo BudgetHistory)
             | Components.Budget.Types.ShowTargetCheck -> Cmd.ofMsg (NavigateTo BudgetTargetCheck)

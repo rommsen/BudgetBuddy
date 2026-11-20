@@ -37,8 +37,6 @@ type ToastProps = {
     Message: string
     Variant: ToastVariant
     Title: string option
-    AutoDismiss: bool
-    DismissAfterMs: int
     /// When true the toast plays its exit animation (soft fade-out) instead of the
     /// entrance. The two-phase removal in the app state sets this before the toast
     /// is actually removed from the list (design-system-004).
@@ -68,13 +66,6 @@ let private variantToIcon variant =
     | Error -> xCircle SM IconColor.Error
     | Warning -> warning SM IconColor.Warning
     | Info -> info SM IconColor.Info
-
-let private variantToTitle variant =
-    match variant with
-    | Success -> "Success"
-    | Error -> "Error"
-    | Warning -> "Warning"
-    | Info -> "Info"
 
 // ============================================
 // Toast Component
@@ -155,36 +146,6 @@ let toast (props: ToastProps) =
         ]
     ]
 
-/// Toast with minimal configuration
-let toastSimple (id: Guid) (message: string) (variant: ToastVariant) (onDismiss: Guid -> unit) =
-    toast {
-        Id = id
-        Message = message
-        Variant = variant
-        Title = None
-        AutoDismiss = true
-        DismissAfterMs = 5000
-        Exiting = false
-        OnDismiss = onDismiss
-        Action = None
-        OnAction = ignore
-    }
-
-/// Toast with title
-let toastWithTitle (id: Guid) (title: string) (message: string) (variant: ToastVariant) (onDismiss: Guid -> unit) =
-    toast {
-        Id = id
-        Message = message
-        Variant = variant
-        Title = Some title
-        AutoDismiss = true
-        DismissAfterMs = 5000
-        Exiting = false
-        OnDismiss = onDismiss
-        Action = None
-        OnAction = ignore
-    }
-
 // ============================================
 // Der eine Toast am PC
 // ============================================
@@ -205,8 +166,6 @@ let single (item: ToastItem option) (onDismiss: Guid -> unit) (onAction: Guid ->
                     Message = item.Message
                     Variant = item.Variant
                     Title = None
-                    AutoDismiss = true
-                    DismissAfterMs = 5000
                     Exiting = item.Exiting
                     OnDismiss = onDismiss
                     Action = item.Action
@@ -215,23 +174,3 @@ let single (item: ToastItem option) (onDismiss: Guid -> unit) (onAction: Guid ->
             | None -> Html.none
         ]
     ]
-
-// ============================================
-// Convenience Functions
-// ============================================
-
-/// Success toast
-let success (id: Guid) (message: string) (onDismiss: Guid -> unit) =
-    toastSimple id message Success onDismiss
-
-/// Error toast
-let error (id: Guid) (message: string) (onDismiss: Guid -> unit) =
-    toastSimple id message Error onDismiss
-
-/// Warning toast
-let warning' (id: Guid) (message: string) (onDismiss: Guid -> unit) =
-    toastSimple id message Warning onDismiss
-
-/// Info toast
-let info' (id: Guid) (message: string) (onDismiss: Guid -> unit) =
-    toastSimple id message Info onDismiss

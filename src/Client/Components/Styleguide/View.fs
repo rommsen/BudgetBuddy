@@ -1344,10 +1344,10 @@ let private ToastDemo () =
             // components-toast.html geschrieben wird. Der Toast ist nicht portalt, das data-ds-card unten erfasst ihn.
             Html.span [
                 prop.custom ("data-ds-card-trigger", "components-toast")
-                prop.children [ Button.secondary "Erfolg" (fire Toast.Success "Gespeichert." None) ]
+                prop.children [ Button.secondary "Erfolg" (fire Toast.Success "Gespeichert" None) ]
             ]
-            Button.secondary "Fehler" (fire Toast.Error "Speichern fehlgeschlagen." None)
-            Button.secondary "Info" (fire Toast.Info "3 neue Transaktionen." None)
+            Button.secondary "Fehler" (fire Toast.Error "Nicht gespeichert: YNAB nicht erreichbar" None)
+            Button.secondary "Info" (fire Toast.Info "3 Buchungen abgerufen" None)
             Button.secondary "Mit Rückgängig" (fire Toast.Success "REWE Mitte geprüft" (Some { Label = "Rückgängig" }))
         ]
         Html.div [
@@ -1367,8 +1367,6 @@ let private ToastDemo () =
                                   Message = item.Message
                                   Variant = item.Variant
                                   Title = None
-                                  AutoDismiss = true
-                                  DismissAfterMs = 5000
                                   Exiting = item.Exiting
                                   OnDismiss = dismiss
                                   Action = item.Action
@@ -1463,6 +1461,7 @@ let private FeedbackDemo () =
                         prop.className "space-y-2"
                         prop.children [
                             Feedback.sheetLine (msg Feedback.Tone.Ok "50,00 € nach Reise" None (Some undo))
+                            Feedback.sheetLine (msg Feedback.Tone.Warning "In YNAB geändert, nichts überschrieben" None None)
                             Feedback.sheetLine
                                 (msg
                                     Feedback.Tone.Error
@@ -1506,7 +1505,7 @@ let private FeedbackDemo () =
                             Feedback.fieldNoteWith Feedback.Tone.Warning "Geändert, nicht in YNAB: HTTP 500" (Some undo)
                             Feedback.fieldNoteWith Feedback.Tone.Error "Nicht geändert: YNAB nicht erreichbar" None
                             // „✓ Gespeichert“ in der Erfolgsrolle (Einstellungen, banking-import-vwhfm).
-                            Feedback.saved "✓ Gespeichert"
+                            Feedback.saved "Gespeichert"
                         ]
                     ]
                 ]
@@ -2190,9 +2189,30 @@ let private SwipeDemo () =
                             ]
                         ]
                 }
+                // ledger-gwr9j: nach rechts mit Zeichen vor dem Label, wie „✓ Geprüft“ im Kassenbuch.
+                Swipe.SwipeableRowRight {
+                    ActionLabel = "Geprüft"
+                    ActionIcon = Some (Icons.check Icons.XS Icons.Success)
+                    ActionClass = "reviewed"
+                    OnCommit = fun () -> setSwiped true
+                    Children =
+                        Html.div [
+                            prop.className "tx-row mt-2 flex items-center justify-between bg-surface-card border border-border-subtle rounded-lg p-4"
+                            prop.children [
+                                Html.div [
+                                    prop.className "flex flex-col"
+                                    prop.children [
+                                        Html.span [ prop.className "text-sm font-semibold text-text-primary"; prop.text "Stadtwerke" ]
+                                        Html.span [ prop.className "text-xs text-text-muted"; prop.text "Nach rechts wischen zum Prüfen" ]
+                                    ]
+                                ]
+                                Money.simple -84.20m "EUR"
+                            ]
+                        ]
+                }
             ]
         ]
-        if swiped then Badge.success "Übersprungen (Demo)"
+        if swiped then Badge.success "Gewischt (Demo)"
     ]
 
 // ============================================
