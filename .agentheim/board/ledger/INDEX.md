@@ -10,14 +10,15 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 15
-- **Todo:** 0
+- **Backlog:** 14
+- **Todo:** 1
 - **Doing:** 0
 - **Done:** 158
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **ledger-p5y9s** — "Kassenbuch am Handy ohne Toast (R3), Teil 2 Detail I: Rückgängig am Feld im Detail-Sheet als Mechanik, Kategorie, Übertrag und Aufteilen bestätigen am Feld, Fehler am Feld, Übergang beim Schließen" (feature) — `todo/ledger-p5y9s-detail-ohne-toast-kategorie-uebertrag-aufteilen.md`
 <!-- todo-list:end -->
 
 ### Doing
@@ -90,7 +91,6 @@ research touching this BC, and concept synthesis pages.
 <!-- backlog-list:start -->
 - **ledger-k68sd** — "Kassenbuch am Handy ohne Toast (R3), Teil 4: gelöschte Buchung hinterlässt eine Zeile am Platz „… gelöscht · Rückgängig“ statt Toast, Fehler beim Löschen unter dem Knopf" (feature) — `backlog/ledger-k68sd-geloeschte-buchung-als-zeile-am-platz.md`
 - **ledger-enjex** — "Kassenbuch am Handy ohne Toast (R3), Teil 3 Detail II: Memo, Betrag und Payee mit Rückgängig am Feld, Lena-Knopf wechselt ohne Text, Erneut senden ohne Meldung; Schlussprüfung kein Toast im Kassenbuch am Handy" (feature) — `backlog/ledger-enjex-detail-ohne-toast-memo-betrag-payee-lena.md`
-- **ledger-p5y9s** — "Kassenbuch am Handy ohne Toast (R3), Teil 2 Detail I: Rückgängig am Feld im Detail-Sheet als Mechanik, Kategorie, Übertrag und Aufteilen bestätigen am Feld, Fehler am Feld, Übergang beim Schließen" (feature) — `backlog/ledger-p5y9s-detail-ohne-toast-kategorie-uebertrag-aufteilen.md`
 - **ledger-mf2bg** — "Durchgehen: Kategorie und Übertrag auf der Karte am Feld bestätigt (Feld leuchtet, „<Name> · <Betrag> verfügbar“ mit Rückgängig), ohne Toast" (feature) — `backlog/ledger-mf2bg-durchgehen-kategorie-am-feld.md`
 - **ledger-pz5wv** — "Durchgehen ohne Toast (B3): letzte Aktion unter „Passt, weiter“ mit Rückgängig für jede Aktion, Kategorie am Feld bestätigt, Fehler rot an derselben Stelle" (feature) — `backlog/ledger-pz5wv-durchgehen-ohne-toast-letzte-aktion.md`
 - **ledger-vf5h6** — "Design-Exploration Durchgehen am Handy: Wischen mit Bewegung und sichtbarer Aktion darunter, Bestätigen ohne störenden Toast, Memo auf der Karte ganz lesbar. Ergebnis ist eine Skizze mit Optionen zur Freigabe durch Roman, danach Tasks je Teil." (spike) — `backlog/ledger-vf5h6-design-exploration-durchgehen-handy.md`

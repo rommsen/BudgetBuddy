@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-20 02:55 -- Modeling / Promoted: ledger-p5y9s - "Kassenbuch am Handy ohne Toast (R3), Teil 2 Detail I: Rückgängig am Feld im Detail-Sheet als Mechanik, Kategorie, Übertrag und Aufteilen bestätigen am Feld, Fehler am Feld, Übergang beim Schließen"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-20 02:55 -- Task verified and completed: ledger-gwr9j - "Kassenbuch am Handy ohne Toast (R3), Teil 1 Liste: Texte der Leiste für Wische, Spiegeln, Neue Buchung, Mehrfachauswahl und Ladefehler, „Spiegeln läuft“, Rückgängig nach n Wischen ohne Sprung der Liste"
 
 **Type:** Work / Task completion
