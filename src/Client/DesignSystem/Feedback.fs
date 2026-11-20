@@ -329,6 +329,51 @@ let sheetLine (message: Message) : ReactElement =
             ]
         ]
 
+/// Ein Zustand der Seite als Hinweis am Ort (ADR 0098: „ein Zustand der Seite ist keine Meldung“, budgeting-gtrgk,
+/// Skizze ledger-vf5h6 `.mk-hint`): gelb getönte Fläche, „! <Text>“ in Gelb, darunter kleiner die Gründe, rechts eine
+/// Textaktion im Akzent („Neu laden“). Er bleibt, bis die App ihn wegnimmt; kein ✕, kein Zeitlimit. `running`: die
+/// Aktion läuft, sie steht gedämpft mit `aria-busy` da und ein Tipp tut nichts.
+let stateHint (testId: string) (text: string) (reasons: string list) (act: Act option) (running: bool) : ReactElement =
+    Html.div [
+        prop.custom ("data-testid", testId)
+        prop.role "status"
+        prop.className (
+            $"flex flex-wrap items-center gap-x-2 gap-y-0.5 {Radius.md} {Backgrounds.attentionSubtle} "
+            + $"py-1.5 pl-2.5 pr-1.5 {FontSizes.compact} {Colors.attention}"
+        )
+        prop.children [
+            Html.div [
+                prop.className "flex min-w-0 flex-[1_1_180px] flex-col"
+                prop.children [
+                    Html.span [ prop.className "break-words"; prop.text $"! {text}" ]
+                    for reason in reasons do
+                        Html.span [
+                            prop.custom ("data-testid", $"{testId}-reason")
+                            prop.className $"{FontSizes.xs} {Colors.textSecondary} line-clamp-2 break-words"
+                            prop.title reason
+                            prop.text reason
+                        ]
+                ]
+            ]
+            match act with
+            | Some a ->
+                Html.button [
+                    prop.type' "button"
+                    prop.custom ("data-feedback-action", "true")
+                    prop.custom ("aria-busy", running)
+                    prop.custom ("aria-disabled", running)
+                    prop.className (
+                        $"flex-none inline-flex items-center justify-center {TouchTargets.minSize} px-2 {FontSizes.compact} "
+                        + $"{FontWeights.semibold} {Colors.accent} whitespace-nowrap touch-manipulation"
+                        + (if running then " opacity-60 cursor-wait" else "")
+                    )
+                    prop.onClick (fun _ -> if not running then a.OnClick ())
+                    prop.text a.Label
+                ]
+            | None -> Html.none
+        ]
+    ]
+
 /// Die Bestätigung unter einem Feld (Platz 1): klein, gedämpft, Text und Knopf in einer umbrechenden Zeile
 /// („Bahn · 84,20 € verfügbar · Rückgängig“). Der Knopf hat unter 1024 px 48 px Trefferfläche.
 let fieldNote (text: string) (act: Act option) : ReactElement =

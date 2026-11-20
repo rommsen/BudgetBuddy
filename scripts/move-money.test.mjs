@@ -76,6 +76,11 @@ async function openPage(width, height, handlers) {
     json(route, { Ok: monthFixture(state.food, state.trip, key) });
   });
   await page.route("**/api/BudgetApi/getRecentMoveCategories", (route) => json(route, { Ok: [] }));
+  // Ohne diese Antworten meldete die App beim Start Fehler, die als Toast neben der Zeile im Sheet stünden.
+  await page.route("**/api/SettingsApi/getLenaFlagSettings", (route) => json(route, { SavedColor: null, SuggestedColor: null }));
+  await page.route("**/api/SettingsApi/getSettings", (route) =>
+    json(route, { Comdirect: null, Ynab: { HasToken: true, DefaultBudgetId: { YnabBudgetId: "fake-budget-id" }, DefaultAccountId: null, QuickAddAccountId: null }, Sync: { DaysToFetch: 14, AutoFetchEnabled: true, AutoFetchIntervalMinutes: 360 } })
+  );
   await page.route("**/api/BudgetApi/moveMoney", (route) => {
     calls.move.push(route.request().postData());
     const answer = handlers.move(state);
@@ -159,7 +164,13 @@ test("[flow:geld-verschieben] Handy: Zeile wählen, Abgeben, Gegenseite suchen, 
     await afterPicker(page);
     await submit.click();
     await formReset(page);
-    await page.getByText("20,00 € von Lebensmittel afd8h nach Urlaub afd8h").first().waitFor();
+    // Regel R3 (budgeting-gtrgk): das Ergebnis steht als Zeile über dem Hauptknopf im Sheet, aus Sicht der Kategorie,
+    // kein Toast und keine Meldung in der Leiste.
+    const line = page.locator('.bottom-sheet.active [data-testid="feedback-sheet-line"]');
+    await line.filter({ hasText: "20,00 € nach Urlaub afd8h" }).waitFor();
+    assert.match(await text(line), /^✓ 20,00 € nach Urlaub afd8h$/, "✓ und Text");
+    assert.equal(await page.locator(".toast-layer > *").count(), 0, "kein Toast im DOM");
+    assert.equal(await page.getByTestId("feedback-message").count(), 0, "keine Meldung in der Leiste");
     await visibleRow(page, "Lebensmittel afd8h").locator('[data-testid="budget-available"]', { hasText: "60,00 €" }).waitFor();
     assert.match(await text(visibleRow(page, "Urlaub afd8h")), /-10,00 €/);
     assert.equal(calls.move.length, 1);
@@ -172,7 +183,7 @@ test("[flow:geld-verschieben] Handy: Zeile wählen, Abgeben, Gegenseite suchen, 
   }
 });
 
-test("[flow:verschiebung-erneut-senden] Fehlgeschlagener PATCH: der Hinweis steht in jedem Tab, die Meldung bietet Erneut senden an, der Klick sendet dieselbe Anwendung", async () => {
+test("[flow:verschiebung-erneut-senden] Fehlgeschlagener PATCH: der Hinweis steht in jedem Tab, die Zeile im Sheet bietet Erneut senden an, der Klick sendet dieselbe Anwendung", async () => {
   const { context, page, calls } = await openPage(390, 844, {
     move: () => ({ Ok: report({ Failed: "Rate-Limit" }) }),
     retry: () => ({ Ok: report("Written") }),
@@ -184,11 +195,11 @@ test("[flow:verschiebung-erneut-senden] Fehlgeschlagener PATCH: der Hinweis steh
     await page.locator('.bottom-sheet.active [role="option"]').filter({ hasText: "Urlaub afd8h" }).click();
     await afterPicker(page);
     await page.locator('[data-testid="transfer-submit"] button').click();
-    // Regel R3 (design-system-gkded): am Handy steht die Rückmeldung in der Leiste, die bis zu den Folge-Tasks unter
-    // dem offenen Sheet liegt.
-    const bar = page.getByTestId("feedback-bar");
-    await bar.getByTestId("feedback-action").filter({ hasText: "Nicht vollständig verschoben" }).waitFor();
-    await bar.getByTestId("feedback-detail").filter({ hasText: "Rate-Limit" }).waitFor();
+    // Regel R3 (budgeting-gtrgk): bei offenem Sheet steht der Fehler rot in der Zeile über dem Hauptknopf, mit
+    // Erneut senden.
+    const line = page.locator('.bottom-sheet.active [data-testid="feedback-sheet-line"]');
+    await line.filter({ hasText: "Nicht vollständig verschoben: Rate-Limit" }).waitFor();
+    assert.equal(await line.getAttribute("data-tone"), "error", "rot");
     // Der Hinweis der offenen Verschiebung steht in jedem Tab des Sheets (aus dem früheren Layout-Test in
     // budget-money-tab.test.mjs hierher gezogen).
     const hint = page.locator('.bottom-sheet.fixed-height.active [data-testid="move-retry"]');
@@ -197,10 +208,8 @@ test("[flow:verschiebung-erneut-senden] Fehlgeschlagener PATCH: der Hinweis steh
       await tab.click();
       await hint.waitFor();
     }
-    await page.locator(".bottom-sheet.active").getByRole("button", { name: "Schließen" }).first().click();
-    await page.waitForFunction(() => document.querySelectorAll(".bottom-sheet.active").length === 0);
-    await bar.locator('[data-feedback-action="true"]', { hasText: "Erneut senden" }).click();
-    await bar.getByTestId("feedback-action").filter({ hasText: "20,00 € von Lebensmittel afd8h nach Urlaub afd8h" }).waitFor();
+    await line.locator('[data-feedback-action="true"]', { hasText: "Erneut senden" }).click();
+    await line.filter({ hasText: "20,00 € nach Urlaub afd8h" }).waitFor();
     assert.deepEqual(calls.retry, [["11111111-1111-1111-1111-111111111111"]]);
   } finally {
     await context.close();

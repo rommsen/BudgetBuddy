@@ -1036,6 +1036,14 @@ let rec updateWith (ports: UpdatePorts) (msg: Msg) (model: Model) : Model * Cmd<
             | Components.Budget.Types.ShowToast (message, toastType) -> Cmd.ofMsg (ShowToast (message, toastType))
             | Components.Budget.Types.ShowToastWithAction (message, toastType, action) ->
                 Cmd.ofMsg (ShowToastWithAction (message, toastType, action))
+            // `Budget.update` setzt eine Meldung mit Ort selbst an ihren Platz (budgeting-gtrgk); kommt sie doch, geht sie
+            // in die Leiste.
+            | Components.Budget.Types.ShowLine line ->
+                match Components.Budget.State.lineToast line with
+                | Components.Budget.Types.ShowToastWithAction (message, toastType, action) ->
+                    Cmd.ofMsg (ShowToastWithAction (message, toastType, action))
+                | Components.Budget.Types.ShowToast (message, toastType) -> Cmd.ofMsg (ShowToast (message, toastType))
+                | _ -> Cmd.none
             | Components.Budget.Types.JumpToEntry entryId -> Cmd.ofMsg (NavigateTo (LedgerEntry entryId))
             | Components.Budget.Types.ShowGeneralHistory -> Cmd.ofMsg (NavigateTo BudgetHistory)
             | Components.Budget.Types.ShowTargetCheck -> Cmd.ofMsg (NavigateTo BudgetTargetCheck)

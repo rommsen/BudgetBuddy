@@ -48,6 +48,17 @@ let private update msg model =
     let model', _, external = Components.Budget.State.update msg model
     model', external
 
+/// Ton und Text der Meldung einer Antwort, gleich an welchem Platz (budgeting-gtrgk): die Zeile im Sheet oder, bei
+/// geschlossenem Sheet, die Leiste. Wo sie steht, prüft `sheetLineRouteTests`.
+let private notice (model: Model, external: ExternalMsg) : (SheetLineTone * string) option =
+    match external, model.SheetLine with
+    | ShowToast (text, ToastWarning), _ -> Some (LineWarning, text)
+    | ShowToast (text, ToastError), _
+    | ShowToastWithAction (text, ToastError, _), _ -> Some (LineError, text)
+    | ShowToast (text, ToastSuccess), _ -> Some (LineOk, text)
+    | NoOp, Some line -> Some (line.Tone, line.Text)
+    | _ -> None
+
 /// Führt Nachrichten nacheinander aus und gibt das Modell zurück.
 let private run (msgs: Msg list) (model: Model) : Model =
     msgs |> List.fold (fun current msg -> fst (update msg current)) model
@@ -129,18 +140,22 @@ let private fieldTests =
             Expect.equal (field food model) "abc" "Text bleibt"
             Expect.isTrue (assignFieldInvalid (tabOf model)) "rot"
         }
-        test "Ungültiger Text beim Verlassen: nichts geschrieben, Eingabe verworfen, Warn-Toast" {
+        // budgeting-gtrgk: bleibt das Sheet offen, steht die Warnung in der Zeile, sonst in der Leiste.
+        test "Ungültiger Text beim Verlassen: nichts geschrieben, Eingabe verworfen, gelbe Zeile oder Leiste" {
             let invalid = run [ typed "abc" ] onFood
+            let warning = { Tone = LineWarning; Text = "Zugewiesen nicht gespeichert: keine gültige Rechnung"; Retry = None }
             for name, msg in
                 [ "Tab", SelectInspectorTab EntriesTab
                   "Kategorie", SelectCategory trip.Id
                   "Monat", SelectMonth "2026-10-01"
-                  "Modus", SwitchMoneyMode TakeMode
-                  "Schließen", CloseInspector ] do
+                  "Modus", SwitchMoneyMode TakeMode ] do
                 let model, external = update msg invalid
                 Expect.isEmpty model.AssignQueue name
                 Expect.equal (model.TabMoney |> Option.bind (fun t -> t.Entry)) None name
-                Expect.equal external (ShowToast ("Zugewiesen nicht gespeichert: keine gültige Rechnung", ToastWarning)) name
+                Expect.equal (model.SheetLine, external) (Some warning, NoOp) $"{name}: in der Zeile"
+            let closed, external = update CloseInspector invalid
+            Expect.isEmpty closed.AssignQueue "Schließen"
+            Expect.equal (closed.SheetLine, external) (None, ShowToast (warning.Text, ToastWarning)) "Schließen: in der Leiste"
         }
     ]
 
@@ -208,14 +223,12 @@ let private leaveTests =
             let stale = applyLoaded edited.MonthGeneration (Ok month) model
             Expect.equal (categoryIn stale food).Assigned (eur 920m) "die alte Antwort fällt weg"
         }
-        test "Fällt die Kategorie beim Neu-Lesen weg, ist die Eingabe verworfen und ein Warn-Toast nennt das" {
+        test "Fällt die Kategorie beim Neu-Lesen weg, ist die Eingabe verworfen und die Leiste nennt das, das Sheet ist zu" {
             let without = monthOf 100m [ trip ]
             let model, external = update (Loaded (edited.MonthGeneration, Ok without)) edited
             Expect.isNone model.TabMoney "weg"
             Expect.isEmpty model.AssignQueue "nichts geschrieben"
-            match external with
-            | ShowToast (text, ToastWarning) -> Expect.stringContains text "Zugewiesen nicht gespeichert" "Text"
-            | other -> failtest $"Warnung erwartet: {other}"
+            Expect.equal external (ShowToast ("Zugewiesen nicht gespeichert: die Kategorie gibt es nicht mehr", ToastWarning)) "Leiste"
         }
         test "Während eines Monatswechsels nimmt das Feld keine Eingabe an, Schritte und Knöpfe tun nichts" {
             // Über `update`: seit budgeting-xp46a hat auch eine Kategorie ohne Target im laufenden Monat ein
@@ -262,18 +275,18 @@ let private queueTests =
             let red = { selected trip loaded with AssignQueue = [ write food 1m WriteRunning ] }
             Expect.equal (commands CoverMissing { red with TabMoney = red.TabMoney |> Option.map (fun t -> { t with Mode = AssignMode }) }) 0 "Fehlbetrag"
         }
-        test "Error: der Toast nennt den Grund, die Schlange läuft weiter, der Monat wird neu gelesen" {
+        test "Error: die rote Zeile nennt den Grund, die Schlange läuft weiter, der Monat wird neu gelesen" {
             let model = onFood |> saved food "+1" |> saved trip "1"
             let next, external = update (AssignAnswered (Error "Monat nicht offen")) model
-            Expect.equal external (ShowToast ("Nicht zugewiesen: Monat nicht offen", ToastError)) "Grund"
+            Expect.equal (notice (next, external)) (Some (LineError, "Nicht zugewiesen: Monat nicht offen")) "Grund"
             Expect.equal (next.AssignQueue |> List.map (fun w -> w.State)) [ WriteRunning ] "weiter"
             let last, _ = update (AssignAnswered (Error "x")) next
             Expect.equal last.MonthGeneration (next.MonthGeneration + 1) "neu gelesen"
         }
-        test "Aufruf abgebrochen: Toast Ob zugewiesen wurde ist unklar, Monat neu lesen" {
+        test "Aufruf abgebrochen: rot Ob zugewiesen wurde ist unklar, Monat neu lesen" {
             let model = onFood |> saved food "+1"
             let next, external = update (AssignCallLost "Timeout") model
-            Expect.equal external (ShowToast ("Ob zugewiesen wurde, ist unklar: Timeout. Der Stand wird gleich neu gelesen.", ToastError)) "ehrlich"
+            Expect.equal (notice (next, external)) (Some (LineError, "Ob zugewiesen wurde, ist unklar: Timeout. Der Stand wird gleich neu gelesen.")) "ehrlich"
             Expect.isEmpty next.AssignQueue "leer"
             Expect.equal next.MonthGeneration (model.MonthGeneration + 1) "neu gelesen"
         }
@@ -369,7 +382,8 @@ let private busyTests =
             // Von Hand gebaut: Über `update` startet keine Bewegung mit offener Eingabe.
             let sendingWithEntry = fst (confirmTransfer (run [ typed "+5" ] takeReady))
             Expect.isTrue (inspectorBusy sendingWithEntry) "Vorbedingung"
-            Expect.equal (run [ RetryMove "app-1"; ConfirmTransfer ] sendingWithEntry) sendingWithEntry "kein Start, nichts gespeichert"
+            let tried = run [ RetryMove "app-1"; ConfirmTransfer ] sendingWithEntry
+            Expect.equal { tried with SheetLine = None } sendingWithEntry "kein Start, nichts gespeichert"
             let left = run [ AssignFieldLeft ] sendingWithEntry
             Expect.isEmpty left.AssignQueue "nichts in der Schlange"
             Expect.equal (field food left) "+5" "die Eingabe steht"
@@ -637,17 +651,17 @@ let private settledTests =
                 Expect.isTrue (moveRunning (run [ way.Start ] idle)) $"{way.Name}: startet")
         }
         // budgeting-c5w2n, Verifier-Fund Iteration 4: Der Toast "Erneut senden" schloss sich und nichts geschah.
-        test "Läuft die Schlange oder eine Bewegung, bleibt alles stehen und ein Toast nennt es" {
-            let blocked = ShowToast (moveBlockedText, ToastWarning)
+        test "Läuft die Schlange oder eine Bewegung, bleibt alles stehen und eine gelbe Meldung nennt es" {
+            let blocked = Some (LineWarning, moveBlockedText)
             forEachWay (fun way ->
                 let busy = armedWith [ typed "+1"; AssignFieldLeft ] way
                 let model, external = update way.Start busy
-                Expect.equal model busy way.Name
-                Expect.equal external blocked $"{way.Name}: Schlange"
+                Expect.equal { model with SheetLine = None } { busy with SheetLine = None } way.Name
+                Expect.equal (notice (model, external)) blocked $"{way.Name}: Schlange"
                 let running = run [ way.Start ] (armedWith [] way)
                 let again, repeated = update way.Start running
-                Expect.equal again running way.Name
-                Expect.equal repeated blocked $"{way.Name}: Bewegung")
+                Expect.equal { again with SheetLine = None } { running with SheetLine = None } way.Name
+                Expect.equal (notice (again, repeated)) blocked $"{way.Name}: Bewegung")
         }
         test "Wird die offene Eingabe gerade gespeichert, zeigt das der Knopf, kein Toast" {
             forEachWay (fun way ->
@@ -661,8 +675,7 @@ let private settledTests =
         test "Eine Eingabe ohne Änderung bei laufender Schlange fällt weg, der Toast nennt die Sperre" {
             forEachWay (fun way ->
                 let waiting = armedWith [ typed "+1"; AssignFieldLeft; typed "+0" ] way
-                let _, external = update way.Start waiting
-                Expect.equal external (ShowToast (moveBlockedText, ToastWarning)) way.Name)
+                Expect.equal (notice (update way.Start waiting)) (Some (LineWarning, moveBlockedText)) way.Name)
         }
         test "Ohne Eingabe und mit leerer Schlange startet die Bewegung" {
             forEachWay (fun way ->
@@ -700,7 +713,7 @@ let private settledTests =
         test "Eine ungültige Eingabe fällt mit Warnung weg, die Bewegung startet nicht" {
             forEachWay (fun way ->
                 let model, external = update way.Start (armedWith [ typed "abc" ] way)
-                Expect.equal external (ShowToast (invalidEntryText, ToastWarning)) way.Name
+                Expect.equal (notice (model, external)) (Some (LineWarning, invalidEntryText)) way.Name
                 Expect.isNone (tabOf model).Entry way.Name
                 Expect.isFalse (moveRunning model) way.Name)
         }
@@ -717,7 +730,8 @@ let private settledTests =
             Expect.isEmpty covered.AssignQueue "Fehlbetrag"
             let model, external = update (coverWay.Landed 900m) covered
             Expect.isFalse (moveRunning model) "beendet"
-            Expect.equal external (moveToast { ApplicationId = "app-2"; Month = monthKey; Lines = [ line rent 900m 912.3m Written ]; ActualToBeBudgeted = None }) "Toast"
+            // Die Auswahl wartete auf das Ende des Aufrufs, das Sheet ist zu: die Leiste nennt beide Seiten.
+            Expect.equal (model.SheetLine, external) (None, ShowToast ("12,30 € von Zu verteilen nach Miete", ToastSuccess)) "Leiste"
             let free = run [ Reloaded (model.MonthGeneration, Ok (monthWith 912.3m)); SelectCategory rent.Id; SwitchMoneyMode AssignMode; AssignStepped 10m; AssignFieldLeft ] model
             Expect.equal (queued free) [ rent.Id, monthKey, 922.3m ] "auf dem neuen Stand"
         }
@@ -845,9 +859,9 @@ let private reviewTests =
             Expect.equal external NoOp "kein falscher Grund"
             Expect.isNone (tabOf model).Entry "die Eingabe ist weg"
         }
-        test "Rückt das Nachlesen den Monat weiter, nennt der Toast die ungültige Eingabe" {
-            let _, external = update (FrameRefreshed (Ok { frame with CurrentMonth = "2026-12-01" })) (run [ typed "abc" ] onFood)
-            Expect.equal external (ShowToast (invalidEntryText, ToastWarning)) "der echte Grund"
+        test "Rückt das Nachlesen den Monat weiter, nennt die gelbe Meldung die ungültige Eingabe" {
+            let moved = update (FrameRefreshed (Ok { frame with CurrentMonth = "2026-12-01" })) (run [ typed "abc" ] onFood)
+            Expect.equal (notice moved) (Some (LineWarning, invalidEntryText)) "der echte Grund"
         }
         test "Ändert das Nachlesen den Monat nicht, bleibt die Eingabe offen" {
             let edited = run [ typed "+20" ] onFood
@@ -919,7 +933,7 @@ let private reviewTests =
             let model, external = update CoverMissing (run [ typed "+5" ] onRent)
             Expect.isNone (tabOf model).Entry "verworfen"
             Expect.isEmpty model.AssignQueue "nicht gespeichert"
-            Expect.equal external (ShowToast (coverDroppedEntryText, ToastWarning)) "gemeldet"
+            Expect.equal (model.SheetLine, external) (Some { Tone = LineWarning; Text = coverDroppedEntryText; Retry = None }, NoOp) "in der Zeile gemeldet"
         }
         test "Ohne Änderung im Feld und ohne gesendeten Auftrag gibt es keine Meldung" {
             Expect.equal (snd (update CoverMissing (run [ typed "+0" ] onRent))) NoOp "nichts verloren"
@@ -1096,15 +1110,17 @@ let private transferTests =
             let model = run [ TransferAmountChanged "1" ] takeReady
             Expect.equal (transferWarning month (tabOf model)) (Some "Urlaub hat 0,00 € frei") "nie negativ"
         }
-        test "Nach Erfolg bleibt der Modus, Betrag und Gegenseite sind zurückgesetzt, der Toast nennt die Verschiebung" {
-            let r = report [ "Urlaub", 0m, -20m, Written; "Lebensmittel", 900m, 920m, Written ]
+        // budgeting-gtrgk: die Zeile spricht aus Sicht der gewählten Kategorie, „Verfügbar“ leuchtet.
+        test "Nach Erfolg bleibt der Modus, Betrag und Gegenseite sind zurückgesetzt, die Zeile nennt die Verschiebung" {
+            let r = { report [] with Lines = [ line trip 0m -20m Written; line food 900m 920m Written ] }
             let model, external, reload = applyMoveAnswered (Ok r) (sending ())
             Expect.equal (tabOf model).Mode TakeMode "Modus"
             Expect.isNone (tabOf model).Transfer.AmountInput "Betrag"
             Expect.isNone (tabOf model).Transfer.Counterpart "Gegenseite"
             Expect.equal (tabOf model).Transfer.Submission Editing "wieder bereit"
             Expect.isTrue reload "neu lesen"
-            Expect.equal external (ShowToast ("20,00 € von Urlaub nach Lebensmittel", ToastSuccess)) "Toast"
+            Expect.equal external (ShowLine { Tone = LineOk; Text = "20,00 € von Urlaub"; Retry = None }) "aus Sicht von Lebensmittel"
+            Expect.isTrue model.AvailableFlash.On "Verfügbar leuchtet"
         }
         test "Error: der Grund steht im Tab, die Eingaben bleiben" {
             let model, external, reload = applyMoveAnswered (Error "YNAB antwortet nicht") (sending ())
@@ -1114,11 +1130,11 @@ let private transferTests =
             Expect.equal external NoOp "kein Toast"
             Expect.isFalse reload "nichts geändert"
         }
-        test "Aufruf abgebrochen: Formular zurückgesetzt, Toast, Monat neu lesen" {
+        test "Aufruf abgebrochen: Formular zurückgesetzt, rote Zeile, Monat neu lesen" {
             let busy = sending ()
             let model, external = applyMoveCallLost "Timeout" busy
             Expect.isNone (tabOf model).Transfer.AmountInput "zurückgesetzt"
-            Expect.equal external (ShowToast ("Ob verschoben wurde, ist unklar: Timeout. Der Stand wird gleich neu gelesen.", ToastError)) "ehrlich"
+            Expect.equal external (ShowLine { Tone = LineError; Text = "Ob verschoben wurde, ist unklar: Timeout. Der Stand wird gleich neu gelesen."; Retry = None }) "ehrlich"
             Expect.equal model.MonthGeneration (busy.MonthGeneration + 1) "neu lesen"
         }
         test "Solange ein Aufruf läuft, wird der Inspektor nicht verlassen" {
@@ -1131,7 +1147,9 @@ let private transferTests =
         test "Ein Doppeltipp ergibt einen Auftrag" {
             let busy = sending ()
             Expect.equal (commands ConfirmTransfer busy) 0 "kein zweiter"
-            Expect.equal (fst (update ConfirmTransfer busy)) busy "update tut nichts"
+            let tapped = fst (update ConfirmTransfer busy)
+            Expect.equal { tapped with SheetLine = None } busy "update tut nichts"
+            Expect.equal tapped.SheetLine (Some { Tone = LineWarning; Text = moveBlockedText; Retry = None }) "die Zeile nennt die Sperre"
         }
         test "Während eines Monatswechsels ist der Knopf gesperrt, kein Auftrag geht in den alten Monat" {
             let changing = fst (select "2026-12-01" takeReady)
@@ -1222,11 +1240,10 @@ let private openRetryTests =
             let failed = report [ "Lebensmittel", 900m, 920m, Failed "Rate-Limit" ]
             let next, external = update (AssignAnswered (Ok failed)) model
             Expect.equal (next.OpenRetries |> List.map (fun r -> r.Headline)) [ "Nicht zugewiesen" ] "Hinweis"
-            match external with
-            | ShowToastWithAction (text, ToastError, action) ->
-                Expect.equal text "Nicht zugewiesen: Rate-Limit" "Text"
-                Expect.equal action.Kind (RetryBudgetMove "app-1") "Anwendung"
-            | other -> failtest $"Toast mit Aktion erwartet: {other}"
+            Expect.equal
+                (next.SheetLine, external)
+                (Some { Tone = LineError; Text = "Nicht zugewiesen: Rate-Limit"; Retry = Some "app-1" }, NoOp)
+                "rote Zeile mit Erneut senden"
         }
         test "Ein fehlgeschlagener Fehlbetrag-Knopf heißt ebenso Nicht zugewiesen" {
             let red = selected trip loaded
@@ -1234,9 +1251,7 @@ let private openRetryTests =
             let failed = report [ "Urlaub", 0m, 30.5m, Failed "Rate-Limit" ]
             let model, external, _ = applyMoveAnswered (Ok failed) sent
             Expect.equal (model.OpenRetries |> List.map (fun r -> r.Headline)) [ "Nicht zugewiesen" ] "Hinweis"
-            match external with
-            | ShowToastWithAction (text, _, _) -> Expect.equal text "Nicht zugewiesen: Rate-Limit" "Text"
-            | other -> failtest $"Toast erwartet: {other}"
+            Expect.equal external (ShowLine { Tone = LineError; Text = "Nicht zugewiesen: Rate-Limit"; Retry = Some "app-1" }) "Text"
         }
     ]
 
@@ -1266,9 +1281,9 @@ let private pageChangeTests =
             Expect.isNone model.TabMoney "weg"
             Expect.equal external (ShowToast ("Nicht verschoben: abgelehnt", ToastError)) "sichtbar"
         }
-        test "Ist der Tab weg, weil die Kategorie wegfiel, nennt ein Toast die Absage" {
+        test "Ist der Tab weg, weil die Kategorie wegfiel, nennt die rote Meldung die Absage" {
             let _, external, _ = applyMoveAnswered (Error "abgelehnt") { sending () with TabMoney = None }
-            Expect.equal external (ShowToast ("Nicht verschoben: abgelehnt", ToastError)) "sichtbar"
+            Expect.equal external (ShowLine { Tone = LineError; Text = "Nicht verschoben: abgelehnt"; Retry = None }) "sichtbar"
         }
     ]
 
@@ -1278,45 +1293,63 @@ let private summaryTests =
             Expect.equal (moveSummaryText (report [ "Urlaub", 0m, 20m, Written ])) "20,00 € von Zu verteilen nach Urlaub" "Zuweisen"
             Expect.equal (moveSummaryText (report [ "Urlaub", 20m, 15m, Written ])) "5,00 € von Urlaub nach Zu verteilen" "Zurücknehmen"
         }
-        test "Fehlgeschlagene Zeile: Toast mit Grund und Erneut senden derselben Anwendung" {
-            let r = report [ "Lebensmittel", 80m, 60m, Written; "Urlaub", 0m, 20m, Failed "Rate-Limit" ]
-            match moveToast r with
-            | ShowToastWithAction (text, ToastError, action) ->
-                Expect.equal text "Nicht vollständig verschoben: Rate-Limit" "Text"
-                Expect.equal action.Label "Erneut senden" "Beschriftung"
-                Expect.equal action.Kind (RetryBudgetMove "app-1") "Anwendung"
-            | other -> failtest $"Toast mit Aktion erwartet: {other}"
+        // budgeting-gtrgk: die Zeile im Sheet spricht aus Sicht der gewählten Kategorie (Skizze ledger-vf5h6).
+        test "Die Zeile nennt die Verschiebung aus Sicht der gewählten Kategorie: nach bei Abgeben, von bei Holen" {
+            let r = report [ "Essen", 80m, 30m, Written; "Reise", 0m, 50m, Written ]
+            let source, target = r.Lines.[0].CategoryId, r.Lines.[1].CategoryId
+            Expect.equal (moveLine (Some source) r) (ShowLine { Tone = LineOk; Text = "50,00 € nach Reise"; Retry = None }) "Abgeben"
+            Expect.equal (moveLine (Some target) r) (ShowLine { Tone = LineOk; Text = "50,00 € von Essen"; Retry = None }) "Holen"
         }
-        test "Hat YNAB gewonnen, warnt der Toast statt Erfolg zu melden" {
-            match moveToast (report [ "Lebensmittel", 80m, 60m, ChangedInYnab; "Urlaub", 0m, 20m, ChangedInYnab ]) with
-            | ShowToast (_, ToastWarning) -> ()
-            | other -> failtest $"Warnung erwartet: {other}"
+        test "Mit Zu verteilen auf der anderen Seite: von Zu verteilen beim Holen und Fehlbetrag, nach Zu verteilen beim Abgeben" {
+            let taken = report [ "Essen", 900m, 912.3m, Written ]
+            let given = report [ "Essen", 100m, 50m, Written ]
+            Expect.equal (moveLineText (Some taken.Lines.Head.CategoryId) taken) "12,30 € von Zu verteilen" "Holen, Fehlbetrag"
+            Expect.equal (moveLineText (Some given.Lines.Head.CategoryId) given) "50,00 € nach Zu verteilen" "Abgeben"
+        }
+        test "Steht die gewählte Kategorie nicht im Bericht, nennt die Zeile beide Seiten" {
+            let r = report [ "Essen", 80m, 30m, Written; "Reise", 0m, 50m, Written ]
+            Expect.equal (moveLineText (Some (Guid.NewGuid ())) r) "50,00 € von Essen nach Reise" "andere Kategorie"
+            Expect.equal (moveLineText None r) "50,00 € von Essen nach Reise" "keine Auswahl"
+        }
+        test "Fehlgeschlagene Zeile: rote Zeile mit Grund und Erneut senden derselben Anwendung" {
+            let r = report [ "Lebensmittel", 80m, 60m, Written; "Urlaub", 0m, 20m, Failed "Rate-Limit" ]
+            Expect.equal
+                (moveLine None r)
+                (ShowLine { Tone = LineError; Text = "Nicht vollständig verschoben: Rate-Limit"; Retry = Some "app-1" })
+                "rot mit Erneut senden"
+        }
+        test "Hat YNAB gewonnen, warnt die Zeile gelb statt Erfolg zu melden, ohne Aktion" {
+            Expect.equal
+                (moveLine None (report [ "Lebensmittel", 80m, 60m, ChangedInYnab; "Urlaub", 0m, 20m, ChangedInYnab ]))
+                (ShowLine { Tone = LineWarning; Text = "In YNAB geändert, nichts überschrieben"; Retry = None })
+                "gelb"
         }
     ]
 
 let private reloadTests =
     testList "Stilles Neu-Lesen" [
         // budgeting-nfrds: ein gescheiterter Reload setzte `Failure` und nahm die Liste weg.
-        test "Scheitert es, bleibt die Liste stehen und ein Hinweis erscheint" {
-            let model, external = applyReloaded loaded.MonthGeneration (Error "Timeout") loaded
+        // budgeting-gtrgk: der Hinweis ist Zustand, kein Toast.
+        test "Scheitert es, bleibt die Liste stehen und der Hinweis Beträge nicht neu gelesen nennt den Grund" {
+            let model = applyReloaded loaded.MonthGeneration (Error "Timeout") loaded
             Expect.equal model.Month (Success month) "Liste bleibt"
-            match external with
-            | ShowToast (text, ToastWarning) -> Expect.stringContains text "Timeout" "Grund"
-            | other -> failtest $"Hinweis erwartet: {other}"
+            Expect.equal
+                (staleHint model)
+                (Some { Text = "Beträge nicht neu gelesen, sie können veraltet sein."; Reasons = [ "Timeout" ]; Running = false })
+                "Hinweis mit Grund"
         }
         test "Gelingt es, kommt der neue Stand ohne Hinweis" {
             let fresh = { month with ToBeBudgeted = eur 5m }
-            let model, external = applyReloaded loaded.MonthGeneration (Ok fresh) loaded
+            let model = applyReloaded loaded.MonthGeneration (Ok fresh) loaded
             Expect.equal (monthOfModel model).ToBeBudgeted (eur 5m) "neu"
-            Expect.equal external NoOp "still"
+            Expect.isNone (staleHint model) "still"
         }
         test "Eine Antwort zur abgewählten Monatswahl ändert nichts" {
-            let model, external = applyReloaded (loaded.MonthGeneration - 1) (Error "Timeout") loaded
+            let model = applyReloaded (loaded.MonthGeneration - 1) (Error "Timeout") loaded
             Expect.equal model loaded "verworfen"
-            Expect.equal external NoOp "still"
         }
         test "Ohne geladene Liste zeigt ein Fehler wie sonst den Fehlerzustand" {
-            let model, _ = applyReloaded 0 (Error "Timeout") (init ())
+            let model = applyReloaded 0 (Error "Timeout") (init ())
             Expect.equal model.Month (Failure "Timeout") "nichts zu erhalten"
         }
     ]
@@ -1371,8 +1404,8 @@ let private retryTests =
             let model, external = applyMoveRetried "app-1" (Ok done') running
             Expect.isEmpty model.OpenRetries "erledigt"
             match external with
-            | ShowToast (_, ToastSuccess) -> ()
-            | other -> failtest $"Erfolg erwartet: {other}"
+            | ShowLine { Tone = LineOk; Retry = None } -> ()
+            | other -> failtest $"grüne Zeile erwartet: {other}"
         }
         test "Bleibt eine Zeile fehlgeschlagen, bleibt der Hinweis mit dem neuen Grund" {
             let running, _ = startMoveRetry "app-1" afterFailure
@@ -1383,11 +1416,11 @@ let private retryTests =
                 [ "Netzwerkfehler: weg", RetryReady ] "wieder sendbar"
         }
         // budgeting-nfrds: `MoveRetried (Error _)` löste keinen Reload aus, der Knopf blieb tot.
-        test "Scheitert der Aufruf, bleibt der Hinweis sendbar und ein Toast nennt den Grund" {
+        test "Scheitert der Aufruf, bleibt der Hinweis sendbar und die rote Zeile nennt den Grund mit Erneut senden" {
             let running, _ = startMoveRetry "app-1" afterFailure
             let model, external = applyMoveRetried "app-1" (Error "Timeout") running
             Expect.equal (model.OpenRetries |> List.map (fun r -> r.State)) [ RetryReady ] "sendbar"
-            Expect.equal external (ShowToast ("Erneut senden gescheitert: Timeout", ToastError)) "sichtbar"
+            Expect.equal external (ShowLine { Tone = LineError; Text = "Erneut senden gescheitert: Timeout"; Retry = Some "app-1" }) "sichtbar"
         }
     ]
 
@@ -1428,9 +1461,195 @@ let private fieldKeyTests =
         }
     ]
 
+// ============================================
+// Rückmeldung am Ort ohne Toast (Regel R3, ADR 0098, budgeting-gtrgk)
+// ============================================
+
+let private okLine text = Some { Tone = LineOk; Text = text; Retry = None }
+
+/// Abgeben von Lebensmittel nach Urlaub, Antwort steht aus.
+let private givingToTrip =
+    run [ SwitchMoneyMode GiveMode; TransferAmountChanged "5"; PickCounterpart (CategorySide trip.Id); ConfirmTransfer ] onFood
+
+/// Die Antwort auf `givingToTrip`: 5,00 € geschrieben.
+let private gaveToTrip = answered [ line food 900m 895m Written; line trip 0m 5m Written ]
+
+/// Nach dem Abgeben steht die Zeile „✓ 5,00 € nach Urlaub“.
+let private afterGive = run [ gaveToTrip ] givingToTrip
+
+let private sheetLineRouteTests =
+    testList "Zeile im Sheet: Platz" [
+        test "Bei offenem Sheet steht das Ergebnis in der Zeile über dem Hauptknopf, kein Toast, am PC im Panel genauso" {
+            let model, external = update gaveToTrip givingToTrip
+            Expect.equal (model.SheetLine, external) (okLine "5,00 € nach Urlaub", NoOp) "Zeile, kein Toast"
+        }
+        test "Bei geschlossenem Sheet geht dieselbe Meldung in die Leiste, am PC als Toast (Meldung ohne Ort)" {
+            // Während des Aufrufs bleibt das Sheet stehen; zu ist es etwa, wenn die Seite neu betreten wurde.
+            let model, external = update gaveToTrip { givingToTrip with Selected = None }
+            Expect.equal (model.SheetLine, external) (None, ShowToast ("5,00 € von Lebensmittel nach Urlaub", ToastSuccess)) "Leiste"
+        }
+        test "Eine rote Zeile mit offenem Bericht bietet Erneut senden an, ohne Sheet trägt die Leiste es weiter" {
+            let failed = answered [ line food 900m 895m Written; line trip 0m 5m (Failed "Rate-Limit") ]
+            let model, external = update failed givingToTrip
+            Expect.equal
+                model.SheetLine
+                (Some { Tone = LineError; Text = "Nicht vollständig verschoben: Rate-Limit"; Retry = Some "app-2" })
+                "Zeile"
+            Expect.equal external NoOp "kein Toast"
+            let _, closed = update failed { givingToTrip with Selected = None }
+            Expect.equal
+                closed
+                (ShowToastWithAction ("Nicht vollständig verschoben: Rate-Limit", ToastError, { Label = "Erneut senden"; Kind = RetryBudgetMove "app-2" }))
+                "Leiste mit Erneut senden"
+        }
+        test "Erneut senden an der Zeile sendet die Verschiebung erneut" {
+            let failed = run [ answered [ line food 900m 895m Written; line trip 0m 5m (Failed "Rate-Limit") ] ] givingToTrip
+            let retry = failed.SheetLine |> Option.bind (fun l -> l.Retry) |> Option.get
+            let retrying = run [ RetryMove retry ] failed
+            Expect.equal (retrying.OpenRetries |> List.map (fun r -> r.State)) [ RetryRunning ] "läuft"
+            Expect.isNone retrying.SheetLine "der Tipp beendet die Zeile"
+        }
+        test "Wartet die Auswahl auf die Rückkehr aus dem Kassenbuch, gilt das Sheet als zu" {
+            let away = { givingToTrip with Selected = givingToTrip.Selected |> Option.map (fun s -> { s with ReturnPending = true }) }
+            let model, external = update gaveToTrip away
+            Expect.isNone model.SheetLine "keine Zeile"
+            Expect.equal external (ShowToast ("5,00 € von Lebensmittel nach Urlaub", ToastSuccess)) "Leiste"
+        }
+    ]
+
+let private sheetLineLifeTests =
+    testList "Zeile im Sheet: Lebensdauer" [
+        test "Die nächste Aktion im Sheet beendet die Zeile: Tippen, Schritt, Betrag, Gegenseite, Knöpfe" {
+            for name, msg in
+                [ "Betrag", TransferAmountChanged "7"
+                  "Betrag zurück", TransferAmountReset
+                  "Gegenseite öffnen", OpenPicker
+                  "Gegenseite wählen", PickCounterpart ToBeBudgetedSide
+                  "Knopf", ConfirmTransfer
+                  "Erneut senden", RetryMove "app-9" ] do
+                Expect.isNone (run [ msg ] afterGive).SheetLine name
+            let assigning = run [ SwitchMoneyMode AssignMode ] afterGive
+            Expect.equal assigning.SheetLine (okLine "5,00 € nach Urlaub") "Vorbedingung im Modus Zuweisen"
+            for name, msg in [ "Tippen", typed "+1"; "Schritt", AssignStepped 10m; "Fehlbetrag", CoverMissing ] do
+                Expect.isNone (run [ msg ] assigning).SheetLine name
+        }
+        test "Kategorie- und Monatswechsel und Schließen beenden die Zeile" {
+            for name, msg in
+                [ "Kategorie", SelectCategory trip.Id
+                  "Pfeil", StepCategory Next
+                  "Monat", SelectMonth "2026-10-01"
+                  "Schließen", CloseInspector
+                  "Seite verlassen", PageLeft ] do
+                Expect.isNone (run [ msg ] afterGive).SheetLine name
+        }
+        test "Der Wechsel zwischen Zuweisen, Holen und Abgeben, der Tabwechsel und Antworten im Hintergrund lassen die Zeile stehen" {
+            for name, msg in
+                [ "Zuweisen", SwitchMoneyMode AssignMode
+                  "Holen", SwitchMoneyMode TakeMode
+                  "Tab", SelectInspectorTab EntriesTab
+                  "Pfeiltaste Tab", PageKeyPressed (StepTab Next)
+                  "Neu-Lesen", Reloaded (afterGive.MonthGeneration, Ok month)
+                  "Zuletzt verwendet", RecentCounterpartsLoaded (Ok []) ] do
+                Expect.equal (run [ msg ] afterGive).SheetLine (okLine "5,00 € nach Urlaub") name
+        }
+        test "Ein Fehler bleibt ebenso bis zur nächsten Aktion" {
+            let failed = run [ answered [ line food 900m 895m (Failed "weg"); line trip 0m 5m (Failed "weg") ] ] givingToTrip
+            let waited = run [ Reloaded (failed.MonthGeneration, Ok month); SwitchMoneyMode TakeMode ] failed
+            Expect.equal (waited.SheetLine |> Option.map (fun l -> l.Tone)) (Some LineError) "bleibt"
+            Expect.isNone (run [ TransferAmountChanged "1" ] waited).SheetLine "geht mit der nächsten Eingabe"
+        }
+    ]
+
+let private availableFlashTests =
+    testList "Verfügbar leuchtet" [
+        test "Nach einem Bericht mit geschriebener Zeile der gewählten Kategorie leuchtet Verfügbar, nach Ablauf nicht mehr" {
+            let flashing, cmd = (fun (m, c, _) -> m, c) (Components.Budget.State.update gaveToTrip givingToTrip)
+            Expect.isTrue flashing.AvailableFlash.On "leuchtet"
+            Expect.isNonEmpty cmd "Zeitgeber und Neu-Lesen"
+            let ended = run [ AvailableFlashEnded flashing.AvailableFlash.Count ] flashing
+            Expect.isFalse ended.AvailableFlash.On "aus"
+        }
+        test "Zuweisen, Fehlbetrag und Erneut senden leuchten ebenso" {
+            let assigned = run [ typed "+1"; AssignFieldLeft; AssignAnswered (Ok { ApplicationId = "a"; Month = monthKey; Lines = [ line food 900m 901m Written ]; ActualToBeBudgeted = None }) ] onFood
+            Expect.isTrue assigned.AvailableFlash.On "Zuweisen"
+            let covered = run [ CoverMissing; answered [ line rent 900m 912.3m Written ] ] onRent
+            Expect.isTrue covered.AvailableFlash.On "Fehlbetrag"
+            let failedCover = run [ CoverMissing; answered [ line rent 900m 912.3m (Failed "weg") ] ] onRent
+            Expect.isFalse failedCover.AvailableFlash.On "ein Fehler leuchtet nicht"
+            let retried =
+                run [ RetryMove "app-2"; MoveRetried ("app-2", Ok { ApplicationId = "app-2"; Month = monthKey; Lines = [ line rent 900m 912.3m Written ]; ActualToBeBudgeted = None }) ] failedCover
+            Expect.isTrue retried.AvailableFlash.On "Erneut senden"
+        }
+        test "Nach einem Fehler, einer Absage oder einer Zeile für eine andere Kategorie leuchtet nichts" {
+            Expect.isFalse (run [ MoveAnswered (Error "abgelehnt") ] givingToTrip).AvailableFlash.On "Absage"
+            Expect.isFalse (run [ MoveCallLost "weg" ] givingToTrip).AvailableFlash.On "abgebrochen"
+            Expect.isFalse (run [ answered [ line clothes 50m 55m Written ] ] givingToTrip).AvailableFlash.On "andere Kategorie"
+        }
+        test "Das Ende eines älteren Leuchtens nimmt ein neueres nicht ab" {
+            let first = run [ gaveToTrip ] givingToTrip
+            let second = { first with AvailableFlash = { Count = first.AvailableFlash.Count + 1; On = true } }
+            Expect.isTrue (run [ AvailableFlashEnded first.AvailableFlash.Count ] second).AvailableFlash.On "bleibt"
+        }
+        test "Der Zeitgeber beendet das Leuchten nach 900 ms" {
+            CmdTiming.expectAfter Components.Budget.State.availableFlashMs (AvailableFlashEnded 3) (Components.Budget.State.availableFlashCmd 3)
+        }
+    ]
+
+let private staleHintTests =
+    let failedRead = run [ Reloaded (loaded.MonthGeneration, Error "Timeout") ] loaded
+    testList "Hinweis nicht neu gelesen" [
+        test "Der Hinweis bleibt bei Kategorie-, Tab-, Modus- und Sheet-Wechsel stehen" {
+            let onFoodFailed = run [ Reloaded (onFood.MonthGeneration, Error "Timeout") ] onFood
+            for name, msg in
+                [ "Kategorie", SelectCategory trip.Id
+                  "Tab", SelectInspectorTab HistoryTab
+                  "Modus", SwitchMoneyMode GiveMode
+                  "Schließen", CloseInspector ] do
+                Expect.equal (run [ msg ] onFoodFailed).StaleAmounts (Some (ReadFailed "Timeout")) name
+        }
+        test "Neu laden liest still neu und steht als laufend, ein zweiter Tipp startet keinen zweiten Aufruf" {
+            let rereading, cmd, _ = Components.Budget.State.update RereadStale failedRead
+            Expect.equal rereading.StaleAmounts (Some (Rereading "Timeout")) "läuft, der Grund bleibt"
+            Expect.isTrue (staleHint rereading).Value.Running "laufend"
+            Expect.isGreaterThan rereading.MonthGeneration failedRead.MonthGeneration "eine Abfrage"
+            Expect.equal rereading.Month failedRead.Month "die Liste bleibt"
+            Expect.isNonEmpty cmd "gesendet"
+            Expect.equal (commands RereadStale rereading) 0 "kein zweiter Aufruf"
+            Expect.equal (run [ RereadStale ] rereading) rereading "nichts geändert"
+        }
+        test "Gelingt das Neu-Lesen, ist der Hinweis weg; scheitert es, bleibt er mit dem neuen Grund" {
+            let rereading = run [ RereadStale ] failedRead
+            let read = run [ Reloaded (rereading.MonthGeneration, Ok month) ] rereading
+            Expect.isNone (staleHint read) "weg"
+            let failedAgain = run [ Reloaded (rereading.MonthGeneration, Error "YNAB 503") ] rereading
+            Expect.equal failedAgain.StaleAmounts (Some (ReadFailed "YNAB 503")) "neuer Grund, wieder tippbar"
+        }
+        test "Ein Monatswechsel liest den Monat ohnehin neu: der Hinweis ist weg" {
+            Expect.isNone (run [ SelectMonth "2026-10-01" ] failedRead).StaleAmounts "weg"
+        }
+        test "Stehen Beträge und Monate aus, steht ein Hinweis, Neu laden liest beides" {
+            let both = { failedRead with StaleMonths = Some (ReadFailed "Rahmen weg") }
+            Expect.equal
+                (staleHint both)
+                (Some { Text = "Beträge und Monate nicht neu gelesen, sie können veraltet sein."; Reasons = [ "Timeout"; "Rahmen weg" ]; Running = false })
+                "ein Hinweis"
+            let rereading, cmd, _ = Components.Budget.State.update RereadStale both
+            Expect.equal (rereading.StaleAmounts, rereading.StaleMonths) (Some (Rereading "Timeout"), Some (Rereading "Rahmen weg")) "beides läuft"
+            Expect.equal (List.length cmd) 2 "Monat und Rahmen"
+            let framed = run [ FrameRefreshed (Ok frame) ] rereading
+            Expect.isNone framed.StaleMonths "Rahmen gelesen"
+            let frameFailed = run [ FrameRefreshed (Error "wieder weg") ] rereading
+            Expect.equal frameFailed.StaleMonths (Some (ReadFailed "wieder weg")) "neuer Grund"
+        }
+        test "Ein stilles Nachlesen des Rahmens ohne Hinweis meldet weiter nichts" {
+            Expect.isNone (run [ FrameRefreshed (Error "weg") ] loaded).StaleMonths "still"
+        }
+    ]
+
 [<Tests>]
 let tests =
     testList
         "Tab Geld, Client"
         [ fieldTests; leaveTests; queueTests; busyTests; unclearTests; settledTests; reviewTests; activeTests; missingTests; modeTests; transferTests; pickerTests
-          keyTests; fieldKeyTests; openRetryTests; pageChangeTests; summaryTests; reloadTests; retryTests ]
+          keyTests; fieldKeyTests; openRetryTests; pageChangeTests; summaryTests; reloadTests; retryTests
+          sheetLineRouteTests; sheetLineLifeTests; availableFlashTests; staleHintTests ]

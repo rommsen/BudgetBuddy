@@ -158,7 +158,7 @@ let applyPageKey (action: PageKeyAction) (model: Model) : Model =
 type TabFetch =
     /// Bis zur Antwort steht `Loading`, ein Fehler steht im Tab.
     | ShownFetch
-    /// Die geladenen Daten bleiben stehen, bis die Antwort sie ersetzt; ein Fehler wird zum Warn-Toast
+    /// Die geladenen Daten bleiben stehen, bis die Antwort sie ersetzt; ein Fehler wird zum Hinweis im Tab
     /// (die Historie nach einer Bewegung, wie `QuietReread` beim Monat).
     | QuietFetch
 
@@ -252,21 +252,31 @@ let private remote (result: Result<'T, string>) : RemoteData<'T> =
 let applyCategoryEntries (generation: int) (result: Result<CategoryMonthEntry list, string>) (model: Model) : Model =
     applyTabAnswer model.EntriesGeneration generation (fun s -> { s with Entries = remote result }) model
 
-/// Antwort der Historie, wie `applyCategoryEntries`.
+/// Antwort der Historie, wie `applyCategoryEntries`. Eine gezählte Antwort beendet den Hinweis „Historie nicht neu
+/// gelesen“: gelesen oder als Fehlerkarte mit Wiederholen im Tab.
 let applyCategoryHistory (generation: int) (result: Result<CategoryHistory, string>) (model: Model) : Model =
-    applyTabAnswer model.HistoryGeneration generation (fun s -> { s with History = remote result }) model
+    let answered = applyTabAnswer model.HistoryGeneration generation (fun s -> { s with History = remote result }) model
+    if generation = model.HistoryGeneration && model.Selected.IsSome then { answered with StaleHistory = None }
+    else answered
 
-/// Antwort des stillen Nachladens der Historie. Scheitert es, bleibt der alte Stand und ein Hinweis
-/// nennt den Grund, wie `applyReloaded` beim Monat. Stand keine Historie mehr da, gilt `applyCategoryHistory`.
-let applyCategoryHistoryReloaded
-    (generation: int)
-    (result: Result<CategoryHistory, string>)
-    (model: Model)
-    : Model * ExternalMsg =
+/// Antwort des stillen Nachladens der Historie. Scheitert es, bleibt der alte Stand und der Hinweis oben im Tab
+/// Historie nennt den Grund (`StaleHistory`, budgeting-gtrgk), wie `applyReloaded` beim Monat. Stand keine Historie
+/// mehr da, gilt `applyCategoryHistory`.
+let applyCategoryHistoryReloaded (generation: int) (result: Result<CategoryHistory, string>) (model: Model) : Model =
     match model.Selected, result with
     | Some { History = Success _ }, Error message when generation = model.HistoryGeneration ->
-        model, ShowToast ($"Historie nicht neu gelesen, sie kann veraltet sein: {message}", ToastWarning)
-    | _ -> applyCategoryHistory generation result model, NoOp
+        { model with StaleHistory = Some (ReadFailed message) }
+    | _ -> applyCategoryHistory generation result model
+
+/// „Neu laden“ am Hinweis im Tab Historie: die Historie still neu holen wie nach einer Bewegung. Läuft es schon oder
+/// steht die Historie nicht im sichtbaren Tab, geschieht nichts.
+let startStaleHistoryReread (model: Model) : Model * TabRequest option =
+    match model.StaleHistory with
+    | Some (ReadFailed reason) ->
+        match historyAfterMovement model with
+        | next, Some request -> { next with StaleHistory = Some (Rereading reason) }, Some request
+        | _ -> model, None
+    | _ -> model, None
 
 /// Der Stand einer Bewegung im Tab Historie.
 let historyStatusText (status: HistoryStatus) : string =

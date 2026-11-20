@@ -11,6 +11,7 @@ open Shared.Domain
 open Shared.Budgeting
 open Types
 open Components.Budget.Types
+open Components.Budget.Month
 open Components.Budget.Inspector
 
 let private eur (amount: decimal) : Money = { Amount = amount; Currency = "EUR" }
@@ -154,18 +155,36 @@ let tests =
                     Expect.equal (historyOf after) Loading $"{name}: neu angefragt"
                     Expect.isNonEmpty reloadCmd $"{name}: eine Anfrage"
         }
-        test "Scheitert das stille Nachladen der Historie, bleibt der alte Stand und ein Warn-Toast nennt den Grund" {
+        // budgeting-gtrgk: ein Zustand des Tabs, kein Toast, der nach 5 s geht.
+        test "Scheitert das stille Nachladen der Historie, bleibt der alte Stand und der Hinweis im Tab nennt den Grund" {
             let answered = historyShown () |> step (AssignAnswered (Ok report))
             let failed, _, external =
                 Components.Budget.State.update (CategoryHistoryReloaded (answered.HistoryGeneration, Error "kaputt")) answered
             Expect.equal (historyOf failed) (Success loadedHistory) "der alte Stand bleibt"
-            match external with
-            | ShowToast (text, ToastWarning) -> Expect.stringContains text "kaputt" "der Grund steht im Toast"
-            | other -> failtest $"Warn-Toast erwartet, kam {other}"
+            Expect.equal external NoOp "kein Toast"
+            Expect.equal
+                (staleHistoryHint failed)
+                (Some { Text = "Historie nicht neu gelesen, sie kann veraltet sein."; Reasons = [ "kaputt" ]; Running = false })
+                "Hinweis mit Grund"
             let late, _, lateExternal =
                 Components.Budget.State.update (CategoryHistoryReloaded (answered.HistoryGeneration - 1, Error "alt")) answered
             Expect.equal late answered "ein Fehler zu einem alten Stand ändert nichts"
             Expect.equal lateExternal NoOp "und meldet nichts"
+        }
+        // budgeting-gtrgk: „Neu laden“ am Hinweis im Tab Historie.
+        test "Neu laden am Hinweis holt die Historie still neu, ein zweiter Tipp nicht, gelesen ist der Hinweis weg" {
+            let answered = historyShown () |> step (AssignAnswered (Ok report))
+            let failed = answered |> step (CategoryHistoryReloaded (answered.HistoryGeneration, Error "kaputt"))
+            let rereading, cmd = failed |> stepCmd RereadStaleHistory
+            Expect.equal rereading.StaleHistory (Some (Rereading "kaputt")) "läuft, der Grund bleibt"
+            Expect.equal (historyOf rereading) (Success loadedHistory) "der alte Stand bleibt sichtbar"
+            Expect.isNonEmpty cmd "gesendet"
+            Expect.isEmpty (snd (rereading |> stepCmd RereadStaleHistory)) "kein zweiter Aufruf"
+            let failedAgain = rereading |> step (CategoryHistoryReloaded (rereading.HistoryGeneration, Error "wieder"))
+            Expect.equal failedAgain.StaleHistory (Some (ReadFailed "wieder")) "neuer Grund"
+            let read = rereading |> step (CategoryHistoryReloaded (rereading.HistoryGeneration, Ok emptyHistory))
+            Expect.isNone (staleHistoryHint read) "weg"
+            Expect.equal (historyOf read) (Success emptyHistory) "neu gelesen"
         }
         test "In einer Schlange von drei Zuweisungen kommt die Historie einmal neu, nach der letzten Antwort" {
             let write state = { CategoryId = categoryA; Month = "2026-10-01"; Assigned = eur 120m; State = state }

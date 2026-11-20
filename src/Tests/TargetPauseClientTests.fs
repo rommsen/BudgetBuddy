@@ -184,7 +184,10 @@ let private flowTests =
             let lost, cmd, external = Components.Budget.State.update (TargetPauseCallLost (paused, current, "Netz weg")) back
             Expect.isGreaterThan lost.MonthGeneration back.MonthGeneration "neu gelesen"
             Expect.isNonEmpty cmd "der Monat wird gelesen"
-            Expect.equal external (ShowToast (pauseCallLostText true "Netz weg", ToastError)) "Toast verspricht das Neu-Lesen"
+            Expect.equal
+                (lost.SheetLine, external)
+                (Some { Tone = LineError; Text = pauseCallLostText true "Netz weg"; Retry = None }, NoOp)
+                "die rote Zeile verspricht das Neu-Lesen"
         }
         // budgeting-m4v8t: trägt `generationMoved` in `pauseNeedsReread`. Hin und zurück vor der ersten
         // Antwort: kein Wechsel läuft mehr, der Monat gilt als gelesen, nur die Generation zeigt das Lesen.
@@ -223,13 +226,15 @@ let private flowTests =
             Expect.isTrue (match lost.Month with Success _ -> true | _ -> false) "kein Loading"
             Expect.isNonEmpty cmd "der Monat wird gelesen"
         }
-        test "GIVEN eine andere Kategorie ist gezeigt WHEN der Aufruf abbricht THEN ein Toast nennt es" {
+        // budgeting-gtrgk: bei offenem Sheet die rote Zeile, bei geschlossenem die Leiste (am PC der Toast).
+        test "GIVEN eine andere Kategorie ist gezeigt WHEN der Aufruf abbricht THEN nennt es die rote Zeile, bei geschlossenem Sheet die Leiste" {
             let away = onTrip |> step (SetTargetPause PauseTarget) |> step (SelectCategory other)
-            let _, _, external = Components.Budget.State.update (TargetPauseCallLost (paused, current, "Netz weg")) away
-            Expect.equal
-                external
-                (ShowToast ("Ob die Pause gespeichert ist, ist unklar: Netz weg. Der Stand wird gleich neu gelesen.", ToastError))
-                "Toast"
+            let text = "Ob die Pause gespeichert ist, ist unklar: Netz weg. Der Stand wird gleich neu gelesen."
+            let lost, _, external = Components.Budget.State.update (TargetPauseCallLost (paused, current, "Netz weg")) away
+            Expect.equal (lost.SheetLine, external) (Some { Tone = LineError; Text = text; Retry = None }, NoOp) "Zeile"
+            let closed = away |> step CloseInspector
+            let lostClosed, _, externalClosed = Components.Budget.State.update (TargetPauseCallLost (paused, current, "Netz weg")) closed
+            Expect.equal (lostClosed.SheetLine, externalClosed) (None, ShowToast (text, ToastError)) "Leiste"
         }
         // budgeting-c6vn4 (P2): der Toast versprach ein Neu-Lesen auch, wenn ein anderer Monat gezeigt wird,
         // und eine Meldung mit Punkt ergab zwei Punkte.
@@ -238,31 +243,40 @@ let private flowTests =
             let elsewhere = running |> step (SelectMonth next)
             let elsewhere = elsewhere |> step (Loaded (elsewhere.MonthGeneration, Ok (monthWith next None)))
             let lost, _, external = Components.Budget.State.update (TargetPauseCallLost (paused, current, "Netz weg.")) elsewhere
-            Expect.equal external (ShowToast ("Ob die Pause gespeichert ist, ist unklar: Netz weg.", ToastError)) "Toast"
+            Expect.equal
+                (lost.SheetLine, external)
+                (Some { Tone = LineError; Text = "Ob die Pause gespeichert ist, ist unklar: Netz weg."; Retry = None }, NoOp)
+                "Zeile"
             Expect.equal lost.MonthGeneration elsewhere.MonthGeneration "kein Neu-Lesen"
         }
         // budgeting-c6vn4 (P2): eine Ablehnung zu einer nicht gezeigten Kategorie blieb ohne Rückmeldung.
-        test "GIVEN eine andere Kategorie ist gezeigt WHEN der Server ablehnt THEN ein Warn-Toast nennt den Grund" {
+        test "GIVEN eine andere Kategorie ist gezeigt WHEN der Server ablehnt THEN nennt die rote Zeile den Grund" {
             let away = onTrip |> step (SetTargetPause PauseTarget) |> step (SelectCategory other)
-            let _, _, external = Components.Budget.State.update (TargetPauseAnswered (paused, current, Error "Ausflug hat kein Target.")) away
-            Expect.equal external (ShowToast ("Pause nicht gespeichert: Ausflug hat kein Target.", ToastWarning)) "Toast"
+            let rejected, _, external = Components.Budget.State.update (TargetPauseAnswered (paused, current, Error "Ausflug hat kein Target.")) away
+            Expect.equal
+                (rejected.SheetLine, external)
+                (Some { Tone = LineError; Text = "Pause nicht gespeichert: Ausflug hat kein Target."; Retry = None }, NoOp)
+                "Zeile"
         }
-        test "Die Meldung steht im Tab Target und im Tab Geld beim Zuweisen, in den anderen Tabs und Modi als Toast" {
+        test "Die Meldung steht im Tab Target und im Tab Geld beim Zuweisen, in den anderen Tabs und Modi als rote Zeile" {
             let answerIn (prepare: Model -> Model) =
                 let running = onTrip |> prepare |> step (SetTargetPause PauseTarget)
-                let _, _, rejected = Components.Budget.State.update (TargetPauseAnswered (paused, current, Error "nein")) running
-                let _, _, lost = Components.Budget.State.update (TargetPauseCallLost (paused, current, "weg")) running
-                rejected, lost
+                let r, _, rejected = Components.Budget.State.update (TargetPauseAnswered (paused, current, Error "nein")) running
+                let l, _, lost = Components.Budget.State.update (TargetPauseCallLost (paused, current, "weg")) running
+                (r.SheetLine, rejected), (l.SheetLine, lost)
             for name, prepare in [ "Tab Target", step (SelectInspectorTab TargetTab); "Tab Geld, Zuweisen", id ] do
-                Expect.equal (answerIn prepare) (NoOp, NoOp) $"{name}: im Tab"
+                Expect.equal (answerIn prepare) ((None, NoOp), (None, NoOp)) $"{name}: im Tab"
             // Der Tipp geht im Tab Geld nur beim Zuweisen hinaus; danach Holen gewählt, steht der Knopf nicht mehr da.
             let running = onTrip |> step (SetTargetPause PauseTarget)
             for name, moved in [ "Tab Historie", running |> step (SelectInspectorTab HistoryTab)
                                  "Tab Geld, Holen", running |> step (SwitchMoneyMode TakeMode) ] do
-                let _, _, rejected = Components.Budget.State.update (TargetPauseAnswered (paused, current, Error "nein")) moved
-                Expect.equal rejected (ShowToast ("Pause nicht gespeichert: nein", ToastWarning)) $"{name}: Ablehnung als Toast"
-                let _, _, lost = Components.Budget.State.update (TargetPauseCallLost (paused, current, "weg")) moved
-                Expect.equal lost (ShowToast ("Ob die Pause gespeichert ist, ist unklar: weg. Der Stand wird gleich neu gelesen.", ToastError)) $"{name}: Abbruch als Toast"
+                let r, _, _ = Components.Budget.State.update (TargetPauseAnswered (paused, current, Error "nein")) moved
+                Expect.equal r.SheetLine (Some { Tone = LineError; Text = "Pause nicht gespeichert: nein"; Retry = None }) $"{name}: Ablehnung in der Zeile"
+                let l, _, _ = Components.Budget.State.update (TargetPauseCallLost (paused, current, "weg")) moved
+                Expect.equal
+                    l.SheetLine
+                    (Some { Tone = LineError; Text = "Ob die Pause gespeichert ist, ist unklar: weg. Der Stand wird gleich neu gelesen."; Retry = None })
+                    $"{name}: Abbruch in der Zeile"
         }
     ]
 

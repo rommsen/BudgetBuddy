@@ -1502,6 +1502,26 @@ let private FeedbackDemo () =
                         ]
                     ]
                 ]
+                subTitle "Hinweis zum Zustand der Seite (nicht neu gelesen)"
+                preview [
+                    Html.div [
+                        prop.className "space-y-2"
+                        prop.children [
+                            Feedback.stateHint
+                                "styleguide-feedback-state"
+                                "Beträge nicht neu gelesen, sie können veraltet sein."
+                                [ "YNAB antwortet nicht (503)" ]
+                                (Some { Label = "Neu laden"; OnClick = ignore })
+                                false
+                            Feedback.stateHint
+                                "styleguide-feedback-state-running"
+                                "Historie nicht neu gelesen, sie kann veraltet sein."
+                                []
+                                (Some { Label = "Neu laden"; OnClick = ignore })
+                                true
+                        ]
+                    ]
+                ]
             ]
         ]
     ]

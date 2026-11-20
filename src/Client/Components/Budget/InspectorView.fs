@@ -27,13 +27,20 @@ let private detailFigure (testId: string) (label: string) (value: ReactElement) 
         ]
     ]
 
-/// Aktivität und Verfügbar. Zugewiesen ist das Feld darunter.
-let private detailFigures (category: BudgetCategory) =
+/// Aktivität und Verfügbar. Zugewiesen ist das Feld darunter. Nach einem Bericht mit geschriebener Zeile leuchtet
+/// „Verfügbar“ kurz (`Feedback.flash`, budgeting-gtrgk); der Schlüssel baut den Wert je Leuchten neu, so beginnt die
+/// Animation auch beim zweiten Mal von vorn.
+let private detailFigures (flash: AvailableFlash) (category: BudgetCategory) =
     Html.div [
         prop.className "grid grid-cols-2 gap-3"
         prop.children [
             detailFigure "detail-activity" "Aktivität" (detailAmount category.Activity)
-            detailFigure "detail-available" "Verfügbar" (availableAmount category.Available)
+            Html.div [
+                prop.key $"available-{flash.Count}"
+                prop.custom ("data-flash", flash.On)
+                prop.className ("-mx-1 rounded-md px-1 " + (if flash.On then Feedback.flash else ""))
+                prop.children [ detailFigure "detail-available" "Verfügbar" (availableAmount category.Available) ]
+            ]
         ]
     ]
 
@@ -188,6 +195,21 @@ let private historyTab (model: Model) (category: BudgetCategory) (selected: Sele
         prop.custom ("data-testid", "inspector-history")
         prop.className "flex flex-col gap-4 py-4"
         prop.children [
+            // Die Historie kam nach einer Bewegung nicht neu (budgeting-gtrgk): ein Zustand des Tabs, kein Toast.
+            match staleHistoryHint model with
+            | Some hint ->
+                Html.div [
+                    prop.className "px-4"
+                    prop.children [
+                        Feedback.stateHint
+                            "history-stale"
+                            hint.Text
+                            hint.Reasons
+                            (Some { Label = "Neu laden"; OnClick = fun () -> dispatch RereadStaleHistory })
+                            hint.Running
+                    ]
+                ]
+            | None -> ()
             Html.div [ prop.className "px-4"; prop.children [ availableBuildupView category ] ]
             match selected.History with
             | NotAsked
@@ -216,9 +238,9 @@ let private moneyTab (model: Model) (month: BudgetMonth) (category: BudgetCatego
             match model.TabMoney with
             | Some tab ->
                 moneySwitch tab dispatch
-                detailFigures category
+                detailFigures model.AvailableFlash category
                 moneyMode model month category tab dispatch
-            | None -> detailFigures category
+            | None -> detailFigures model.AvailableFlash category
         ]
     ]
 
@@ -301,7 +323,15 @@ let private targetTab (model: Model) (category: BudgetCategory) (dispatch: Msg -
 /// Der Inhalt des gewählten Tabs, in Panel und Sheet derselbe.
 let private inspectorContent (model: Model) (month: BudgetMonth) (selected: SelectedCategory) (category: BudgetCategory) (dispatch: Msg -> unit) =
     let activeIndex = inspectorTabs |> List.findIndex (fun (_, tab) -> tab = model.Tab)
+    // Im Tab Geld steht die Zeile über dem Hauptknopf (`MovesView`); kommt sie, während ein anderer Tab offen ist (etwa
+    // eine abgelehnte Pause), steht sie oben im Tab.
+    let lineOnTop =
+        if model.Tab <> MoneyTab && model.SheetLine.IsSome then
+            Html.div [ prop.className "px-4 pt-3"; prop.children [ sheetLineView model dispatch ] ]
+        else
+            Html.none
     Tabs.panel "inspector-tabs" activeIndex [
+        lineOnTop
         match model.Tab with
         | MoneyTab -> moneyTab model month category dispatch
         | EntriesTab ->

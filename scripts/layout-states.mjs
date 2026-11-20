@@ -282,6 +282,48 @@ const targetCheck = {
   ],
 };
 
+// budgeting-gtrgk: eine Verschiebung von Essen nach Reise, geschrieben oder mit fehlgeschlagener Zeile.
+const moveReport = (outcome) => ({
+  ApplicationId: guid(88),
+  Month: CURRENT,
+  Lines: [
+    { CategoryId: guid(1), CategoryName: "Essen", OldAssigned: eur(0), NewAssigned: eur(-5), Outcome: "Written" },
+    { CategoryId: guid(4), CategoryName: "Reise", OldAssigned: eur(0), NewAssigned: eur(5), Outcome: outcome },
+  ],
+  ActualToBeBudgeted: null,
+});
+
+const mockBudgetMove = (outcome) => async (page) => {
+  await mockBudget(page);
+  await page.route("**/api/BudgetApi/moveMoney", (r) => json(r, { Ok: moveReport(outcome) }));
+};
+
+/// Der Monat liest beim ersten Mal, danach scheitert jedes Lesen (Hinweis „Beträge nicht neu gelesen“).
+async function mockBudgetRereadFails(page) {
+  await mockBudget(page);
+  let reads = 0;
+  await page.route("**/api/BudgetApi/getBudgetMonth", (r) => {
+    reads += 1;
+    const [key] = JSON.parse(r.request().postData() ?? "[]");
+    return reads === 1 ? json(r, { Ok: budgetMonth(key) }) : json(r, { Error: "YNAB antwortet nicht (503)" });
+  });
+}
+
+/// Abgeben von Essen nach Reise im Tab Geld, bis die Zeile über dem Knopf steht.
+const giveToTrip = async (page, mobile, expected) => {
+  await openInspector(page, mobile, "Essen");
+  await moneyMode(page, "Abgeben").click();
+  await page.locator('[data-testid="transfer-amount"] input:visible').fill("5");
+  await page.locator('[data-testid="transfer-to"]:visible').click();
+  await page.locator('[role="option"]:visible').filter({ hasText: "Reise" }).last().click();
+  await page.locator('[data-testid="transfer-to"]:visible').getByText("Reise").waitFor();
+  await page.locator('[data-testid="transfer-amount"] input:visible').waitFor();
+  // Das Picker-Sheet schluckt nach der Wahl den nächsten Klick (ADR 0005): ein Klick ohne Wirkung nimmt die Sperre.
+  await page.locator('[data-testid="detail-activity"]:visible').click();
+  await page.locator('[data-testid="transfer-submit"]:visible button').click();
+  await page.locator('[data-testid="feedback-sheet-line"]:visible').filter({ hasText: expected }).waitFor();
+};
+
 async function mockTargetCheck(page) {
   await mockBudget(page);
   await page.route("**/api/BudgetApi/getTargetCheck", (r) => json(r, { Ok: targetCheck }));
@@ -864,6 +906,51 @@ export const STATES = [
       // Die Auswahl ersetzt den Inhalt des Sheets (§7.15, ledger-ea70s): warten, bis der Inhalt zurück ist.
       await page.locator('[data-testid="transfer-amount"] input:visible').waitFor();
     },
+  },
+  // budgeting-gtrgk (Regel R3): nach dem Abgeben steht „✓ 5,00 € nach Reise“ über dem Knopf, der Knopf bleibt ohne
+  // Scrollen erreichbar, auch bei offener Tastatur; im Panel bei 1280 ohne Toast.
+  {
+    name: "budget-geld-ergebnis",
+    route: "/budget",
+    widths: [...HANDY_WIDTHS, 1280],
+    mock: mockBudgetMove("Written"),
+    open: async (page, { mobile }) => {
+      await giveToTrip(page, mobile, "5,00 € nach Reise");
+      if ((await page.locator(".toast-layer > *").count()) > 0) throw new Error("Toast neben der Zeile im Sheet");
+    },
+    primary: (page) => page.locator('[data-testid="transfer-submit"]:visible button'),
+    keyboard: {
+      focus: (page) => page.locator('[data-testid="transfer-amount"]:visible input'),
+      reach: (page) => page.locator('[data-testid="transfer-amount"]:visible input'),
+    },
+  },
+  // budgeting-gtrgk: die rote Zeile mit „Erneut senden“ über dem Knopf, dazu der Hinweis der offenen Verschiebung.
+  {
+    name: "budget-geld-fehler",
+    route: "/budget",
+    widths: HANDY_WIDTHS,
+    mock: mockBudgetMove({ Failed: "YNAB hat zu viele Anfragen gemeldet (429), später erneut senden" }),
+    open: async (page, { mobile }) => {
+      await giveToTrip(page, mobile, "Nicht vollständig verschoben");
+      await page.locator('[data-testid="feedback-sheet-line"]:visible [data-feedback-action]').waitFor();
+    },
+    primary: (page) => page.locator('[data-testid="transfer-submit"]:visible button'),
+  },
+  // budgeting-gtrgk: der Hinweis „Beträge nicht neu gelesen“ unter „Zu verteilen“, nach der Rückkehr aus der
+  // allgemeinen Historie, deren stilles Neu-Lesen scheitert. Am PC genauso, ohne Toast.
+  {
+    name: "budget-nicht-neu-gelesen",
+    route: "/budget",
+    widths: [...HANDY_WIDTHS, 1280],
+    mock: mockBudgetRereadFails,
+    open: async (page) => {
+      await openBudget(page);
+      await page.locator('[data-testid="budget-history-button"] button').click();
+      await page.getByRole("button", { name: "Zurück zum Budget" }).click();
+      await page.locator('[data-testid="budget-stale"]').waitFor();
+      if ((await page.locator(".toast-layer > *").count()) > 0) throw new Error("Toast neben dem Hinweis");
+    },
+    primary: (page) => page.locator('[data-testid="budget-stale"] button'),
   },
   // budgeting-gffps, budgeting-nfrds: der Kategorie-Picker als Sheet am Handy (16 px Suche) und als Popover
   // im Panel (ganz sichtbar, vom Panel nicht abgeschnitten, Fuß nicht verdeckt).

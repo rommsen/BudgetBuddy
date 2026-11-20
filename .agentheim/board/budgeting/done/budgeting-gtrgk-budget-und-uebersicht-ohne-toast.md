@@ -1,7 +1,7 @@
 ---
 id: budgeting-gtrgk
 title: "Budget-Seite und Sheet „Geld“ am Handy ohne Toast (R3): Ergebnis und Fehler in der Zeile über dem Knopf, „Verfügbar“ leuchtet kurz, Hinweis „nicht neu gelesen“ unter „Zu verteilen“ mit „Neu laden“"
-status: doing
+status: done
 type: feature
 context: budgeting
 created: 2026-11-19
@@ -195,3 +195,42 @@ werden), Browser nur für Ort und Fluss.
 
 **Nicht hier:** Leiste mit „+ Buchung“ auf der Übersicht und „Abgerufen“ dort (ledger-gwr9j bzw. banking-import-vwhfm),
 Pins (budgeting-p3sk0), Targets und Kategorien verwalten (budgeting-sx9v5), Rückgängig (budgeting-y1kkr).
+
+
+## Outcome
+
+Regel R3 (ADR 0098) für Budget-Seite, Inspektor-Sheet und Monatserster umgesetzt. `./verify.sh`: `VERIFY: PASS` (dotnet 5267, node 354; nach der Merge-Auflösung dotnet 5274, node 354).
+
+Merge-Auflösung (Iteration 2, Stufe 4): der Konflikt mit categorization-t6j00 in `standards/frontend/styleguide.md` (§5, Zeile Feedback) und `src/Client/Components/Styleguide/View.fs` (Abschnitt 17a) ist so aufgelöst, dass beide Absichten stehen: die Zeile nennt `removedRowIn` mit seinen Phasen und danach `stateHint`, „Wann nicht“ sagt „Zustand der Seite ohne Aktion → `ErrorDisplay.notice`“; die Styleguide-Demo zeigt die vier Phasen der Zeile „gelöscht“ unverändert und danach die eigene Demo „Hinweis zum Zustand der Seite (nicht neu gelesen)“.
+
+**Zeile im Sheet** (Teil 1)
+- Modell: `SheetLine` (`Tone` LineOk/LineWarning/LineError, `Text`, `Retry`) in `src/Client/Components/Budget/Types.fs`, neue `ExternalMsg`-Form `ShowLine`. Die Erzeuger in `Moves.fs`, `State.fs` (Budget) liefern `ShowLine` statt `ShowToast`: `moveLine` (ersetzt `moveToast`), `assignLine`, `leaveLine` (ersetzt `leaveToast`), `lineOf`, `applyAssignAnswered`, `applyAssignCallLost`, `applyMoveAnswered`, `applyMoveCallLost`, `applyMoveRetried` (rot mit „Erneut senden“, solange offen), `startMove` (Sperre gelb), `CoverMissing` (gelb), `droppedEntryLine`, Pause abgelehnt/abgebrochen außerhalb des Tabs (rot).
+- Text aus Sicht der gewählten Kategorie: `moveLineText` („50,00 € nach Reise“, „50,00 € von Reise“, „12,30 € von Zu verteilen“, „… nach Zu verteilen“); ohne Auswahl oder wenn die Kategorie nicht im Bericht steht beide Seiten (`moveSummaryText`).
+- Platz: `routeSheetLine` in `Budget/State.fs`. Sheet offen (Auswahl ohne `ReturnPending`): Zeile, kein Toast. Sonst `lineToast`: Leiste, ab 1024 px der eine PC-Toast; „Erneut senden“ bleibt dort als `RetryBudgetMove`. Die Wurzel (`src/Client/State.fs`) kennt `ShowLine` nur als Rückfall.
+- Lebensdauer: `endsSheetLine` (Tippen, Schritt, Betrag, Gegenseite, Knöpfe, Erneut senden, Pause, Target-Eingaben, Kategorie- und Monatswechsel, Schließen, Seite verlassen) plus `sheetKey` (Kategorie oder Monat geändert). Moduswechsel und Tabwechsel beenden sie nicht. Abweichung: der Tabwechsel zählt hier nicht als Aktion (er zeigt nur), in den anderen Tabs steht die Zeile oben; so bleibt im Flow die Prüfung „Hinweis in jedem Tab“ und danach der Klick auf „Erneut senden“ in der Zeile möglich.
+- Ansicht: `MovesView.sheetLineView` mit `Feedback.sheetLine` über `assign-missing` (Zuweisen) bzw. `transfer-submit` (Holen/Abgeben); `RevealedLine` scrollt beim Erscheinen nur den Inhalt von Sheet oder Panel, bis Zeile und Hauptknopf sichtbar sind (sonst lagen sie bei offener Verschiebung im festen Bereich unter dem Rand). Fehler und Warnung brechen um (Form aus design-system-ytgnc, nicht auf eine Zeile gekürzt).
+- „Verfügbar leuchtet“: `AvailableFlash` {Count; On}, `flashAfterReport` (nur bei geschriebener Zeile der gewählten Kategorie), Zeitgeber `availableFlashCmd` 900 ms → `AvailableFlashEnded`; `InspectorView.detailFigures` setzt `Feedback.flash` mit Schlüssel je Leuchten. Reduced motion über die CSS aus ytgnc. [human-eye] für das Leuchten.
+
+**Hinweis „nicht neu gelesen“** (Teil 2)
+- `ReadNotice` (ReadFailed/Rereading) in `StaleAmounts`, `StaleMonths`, `StaleHistory`. `applyReloaded` und `applyFrameLoaded` (Month.fs) sowie `applyCategoryHistoryReloaded` (Inspector.fs) setzen den Zustand statt Toast; ein gelesener Monat, ein gelesener Rahmen (`applyFrameRefreshed`), eine gezählte Historie-Antwort und der Monatswechsel beenden ihn. `staleHint` fasst Beträge und Monate zu einem Hinweis zusammen.
+- „Neu laden“: `RereadStale` (`startStaleReread`: still über `Reloaded`, Monate über den Rahmen) und `RereadStaleHistory` (`startStaleHistoryReread`, `QuietFetch`); laufend kein zweiter Aufruf.
+- Neuer DS-Baustein `Feedback.stateHint` (Skizze `.mk-hint`: gelb getönt, „! Text“, darunter der Grund kleiner, rechts „Neu laden“, laufend `aria-busy`), auf `/styleguide` 17a gezeigt, Styleguide §5 und §7.13 nachgezogen (Zustand mit Aktion → `stateHint`, ohne Aktion → `ErrorDisplay.notice`). Ort: `View.belowHead` unter dem Kopf mit „Zu verteilen“, über Monatserster; Historie oben im Tab.
+
+**Teil 3**: `MonthStartHideAnswered` bleibt `ShowToast` (Meldung ohne Ort: Leiste, PC-Toast). Offene Verschiebung, „noch nicht in YNAB“, `canCover` unverändert. Kategorien/Targets (`Categories.ShowToast`, `targetAnswerToast`, `targetCallLostToast`) unberührt, gehören budgeting-sx9v5.
+
+**Tests**
+- `src/Tests/MoveMoneyClientTests.fs`: neue Listen „Zeile im Sheet: Platz“ (5), „Zeile im Sheet: Lebensdauer“ (4), „Verfügbar leuchtet“ (5, inkl. Zeitgeber per `CmdTiming.expectAfter`), „Hinweis nicht neu gelesen“ (6), drei Tests zu `moveLine`/`moveLineText`; bestehende Toast-Erwartungen auf Zeile bzw. Leiste umgestellt (Hilfsfunktion `notice`). `BudgetHistoryClientTests.fs`: Hinweis und „Neu laden“ der Historie. `BudgetPageTests.fs`, `TargetPauseClientTests.fs` umgestellt (Pause: Zeile bei offenem, Leiste bei geschlossenem Sheet).
+- Gegenprobe (lokal, wiederhergestellt): `endsSheetLine` abgeschaltet, Routing immer in die Zeile, Bedingung des Leuchtens umgekehrt: 16 von 165 Tests der Liste „Tab Geld, Client“ rot.
+- Browser: `[flow:geld-verschieben]` prüft „✓ 20,00 € nach Urlaub afd8h“ in der Zeile, kein Toast im DOM (`.toast-layer > *`) und keine Meldung in der Leiste; dafür mockt der Test `getSettings` und `getLenaFlagSettings` (sonst stand beim Start ein Fehler-Toast im DOM). `[flow:verschiebung-erneut-senden]` klickt „Erneut senden“ in der roten Zeile, „Hinweis in jedem Tab“ bleibt; `FLOWS`-Satz angepasst.
+- Sweep (`scripts/layout-states.mjs`): neue Zustände `budget-geld-ergebnis` (320, 390, 1280, mit Tastatur), `budget-geld-fehler` (320, 390), `budget-nicht-neu-gelesen` (320, 390, 1280, über Rückkehr aus der allgemeinen Historie mit scheiterndem Neu-Lesen); alle mit `primary`, ohne neue Ausnahme; `budget`, `budget-geld-zuweisen`, `budget-geld-abgeben` grün, die 320-px-Ausnahme unverändert.
+
+**README_DELTA**: geprüft mit `npm run check:readme-delta -- --bc budgeting` (Exit 0, „Ganz nachlesen: keine Einträge“). Ersetzt: „Offene Verschiebung“, „Veralteter Monat“, „Tab Historie“, „TargetPausieren“; neu: „Zeile im Sheet“, „Hinweis „nicht neu gelesen““.
+
+**Skizzenvergleich** (Bilder in `/private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/4b5cf62e-3174-40e3-90f3-4b5312280eb9/scratchpad/result-shots/budgeting-gtrgk/`)
+- `budget-geld-ergebnis-412.png` neben `/private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/4b5cf62e-3174-40e3-90f3-4b5312280eb9/scratchpad/vf5h6/skizze-shots/31-budget-sheet-geld.png`: ✓ grün, „5,00 € nach Reise“ halbfett über „Abgeben“, eine Zeile. Unterschiede: kein „Rückgängig“ (budgeting-y1kkr); BB hat das Feld „Betrag“ und „von/nach“, deshalb ist der Inhalt um rund 40 px gescrollt und „Verfügbar“ steht halb am oberen Rand; das Leuchten ist auf dem Bild nicht zu sehen ([human-eye]). `budget-geld-ergebnis-1280.png`: Zeile im Panel über dem Knopf, kein Toast.
+- `budget-geld-fehler-412.png` (keine Skizzen-Ansicht): rot getönte Zeile „Nicht vollständig verschoben: <Grund>“ mit „Erneut senden“, darüber im festen Bereich der Hinweis der offenen Verschiebung (bleibt, BB-Funktion).
+- `budget-nicht-neu-gelesen-412.png` neben `/private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/4b5cf62e-3174-40e3-90f3-4b5312280eb9/scratchpad/vf5h6/skizze-shots/32-budget-stand-hinweis.png`: gelb getönte Fläche unter „Zu verteilen“, „! Beträge nicht neu gelesen, sie können veraltet sein.“, „Neu laden“ im Akzent rechts. Unterschied (genannt): Grund in zweiter Zeile kleiner. `budget-nicht-neu-gelesen-1280.png`: derselbe Hinweis am PC, kein Toast.
+
+**Kann-Sammlung budgeting**
+- Bei offener Verschiebung nimmt deren Hinweis im festen Bereich des Sheets bei 320 px fast die ganze Höhe, die Tab-Leiste rückt unter den Rand (`budget-geld-fehler-320.png`); vor dieser Task schon so.
+- Nach einem Fehler stehen „Erneut senden“ am Hinweis und in der roten Zeile doppelt da.

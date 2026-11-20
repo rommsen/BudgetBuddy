@@ -112,6 +112,54 @@ let private assignSteps (dispatch: Msg -> unit) =
         ]
     ]
 
+/// Der nächste Vorfahr, der in sich scrollt (Inhalt des Sheets, Inhalt des Panels); `null` ohne.
+let private scrollParent (element: obj) : obj =
+    let rec up (current: obj) =
+        if isNull current then null
+        else
+            let overflow: string = Browser.Dom.window?getComputedStyle(current)?overflowY
+            if overflow = "auto" || overflow = "scroll" then current else up current?parentElement
+    up element?parentElement
+
+/// Kommt eine neue Zeile, rücken sie und der Hauptknopf darunter ins Bild: steht im festen Bereich des Sheets der Hinweis
+/// einer offenen Verschiebung, lägen beide sonst unter dem Rand (budgeting-gtrgk). Gescrollt wird nur der Inhalt von
+/// Sheet oder Panel, nie die Seite, und nur beim Erscheinen, nicht bei jedem Render: wer im Sheet scrollt, springt
+/// nicht zurück.
+[<ReactComponent>]
+let private RevealedLine (line: SheetLine, content: ReactElement) =
+    let lineRef = React.useElementRef ()
+    React.useEffect (
+        (fun () ->
+            match lineRef.current with
+            | Some element ->
+                let container = scrollParent element
+                let next: obj = element?nextElementSibling
+                let last: obj = if isNull next then box element else next
+                if not (isNull container) then
+                    let bottom: float = last?getBoundingClientRect()?bottom
+                    let edge: float = container?getBoundingClientRect()?bottom
+                    if bottom > edge then container?scrollTop <- (container?scrollTop: float) + bottom - edge
+            | None -> ()),
+        [| box line |]
+    )
+    Html.div [ prop.ref lineRef; prop.children [ content ] ]
+
+/// Die Zeile im Sheet über dem Hauptknopf (Regel R3, ADR 0098, budgeting-gtrgk): Ergebnis, Warnung oder Fehler der
+/// letzten Aktion, rot mit "Erneut senden" bei offenem Bericht. Am PC im Panel genauso.
+let sheetLineView (model: Model) (dispatch: Msg -> unit) =
+    match model.SheetLine with
+    | Some line ->
+        let tone =
+            match line.Tone with
+            | LineOk -> Feedback.Tone.Ok
+            | LineWarning -> Feedback.Tone.Warning
+            | LineError -> Feedback.Tone.Error
+        let act : Feedback.Act option =
+            line.Retry
+            |> Option.map (fun applicationId -> { Label = retryMoveLabel; OnClick = fun () -> dispatch (RetryMove applicationId) })
+        RevealedLine (line, Feedback.sheetLine ({ Tone = tone; Action = line.Text; Detail = None; Act = act } : Feedback.Message))
+    | None -> Html.none
+
 let private missingButton (model: Model) (month: BudgetMonth) (category: BudgetCategory) (tab: MoneyTabState) (dispatch: Msg -> unit) =
     let action = missingAction month category
     let button variant enabled =
@@ -167,6 +215,7 @@ let private assignMode (model: Model) (month: BudgetMonth) (category: BudgetCate
         // Am PC tippt man die Rechnung, die Schritte ersetzen die fehlenden Tasten am Handy.
         if not (Viewport.isInspectorPanelViewport ()) then
             assignSteps dispatch
+        sheetLineView model dispatch
         missingButton model month category tab dispatch
     ]
 
@@ -276,6 +325,7 @@ let private transferMode (model: Model) (month: BudgetMonth) (tab: MoneyTabState
                 prop.children [ ErrorDisplay.notice warning ]
             ]
         | None -> ()
+        sheetLineView model dispatch
         Html.div [
             prop.custom ("data-testid", "transfer-submit")
             prop.children [
@@ -310,7 +360,7 @@ let moneyMode (model: Model) (month: BudgetMonth) (category: BudgetCategory) (ta
     ]
 
 
-/// Verschiebungen mit fehlgeschlagener Zeile. Der Toast läuft ab, dieser Hinweis nicht.
+/// Verschiebungen mit fehlgeschlagener Zeile. Die Zeile im Sheet endet mit der nächsten Aktion, dieser Hinweis nicht.
 let moveRetries (model: Model) (retries: OpenMoveRetry list) (dispatch: Msg -> unit) =
     React.fragment (
         retries

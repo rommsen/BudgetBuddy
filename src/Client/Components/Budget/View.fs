@@ -231,14 +231,31 @@ let private searchRow (model: Model) (month: BudgetMonth) (wide: bool) (dispatch
         ]
     ]
 
-/// Leiste Monatserster und darunter die Suchzeile, 10 px Abstand wie die Skizze. Ohne geladenen Monat fällt der Block
-/// weg (die Leiste steht nur mit geladenem Monat).
+/// Der Hinweis „nicht neu gelesen“ unter dem Kopf mit „Zu verteilen“ (budgeting-gtrgk, Skizze ledger-vf5h6 Ansicht 32):
+/// ein Zustand der Seite, an PC und Handy gleich, bis ein Neu-Lesen gelingt.
+let private staleHintView (model: Model) (dispatch: Msg -> unit) =
+    match staleHint model with
+    | Some hint ->
+        Feedback.stateHint
+            "budget-stale"
+            hint.Text
+            hint.Reasons
+            (Some { Label = "Neu laden"; OnClick = fun () -> dispatch RereadStale })
+            hint.Running
+    | None -> Html.none
+
+/// Hinweis „nicht neu gelesen“, Leiste Monatserster und darunter die Suchzeile, 10 px Abstand wie die Skizze. Ohne
+/// geladenen Monat fällt der Block weg (die Leiste steht nur mit geladenem Monat).
 let private belowHead (bar: Components.Budget.MonthStart.MonthStartFieldView list option) (model: Model) (panel: bool) (wide: bool) (dispatch: Msg -> unit) =
     match model.Month with
     | Success month ->
         Html.div [
             prop.className "flex flex-col gap-2.5"
-            prop.children [ monthStartBarView bar model panel dispatch; searchRow model month wide dispatch ]
+            prop.children [
+                staleHintView model dispatch
+                monthStartBarView bar model panel dispatch
+                searchRow model month wide dispatch
+            ]
         ]
     | _ -> Html.none
 

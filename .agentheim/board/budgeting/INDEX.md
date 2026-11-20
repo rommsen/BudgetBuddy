@@ -12,8 +12,8 @@ Catalog of this bounded context's tasks by status.
 <!-- task-counts:start -->
 - **Backlog:** 4
 - **Todo:** 2
-- **Doing:** 1
-- **Done:** 69
+- **Doing:** 0
+- **Done:** 70
 <!-- task-counts:end -->
 
 ### Todo
@@ -24,11 +24,11 @@ Catalog of this bounded context's tasks by status.
 
 ### Doing
 <!-- doing-list:start -->
-- **budgeting-gtrgk** — "Budget-Seite und Sheet „Geld“ am Handy ohne Toast (R3): Ergebnis und Fehler in der Zeile über dem Knopf, „Verfügbar“ leuchtet kurz, Hinweis „nicht neu gelesen“ unter „Zu verteilen“ mit „Neu laden“" (feature) — `doing/budgeting-gtrgk-budget-und-uebersicht-ohne-toast.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)
 <!-- done-list:start -->
+- **budgeting-gtrgk** — "Budget-Seite und Sheet „Geld“ am Handy ohne Toast (R3): Ergebnis und Fehler in der Zeile über dem Knopf, „Verfügbar“ leuchtet kurz, Hinweis „nicht neu gelesen“ unter „Zu verteilen“ mit „Neu laden“" (feature) — `done/budgeting-gtrgk-budget-und-uebersicht-ohne-toast.md`
 - **budgeting-yarty** — "Budget-Historie: Feld „Zeigen“ statt Chipleiste, Zeilen nach §7.11 aus HistoryList, auch die Historie im Kategorie-Detail" (feature) — `done/budgeting-yarty-budget-historie-zeigen.md`
 - **budgeting-h2brj** — "Wochentag eines Targets als Auswahlfeld statt sieben Knöpfe, ohne Wahl „Wochentag wählen“ in Gelb" (feature) — `done/budgeting-h2brj-wochentag-als-auswahlfeld.md`
 - **budgeting-ht88a** — "Targets prüfen: Gelb nur am Titel „Gibst du mehr aus?“ und an den Balken, Kopf als ein neutraler Satz wie im Prototyp" (feature) — `done/budgeting-ht88a-targets-pruefen-gelb.md`

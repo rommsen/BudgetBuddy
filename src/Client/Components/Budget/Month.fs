@@ -193,23 +193,21 @@ let applyLoaded (generation: int) (result: Result<BudgetMonth, string>) (model: 
             let selected =
                 model.Selected
                 |> Option.filter (fun s -> categoriesOf month |> List.exists (fun c -> c.Id = s.CategoryId))
-            let settled = { model with Month = Success month; Selected = selected; Freshness = MonthRead }
+            // Ein gelesener Monat beendet den Hinweis „Beträge nicht neu gelesen“ (budgeting-gtrgk).
+            let settled = { model with Month = Success month; Selected = selected; Freshness = MonthRead; StaleAmounts = None }
             if entriesOutdated model month then resetTabData settled else settled
-        | Error message -> { model with Month = Failure message }
+        // Die Fehlerkarte mit Wiederholen ersetzt die Liste, ein Hinweis darüber wäre doppelt.
+        | Error message -> { model with Month = Failure message; StaleAmounts = None }
 
-/// Das stille Neu-Lesen nach einer Verschiebung oder Zuweisung. Scheitert es, bleibt die Liste stehen und ein
-/// Hinweis nennt den Grund: die Seite verliert nicht ihren Stand, weil ein Nachladen ausfiel. Das
-/// gilt nicht während eines Monatswechsels: dann fehlt der neue Monat, und die Fehlerkarte mit
-/// Wiederholen steht da.
-let applyReloaded
-    (generation: int)
-    (result: Result<BudgetMonth, string>)
-    (model: Model)
-    : Model * ExternalMsg =
+/// Das stille Neu-Lesen nach einer Verschiebung oder Zuweisung. Scheitert es, bleibt die Liste stehen und der
+/// Hinweis „Beträge nicht neu gelesen“ unter „Zu verteilen“ nennt den Grund (`StaleAmounts`, budgeting-gtrgk): die
+/// Seite verliert nicht ihren Stand, weil ein Nachladen ausfiel. Er bleibt, bis ein Lesen gelingt. Das gilt nicht
+/// während eines Monatswechsels: dann fehlt der neue Monat, und die Fehlerkarte mit Wiederholen steht da.
+let applyReloaded (generation: int) (result: Result<BudgetMonth, string>) (model: Model) : Model =
     match model.Month, result with
     | Success _, Error message when generation = model.MonthGeneration && not (monthChanging model) ->
-        model, ShowToast ($"Beträge nicht neu gelesen, sie können veraltet sein: {message}", ToastWarning)
-    | _ -> applyLoaded generation result model, NoOp
+        { model with StaleAmounts = Some (ReadFailed message) }
+    | _ -> applyLoaded generation result model
 
 /// Monat wählen. Derselbe Monat noch einmal ändert nichts (`false`); ein anderer lädt (`true` heißt:
 /// der Aufrufer muss laden). Ein geladener Monat bleibt bis zur Antwort stehen, sonst steht `Loading`.
@@ -238,15 +236,12 @@ let beginLoad (model: Model) : Model =
 
 /// Antwort auf den Rahmen. Der Monat folgt (`true`), außer der erste Rahmen scheiterte: dann gibt
 /// es keinen Monat zu zeigen, die Seite zeigt den Fehler mit Wiederholen. Gibt es schon einen
-/// Rahmen, bleibt er stehen und ein Toast nennt den Grund.
-let applyFrameLoaded (result: Result<BudgetFrame, string>) (model: Model) : Model * ExternalMsg * bool =
+/// Rahmen, bleibt er stehen und der Hinweis „Monate nicht neu gelesen“ nennt den Grund (`StaleMonths`).
+let applyFrameLoaded (result: Result<BudgetFrame, string>) (model: Model) : Model * bool =
     match result, model.Frame with
-    | Ok frame, _ -> requestMonth { model with Frame = Success frame; Month = Loading }, NoOp, true
-    | Error message, Success _ ->
-        requestMonth { model with Month = Loading },
-        ShowToast ($"Monate nicht neu gelesen, sie können veraltet sein: {message}", ToastWarning),
-        true
-    | Error message, _ -> { model with Frame = Failure message; Month = Failure message }, NoOp, false
+    | Ok frame, _ -> requestMonth { model with Frame = Success frame; Month = Loading; StaleMonths = None }, true
+    | Error message, Success _ -> requestMonth { model with Month = Loading; StaleMonths = Some (ReadFailed message) }, true
+    | Error message, _ -> { model with Frame = Failure message; Month = Failure message }, false
 
 /// Rückt dieser Rahmen den gezeigten Monat weiter?
 let frameMovesMonth (result: Result<BudgetFrame, string>) (model: Model) : bool =
@@ -255,17 +250,78 @@ let frameMovesMonth (result: Result<BudgetFrame, string>) (model: Model) : bool 
     | Error _ -> false
 
 /// Das stille Nachlesen. Scheitert es, bleibt das alte Fenster ohne Meldung, der nächste
-/// Seitenaufruf heilt es. Ändert es den gezeigten Monat (Monatswechsel während die Seite offen ist),
-/// liest der Aufrufer ihn neu (`true`), wie nach `applyFrameLoaded`. Die Liste bleibt bis dahin stehen.
+/// Seitenaufruf heilt es; nur wenn „Neu laden“ am Hinweis „Monate nicht neu gelesen“ es startete, steht dort der neue
+/// Grund. Gelingt es, ist dieser Hinweis weg. Ändert es den gezeigten Monat (Monatswechsel während die Seite offen
+/// ist), liest der Aufrufer ihn neu (`true`), wie nach `applyFrameLoaded`. Die Liste bleibt bis dahin stehen.
 let applyFrameRefreshed (result: Result<BudgetFrame, string>) (model: Model) : Model * bool =
     match result with
     | Ok frame ->
-        let refreshed = { model with Frame = Success frame }
+        let refreshed = { model with Frame = Success frame; StaleMonths = None }
         if shownMonth refreshed <> shownMonth model then
             requestMonth (invalidateTabData refreshed), true
         else
             refreshed, false
-    | Error _ -> model, false
+    | Error message ->
+        match model.StaleMonths with
+        | Some (Rereading _) -> { model with StaleMonths = Some (ReadFailed message) }, false
+        | _ -> model, false
+
+// ============================================
+// Hinweis „nicht neu gelesen“ (budgeting-gtrgk)
+// ============================================
+
+/// Was der Hinweis zeigt: die Zeile, darunter kleiner die Gründe, und ob „Neu laden“ gerade läuft.
+type StaleHint = { Text: string; Reasons: string list; Running: bool }
+
+let private reasonOf (notice: ReadNotice) =
+    match notice with
+    | ReadFailed reason
+    | Rereading reason -> reason
+
+let private running (notice: ReadNotice option) =
+    match notice with
+    | Some (Rereading _) -> true
+    | _ -> false
+
+/// Der Hinweis unter „Zu verteilen“: einer, auch wenn Beträge und Monate zugleich ausstehen.
+let staleHint (model: Model) : StaleHint option =
+    let text =
+        match model.StaleAmounts, model.StaleMonths with
+        | Some _, Some _ -> Some "Beträge und Monate nicht neu gelesen, sie können veraltet sein."
+        | Some _, None -> Some "Beträge nicht neu gelesen, sie können veraltet sein."
+        | None, Some _ -> Some "Monate nicht neu gelesen, sie können veraltet sein."
+        | None, None -> None
+    text
+    |> Option.map (fun text ->
+        { Text = text
+          Reasons = [ model.StaleAmounts; model.StaleMonths ] |> List.choose (Option.map reasonOf) |> List.distinct
+          Running = running model.StaleAmounts || running model.StaleMonths })
+
+/// Der Hinweis oben im Tab Historie.
+let staleHistoryHint (model: Model) : StaleHint option =
+    model.StaleHistory
+    |> Option.map (fun notice ->
+        { Text = "Historie nicht neu gelesen, sie kann veraltet sein."
+          Reasons = [ reasonOf notice ]
+          Running = running model.StaleHistory })
+
+let private toRereading (notice: ReadNotice option) =
+    notice |> Option.map (fun n -> Rereading (reasonOf n))
+
+/// „Neu laden“ am Hinweis unter „Zu verteilen“: Beträge still neu lesen (`Some`), Monate über den Rahmen (`true`). Läuft
+/// es schon, geschieht nichts: ein doppelter Tipp startet keinen zweiten Aufruf.
+let startStaleReread (model: Model) : Model * MonthReread option * bool =
+    match staleHint model with
+    | Some hint when not hint.Running ->
+        let marked = { model with StaleAmounts = toRereading model.StaleAmounts; StaleMonths = toRereading model.StaleMonths }
+        let reread, how =
+            if model.StaleAmounts.IsSome then
+                let rereading, how = rereadMonth marked
+                rereading, Some how
+            else
+                marked, None
+        reread, how, model.StaleMonths.IsSome
+    | _ -> model, None, false
 
 /// Kann der Bericht das Fenster geöffnet haben?
 let frameDueAfterReport (report: ApplyReport) (model: Model) : bool =

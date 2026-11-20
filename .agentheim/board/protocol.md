@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-11-20 02:44 -- Task verified and completed: budgeting-gtrgk - "Budget-Seite und Sheet „Geld“ am Handy ohne Toast (R3): Ergebnis und Fehler in der Zeile über dem Knopf, „Verfügbar“ leuchtet kurz, Hinweis „nicht neu gelesen“ unter „Zu verteilen“ mit „Neu laden“"
+
+**Type:** Work / Task completion
+**Task:** budgeting-gtrgk - "Budget-Seite und Sheet „Geld“ am Handy ohne Toast (R3): Ergebnis und Fehler in der Zeile über dem Knopf, „Verfügbar“ leuchtet kurz, Hinweis „nicht neu gelesen“ unter „Zu verteilen“ mit „Neu laden“"
+**Summary:** Budget-Seite und Sheet Geld ohne Toast: Zeile über dem Knopf, Verfügbar leuchtet, Hinweis nicht neu gelesen
+**Duration:** 55m
+**Verification:** PASS (iteration 1, nach Merge-Konflikt-Auflösung mit categorization-t6j00)
+**Files changed:** 19
+**Tests added:** 24
+**ADRs written:** none
+
+---
+
+## 2026-11-20 02:27 -- Verification failed: ledger-gwr9j - Kassenbuch ohne Toast, Teil 1
+
+**Type:** Work / Verification failure
+**Task:** ledger-gwr9j
+**Iteration:** 1 of 3
+**Reasons:** PC-Screenshot 1280 ohne den behaupteten Toast (abgelaufen)
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-11-20 02:19 -- Batch started: [banking-import-vwhfm]
 
 **Type:** Work / Batch start

@@ -141,7 +141,7 @@ type MoveRetryState =
     | RetryReady
     | RetryRunning
 
-/// Eine Verschiebung mit fehlgeschlagener Zeile. Bleibt auf der Seite sichtbar, wenn der Toast weg
+/// Eine Verschiebung mit fehlgeschlagener Zeile. Bleibt auf der Seite sichtbar, auch wenn die Zeile im Sheet weg
 /// ist, bis nichts mehr offen ist.
 type OpenMoveRetry = {
     ApplicationId: string
@@ -298,6 +298,34 @@ type PageKeyAction =
     | ClosePanelKey
     | LeaveKey
 
+/// Ton der Zeile im Sheet (Regel R3, ADR 0098, budgeting-gtrgk): ✓ grün, ! gelb, ! rot.
+type SheetLineTone =
+    | LineOk
+    | LineWarning
+    | LineError
+
+/// Die eine Meldung im Sheet „Geld“ über dem Hauptknopf (Platz 2 aus ADR 0098). Sie bleibt bis zur nächsten Aktion im
+/// Sheet, bis zum Kategorie- oder Monatswechsel oder bis das Sheet schließt; der Wechsel zwischen Zuweisen, Holen und
+/// Abgeben beendet sie nicht. Kein ✕, kein Zeitlimit.
+type SheetLine = {
+    Tone: SheetLineTone
+    Text: string
+    /// Gruppen-Id einer offenen Verschiebung: rechts steht dann „Erneut senden“.
+    Retry: string option
+}
+
+/// Ein Lesen, das scheiterte, als Zustand der Seite (Hinweis „nicht neu gelesen“, budgeting-gtrgk). Kein Toast: der
+/// Hinweis bleibt, bis ein Neu-Lesen gelingt.
+type ReadNotice =
+    /// Gescheitert, mit Grund.
+    | ReadFailed of reason: string
+    /// „Neu laden“ läuft; der Grund des letzten Fehlschlags steht weiter da.
+    | Rereading of reason: string
+
+/// „Verfügbar“ im Tab Geld leuchtet kurz nach einem Bericht mit geschriebener Zeile (`Feedback.flash`). `Count` zählt
+/// jedes Leuchten: das Ende eines älteren nimmt ein neueres nicht ab, und ein neues baut das Element neu auf.
+type AvailableFlash = { Count: int; On: bool }
+
 /// Die gewählte Kategorie, der einzige Auswahl-Zustand. Hält nur die Id: Zugewiesen, Aktivität und
 /// Verfügbar kommen aus `Model.Month`, also live aus YNAB. Aus der Datenbank kommen die Tab-Daten
 /// (Buchungen, Historie), je für Kategorie und gezeigten Monat.
@@ -391,6 +419,16 @@ type Model = {
     /// Die Seite Kategorien `#/budget/categories` (budgeting-pscgb). Liegt auf der Budget-Seite wie
     /// `GeneralHistory`.
     CategoryAdmin: Components.Budget.Categories.Model
+    /// Die Zeile im Sheet über dem Hauptknopf (budgeting-gtrgk).
+    SheetLine: SheetLine option
+    /// „Verfügbar“ leuchtet im Tab Geld.
+    AvailableFlash: AvailableFlash
+    /// Das stille Neu-Lesen der Beträge scheiterte: Hinweis unter „Zu verteilen“.
+    StaleAmounts: ReadNotice option
+    /// Das Lesen der Monate (Rahmen) scheiterte, der alte Rahmen blieb: derselbe Hinweis.
+    StaleMonths: ReadNotice option
+    /// Das stille Nachladen der Historie scheiterte: Hinweis oben im Tab Historie.
+    StaleHistory: ReadNotice option
 }
 
 type Msg =
@@ -471,7 +509,7 @@ type Msg =
     | MoveAnswered of Result<ApplyReport, string>
     /// Der Aufruf selbst brach ab: ob etwas geschrieben wurde, ist unbekannt.
     | MoveCallLost of string
-    /// "Erneut senden" am Toast, am Hinweis auf der Seite oder an der Markierung "noch nicht in YNAB" einer
+    /// "Erneut senden" an der Zeile im Sheet, am Hinweis auf der Seite oder an der Markierung "noch nicht in YNAB" einer
     /// Kategorie (budgeting-dgrp7): die Gruppen-Id der fehlgeschlagenen oder offenen Rückschreibung.
     | RetryMove of applicationId: string
     | MoveRetried of applicationId: string * Result<ApplyReport, string>
@@ -606,12 +644,21 @@ type Msg =
     | CloseWriteAllTargets
     /// Nachrichten der Seite Kategorien.
     | CategoryAdminMsg of Components.Budget.Categories.Msg
+    /// „Neu laden“ am Hinweis „nicht neu gelesen“ unter „Zu verteilen“: Beträge und, falls offen, Monate neu lesen.
+    | RereadStale
+    /// „Neu laden“ am Hinweis im Tab Historie.
+    | RereadStaleHistory
+    /// Das Leuchten von „Verfügbar“ endet, mit seiner Zählung.
+    | AvailableFlashEnded of count: int
 
 /// Was die Seite an die App meldet (wie im Kassenbuch).
 type ExternalMsg =
     | NoOp
     | ShowToast of string * ToastType
     | ShowToastWithAction of string * ToastType * ToastAction
+    /// Eine Meldung mit Ort: bei offenem Sheet die Zeile über dem Hauptknopf, sonst die Leiste (am PC der Toast).
+    /// `update` löst sie auf (`routeSheetLine`), die App bekommt sie nie zu sehen.
+    | ShowLine of SheetLine
     /// Sprung ins Kassenbuch auf diese Buchung.
     | JumpToEntry of System.Guid
     /// Zur allgemeinen Historie `#/budget/history`.
@@ -661,4 +708,9 @@ let init () : Model =
       MonthStartCheckGeneration = 0
       TargetsPreviewGeneration = 0
       MenuOpen = false
-      CategoryAdmin = Components.Budget.Categories.init () }
+      CategoryAdmin = Components.Budget.Categories.init ()
+      SheetLine = None
+      AvailableFlash = { Count = 0; On = false }
+      StaleAmounts = None
+      StaleMonths = None
+      StaleHistory = None }

@@ -380,19 +380,20 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
             withRequest, Cmd.batch [ rereadCmd reread withRequest; tabDataCmd; checkCmd ], NoOp
     | Load -> beginLoad model, frameCmd (), NoOp
     | FrameLoaded result ->
-        let model', external, loadMonth = applyFrameLoaded result model
+        let model', loadMonth = applyFrameLoaded result model
         // Ohne Rahmen kommt kein Monat: der Eintrag aus „Zu tun“ verfällt, statt nach „Wiederholen“ aufzuspringen.
         let settled = if loadMonth then model' else { model' with EntryAction = None }
-        settled, (if loadMonth then loadCmd settled else Cmd.none), external
+        settled, (if loadMonth then loadCmd settled else Cmd.none), NoOp
     | FrameRefreshed result ->
         // Der Monat rückt weiter: Die Eingabe gilt dem alten und wird wie beim Verlassen gesichert.
         let left, outcome = if frameMovesMonth result model then leaveInspector model else model, NothingOpen
         match applyFrameRefreshed result left with
-        | model', true -> model', loadCmd model', leaveToast outcome
+        | model', true -> model', loadCmd model', leaveLine outcome
         | model', false -> model', Cmd.none, NoOp
     | SelectMonth month ->
         match select month model with
-        | model', true -> model', loadCmd model', NoOp
+        // Der Monatswechsel liest den Monat ohnehin neu: der Hinweis „Beträge nicht neu gelesen“ gilt dem alten.
+        | model', true -> { model' with StaleAmounts = None }, loadCmd model', NoOp
         | model', false -> model', Cmd.none, NoOp
     | SelectCategory categoryId -> quiet (withTabData (selectCategory categoryId model))
     | StepCategory direction -> quiet (withTabData (stepSelection direction model))
@@ -427,6 +428,18 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
         let rereading, how = rereadMonth (applyAllTargetsWritten result model)
         rereading, rereadCmd how rereading, NoOp
     | CloseWriteAllTargets -> closeWriteAllTargets model, Cmd.none, NoOp
+    | RereadStale ->
+        match startStaleReread model with
+        | model', reread, frame ->
+            let monthRead = reread |> Option.map (fun how -> rereadCmd how model') |> Option.defaultValue Cmd.none
+            model', Cmd.batch [ monthRead; frameRefreshCmd frame ], NoOp
+    | RereadStaleHistory ->
+        match startStaleHistoryReread model with
+        | model', Some request -> model', tabDataCmd request, NoOp
+        | model', None -> model', Cmd.none, NoOp
+    | AvailableFlashEnded count ->
+        if model.AvailableFlash.Count = count then { model with AvailableFlash = { model.AvailableFlash with On = false } }, Cmd.none, NoOp
+        else model, Cmd.none, NoOp
     | CategoryAdminMsg inner ->
         let admin, cmd, external = Components.Budget.Categories.update inner model.CategoryAdmin
         let outward =
@@ -457,7 +470,7 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
         match (if canCover model then confirmMissing model else model, None) with
         | model', Some (monthKey, request) ->
             let external =
-                if coverDropsEntry model then ShowToast (coverDroppedEntryText, ToastWarning) else NoOp
+                if coverDropsEntry model then lineOf LineWarning coverDroppedEntryText else NoOp
             model', moveCmd monthKey request, external
         | model', None -> model', Cmd.none, NoOp
     | AssignAnswered result ->
@@ -485,9 +498,7 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
     | CategoryEntriesLoaded (generation, result) -> applyCategoryEntries generation result model, Cmd.none, NoOp
     | LoadCategoryHistory -> quiet (withTabData (resetTab HistoryTab model))
     | CategoryHistoryLoaded (generation, result) -> applyCategoryHistory generation result model, Cmd.none, NoOp
-    | CategoryHistoryReloaded (generation, result) ->
-        let model', external = applyCategoryHistoryReloaded generation result model
-        model', Cmd.none, external
+    | CategoryHistoryReloaded (generation, result) -> applyCategoryHistoryReloaded generation result model, Cmd.none, NoOp
     | CategorySearchChanged search -> { model with CategorySearch = search }, Cmd.none, NoOp
     | ClearCategorySearch -> { model with CategorySearch = "" }, Cmd.none, NoOp
     | SelectFilter filter -> { model with Filter = filter }, Cmd.none, NoOp
@@ -548,10 +559,11 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
         let answered = applyPauseAnswered categoryId month result model
         match result with
         | Error message ->
-            // Steht der Pause-Knopf nicht im offenen Tab, sähe niemand die Meldung: dann als Toast.
+            // Steht der Pause-Knopf nicht im offenen Tab, sähe niemand die Meldung: dann rot in der Zeile im Sheet, bei
+            // geschlossenem Sheet in der Leiste (budgeting-gtrgk).
             let external =
                 if pauseAnswerInTab categoryId month model then NoOp
-                else ShowToast (pauseRejectedAwayText message, ToastWarning)
+                else lineOf LineError (pauseRejectedAwayText message)
             answered, Cmd.none, external
         | Ok _ ->
             // Ein Lesen, das die Pause verpasst haben kann, nähme sie zurück: dann noch einmal lesen.
@@ -560,9 +572,9 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
         let inTab = pauseAnswerInTab categoryId month model
         let reread = pauseCallLostRereads month model
         let lost = applyPauseCallLost categoryId month message model
-        // Steht der Pause-Knopf im offenen Tab, steht die Meldung dort, sonst als Toast. Der Monat wird
-        // still neu gelesen, wenn er gewählt ist (`pauseCallLostRereads`).
-        let external = if inTab then NoOp else ShowToast (pauseCallLostText reread message, ToastError)
+        // Steht der Pause-Knopf im offenen Tab, steht die Meldung dort, sonst in der Zeile im Sheet oder der Leiste. Der
+        // Monat wird still neu gelesen, wenn er gewählt ist (`pauseCallLostRereads`).
+        let external = if inTab then NoOp else lineOf LineError (pauseCallLostText reread message)
         afterPauseAnswered categoryId month reread (lost, external)
     | TargetAmountChanged text -> typeTargetAmount text model, Cmd.none, NoOp
     | TargetDateChanged entry -> typeTargetDate entry model, Cmd.none, NoOp
@@ -651,10 +663,9 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
         afterMovement (model', afterAnswer true (frameDueAfterRetry result model) model', external)
     // Gewinnt `Reloaded` den Lauf gegen `Loaded`, ist nur hier die Stelle, die Tab-Daten zu holen.
     | Reloaded (generation, result) ->
-        let model', external = applyReloaded generation result model
-        let withRequest, cmd = withTabData model'
+        let withRequest, cmd = withTabData (applyReloaded generation result model)
         let acted, actionCmd = answerEntryAction (generation = model.MonthGeneration) withRequest
-        acted, Cmd.batch [ cmd; actionCmd ], external
+        acted, Cmd.batch [ cmd; actionCmd ], NoOp
 
 /// Wie `update` eine Nachricht behandelt.
 [<RequireQualifiedAccess>]
@@ -706,6 +717,9 @@ let private routeOf (msg: Msg) (model: Model) : MsgRoute =
     | AllTargetsWritten _
     | CloseWriteAllTargets
     | CategoryAdminMsg _
+    | RereadStale
+    | RereadStaleHistory
+    | AvailableFlashEnded _
     | GeneralHistoryEntered
     | RetryGeneralHistory
     | GeneralHistoryLoaded _
@@ -795,39 +809,116 @@ let private routeOf (msg: Msg) (model: Model) : MsgRoute =
     | CancelRemoveCheckTarget
     | OpenEntryInLedger _ -> MsgRoute.Free
 
-/// Speichert die offene Eingabe, dann wirkt die Nachricht. Der Toast zur Eingabe geht vor.
+/// Speichert die offene Eingabe, dann wirkt die Nachricht. Die Meldung zur Eingabe geht vor.
 let private leaveThen (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     let left, outcome = leaveInspector model
     let moved, cmd, external = transition msg left
-    moved, cmd, (match leaveToast outcome with NoOp -> external | toast -> toast)
+    moved, cmd, (match leaveLine outcome with NoOp -> external | line -> line)
 
 /// Eine Bewegung startet nur, wenn Zuweisen ruht. Sonst ist der Tipp ein Verlassen: Die Eingabe geht in
 /// die Schlange und die Bewegung startet nicht, auch nicht von selbst danach. Wer sie will, sieht die
 /// neue Lage und tippt noch einmal. Fiel die Eingabe ohne Änderung weg und ruht Zuweisen, startet sie.
-/// Bleibt der Tipp ohne sichtbare Wirkung, nennt ein Toast die Sperre: Der Weg über den Toast
-/// "Erneut senden" hat keinen gesperrten Knopf.
+/// Bleibt der Tipp ohne sichtbare Wirkung, nennt die gelbe Zeile die Sperre: "Erneut senden" an der Zeile oder in
+/// der Leiste hat keinen gesperrten Knopf.
 let private startMove (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
-    let blocked = ShowToast (moveBlockedText, ToastWarning)
+    let blocked = lineOf LineWarning moveBlockedText
     match moveGate model with
     | Blocked CallRunning -> model, Cmd.none, blocked
     | Blocked AssignQueued
     | SaveFirst ->
         match leaveInspector model with
         | left, Queued -> left, Cmd.none, NoOp
-        | left, DroppedInvalid -> left, Cmd.none, leaveToast DroppedInvalid
+        | left, DroppedInvalid -> left, Cmd.none, leaveLine DroppedInvalid
         | left, (NothingOpen | Unchanged) ->
             if List.isEmpty left.AssignQueue then transition msg left else left, Cmd.none, blocked
     | Blocked ReportOpen
     | Blocked MonthChanging
     | Free -> transition msg model
 
-/// Der Warn-Toast, wenn die gewählte Kategorie beim Neu-Lesen wegfiel.
-let private droppedEntryToast =
-    ShowToast ("Zugewiesen nicht gespeichert: die Kategorie gibt es nicht mehr", ToastWarning)
+/// Die gelbe Zeile, wenn die gewählte Kategorie beim Neu-Lesen wegfiel.
+let private droppedEntryLine =
+    lineOf LineWarning "Zugewiesen nicht gespeichert: die Kategorie gibt es nicht mehr"
+
+// ============================================
+// Zeile im Sheet (Regel R3, ADR 0098, budgeting-gtrgk)
+// ============================================
+
+/// Beendet die Nachricht die Zeile im Sheet? Die nächste Aktion im Sheet (ein Tipp auf einen Knopf, eine neue Eingabe),
+/// das Schließen und das Verlassen der Seite. Der Wechsel zwischen Zuweisen, Holen und Abgeben nicht, ebenso wenig der
+/// Wechsel des Tabs: er zeigt nur, die Zeile steht dann oben im Tab. Kategorie- und Monatswechsel fängt zusätzlich
+/// `sheetKey` ab, gleich auf welchem Weg.
+let endsSheetLine (msg: Msg) : bool =
+    match msg with
+    | PageKeyPressed (StepTab _) -> false
+    | AssignTextChanged _
+    | AssignStepped _
+    | CoverMissing
+    | TransferAmountChanged _
+    | TransferAmountReset
+    | OpenPicker
+    | PickCounterpart _
+    | ConfirmTransfer
+    | RetryMove _
+    | SetTargetPause _
+    | SelectCategory _
+    | StepCategory _
+    | PageKeyPressed _
+    | SelectMonth _
+    | CloseInspector
+    | ReturnAbandoned
+    | PageLeft
+    | OpenEntryInLedger _
+    | LoadCategoryEntries
+    | LoadCategoryHistory
+    | RereadStaleHistory
+    | TargetAmountChanged _
+    | TargetDateChanged _
+    | TargetRhythmChanged _
+    | TargetWeekdayChanged _
+    | SaveTarget
+    | AskRemoveTarget
+    | ConfirmRemoveTarget -> true
+    | _ -> false
+
+/// Steht das Sheet (am PC das Panel) offen? Die Auswahl wartet nicht auf eine Rückkehr von einer anderen Seite.
+let sheetOpen (model: Model) : bool =
+    model.Selected |> Option.exists (fun s -> not s.ReturnPending)
+
+/// Kategorie und Monat des Sheets: ändert sich einer, gilt die Zeile nicht mehr.
+let private sheetKey (model: Model) =
+    model.Selected |> Option.map (fun s -> s.CategoryId), shownMonth model
+
+/// Die Zeile ohne offenes Sheet: in der Leiste, am PC als Toast (Platz 3). "Erneut senden" bleibt.
+let lineToast (line: SheetLine) : ExternalMsg =
+    match line.Tone, line.Retry with
+    | LineError, Some applicationId ->
+        ShowToastWithAction (line.Text, ToastError, { Label = retryMoveLabel; Kind = RetryBudgetMove applicationId })
+    | LineError, None -> ShowToast (line.Text, ToastError)
+    | LineWarning, _ -> ShowToast (line.Text, ToastWarning)
+    | LineOk, _ -> ShowToast (line.Text, ToastSuccess)
+
+/// Setzt die Meldung mit Ort an ihren Platz: bei offenem Sheet die Zeile, sonst die Leiste. Eine Zeile, deren
+/// Kategorie oder Monat nicht mehr gezeigt wird, endet.
+let routeSheetLine (before: Model) (after: Model, external: ExternalMsg) : Model * ExternalMsg =
+    let kept =
+        if sheetKey before <> sheetKey after || not (sheetOpen after) then { after with SheetLine = None } else after
+    match external with
+    | ShowLine line when sheetOpen kept -> { kept with SheetLine = Some line }, NoOp
+    | ShowLine line -> kept, lineToast line
+    | other -> kept, other
+
+/// Wie lange "Verfügbar" leuchtet: 0,7 s Animation (`.feedback-flash`), danach nimmt die App die Klasse ab. Mit
+/// `prefers-reduced-motion` steht der Ring so lange ohne Bewegung.
+let availableFlashMs = 900
+
+/// Der Zeitgeber, der das Leuchten beendet.
+let availableFlashCmd (count: int) : Cmd<Msg> =
+    Client.Debounce.delayed availableFlashMs (AvailableFlashEnded count)
 
 /// Der Einstieg. Jede Nachricht geht ihren Weg (`routeOf`), danach folgt der Tab dem Schlüssel und die
-/// Schlange läuft weiter.
+/// Schlange läuft weiter. Eine Meldung mit Ort geht an ihren Platz (`routeSheetLine`).
 let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
+    let model = if endsSheetLine msg then { model with SheetLine = None } else model
     let busy = inspectorBusy model
     let model', cmd, external =
         match routeOf msg model with
@@ -840,6 +931,12 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         | MsgRoute.TouchesField
         | MsgRoute.Free -> transition msg model
     let synced = syncTargetForm (syncMoneyTab (syncPause model'))
-    let external' = if entryDropped model' synced && external = NoOp then droppedEntryToast else external
+    let external' = if entryDropped model' synced && external = NoOp then droppedEntryLine else external
     let flushed, sendCmd = flushAssign synced
-    flushed, Cmd.batch [ cmd; sendCmd ], external'
+    let routed, external'' = routeSheetLine model (flushed, external')
+    let flashCmd =
+        if routed.AvailableFlash.On && routed.AvailableFlash.Count <> model.AvailableFlash.Count then
+            availableFlashCmd routed.AvailableFlash.Count
+        else
+            Cmd.none
+    routed, Cmd.batch [ cmd; sendCmd; flashCmd ], external''

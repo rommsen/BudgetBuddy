@@ -128,25 +128,28 @@ let private categoryIdForFrame = System.Guid.Parse "00000000-0000-0000-0000-0000
 let private frameLoadTests =
     testList "Rahmen lesen" [
         test "Erst der Rahmen, dann der Monat: die Antwort verlangt das Laden und setzt die Reihenfolge" {
-            let m, external, loadMonth = applyFrameLoaded (Ok frameK7wmd) (beginLoad (init ()))
+            let m, loadMonth = applyFrameLoaded (Ok frameK7wmd) (beginLoad (init ()))
             Expect.equal m.Frame (Success frameK7wmd) "Rahmen"
             Expect.equal m.Month Loading "Monat lädt"
             Expect.isTrue loadMonth "Monat holen"
-            Expect.equal external NoOp "still"
+            Expect.isNone m.StaleMonths "kein Hinweis"
         }
         test "Der erste Rahmen-Fehler zeigt die Fehlerkarte und lädt keinen Monat" {
-            let m, external, loadMonth = applyFrameLoaded (Error "kaputt") (beginLoad (init ()))
+            let m, loadMonth = applyFrameLoaded (Error "kaputt") (beginLoad (init ()))
             Expect.equal m.Month (Failure "kaputt") "Karte"
             Expect.isFalse loadMonth "kein Monat"
-            Expect.equal external NoOp "kein Toast"
+            Expect.isNone m.StaleMonths "die Karte genügt, kein Hinweis"
         }
-        test "Gibt es schon einen Rahmen, bleibt er stehen, ein Toast nennt den Grund, der Monat kommt" {
-            let m, external, loadMonth = applyFrameLoaded (Error "kaputt") (beginLoad framed)
+        // budgeting-gtrgk: vorher ein Toast, der nach 5 s ging, obwohl die Monate veraltet blieben.
+        test "Gibt es schon einen Rahmen, bleibt er stehen, der Hinweis Monate nicht neu gelesen nennt den Grund, der Monat kommt" {
+            let m, loadMonth = applyFrameLoaded (Error "kaputt") (beginLoad framed)
             Expect.equal m.Frame framed.Frame "bleibt"
             Expect.isTrue loadMonth "Monat holen"
-            match external with
-            | ShowToast (text, _) -> Expect.stringContains text "kaputt" "Grund"
-            | other -> failtestf "Toast erwartet: %A" other
+            Expect.equal m.StaleMonths (Some (ReadFailed "kaputt")) "Hinweis mit Grund"
+            Expect.equal
+                (staleHint m)
+                (Some { Text = "Monate nicht neu gelesen, sie können veraltet sein."; Reasons = [ "kaputt" ]; Running = false })
+                "Text"
         }
         test "Scheitert das stille Nachlesen, bleibt das alte Fenster ohne Meldung" {
             let model, cmd, external = Components.Budget.State.update (FrameRefreshed (Error "kaputt")) framed
@@ -223,17 +226,16 @@ let private loadedTests =
             let first, _, _ = applyMoveAnswered (Ok report) { init () with Month = Success monthK7wmd }
             let second, _, _ = applyMoveAnswered (Ok report) first
             let newest = { monthK7wmd with ToBeBudgeted = eur 5m }
-            let answered, _ = applyReloaded second.MonthGeneration (Ok newest) second
-            let late, external = applyReloaded first.MonthGeneration (Ok monthK7wmd) answered
+            let answered = applyReloaded second.MonthGeneration (Ok newest) second
+            let late = applyReloaded first.MonthGeneration (Ok monthK7wmd) answered
             Expect.equal late.Month (Success newest) "der neuere Stand bleibt"
-            Expect.equal external NoOp "kein Hinweis"
+            Expect.isNone late.StaleAmounts "kein Hinweis"
         }
         test "Ein später Fehler eines älteren Reloads meldet nichts" {
             let older = requestMonth { init () with Month = Success monthK7wmd }
             let newer = requestMonth older
-            let late, external = applyReloaded older.MonthGeneration (Error "Timeout") newer
-            Expect.equal late newer "unverändert"
-            Expect.equal external NoOp "kein Hinweis"
+            let late = applyReloaded older.MonthGeneration (Error "Timeout") newer
+            Expect.equal late newer "unverändert, kein Hinweis"
         }
         // Bug F2: nach dem Wechsel A, B, A stimmte die Wahl wieder, die späte Fehler-Antwort des
         // ersten A ersetzte den gezeigten Monat durch die Fehlerkarte.
@@ -241,9 +243,9 @@ let private loadedTests =
         // Seite gedimmt: die Antwort auf den Wechsel selbst ist da schon verworfen.
         test "Scheitert das Neu-Lesen während eines Wechsels, steht die Fehlerkarte da" {
             let changing, _ = select "2026-09-01" framed
-            let failed, external = applyReloaded changing.MonthGeneration (Error "Timeout") changing
+            let failed = applyReloaded changing.MonthGeneration (Error "Timeout") changing
             Expect.equal failed.Month (Failure "Timeout") "Karte"
-            Expect.equal external NoOp "kein Toast"
+            Expect.isNone failed.StaleAmounts "kein Hinweis neben der Karte"
         }
         test "Wechsel A, B, A: eine späte Fehler-Antwort des ersten A lässt den Monat stehen" {
             let firstA, _ = select "2026-11-01" framed
@@ -482,7 +484,7 @@ let private selectionTests =
             let shownEntries = { onEntries with Selected = Some { selectedOf onEntries with Entries = Success [ line -1m ] } }
             let changing, _ = select "2026-09-01" shownEntries
             let retried, _ = applyMoveRetried "a" (Error "weg") changing
-            let reloaded, _ = applyReloaded retried.MonthGeneration (Ok { detailMonth with Month = "2026-09-01" }) retried
+            let reloaded = applyReloaded retried.MonthGeneration (Ok { detailMonth with Month = "2026-09-01" }) retried
             Expect.equal (tabDataDue reloaded) (Some (EntriesTab, categoryId, "2026-09-01")) "fällig"
         }
         test "Fehlt die Kategorie im neuen Monat, endet die Auswahl" {
@@ -744,7 +746,7 @@ let private monthOrderTests =
             let second = { monthK7wmd with Groups = [ groupA; groupB ] }
             let loadedFirst = applyLoaded 0 (Ok first) model
             let loadedSecond = applyLoaded 0 (Ok second) loadedFirst
-            let reloaded, _ = applyReloaded 0 (Ok first) loadedSecond
+            let reloaded = applyReloaded 0 (Ok first) loadedSecond
             Expect.equal (groupNames loadedFirst) [ "A"; "B" ] "erster Monat"
             Expect.equal (groupNames loadedSecond) [ "A"; "B" ] "zweiter Monat"
             Expect.equal (groupNames reloaded) [ "A"; "B" ] "nach dem Neu-Lesen"
@@ -832,13 +834,13 @@ let private returnTests =
             // Dazu die Prüfung für das Feld Targets prüfen der Leiste Monatserster (budgeting-m3x7f).
             Expect.equal (List.length cmd) 3 "Monat, Buchungen und Prüfung"
         }
-        test "Scheitert das stille Neu-Lesen nach der Rückkehr, bleibt die Liste und ein Warn-Toast nennt den Grund" {
+        // budgeting-gtrgk: vorher ein Warn-Toast, der nach 5 s ging, obwohl der Monat veraltet blieb.
+        test "Scheitert das stille Neu-Lesen nach der Rückkehr, bleibt die Liste und der Hinweis nennt den Grund, kein Toast" {
             let returned, _, _ = Components.Budget.State.update PageEntered (leaveForEntry onEntriesLoaded)
             let failed, _, external = Components.Budget.State.update (Reloaded (returned.MonthGeneration, Error "Timeout")) returned
             Expect.equal failed.Month (Success detailMonth) "die Liste bleibt"
-            match external with
-            | ShowToast (text, ToastWarning) -> Expect.stringContains text "Timeout" "der Grund"
-            | other -> failtest $"Warn-Toast erwartet, kam {other}"
+            Expect.equal failed.StaleAmounts (Some (ReadFailed "Timeout")) "Hinweis mit Grund"
+            Expect.equal external NoOp "kein Toast"
         }
         test "Ist der Monat nicht geladen, lädt die Rückkehr wie bisher mit Fehlerkarte und Wiederholen" {
             let left = leaveForEntry { onEntriesLoaded with Month = Failure "kaputt" }

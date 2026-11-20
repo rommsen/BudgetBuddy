@@ -113,7 +113,7 @@ let canSend (model: Model) : bool =
     | SaveFirst -> true
     | Blocked _ -> false
 
-/// Der Warn-Toast, wenn ein Tipp eine Bewegung nicht starten kann.
+/// Die gelbe Zeile im Sheet, wenn ein Tipp eine Bewegung nicht starten kann.
 let moveBlockedText = "Eine Verschiebung läuft noch. Gleich noch einmal versuchen."
 
 /// Bleibt der Inspektor stehen? Das Feld Zugewiesen und alle Wege hinaus warten dann.
@@ -305,7 +305,7 @@ let amountKeyAction (key: string) : FieldKeyAction =
     | "Escape" -> CancelField TransferAmountReset
     | _ -> KeepField
 
-/// Der Warn-Toast, wenn beim Verlassen eine ungültige Eingabe wegfällt.
+/// Die gelbe Zeile, wenn beim Verlassen eine ungültige Eingabe wegfällt.
 let invalidEntryText = "Zugewiesen nicht gespeichert: keine gültige Rechnung"
 
 /// Was aus der Eingabe wurde.
@@ -326,10 +326,14 @@ let leaveInspector (model: Model) : Model * LeaveOutcome =
         | Some value when value = entry.BaseAssigned -> discardEntry model, Unchanged
         | Some _ -> saveEntry model, Queued
 
+/// Eine Meldung mit Ort (`ShowLine`): bleibt das Sheet offen, steht sie über dem Hauptknopf, sonst in der Leiste.
+let lineOf (tone: SheetLineTone) (text: string) : ExternalMsg =
+    ShowLine { Tone = tone; Text = text; Retry = None }
+
 /// Was das Verlassen meldet.
-let leaveToast (outcome: LeaveOutcome) : ExternalMsg =
+let leaveLine (outcome: LeaveOutcome) : ExternalMsg =
     match outcome with
-    | DroppedInvalid -> ShowToast (invalidEntryText, ToastWarning)
+    | DroppedInvalid -> lineOf LineWarning invalidEntryText
     | NothingOpen
     | Unchanged
     | Queued -> NoOp
@@ -362,7 +366,22 @@ let moveSummaryText (report: ApplyReport) : string =
     | [ line ] -> $"{amountOf line} von {CategoryPicker.toBeBudgetedLabel} nach {line.CategoryName}"
     | _ -> "Verschoben"
 
-/// Beschriftung der Toast-Aktion.
+/// "50,00 € nach Reise" oder "50,00 € von Reise": die Verschiebung aus Sicht der gewählten Kategorie (budgeting-gtrgk,
+/// Skizze ledger-vf5h6). Eine einzelne Zeile hat Zu verteilen auf der anderen Seite. Steht die Kategorie nicht im
+/// Bericht (inzwischen eine andere gewählt), nennt der Text beide Seiten (`moveSummaryText`).
+let moveLineText (perspective: System.Guid option) (report: ApplyReport) : string =
+    let amountOf (l: ApplyLineResult) =
+        let amount = abs (l.NewAssigned.Amount - l.OldAssigned.Amount)
+        Money.formatAmountText false true amount l.NewAssigned.Currency
+    match report.Lines, perspective with
+    | [ source; target ], Some x when x = source.CategoryId -> $"{amountOf source} nach {target.CategoryName}"
+    | [ source; target ], Some x when x = target.CategoryId -> $"{amountOf target} von {source.CategoryName}"
+    | [ line ], Some x when x = line.CategoryId && line.NewAssigned.Amount < line.OldAssigned.Amount ->
+        $"{amountOf line} nach {CategoryPicker.toBeBudgetedLabel}"
+    | [ line ], Some x when x = line.CategoryId -> $"{amountOf line} von {CategoryPicker.toBeBudgetedLabel}"
+    | _ -> moveSummaryText report
+
+/// Beschriftung der Aktion an der roten Zeile.
 let retryMoveLabel = "Erneut senden"
 
 /// Eine Zeile heißt: eine Seite ist Zu verteilen, es ging ums Zuweisen.
@@ -376,29 +395,44 @@ let private failureReason (report: ApplyReport) : string option =
         | Failed reason -> Some reason
         | _ -> None)
 
-let private failureToast (report: ApplyReport) (reason: string) : ExternalMsg =
-    ShowToastWithAction (
-        $"{failureHeadline report}: {reason}",
-        ToastError,
-        { Label = retryMoveLabel; Kind = RetryBudgetMove report.ApplicationId }
-    )
+let private failureLine (report: ApplyReport) (reason: string) : ExternalMsg =
+    ShowLine
+        { Tone = LineError
+          Text = $"{failureHeadline report}: {reason}"
+          Retry = Some report.ApplicationId }
 
-/// Der Toast zu einem Bericht: eine fehlgeschlagene Zeile bietet "Erneut senden" an.
-let moveToast (report: ApplyReport) : ExternalMsg =
+/// Die Zeile zu einem Bericht, aus Sicht der Kategorie `perspective`: eine fehlgeschlagene Zeile bietet "Erneut
+/// senden" an, eine in YNAB geänderte warnt.
+let moveLine (perspective: System.Guid option) (report: ApplyReport) : ExternalMsg =
     match failureReason report with
-    | Some reason -> failureToast report reason
+    | Some reason -> failureLine report reason
     | None when report.Lines |> List.exists (fun l -> l.Outcome = ChangedInYnab) ->
-        ShowToast ("In YNAB geändert, nichts überschrieben", ToastWarning)
-    | None -> ShowToast (moveSummaryText report, ToastSuccess)
+        lineOf LineWarning "In YNAB geändert, nichts überschrieben"
+    | None -> lineOf LineOk (moveLineText perspective report)
 
-/// Zuweisen im Feld zeigt keinen Erfolgs-Toast: die Zahl in der Liste ist die Antwort. Ist der Bericht
+/// Zuweisen im Feld zeigt keinen Erfolgstext: die Zahl ist die Antwort, dazu leuchtet "Verfügbar". Ist der Bericht
 /// nicht mehr offen, weil eine neuere Zuweisung wartet, gibt es nichts erneut zu senden.
-let private assignToast (report: ApplyReport) (model: Model) : ExternalMsg =
+let private assignLine (report: ApplyReport) (model: Model) : ExternalMsg =
     let stillOpen = model.OpenRetries |> List.exists (fun r -> r.ApplicationId = report.ApplicationId)
     match failureReason report with
-    | Some reason when stillOpen -> failureToast report reason
-    | Some reason -> ShowToast ($"{failureHeadline report}: {reason}", ToastError)
+    | Some reason when stillOpen -> failureLine report reason
+    | Some reason -> lineOf LineError $"{failureHeadline report}: {reason}"
     | None -> NoOp
+
+/// Die gewählte Kategorie, aus deren Sicht die Zeile spricht. Wartet die Auswahl auf die Rückkehr von einer anderen
+/// Seite, steht die Meldung in der Leiste und nennt beide Seiten.
+let private perspectiveOf (model: Model) : System.Guid option =
+    model.Selected |> Option.filter (fun s -> not s.ReturnPending) |> Option.map (fun s -> s.CategoryId)
+
+/// "Verfügbar" leuchtet kurz, wenn der Bericht für die gewählte Kategorie eine Zeile geschrieben hat.
+let flashAfterReport (report: ApplyReport) (model: Model) : Model =
+    let written =
+        report.Lines
+        |> List.exists (fun l -> l.Outcome = Written && Some l.CategoryId = perspectiveOf model)
+    if written then
+        { model with AvailableFlash = { Count = model.AvailableFlash.Count + 1; On = true } }
+    else
+        model
 
 /// Kategorie und Monat einer Zuweisung: Eine Zeile heißt, es ging ums Zuweisen.
 let private assignTarget (report: ApplyReport) : (System.Guid * string) option =
@@ -407,7 +441,7 @@ let private assignTarget (report: ApplyReport) : (System.Guid * string) option =
     | _ -> None
 
 /// Merkt sich einen Bericht mit fehlgeschlagener Zeile; ist nichts mehr offen, verschwindet er.
-/// Der Hinweis auf der Seite hängt daran, der Toast läuft nach fünf Sekunden ab.
+/// Der Hinweis auf der Seite hängt daran, die Zeile im Sheet endet mit der nächsten Aktion.
 let noteMoveReport (month: string) (report: ApplyReport) (model: Model) : Model =
     let target = assignTarget report
     let others =
@@ -437,16 +471,16 @@ let applyAssignAnswered (result: Result<ApplyReport, string>) (model: Model) : M
     let noted, external =
         match result with
         | Ok report ->
-            let noted = noteMoveReport report.Month report rest
-            noted, assignToast report noted
-        | Error message -> rest, ShowToast ($"Nicht zugewiesen: {message}", ToastError)
+            let noted = flashAfterReport report (noteMoveReport report.Month report rest)
+            noted, assignLine report noted
+        | Error message -> rest, lineOf LineError $"Nicht zugewiesen: {message}"
     if List.isEmpty noted.AssignQueue then awaitFreshMonth noted, external, true
     else noted, external, false
 
 /// Der Aufruf brach ab. Der Wert lässt sich neu tippen, weil Zuweisen absolut ist.
 let applyAssignCallLost (message: string) (model: Model) : Model * ExternalMsg * bool =
     let rest = dropRunning model
-    let external = ShowToast ($"Ob zugewiesen wurde, ist unklar: {message}. Der Stand wird gleich neu gelesen.", ToastError)
+    let external = lineOf LineError $"Ob zugewiesen wurde, ist unklar: {message}. Der Stand wird gleich neu gelesen."
     if List.isEmpty rest.AssignQueue then awaitFreshMonth rest, external, true
     else rest, external, false
 
@@ -481,7 +515,7 @@ let missingActionText (action: MissingAction) : string =
 let canCover (model: Model) : bool =
     canSend model && model.Freshness = MonthRead
 
-/// Der Warn-Toast, wenn der Fehlbetrag-Knopf eine offene Eingabe verwirft.
+/// Die gelbe Zeile, wenn der Fehlbetrag-Knopf eine offene Eingabe verwirft.
 let coverDroppedEntryText = "Eingabe verworfen: der Fehlbetrag wurde zugewiesen"
 
 /// Verwirft der Knopf etwas, das geschrieben worden wäre? Eine ungültige Rechnung zählt mit.
@@ -668,26 +702,27 @@ let private resetTransfer (model: Model) : Model =
     withTab (fun tab -> { tab with Transfer = emptyTransfer }) model
 
 /// Antwort auf einen Auftrag aus dem Tab. `Error`: nichts geschrieben, die Eingaben bleiben und der Tab
-/// nennt den Grund. Ist er weg (neu betreten, Kategorie weggefallen), nennt ein Toast den Grund.
+/// nennt den Grund. Ist er weg (neu betreten, Kategorie weggefallen), nennt die Zeile im Sheet oder die Leiste den Grund.
 /// Mit Bericht ist die Form zurückgesetzt, der Modus bleibt, der Monat wird neu gelesen (`true`).
 let applyMoveAnswered (result: Result<ApplyReport, string>) (model: Model) : Model * ExternalMsg * bool =
     let finished = { model with MoveInFlight = NoMoveCall }
     match result, model.TabMoney with
     | Ok report, _ ->
-        awaitFreshMonth (noteMoveReport report.Month report (resetTransfer (withReport report finished))),
-        moveToast report,
+        awaitFreshMonth (flashAfterReport report (noteMoveReport report.Month report (resetTransfer (withReport report finished)))),
+        moveLine (perspectiveOf model) report,
         true
     | Error message, Some _ ->
         let rejection = if model.MoveInFlight = MoveCallRunningAway then RejectedAway message else Rejected message
         withTab (fun tab -> { tab with Transfer = { tab.Transfer with Submission = rejection } }) finished,
         NoOp,
         false
-    | Error message, None -> finished, ShowToast ($"Nicht verschoben: {message}", ToastError), false
+    | Error message, None -> finished, lineOf LineError $"Nicht verschoben: {message}", false
 
 /// Der Aufruf brach ab. Weil der Server relativ rechnet, wäre ein zweiter Versuch im Formular
 /// gefährlich: es wird zurückgesetzt, und der Monat wird neu gelesen.
 let applyMoveCallLost (message: string) (model: Model) : Model * ExternalMsg =
-    awaitMonth (resetTransfer { model with MoveInFlight = NoMoveCall }), ShowToast ($"Ob verschoben wurde, ist unklar: {message}. Der Stand wird gleich neu gelesen.", ToastError)
+    awaitMonth (resetTransfer { model with MoveInFlight = NoMoveCall }),
+    lineOf LineError $"Ob verschoben wurde, ist unklar: {message}. Der Stand wird gleich neu gelesen."
 
 /// Trägt eine Kategorie des geladenen Monats die Markierung "noch nicht in YNAB" mit dieser Gruppen-Id?
 let private hasOpenWriteBack (applicationId: string) (model: Model) : bool =
@@ -719,15 +754,23 @@ let writeBackRetryRunning (applicationId: string) (model: Model) : bool =
     || model.OpenRetries |> List.exists (fun r -> r.ApplicationId = applicationId && r.State = RetryRunning)
 
 /// Antwort auf "Erneut senden". Scheitert der Aufruf, bleibt die Verschiebung offen und sendbar,
-/// ein Toast nennt den Grund. In beiden Fällen liest der Aufrufer den Monat neu, denn der Lauf kann
+/// die rote Zeile nennt den Grund und bietet es wieder an. In beiden Fällen liest der Aufrufer den Monat neu, denn der Lauf kann
 /// YNAB erreicht haben.
 let applyMoveRetried (applicationId: string) (result: Result<ApplyReport, string>) (model: Model) : Model * ExternalMsg =
     let model =
         if model.WriteBackRetry = Some applicationId then { model with WriteBackRetry = None } else model
     match result with
-    | Ok report -> awaitFreshMonth (noteMoveReport report.Month report (withReport report model)), moveToast report
+    | Ok report ->
+        awaitFreshMonth (flashAfterReport report (noteMoveReport report.Month report (withReport report model))),
+        moveLine (perspectiveOf model) report
     | Error message ->
         let reopened =
             model.OpenRetries
             |> List.map (fun r -> if r.ApplicationId = applicationId then { r with State = RetryReady } else r)
-        awaitMonth { model with OpenRetries = reopened }, ShowToast ($"Erneut senden gescheitert: {message}", ToastError)
+        let stillOpen =
+            reopened |> List.exists (fun r -> r.ApplicationId = applicationId) || hasOpenWriteBack applicationId model
+        awaitMonth { model with OpenRetries = reopened },
+        ShowLine
+            { Tone = LineError
+              Text = $"Erneut senden gescheitert: {message}"
+              Retry = if stillOpen then Some applicationId else None }
