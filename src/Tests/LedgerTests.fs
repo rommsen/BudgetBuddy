@@ -1365,7 +1365,10 @@ let ledgerPersistenceTests =
             initializeLedgerSchema ()
             body ())
 
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    // Dazu: Replay über das ganze Kassenbuch-Log.
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Ledger Persistence (appendAndApply)" [
 
         testCase "Ereignis anhaengen, Zustand lesen" <| fun () ->
@@ -1853,7 +1856,9 @@ let ledgerPersistenceTests =
 
 [<Tests>]
 let ledgerQuickAddCommandTests =
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Ledger CommandHandlers (addCashExpense)" [
 
         testCase "schreibt zuerst CashExpenseAdded, pusht danach und verknuepft mit der Push-Antwort" <| fun () ->
@@ -2034,7 +2039,9 @@ let ledgerQuickAddWriteGuardTests =
     }
     let now = DateTime(2026, 11, 7, 9, 0, 0, DateTimeKind.Utc)
 
-    testSequenced
+    // Geteilt: die In-Memory-DB (`TestGroups.InMemoryDb`), dazu die prozessweite Schreib-Sperre: jeder Fall hält
+    // einen Spiegel-Lauf fest, und Listen, die über alle Buchungen zählen, sähen seine Buchungen.
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Ledger CommandHandlers (addCashExpense, Schreib-Sperre)" [
 
         testCase "eine Barbuchung, die während eines Spiegel-Laufs startet, schreibt und pusht erst nach dem Lauf" <| fun () ->
@@ -2155,7 +2162,9 @@ module private PushFixtures =
 
 [<Tests>]
 let ledgerImportPushCommandTests =
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Ledger CommandHandlers (pushComdirectImports)" [
 
         testCase "Kassenbuch zuerst: Import, Regel, Korrektur, dann Verknüpfung" <| fun () ->

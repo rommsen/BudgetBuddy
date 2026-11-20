@@ -186,7 +186,10 @@ let private upsertFixtureCategories () =
 
 [<Tests>]
 let sortTests =
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    // Dazu: sortiert über alle Buchungen der Datenbank.
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Kassenbuch-Sortierung im Lesepfad (ledger-r72re, ADR 0051)" [
 
         testCase "Standardsortierung liefert Datum absteigend mit id absteigend wie bisher" <| fun () ->

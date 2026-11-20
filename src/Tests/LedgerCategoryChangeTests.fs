@@ -4,7 +4,7 @@ module LedgerCategoryChangeTests
 //
 // Gruppen:
 //  * reine Domäne: `apply`, Codec, `observe` mit offenem Fehlschlag, Lesemodell;
-//  * Befehle gegen In-Memory-SQLite (`testSequenced`, Schema-Init je Testfall, ADR 0030),
+//  * Befehle gegen In-Memory-SQLite (Gruppe `TestGroups.InMemoryDb`, Schema-Init je Testfall, ADR 0030),
 //    mit einem injizierten Push, der nie YNAB erreicht;
 //  * die Schreib-Sperre gegen den Spiegel-Lauf;
 //  * der PUT an YNAB gegen einen Fake-`HttpMessageHandler` (kein echter Aufruf).
@@ -350,7 +350,9 @@ let categoryCommandTests =
             seedCategories ()
             body ())
 
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Ledger Kategorie ändern (Befehle)" [
 
         testCase "eine Änderung schreibt genau ein Recategorized (UserInBb) vor dem Push und einen Push mit category_id" <| fun () ->
@@ -625,7 +627,9 @@ let categoryWriteGuardTests =
             seedCategories ()
             body ())
 
-    testSequenced
+    // Geteilt: die In-Memory-DB (`TestGroups.InMemoryDb`), dazu die prozessweite Schreib-Sperre: jeder Fall hält
+    // einen Spiegel-Lauf fest, und Listen, die über alle Buchungen zählen, sähen seine Buchungen.
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Ledger Kategorie ändern (Schreib-Sperre)" [
 
         testCase "ein Befehl, der während eines Spiegel-Laufs startet, schreibt sein Ereignis erst nach dem Lauf" <| fun () ->

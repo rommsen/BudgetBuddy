@@ -67,7 +67,9 @@ let tests =
             initializeLedgerSchema ()
             body ())
 
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Ledger Vorschläge zum Payee (ledger-sfab0)" [
         testCase "häufigste Kategorie zuerst, höchstens drei" <| fun () ->
             let acc = freshAccount 1

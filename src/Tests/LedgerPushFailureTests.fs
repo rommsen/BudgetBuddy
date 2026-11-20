@@ -3,7 +3,7 @@ module LedgerPushFailureTests
 // Gescheiterter Push nach YNAB als Ereignis (ledger-rynk5, ADR 0021 Punkt 2, Nachtrag).
 //
 //  * reine Domäne: Codec, `apply`, Replay, Lesemodell, Historie;
-//  * Befehle gegen In-Memory-SQLite (`testSequenced`, Schema-Init je Testfall, ADR 0030)
+//  * Befehle gegen In-Memory-SQLite (Gruppe `TestGroups.InMemoryDb`, Schema-Init je Testfall, ADR 0030)
 //    mit injiziertem Push, der nie YNAB erreicht.
 
 open System
@@ -249,7 +249,9 @@ let pushFailureCommandTests =
             initializeLedgerSchema ()
             body ())
 
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Ledger Push-Fehlschlag (Befehle)" [
 
         testCase "Netzfehler: die geschriebene Buchung trägt genau ein EntryPushToYnabFailed" <| fun () ->

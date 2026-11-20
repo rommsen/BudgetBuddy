@@ -301,7 +301,9 @@ let private flowTests =
             let anchor, connect = BudgetEventsFixture.isolatedDb ()
             use _ = anchor
             body connect)
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Target nach YNAB: Abläufe" [
         testCase "Target speichern hält erst TargetSet fest, dann geht der Betrag nach YNAB, das Ergebnis steht fest" <| fun connect ->
             let k = Guid.NewGuid()

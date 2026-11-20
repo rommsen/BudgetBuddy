@@ -4,7 +4,7 @@ module LedgerMemoTests
 //
 //  * Regel `normalizeMemo` (getrimmt, leer heißt kein Memo, Grenze von YNAB);
 //  * Ereignisse: Codec, Namen, Schema-Version;
-//  * Befehle gegen In-Memory-SQLite (`testSequenced`, Schema-Init je Testfall) mit einem
+//  * Befehle gegen In-Memory-SQLite (Gruppe `TestGroups.InMemoryDb`, Schema-Init je Testfall) mit einem
 //    injizierten Push, der nie YNAB erreicht und seine Aufrufe zählt;
 //  * `observe` mit Baseline (der Spiegel);
 //  * Historie: Memo-Sätze und die Zeile nach dem Aufteilen mit Zielen und Beträgen;
@@ -183,7 +183,9 @@ let commandTests =
             initializeLedgerSchema ()
             body ())
 
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Memo: Befehle (ADR 0062)" [
 
         testCase "Setzen ohne Memo: ein Ereignis mit Alt = keins, Neu = Text, Push mit nur dem Memo" <| fun () ->
@@ -409,7 +411,9 @@ let memoWriteGuardTests =
                 Expect.isEmpty probe.Calls "noch kein Push")
             command
 
-    testSequenced
+    // Geteilt: die In-Memory-DB (`TestGroups.InMemoryDb`), dazu die prozessweite Schreib-Sperre: jeder Fall hält
+    // einen Spiegel-Lauf fest, und Listen, die über alle Buchungen zählen, sähen seine Buchungen.
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Memo: Schreib-Sperre" [
 
         testCase "Memo ändern während eines Spiegel-Laufs schreibt und pusht erst nach dem Lauf" <| fun () ->

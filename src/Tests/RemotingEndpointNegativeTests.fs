@@ -615,7 +615,9 @@ let private reflectedEndpoints () =
 
 [<Tests>]
 let negativeTests =
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Remoting-Endpoints: Negativfall je Endpoint (infrastructure-am805)" [
 
         testCase "die Tabelle deckt jeden Remoting-Endpoint aus Shared.Api genau einmal ab" <| fun () ->

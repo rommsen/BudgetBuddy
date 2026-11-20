@@ -70,7 +70,9 @@ let retryPushTests =
             global.Persistence.initializeDatabase ()
             body ())
 
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Ledger Erneut senden (Noch nicht in YNAB)" [
 
         testCase "Erfolg: pusht genau diese Buchung und verknüpft sie, der Fehlschlag ist weg" <| fun () ->
@@ -164,7 +166,9 @@ let retryPushWriteGuardTests =
             global.Persistence.initializeDatabase ()
             body ())
 
-    testSequenced
+    // Geteilt: die In-Memory-DB (`TestGroups.InMemoryDb`), dazu die prozessweite Schreib-Sperre: jeder Fall hält
+    // einen Spiegel-Lauf fest, und Listen, die über alle Buchungen zählen, sähen seine Buchungen.
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Ledger Erneut senden (Schreib-Sperre)" [
 
         testCase "Erneut senden während eines Spiegel-Laufs pusht und verknüpft erst nach dem Lauf" <| fun () ->
@@ -259,7 +263,9 @@ let retryOpenCaptureTests =
             global.Persistence.initializeDatabase ()
             body ())
 
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Ledger Erneut senden einer offenen Erfassung (ledger-ay81j)" [
 
         testCase "(a) der Spiegel verknüpft die Erfassung: kein Push, gesendet" <| fun () ->

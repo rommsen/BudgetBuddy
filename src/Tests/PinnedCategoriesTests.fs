@@ -139,7 +139,9 @@ let handlerTests =
 /// Datenbank, kein anderer Test schreibt sie.
 [<Tests>]
 let liveWiringTests =
-    testSequenced <| testList "Angepinnte Kategorien: echte Verdrahtung im Budget-API" [
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb <| testList "Angepinnte Kategorien: echte Verdrahtung im Budget-API" [
         testCase "budgetApi speichert eine im Spiegel bekannte Kategorie und liest sie zurück; eine unbekannte lehnt es ab" <| fun () ->
             Persistence.initializeDatabase ()
             Ledger.Persistence.initializeLedgerSchema ()

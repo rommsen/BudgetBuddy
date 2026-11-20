@@ -194,6 +194,8 @@ let private explore (initial: SyncSession option) : int =
 
 [<Tests>]
 let startOrderTests =
+    // Geteilt: die Zähler `reads`, `starts`, `confirms` und `cancels` dieses Moduls, jeder Fall zählt an ihnen.
+    // Billig (fünf Fälle unter 0,1 s), darum ohne eigene Gruppe.
     testSequenced <| testList "Abrufen startet erst nach dem Lesen der Sitzung" [
         for name, initial in
             [ "ohne Sitzung", None

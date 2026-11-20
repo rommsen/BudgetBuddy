@@ -632,7 +632,9 @@ let mirrorRunTests =
             global.Persistence.initializeDatabase ()
             body ())
 
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Ledger Spiegel-Lauf (mirrorYnabBudget)" [
 
         testCase "Erstlauf legt Konto und Buchung an und merkt sich das server_knowledge" <| fun () ->
@@ -1441,7 +1443,9 @@ let mirrorGuardTests =
                 global.Persistence.initializeDatabase ()
                 body ()))
 
-    testSequenced
+    // Geteilt: die In-Memory-DB (`TestGroups.InMemoryDb`), dazu die prozessweite Schreib-Sperre: jeder Fall hält
+    // einen Spiegel-Lauf fest, und Listen, die über alle Buchungen zählen, sähen seine Buchungen.
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Ledger Spiegel: Einzel-Flug-Schutz (runMirrorGuarded)" [
 
         testCase "zwei gleichzeitige Auslöser teilen sich einen Lauf, nur ein YNAB-Abruf" <| fun () ->
@@ -1714,7 +1718,9 @@ let splitTransferRunTests =
     let entryOf (ynabId: string) =
         findEntryByLink YnabSystem ynabId |> Async.RunSynchronously |> Option.get
 
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Ledger Spiegel-Lauf (Split-Übertrag, Nachlauf)" [
 
         testCase "Split-Buchung vor ihrer Gegenbuchung im selben Batch: am Ende sind beide Seiten verknüpft" <| fun () ->

@@ -238,7 +238,9 @@ let resolveTests =
 
 [<Tests>]
 let commandTests =
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Buchung erfassen: Befehl (ledger-at63w)" [
         testCase "eine Ausgabe auf Bar schreibt CashExpenseAdded mit UserInBb und pusht mit der festen import_id" <| fun () ->
             setup ()
@@ -433,7 +435,9 @@ let commandTests =
 
 [<Tests>]
 let retryTransferTests =
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Buchung erfassen: Erneut senden eines Übertrags (ledger-at63w)" [
         testCase "Erneut senden schickt den Übertrag wieder mit der Übertrags-Payee und ohne Kategorie" <| fun () ->
             // Ohne die Übertrags-Payee legte "Erneut senden" in YNAB einen Payee "Transfer : …" an,
@@ -530,7 +534,9 @@ let discardTests =
         Expect.isEmpty deletes "kein DELETE"
         Expect.equal (eventsOf entryId |> List.length) before "kein Ereignis"
         Expect.equal triggers.Value 0 "kein Spiegel-Auslöser"
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Buchung erfassen: Rückgängig (ledger-at63w)" [
         testCase "Rückgängig löscht zuerst in YNAB und verwirft die Buchung danach im Kassenbuch" <| fun () ->
             setup ()
@@ -683,7 +689,9 @@ let discardTests =
 
 [<Tests>]
 let discardWriteGuardTests =
-    testSequenced
+    // Geteilt: die In-Memory-DB (`TestGroups.InMemoryDb`), dazu die prozessweite Schreib-Sperre: jeder Fall hält
+    // einen Spiegel-Lauf fest, und Listen, die über alle Buchungen zählen, sähen seine Buchungen.
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Buchung erfassen: Rückgängig, Schreib-Sperre" [
         testCase "Rückgängig während eines Spiegel-Laufs ruft DELETE und schreibt EntryDiscardedInBb erst nach dem Lauf" <| fun () ->
             setup ()
@@ -940,7 +948,9 @@ let recentPerAccountPureTests =
 
 [<Tests>]
 let recentPerAccountTests =
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Buchung erfassen: Zuletzt-Chips aus dem Kassenbuch je Konto (ledger-sre0f)" [
         // Kaputt-Szenario: bisher kamen nur in BB erfasste Buchungen, Bob und der Spiegel fehlten.
         testCase "eine Bob-Buchung und eine gespiegelte Buchung erscheinen als Vorlage ihres Kontos" <| fun () ->

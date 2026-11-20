@@ -1,6 +1,7 @@
 ## ADRs scoped to this BC
 
 <!-- adr-local:start -->
+- **0100** — DB-Testlisten laufen als eine Expecto-Gruppe parallel zum Rest, große DB-Aufzählungen auf eigener Datenbank, ein Wächter verlangt den Grund über jeder Markierung — 2026-11-20 — `../../decisions/0100-db-testlisten-als-expecto-gruppe.md`
 - **0081** — Das Gate startet Expecto direkt über die Tests.dll mit JUnit-Bericht statt über dotnet test; USE_MEMORY_DB und TZ setzt der Aufruf selbst, ein Wächter hält sie fest — 2026-11-05 — `../../decisions/0081-gate-startet-expecto-direkt.md`
 - **0057** — PWA übernimmt neuen Stand: registerType prompt, neu laden nur beim Öffnen, sonst Hinweis — 2026-10-24 — `../../decisions/0057-pwa-neuer-stand-register-type-prompt-und-neu-laden-nur-beim-oeffnen.md`
 - **0034** — Backend-Port kommt aus ASPNETCORE_URLS statt aus einem Literal in app.Run, mechanisch abgesichert durch Wächter-Tests — 2026-09-19 — `../../decisions/0034-backend-port-ueber-aspnetcore-urls-statt-literal.md`

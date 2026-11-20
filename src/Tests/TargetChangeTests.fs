@@ -321,7 +321,9 @@ let private flowTests =
         testCase name (fun () ->
             Budgeting.Persistence.initializeBudgetingSchema ()
             body ())
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Target ändern: Abläufe nur in BB" [
         testCase "Anlegen, Ändern, Wechsel der Art und Entfernen hängen je genau ein Ereignis an" <| fun () ->
             let k = Guid.NewGuid()
@@ -502,7 +504,9 @@ let private takeoverFlowTests =
         testCase name (fun () ->
             Budgeting.Persistence.initializeBudgetingSchema ()
             body ())
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Target-Übernahme: Abläufe" [
         testCase "GIVEN Goals jeder Art und DEBT WHEN die Übernahme läuft THEN je Kategorie ein Ereignis, DEBT im Bericht, ein zweiter Lauf schreibt nichts" <| fun () ->
             let anchor, connect = BudgetEventsFixture.isolatedDb ()

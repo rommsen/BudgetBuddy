@@ -2,7 +2,7 @@ module LedgerCategoryBatchTests
 
 // Kategorie für eine ganze Auswahl, ein Sammel-PATCH (ledger-w29y6, ADR 0050, ADR 0055).
 //
-//  * Befehle gegen In-Memory-SQLite (`testSequenced`, Schema-Init je Testfall), mit einem
+//  * Befehle gegen In-Memory-SQLite (Gruppe `TestGroups.InMemoryDb`, Schema-Init je Testfall), mit einem
 //    injizierten Sammel-Push, der nie YNAB erreicht und seine Aufrufe zählt;
 //  * die Schreib-Sperre gegen den Spiegel-Lauf;
 //  * JSON-Vertrag und PATCH an YNAB gegen einen Fake-`HttpMessageHandler`.
@@ -150,7 +150,9 @@ let categoryBatchCommandTests =
             seedCategories ()
             body ())
 
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Ledger Kategorie für die Auswahl (Befehle)" [
 
         testCase "Picked mit vier Buchungen: ein Ereignis je geänderter, ein PATCH, Zähler mit Grund" <| fun () ->
@@ -318,7 +320,9 @@ let categoryBatchWriteGuardTests =
             seedCategories ()
             body ())
 
-    testSequenced
+    // Geteilt: die In-Memory-DB (`TestGroups.InMemoryDb`), dazu die prozessweite Schreib-Sperre: jeder Fall hält
+    // einen Spiegel-Lauf fest, und Listen, die über alle Buchungen zählen, sähen seine Buchungen.
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Ledger Kategorie für die Auswahl (Schreib-Sperre)" [
 
         testCase "ein Sammel-Befehl, der während eines Spiegel-Laufs startet, schreibt erst nach dem Lauf" <| fun () ->

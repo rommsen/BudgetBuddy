@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-20 20:30 -- Task verified and completed: infrastructure-x7p2e - "Expecto wieder schnell: testSequenced nur bei geteiltem Zustand, lange Aufzählungen teilen, Ziel höchstens 30 s"
+
+**Type:** Work / Task completion
+**Task:** infrastructure-x7p2e - "Expecto wieder schnell: testSequenced nur bei geteiltem Zustand, lange Aufzählungen teilen, Ziel höchstens 30 s"
+**Summary:** Expecto 29,5 s statt 65 s: DB-Listen als eine Gruppe parallel zum Rest, große Aufzählung auf eigenen Datenbanken geteilt, Wächter für den Grund über jeder Markierung
+**Duration:** 1h55m
+**Verification:** PASS (iteration 1)
+**Files changed:** 50
+**Tests added:** 16
+**ADRs written:** none
+
+---
+
 ## 2026-11-20 18:47 -- Batch started: [infrastructure-x7p2e]
 
 **Type:** Work / Batch start

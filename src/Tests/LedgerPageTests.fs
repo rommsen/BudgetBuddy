@@ -2014,7 +2014,10 @@ let ledgerPagingTests =
             seedAccounts () |> Async.RunSynchronously
             body ())
 
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    // Dazu: Seiten und Kontostände über alle Buchungen der Datenbank.
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Kassenbuch-Seite: seitenweise Liste und Kontostaende (Persistence)" [
 
         testCase "Eine Seite aus einer mehrseitigen Menge traegt die Gesamtsumme, nicht die Seitensumme" <| fun () ->
@@ -3418,7 +3421,9 @@ let categoryGroupLookupTests =
             seedAccounts () |> Async.RunSynchronously
             body ())
 
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Kassenbuch-Seite: Kategorie voll qualifizieren (ledger-h6ptn)" [
 
         testCase "getLedgerEntriesPage liefert den gespiegelten Gruppennamen für eine bekannte Kategorie" <| fun () ->

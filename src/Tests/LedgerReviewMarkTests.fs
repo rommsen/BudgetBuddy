@@ -4,7 +4,7 @@ module LedgerReviewMarkTests
 //
 // Drei Gruppen:
 //  * reine Domäne: Übergänge, `apply`, Replay, Codec, `observe`, Lesemodell;
-//  * Befehle gegen In-Memory-SQLite (`testSequenced`, Schema-Init je Testfall, ADR 0030),
+//  * Befehle gegen In-Memory-SQLite (Gruppe `TestGroups.InMemoryDb`, Schema-Init je Testfall, ADR 0030),
 //    mit einem injizierten Push, der nie YNAB erreicht;
 //  * der PUT an YNAB gegen einen Fake-`HttpMessageHandler` (kein echter Aufruf).
 
@@ -311,7 +311,9 @@ let reviewMarkCommandTests =
             initializeLedgerSchema ()
             body ())
 
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Ledger Prüfvermerk (Befehle)" [
 
         testCase "Reviewed schreibt genau ein Changed-Ereignis (UserInBb) und setzt approved und Cleared" <| fun () ->
@@ -630,7 +632,9 @@ let reviewMarkWriteGuardTests =
                 Expect.equal probe.Calls.Length callsBefore "noch kein Push")
             command
 
-    testSequenced
+    // Geteilt: die In-Memory-DB (`TestGroups.InMemoryDb`), dazu die prozessweite Schreib-Sperre: jeder Fall hält
+    // einen Spiegel-Lauf fest, und Listen, die über alle Buchungen zählen, sähen seine Buchungen.
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Ledger Prüfvermerk (Schreib-Sperre)" [
 
         testCase "Geprüft während eines Spiegel-Laufs schreibt und pusht erst nach dem Lauf" <| fun () ->

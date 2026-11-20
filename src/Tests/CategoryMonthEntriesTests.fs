@@ -100,7 +100,9 @@ let queryTests =
             initializeLedgerSchema ()
             body ())
 
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Buchungen einer Kategorie im Monat (SQLite)" [
         testCase "Monatsgrenzen: der letzte Tag zählt, der Erste des Folgemonats nicht" <| fun () ->
             let category = freshCategory ()

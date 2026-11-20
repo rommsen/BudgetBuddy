@@ -2,7 +2,7 @@ module LedgerReviewMarkBatchTests
 
 // "Geprüft" für eine ganze Auswahl, ein Sammel-PATCH (ledger-nhwrt, ADR 0050).
 //
-//  * Befehle gegen In-Memory-SQLite (`testSequenced`, Schema-Init je Testfall), mit einem
+//  * Befehle gegen In-Memory-SQLite (Gruppe `TestGroups.InMemoryDb`, Schema-Init je Testfall), mit einem
 //    injizierten Sammel-Push, der nie YNAB erreicht und seine Aufrufe zählt;
 //  * der PATCH an YNAB gegen einen Fake-`HttpMessageHandler` (kein echter Aufruf).
 
@@ -126,7 +126,9 @@ let batchCommandTests =
             initializeLedgerSchema ()
             body ())
 
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Ledger Prüfvermerk für die Auswahl (Befehle)" [
 
         testCase "Picked mit drei Buchungen: drei Changed-Ereignisse und genau ein PATCH mit drei Buchungen" <| fun () ->
@@ -450,7 +452,9 @@ let reviewMarkBatchWriteGuardTests =
                 Expect.isEmpty probe.Calls "noch kein PATCH")
             command
 
-    testSequenced
+    // Geteilt: die In-Memory-DB (`TestGroups.InMemoryDb`), dazu die prozessweite Schreib-Sperre: jeder Fall hält
+    // einen Spiegel-Lauf fest, und Listen, die über alle Buchungen zählen, sähen seine Buchungen.
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Ledger Prüfvermerk für die Auswahl (Schreib-Sperre)" [
 
         testCase "Geprüft für die Auswahl während eines Spiegel-Laufs schreibt und pusht erst nach dem Lauf" <| fun () ->

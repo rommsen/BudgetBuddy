@@ -3,7 +3,7 @@ module LedgerSplitReadTests
 // Lesepfad der Split-Sperren (ledger-pafkp, ADR 0058 Punkt 2, 6 und 7): `LedgerEntryView.SplitLocks`
 // trägt, wann Aufteilen und Ändern/Aufheben gesperrt sind und ob eine Neuanlage in YNAB offen ist.
 // Gruppen: die reine Regel (`splitLocksOf`), die Sichten gegen In-Memory-SQLite
-// (`testSequenced`, Schema-Init je Testfall, ADR 0030) und der Tracking-Anteil
+// (Gruppe `TestGroups.InMemoryDb`, Schema-Init je Testfall, ADR 0030) und der Tracking-Anteil
 // (`withTrackingLock`, `trackingLedgerAccounts`).
 
 open System
@@ -152,7 +152,9 @@ let splitLocksViewTests =
             |> Async.RunSynchronously
             body ())
 
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Ledger Split-Sperren (Lesepfad)" [
 
         testCase "gewöhnliche Buchung: SplitLocks ist None" <| fun () ->

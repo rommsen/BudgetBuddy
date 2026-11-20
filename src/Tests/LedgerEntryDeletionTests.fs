@@ -313,7 +313,9 @@ let deletionCommandTests =
             global.Persistence.initializeDatabase ()
             initializeLedgerSchema ()
             body ())
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Buchung löschen und Rückgängig (Befehle, ledger-z6sya)" [
         testCase "deleteEntry ruft genau ein DELETE mit der aktuellen YNAB-Id und hält EntryDeletedInBb fest" <| fun () ->
             let account = freshAccount ()
@@ -611,7 +613,9 @@ let deletionWriteGuardTests =
                 Expect.isEmpty probe.Creates "noch kein POST")
             command
 
-    testSequenced
+    // Geteilt: die In-Memory-DB (`TestGroups.InMemoryDb`), dazu die prozessweite Schreib-Sperre: jeder Fall hält
+    // einen Spiegel-Lauf fest, und Listen, die über alle Buchungen zählen, sähen seine Buchungen.
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Buchung löschen: Schreib-Sperre" [
         testCase "Löschen während eines Spiegel-Laufs ruft DELETE und schreibt EntryDeletedInBb erst nach dem Lauf" <| fun () ->
             let account = freshAccount ()
@@ -696,7 +700,9 @@ let deletionMirrorTests =
         match runMirror at fetchers (YnabBudgetId "budget-z6sya") |> Async.RunSynchronously with
         | Ok summary -> summary
         | Error e -> failtest $"Spiegel sollte gelingen, war: {e}"
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Buchung löschen: Spiegel (ledger-z6sya)" [
         testCase "nach EntryDeletedInBb ändert die Beobachtung der Löschung den Zustand nicht" <| fun () ->
             let account = freshAccount ()
@@ -791,7 +797,9 @@ let deletionApiTests =
             global.Persistence.initializeDatabase ()
             initializeLedgerSchema ()
             body ())
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Buchung löschen: API (ledger-z6sya)" [
         testCase "deleteEntryWith und restoreDeletedEntryWith reichen Token und Budget aus den Settings weiter" <| fun () ->
             let account = freshAccount ()
@@ -881,7 +889,9 @@ let capturedRestoreTests =
             global.Persistence.initializeDatabase ()
             initializeLedgerSchema ()
             body ())
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Buchung wiederherstellen: in BB erfasst (ledger-ay81j)" [
         testCase "Erfasst: das Wiederherstellen geht mit BB:<EntryId>:r1 und EntryRestoreSentToYnab, mit und ohne alte Verknüpfung" <| fun () ->
             for withOldImportId in [ true; false ] do

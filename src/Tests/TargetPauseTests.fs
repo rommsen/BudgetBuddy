@@ -216,7 +216,9 @@ let private flowTests =
             Budgeting.Persistence.initializeBudgetingSchema ()
             body ())
 
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Pause: Abläufe" [
         testCase "GIVEN Target im laufenden Monat WHEN pausieren THEN ein Ereignis, der Monat zeigt die BB-Pause, YNAB wird nicht beschrieben" <| fun () ->
             let f, k = fakeWith ()
@@ -408,7 +410,9 @@ let private persistenceTests =
         testCase name (fun () ->
             Budgeting.Persistence.initializeBudgetingSchema ()
             body ())
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Pause: Persistenz" [
         testCase "Das Schema läuft zweimal, eine festgehaltene Pause bleibt" <| fun () ->
             Budgeting.Persistence.initializeBudgetingSchema ()
@@ -499,7 +503,9 @@ let private commandTests =
     let pauseWithId (f: FakeYnab) (id: Guid) (k: Guid) (intent: PauseIntent) =
         setTargetPause f.Port now current current { CategoryId = k; Intent = intent; CommandId = Some id } |> run
 
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Pause: Befehls-Id" [
         testCase "GIVEN Pausieren mit X und danach Aufheben mit Y WHEN X verspätet wiederkommt THEN hängt nichts an, YNAB wird nicht gelesen und die Pause bleibt aufgehoben" <| fun () ->
             let f, k = fakeWith ()

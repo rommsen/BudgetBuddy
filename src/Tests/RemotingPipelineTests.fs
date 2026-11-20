@@ -83,7 +83,9 @@ let private send (client: HttpClient) (meth: HttpMethod, path: string, body: str
 
 [<Tests>]
 let pipelineTests =
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Remoting-Pipeline über Api.webApp (infrastructure-am805)" [
 
         testCase "jedes Remoting-Interface aus Shared.Api hat einen Pipeline-Aufruf" <| fun () ->

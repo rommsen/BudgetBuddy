@@ -357,7 +357,9 @@ let private flowTests =
             Budgeting.Persistence.initializeBudgetingSchema ()
             body ())
 
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Targets anwenden: Abläufe (h2zfn)" [
 
         testCase "Die Vorschau schreibt weder nach YNAB noch in die Datenbank" <| fun () ->
@@ -571,7 +573,9 @@ let private persistenceTests =
         | [ stored ] -> stored
         | other -> failtest $"eine Zeile erwartet, kamen {List.length other}"
 
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Budget-Bewegungen: Persistenz (h2zfn)" [
         testCase "Eine Bewegung trägt Zeitpunkt, Herkunft, Monat, Kategorie, altes und neues Zugewiesen" <| fun () ->
             let m = movement ()
@@ -858,7 +862,9 @@ let private commandTests =
             Budgeting.Persistence.initializeBudgetingSchema ()
             body ())
 
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Targets anwenden: Befehls-Id" [
         testCase "GIVEN ein Übernehmen mit Id ist festgehalten WHEN es mit derselben Id wiederkommt THEN liest der Server YNAB nicht, schreibt nichts und antwortet mit denselben Zeilen ohne Zu verteilen" <| fun () ->
             let f, (a, b, c, d, e) = fake 200000L

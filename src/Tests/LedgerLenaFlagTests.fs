@@ -3,7 +3,7 @@ module LedgerLenaFlagTests
 // Lena fragen (ledger-xfjcp, ADR 0056 mit Nachtrag zur Baseline):
 //
 //  * Ereignisse: Codec, Namen, Schema-Version;
-//  * Befehle gegen In-Memory-SQLite (`testSequenced`, Schema-Init je Testfall) mit einem
+//  * Befehle gegen In-Memory-SQLite (Gruppe `TestGroups.InMemoryDb`, Schema-Init je Testfall) mit einem
 //    injizierten Push, der nie YNAB erreicht und seine Aufrufe zählt;
 //  * `observe` mit Baseline (der Spiegel);
 //  * Abfragen: Filter `OnlyAskLena`, Zähler `AskLenaCount`, Historie;
@@ -177,7 +177,10 @@ let flagCommandTests =
             initializeLedgerSchema ()
             body ())
 
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    // Dazu: die Einstellung `lena_flag_color` gilt für die ganze Datenbank.
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Lena fragen: Befehle (ADR 0056)" [
 
         testCase "Zuweisen ohne Flag: ein Ereignis mit Alt = keins, Neu = Farbe und Name Lena, Push mit nur der Farbe" <| fun () ->
@@ -412,7 +415,10 @@ let flagWriteGuardTests =
                 Expect.isEmpty probe.Calls "noch kein Push")
             command
 
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    // Dazu: die Einstellung `lena_flag_color` gilt für die ganze Datenbank.
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Lena fragen: Schreib-Sperre" [
 
         testCase "Lena fragen während eines Spiegel-Laufs schreibt und pusht erst nach dem Lauf" <| fun () ->
@@ -575,7 +581,10 @@ let flagQueryTests =
             initializeLedgerSchema ()
             body ())
 
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    // Dazu: die Einstellung `lena_flag_color` gilt für die ganze Datenbank.
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Lena fragen: Filter, Zähler und Historie" [
 
         testCase "OnlyAskLena liefert nur Buchungen mit Flag-Name Lena (getrimmt, ohne Groß-/Kleinschreibung)" <| fun () ->
@@ -727,7 +736,10 @@ let lenaSettingTests =
             |> Async.RunSynchronously
             body ())
 
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    // Dazu: die Einstellung `lena_flag_color` gilt für die ganze Datenbank.
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Lena fragen: Einstellung (ADR 0056, Punkt 1)" [
 
         testCase "die Farbe wird gespeichert und gelesen, None löscht sie" <| fun () ->

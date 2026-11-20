@@ -291,7 +291,9 @@ let private flowTests =
             Budgeting.Persistence.initializeBudgetingSchema ()
             body ())
 
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Verschieben: Abläufe" [
         testCase "Der Server rechnet relativ zum frischen Stand, nicht zum angezeigten" <| fun () ->
             let f, a, b = fake ()
@@ -618,7 +620,9 @@ let private boundaryTests =
             Budgeting.Persistence.initializeBudgetingSchema ()
             body ())
 
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Verschieben: API-Grenze" [
         // budgeting-nfrds: der Server löste den Monat über `DateTime.Today` auf.
         testCase "Der Server schreibt in den vom Client geschickten Monat, unabhängig von heute" <| fun () ->
@@ -782,7 +786,9 @@ let private assignFlowTests =
             Budgeting.Persistence.initializeBudgetingSchema ()
             body ())
 
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Zuweisen: Abläufe" [
         testCase "Monat frisch lesen, Bewegung vor dem PATCH festhalten, genau ein PATCH mit dem absoluten Wert" <| fun () ->
             let f, a, b = fake ()
@@ -932,7 +938,9 @@ let private assignBoundaryTests =
             Budgeting.Persistence.initializeBudgetingSchema ()
             body ())
 
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Zuweisen: API-Grenze" [
         testCase "Der Monat des Auftrags gilt, ein Lese- und ein Schreibaufruf" <| fun () ->
             let f, a, _ = fake ()
@@ -1073,7 +1081,9 @@ let private commandTests =
         f.Reads <- 0
         f.Attempts.Clear()
 
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Befehls-Id: Verschieben und Zuweisen" [
         testCase "GIVEN ein Zuweisen mit Id ist festgehalten WHEN es mit derselben Id wiederkommt THEN liest der Server YNAB nicht, schreibt nichts und antwortet wie beim ersten Mal" <| fun () ->
             let f, a, b = fake ()

@@ -4,7 +4,7 @@ module LedgerTransferTests
 //
 // Gruppen:
 //  * reine Domäne: `apply` der beiden Ereignisse, Codec, `observe` mit offenem Fehlschlag;
-//  * Befehle gegen In-Memory-SQLite (`testSequenced`, Schema-Init je Testfall) mit injizierten
+//  * Befehle gegen In-Memory-SQLite (Gruppe `TestGroups.InMemoryDb`, Schema-Init je Testfall) mit injizierten
 //    Werkzeugen (Konten und PUT), die nie YNAB erreichen und ihre Aufrufe aufzeichnen;
 //  * der Spiegel nach dem Push: Gegenbuchung wird verknüpft, keine fremde zweite Buchung;
 //  * der PUT an YNAB gegen einen Fake-`HttpMessageHandler`;
@@ -277,7 +277,9 @@ let transferCommandTests =
             seedCategories ()
             body ())
 
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Übertrag in BB: Befehle (ledger-qvjvs)" [
 
         testCase "zum Übertrag: erst das Ereignis, dann der PUT mit der transfer_payee_id des Ziels und ohne Kategorie" <| fun () ->
@@ -477,7 +479,9 @@ let transferWriteGuardTests =
             seedCategories ()
             body ())
 
-    testSequenced
+    // Geteilt: die In-Memory-DB (`TestGroups.InMemoryDb`), dazu die prozessweite Schreib-Sperre: jeder Fall hält
+    // einen Spiegel-Lauf fest, und Listen, die über alle Buchungen zählen, sähen seine Buchungen.
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Übertrag in BB: Schreib-Sperre" [
         testCase "zum Übertrag während eines Spiegel-Laufs schreibt das Ereignis und den PUT erst nach dem Lauf" <| fun () ->
             let accounts = freshAccounts ()
@@ -508,7 +512,9 @@ let transferMirrorTests =
             seedCategories ()
             body ())
 
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Übertrag in BB: Spiegel (ledger-qvjvs)" [
 
         testCase "nach dem Push verknüpft der Spiegel die Gegenbuchung und legt keine fremde zweite Buchung an" <| fun () ->

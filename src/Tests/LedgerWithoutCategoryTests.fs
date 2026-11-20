@@ -184,7 +184,9 @@ let persistenceTests =
             initializeLedgerSchema ()
             body ())
 
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Ledger Persistence (Ohne Kategorie, ADR 0048)" [
 
         testCase "transfer_account_id steht in der Spalte, rowToEntry liest denselben Wert (Replay)" <| fun () ->

@@ -4,7 +4,7 @@ module LedgerAmountTests
 //
 //  * Prüfung an der API-Grenze (`validateAmountChange`), alle Fehler gesammelt;
 //  * Ereignisse: Codec, Namen, Schema-Version;
-//  * Befehle gegen In-Memory-SQLite (`testSequenced`, Schema-Init je Testfall) mit einem
+//  * Befehle gegen In-Memory-SQLite (Gruppe `TestGroups.InMemoryDb`, Schema-Init je Testfall) mit einem
 //    injizierten Push und Split-Werkzeugen, die nie YNAB erreichen und ihre Aufrufe zählen;
 //  * `observe` mit Baseline (der Spiegel dreht die BB-Entscheidung nicht zurück);
 //  * Historie und Lesepfad (Sperrgrund);
@@ -301,7 +301,9 @@ let commandTests =
             global.Persistence.initializeDatabase ()
             body ())
 
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Betrag: Befehl setEntryAmount (ADR 0092)" [
 
         testCase "gewöhnliche Buchung: ein Ereignis mit Alt und Neu, ein Push mit dem neuen Betrag" <| fun () ->
@@ -494,7 +496,9 @@ let writeGuardTests =
             global.Persistence.initializeDatabase ()
             body ())
 
-    testSequenced
+    // Geteilt: die In-Memory-DB (`TestGroups.InMemoryDb`), dazu die prozessweite Schreib-Sperre: jeder Fall hält
+    // einen Spiegel-Lauf fest, und Listen, die über alle Buchungen zählen, sähen seine Buchungen.
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Betrag: Schreib-Sperre" [
 
         testCase "Betrag ändern während eines Spiegel-Laufs schreibt und pusht erst nach dem Lauf" <| fun () ->
@@ -542,7 +546,9 @@ let splitCommandTests =
     let setWithAmount (probe: SplitProbe) (entryId: EntryId) (lines: TransactionSplit list) (amount: decimal) =
         setEntrySplitsWithAmount at probe.Tools entryId lines amount |> Async.RunSynchronously
 
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Betrag: aufgeteilte Buchung als ein Ersatz (ADR 0092 Punkt 3)" [
 
         testCase "neuer Betrag mit gültiger Aufteilung: DELETE, POST mit neuem Betrag und neuen Zeilen, Ersatz-import_id" <| fun () ->

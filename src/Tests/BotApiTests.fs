@@ -196,7 +196,10 @@ let botApiTests =
             initializeLedgerSchema ()
             body ())
 
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    // Dazu: die Tagesgrenze zählt alle Bob-Buchungen eines Tages.
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Bot-Schnittstelle (Routen)" [
 
         testCase "zwei Vorschauen und eine Kategorienliste innerhalb von 5 Minuten laden die Kategorien genau einmal, danach erneut" <| fun () ->

@@ -58,7 +58,7 @@ Diese Tests müssen bestehen und werden bei Änderungen am Bereich mitgezogen:
 ## Testdatenbank und Umgebung
 
 15. Tests laufen nie gegen die echte Datenbank. `src/Tests/test.runsettings` setzt `USE_MEMORY_DB=true` und `TZ=Europe/Berlin`, `src/Tests/Main.fs` setzt `USE_MEMORY_DB` zusätzlich für den Direktaufruf; `src/Tests/TestDatabaseGuardTests.fs` stoppt einen Lauf auf einer Datei-DB. Einzeltests mit eigener Verbindung nutzen `Data Source=:memory:`.
-16. Die In-Memory-DB ist für alle Testlisten geteilt und Expecto läuft parallel. Isolation kommt aus eindeutigen Ids; Reihenfolge innerhalb einer Liste nur mit `testSequenced`.
+16. Die In-Memory-DB ist für alle Testlisten geteilt und Expecto läuft parallel. Isolation kommt aus eindeutigen Ids. Listen auf der geteilten DB stehen in der Gruppe `testSequencedGroup TestGroups.InMemoryDb` (nacheinander, aber parallel zum Rest); `testSequenced` ohne Gruppe hält alles andere an und bleibt für Fälle, die wirklich allein laufen müssen. Viel Datenbankarbeit (etwa eine Aufzählung) läuft auf einer eigenen Datenbank (`BudgetEventsFixture.isolatedDb`). Über jeder Markierung steht als Kommentar, was die Fälle teilen (Wächter `TestSequencingGuardTests`).
 17. Uhr, Zeitzone und Zufall werden injiziert. Kein `DateTime.Now` im getesteten Code, wo eine Uhr übergeben werden kann.
 
 ## Property-Tests

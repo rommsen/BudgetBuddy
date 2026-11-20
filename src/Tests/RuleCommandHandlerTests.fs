@@ -70,7 +70,9 @@ let private neverCalledPort () = portAnswering (Error "YNAB darf nicht gefragt w
 
 [<Tests>]
 let payeeOverrideTests =
-    testSequenced <| testList "Regel ändern: PayeeOverride" [
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb <| testList "Regel ändern: PayeeOverride" [
         // categorization-n3sxw: das Feld Payee-Override fällt aus der Oberfläche. Wer einen trägt, behält ihn.
         testCase "eine Regel mit Payee-Override behält ihn, wenn sie im Panel geändert und gespeichert wird" <| fun () ->
             let rule = insert (savedRule (uniquePrefix ()) 1 (Some "REWE Markt"))
@@ -96,7 +98,9 @@ let payeeOverrideTests =
 
 [<Tests>]
 let categoryChangeTests =
-    testSequenced <| testList "Regel ändern: Kategorie" [
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb <| testList "Regel ändern: Kategorie" [
         // Bug: bei einem YNAB-Fehler stand die neue Kategorie-Id neben dem alten Namen.
         testCase "YNAB-Fehler beim Kategoriewechsel: Fehler, die Regel ist unverändert" <| fun () ->
             let rule = insert (savedRule (uniquePrefix ()) 1 None)
@@ -157,7 +161,9 @@ let categoryChangeTests =
 
 [<Tests>]
 let createTests =
-    testSequenced <| testList "Regel anlegen" [
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb <| testList "Regel anlegen" [
         // Bug: alle drei Fälle speicherten den Platzhalter "Unknown".
         testCase "eine in YNAB unbekannte Kategorie: Fehler, keine Zeile" <| fun () ->
             Persistence.initializeDatabase ()
@@ -301,7 +307,9 @@ let createTests =
 
 [<Tests>]
 let tieBreakTests =
-    testSequenced <| testList "Gleiche Priorität" [
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb <| testList "Gleiche Priorität" [
         let classifyFirst (rules: Rule list) (payee: string) =
             let compiled =
                 rules |> compileRules |> Result.defaultWith (fun _ -> failtest "Regeln übersetzen")
@@ -336,7 +344,9 @@ let tieBreakTests =
 
 [<Tests>]
 let restoreTests =
-    testSequenced <| testList "Gelöschte Regel wiederherstellen" [
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb <| testList "Gelöschte Regel wiederherstellen" [
         /// Drei Regeln ganz oben (höchste Prioritäten): die Stelle 1 ist dann die mittlere von ihnen.
         let topThree (prefix: string) =
             let highest =
@@ -481,7 +491,9 @@ let testRuleTests =
 
 [<Tests>]
 let ruleCategoryForEndpointTests =
-    testSequenced <| testList "Endpoint ruleCategoryFor" [
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb <| testList "Endpoint ruleCategoryFor" [
         // ledger-hg5m5: der Endpoint liest die gespeicherten Regeln und gibt Payee und Memo in
         // dieser Reihenfolge an `RulesEngine.ruleCategoryFor` weiter. Gespeichert wird über die
         // Persistenz: `rulesApi.createRule` fragt YNAB nach dem Kategorienamen.

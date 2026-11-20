@@ -174,7 +174,10 @@ let private idsOf (q: LedgerEntryPageQuery) =
 
 [<Tests>]
 let serverTests =
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    // Dazu: Seiten über alle Buchungen der Datenbank.
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Kassenbuch Nachladen (ledger-be1yh, Server)" [
 
         testCase "LocallyRemoved verschiebt den Versatz der Seite nach vorn" <| fun () ->

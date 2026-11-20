@@ -179,7 +179,9 @@ let queryTests =
         Ledger.Persistence.initializeLedgerSchema ()
         Budgeting.Persistence.initializeBudgetingSchema ()
 
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Allgemeine Historie: Abfrage (SQLite)" [
         test "Die allgemeine Historie liefert die Bewegungen aller Monate, Kategorien und Arten, neueste zuerst, mit jüngstem Ergebnis" {
             initialize ()
@@ -341,7 +343,9 @@ let allStreamsQueryTests =
         Ledger.Persistence.initializeLedgerSchema ()
         Budgeting.Persistence.initializeBudgetingSchema ()
 
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Allgemeine Historie: Pausen und Target-Änderungen über alle Streams (SQLite)" [
         test "Pause und Aufhebung in zwei Monaten und eine Target-Änderung einer anderen Kategorie stehen gemischt mit den Bewegungen, neueste zuerst" {
             initialize ()

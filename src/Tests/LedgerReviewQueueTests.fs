@@ -226,7 +226,10 @@ let categorySettingTests =
 
 [<Tests>]
 let queueTests =
-    testSequenced <| testList "Warteschlange: getReviewQueue (In-Memory-SQLite)" [
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    // Dazu: die Warteschlange liest alle offenen Buchungen.
+    testSequencedGroup TestGroups.InMemoryDb <| testList "Warteschlange: getReviewQueue (In-Memory-SQLite)" [
 
         testCase "liefert jede ungeprüfte Herkunft, ohne geprüfte und gelöschte, in der Folge der Schlange" <| fun () ->
             initializeLedgerSchema ()

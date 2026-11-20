@@ -212,7 +212,9 @@ let private recordingPush (answer: YnabResult<string>) =
 
 [<Tests>]
 let commandTests =
-    testSequenced <| testList "Wartende Buchung entscheiden: Befehle" [
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb <| testList "Wartende Buchung entscheiden: Befehle" [
 
         testCase "Ist neu mit gelungenem Push: Entscheidung, genau ein POST mit BB:<Reference>, Verknüpfung" <| fun () ->
             let account, reference, entryId = seedHeld ()
@@ -341,7 +343,9 @@ let refusalTests =
           "Verwerfen: verknüpft", discard, linked, duplicateAlreadyInYnabText
           "Verwerfen: schon verworfen", discard, discarded, duplicateAlreadyDiscardedText
           "Rückgängig: nicht verworfen", restore, held, duplicateNotDiscardedText ]
-    testSequenced <| testList "Wartende Buchung entscheiden: Ablehnungen" [
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb <| testList "Wartende Buchung entscheiden: Ablehnungen" [
         for name, command, arrange, text in cases do
             testCase name <| fun () ->
                 let entryId = arrange ()
@@ -356,7 +360,9 @@ let refusalTests =
 
 [<Tests>]
 let writeGuardTests =
-    testSequenced <| testList "Wartende Buchung entscheiden: Schreib-Sperre" [
+    // Geteilt: die In-Memory-DB (`TestGroups.InMemoryDb`), dazu die prozessweite Schreib-Sperre: jeder Fall hält
+    // einen Spiegel-Lauf fest, und Listen, die über alle Buchungen zählen, sähen seine Buchungen.
+    testSequencedGroup TestGroups.InMemoryDb <| testList "Wartende Buchung entscheiden: Schreib-Sperre" [
         testCase "Ist neu während eines Spiegel-Laufs schreibt und pusht erst nach dem Lauf, der Spiegel danach" <| fun () ->
             global.Persistence.initializeDatabase ()
             let _, _, entryId = seedHeld ()

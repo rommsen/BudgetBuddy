@@ -5,7 +5,7 @@ module LedgerSplitWriteTests
 // Gruppen:
 //  * reine Domäne: Codec, `apply`, `linksFrom`, `import_id`-Ableitung, Prüfung der Zeilen;
 //  * der Befehl `setEntrySplits` und "Erneut senden" gegen In-Memory-SQLite
-//    (`testSequenced`, Schema-Init je Testfall, ADR 0030), mit einem injizierten Satz
+//    (Gruppe `TestGroups.InMemoryDb`, Schema-Init je Testfall, ADR 0030), mit einem injizierten Satz
 //    YNAB-Aufrufe, der nie YNAB erreicht;
 //  * der Spiegel nach einem Ersatz (abgelöste Id, Split-Übertrags-Verknüpfung);
 //  * die JSON-Verträge und HTTP-Wege des YnabClient gegen einen Fake-`HttpMessageHandler`.
@@ -502,7 +502,10 @@ let splitCommandTests =
             seedAccount ()
             body ())
 
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    // Dazu: ein Fall zählt die sichtbaren Buchungen über das ganze Kassenbuch.
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Ledger Split-Schreibweg (Befehle)" [
 
         testCase "Validierung: Summe ungleich Betrag, leere Liste, einzelne Übertrags-Zeile, unbekannte Kategorie" <| fun () ->
@@ -1352,7 +1355,9 @@ let splitWriteGuardTests =
                 Expect.equal probe.WriteCalls callsBefore "noch kein Push")
             command
 
-    testSequenced
+    // Geteilt: die In-Memory-DB (`TestGroups.InMemoryDb`), dazu die prozessweite Schreib-Sperre: jeder Fall hält
+    // einen Spiegel-Lauf fest, und Listen, die über alle Buchungen zählen, sähen seine Buchungen.
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Ledger Split-Schreibweg (Schreib-Sperre)" [
 
         testCase "Aufteilen während eines Spiegel-Laufs schreibt und pusht erst nach dem Lauf" <| fun () ->
@@ -1602,7 +1607,9 @@ let capturedReplacementTests =
             body ())
     let conflict = Some (HttpStatusCode.Conflict, """{"error":{"id":"409","name":"conflict","detail":"same import_id"}}""")
 
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Ledger Split-Ersatz einer erfassten Buchung (ledger-ay81j)" [
         testCase "Erfasst: der Ersatz geht mit BB:<EntryId>:r1 und EntryReplacementSentToYnab, mit und ohne alte Verknüpfung" <| fun () ->
             for withOldImportId in [ true; false ] do

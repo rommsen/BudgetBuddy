@@ -57,7 +57,11 @@ let tests =
             global.Persistence.initializeDatabase ()
             body ())
 
-    testList "Ledger Persistence: Lesen für eine Auswahl (ledger-r8h19)" [
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`). Bis infrastructure-x7p2e lief diese Liste parallel und bremste die Gruppe über die
+    // Tabellensperren des Shared Cache aus (und umgekehrt).
+    testSequencedGroup TestGroups.InMemoryDb
+    <| testList "Ledger Persistence: Lesen für eine Auswahl (ledger-r8h19)" [
 
         testCase "loadEntries: leere Liste ergibt eine leere Map" <| fun () ->
             Expect.isEmpty (loadEntries [] |> Async.RunSynchronously) "leer"

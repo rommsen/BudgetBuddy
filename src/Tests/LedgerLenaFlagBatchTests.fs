@@ -2,7 +2,7 @@ module LedgerLenaFlagBatchTests
 
 // Lena fragen für eine ganze Auswahl, ein Sammel-PATCH (ledger-y54gr, ADR 0050, ADR 0056).
 //
-//  * Befehle gegen In-Memory-SQLite (`testSequenced`, Schema-Init je Testfall), mit einem
+//  * Befehle gegen In-Memory-SQLite (Gruppe `TestGroups.InMemoryDb`, Schema-Init je Testfall), mit einem
 //    injizierten Sammel-Push, der nie YNAB erreicht und seine Aufrufe zählt;
 //  * JSON-Vertrag und PATCH an YNAB gegen einen Fake-`HttpMessageHandler`.
 
@@ -111,7 +111,10 @@ let lenaFlagBatchCommandTests =
             initializeLedgerSchema ()
             body ())
 
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    // Dazu: die Einstellung `lena_flag_color` gilt für die ganze Datenbank.
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Ledger Lena fragen für die Auswahl (Befehle)" [
 
         testCase "ein Ereignis je geänderter Buchung, eine schon bei Lena erzeugt keins und geht nicht in den PATCH" <| fun () ->
@@ -325,7 +328,10 @@ let lenaFlagBatchWriteGuardTests =
             global.Persistence.initializeDatabase ()
             body ())
 
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    // Dazu: die Einstellung `lena_flag_color` gilt für die ganze Datenbank.
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Ledger Lena fragen für die Auswahl (Schreib-Sperre)" [
 
         testCase "Lena fragen für die Auswahl während eines Spiegel-Laufs schreibt und pusht erst nach dem Lauf" <| fun () ->

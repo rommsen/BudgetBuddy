@@ -57,6 +57,9 @@ type private FakeYnab(categories: (Guid * string * int64) list) =
     member val Hidden = HashSet<Guid>()
     member val Deleted = HashSet<Guid>()
     member val Internal = HashSet<Guid>()
+    /// Die Datenbank, gegen die die Helfer dieses Fakes lesen und schreiben. Ohne Angabe die gemeinsame
+    /// Testdatenbank; die Aufzählung der Reihenfolgen setzt eine eigene (infrastructure-x7p2e).
+    member val Connect : unit -> Microsoft.Data.Sqlite.SqliteConnection = global.Persistence.getConnection with get, set
     member _.Assigned = assigned
     member this.Port : YnabPort =
         { FetchMonth =
@@ -130,19 +133,22 @@ let private streamOf (monthKey: string) =
     | Ok monthId -> streamIdOf (MonthStream monthId)
     | Error message -> failtest message
 
-let private recordedEvents (monthKey: string) : Budgeting.Persistence.RecordedBudgetEvent list =
-    use conn = global.Persistence.getConnection ()
+let private recordedEventsOn (connect: unit -> Microsoft.Data.Sqlite.SqliteConnection) (monthKey: string) : Budgeting.Persistence.RecordedBudgetEvent list =
+    use conn = connect ()
     match Budgeting.Persistence.loadBudgetEventsOn conn (Budgeting.Persistence.InStream (streamOf monthKey)) with
     | Ok events -> events
     | Error message -> failtest message
+
+let private recordedEvents (monthKey: string) = recordedEventsOn global.Persistence.getConnection monthKey
 
 let private eventsOf (monthKey: string) : BudgetEvent list = recordedEvents monthKey |> List.map (fun e -> e.Event)
 
 let private typesOf (monthKey: string) = eventsOf monthKey |> List.map eventTypeName
 
 /// Die Beobachtungen im Stream als (Kategorie, vorher, nachher).
-let private observations (monthKey: string) : (Guid * int64 * int64) list =
-    eventsOf monthKey
+let private observationsOn connect (monthKey: string) : (Guid * int64 * int64) list =
+    recordedEventsOn connect monthKey
+    |> List.map (fun e -> e.Event)
     |> List.choose (fun e ->
         match e with
         | BudgetEvent.AssignmentChangeObservedInYnab p -> Some (p.CategoryId, p.PreviousAssigned, p.Assigned)
@@ -155,10 +161,12 @@ let private linesOf (event: BudgetEvent) : BudgetLine list =
     | BudgetEvent.TargetsApplied p -> p.Lines
     | _ -> []
 
+let private observations (monthKey: string) = observationsOn global.Persistence.getConnection monthKey
+
 /// Entscheidungszeilen nach der Übernahme ohne schließendes Ergebnis (geschrieben, ersetzt, zurückgezogen), je
 /// Kategorie als (Entscheidung, Wert). Abgezählt aus den Ereignissen, ohne die Faltung des Servers.
-let private unclosedLines (monthKey: string) : Map<Guid, (Guid * int64) list> =
-    let events = recordedEvents monthKey
+let private unclosedLinesOn connect (monthKey: string) : Map<Guid, (Guid * int64) list> =
+    let events = recordedEventsOn connect monthKey
     let start =
         events
         |> List.tryFindIndexBack (fun e ->
@@ -187,7 +195,7 @@ let private readWith (connect: unit -> Microsoft.Data.Sqlite.SqliteConnection) (
     QueryHandlers.budgetMonthWith connect f.Port now monthKey |> run
 
 let private read (f: FakeYnab) (monthKey: string) : BudgetMonth =
-    match readWith global.Persistence.getConnection f monthKey with
+    match readWith f.Connect f monthKey with
     | Ok month -> month
     | Error e -> failtest $"Monat erwartet: {e}"
 
@@ -201,7 +209,7 @@ let private watchPatches (f: FakeYnab) (monthKey: string) : ResizeArray<string> 
     let violations = ResizeArray<string>()
     f.OnWrite <-
         fun category value ->
-            let events = recordedEvents monthKey
+            let events = recordedEventsOn f.Connect monthKey
             let lastDecision =
                 events
                 |> List.indexed
@@ -229,8 +237,8 @@ let private watchPatches (f: FakeYnab) (monthKey: string) : ResizeArray<string> 
 let private checkOraclesOn (f: FakeYnab) (monthKey: string) (violations: ResizeArray<string>) (expected: (Guid * int64 * int64) list) : BudgetMonth =
     let month = read f monthKey
     Expect.equal (List.ofSeq violations) [] "O3: kein PATCH neben dem Soll"
-    Expect.equal (observations monthKey) expected "O1: genau die abweichenden externen Änderungen sind beobachtet"
-    let unclosed = unclosedLines monthKey
+    Expect.equal (observationsOn f.Connect monthKey) expected "O1: genau die abweichenden externen Änderungen sind beobachtet"
+    let unclosed = unclosedLinesOn f.Connect monthKey
     for KeyValue (category, value) in f.Assigned do
         let c = shown month category
         match unclosed |> Map.tryFind category |> Option.defaultValue [] with
@@ -247,7 +255,7 @@ let private checkOracles f monthKey violations expected =
     checkOraclesOn f monthKey violations expected |> ignore
 
 let private assign (f: FakeYnab) (monthKey: string) (category: Guid) (value: int64) (commandId: Guid option) =
-    assignMoney f.Port now monthKey { CategoryId = category; Assigned = eur value; CommandId = commandId } |> run
+    assignMoneyWith f.Connect f.Port now monthKey { CategoryId = category; Assigned = eur value; CommandId = commandId } |> run
 
 let private assignOk f monthKey category value =
     match assign f monthKey category value None with
@@ -255,7 +263,7 @@ let private assignOk f monthKey category value =
     | other -> failtest $"Bericht erwartet: {other}"
 
 let private moveOk (f: FakeYnab) (monthKey: string) (source: Guid) (target: Guid) (amount: int64) =
-    match moveMoney f.Port now monthKey { Source = CategorySide source; Target = CategorySide target; Amount = eur amount; CommandId = None } |> run with
+    match moveMoneyWith f.Connect f.Port now monthKey { Source = CategorySide source; Target = CategorySide target; Amount = eur amount; CommandId = None } |> run with
     | Ok (Ok report) -> report
     | other -> failtest $"Bericht erwartet: {other}"
 
@@ -263,13 +271,15 @@ let private crashes (work: unit -> unit) =
     Expect.throwsT<Crash> work "Absturz beim Senden"
 
 let private retryOk (f: FakeYnab) (applicationId: Guid) =
-    match retryFailed f.Port now applicationId |> run with
+    match retryFailedWith f.Connect f.Port now applicationId |> run with
     | Ok report -> report
     | Error e -> failtest $"Bericht erwartet: {e}"
 
 /// Die Gruppen-Id der jüngsten Entscheidung im Monat.
-let private lastDecision (monthKey: string) : Guid =
-    recordedEvents monthKey |> List.filter (fun e -> not (List.isEmpty (linesOf e.Event))) |> List.last |> fun e -> e.EventId
+let private lastDecisionOn connect (monthKey: string) : Guid =
+    recordedEventsOn connect monthKey |> List.filter (fun e -> not (List.isEmpty (linesOf e.Event))) |> List.last |> fun e -> e.EventId
+
+let private lastDecision (monthKey: string) = lastDecisionOn global.Persistence.getConnection monthKey
 
 let private testCase name body =
     testCase name (fun () ->
@@ -455,17 +465,44 @@ let private leadSteps : LeadStep list =
           fun f month _ _ m ->
               m.Observe()
               m.Retry m.LastDecision.Value
-              retryOk f (lastDecision month) |> ignore } ]
+              retryOk f (lastDecisionOn f.Connect month) |> ignore } ]
 
 /// Alle Folgen der Länge `depth` aus den Schritten.
 let rec private paths (depth: int) : LeadStep list list =
     if depth = 0 then [ [] ]
     else [ for step in leadSteps do for rest in paths (depth - 1) -> step :: rest ]
 
-/// Geht eine Folge auf einem eigenen Monat ab und prüft danach O1 bis O3 und das Soll gegen den Merker.
-/// `false`, wenn ein Schritt in seinem Stand nicht läuft.
-let private walkPath (path: LeadStep list) : bool =
+/// Die Folgen der Länge drei, die mit `first` beginnen: ein Zwölftel der Aufzählung.
+let private pathsFrom (first: LeadStep) : LeadStep list list =
+    paths 2 |> List.map (fun rest -> first :: rest)
+
+/// Wie viele Folgen ab dem ersten Schritt wirklich laufen, abgezählt ohne den Code unter Test. Erneut senden
+/// braucht eine Entscheidung davor: als erster Schritt läuft keine Folge. Lesen und die beiden Änderungen in YNAB
+/// entscheiden nichts, nach ihnen fallen die 12 Folgen mit Erneut senden an zweiter Stelle weg und die 3, in denen
+/// ein weiterer solcher Schritt und dann Erneut senden folgt. Nach jedem anderen Schritt laufen alle 144 Folgen.
+let private walkedFrom (firstName: string) : int =
+    match firstName with
+    | "Erneut senden" -> 0
+    | "Lesen"
+    | "YNAB ändert a"
+    | "YNAB ändert b" -> 144 - 12 - 3
+    | _ -> 144
+
+/// Eine eigene In-Memory-Datenbank mit dem Budget-Schema wie beim Start (`initializeBudgetingSchema`), getrennt
+/// von der gemeinsamen Testdatenbank. Die Aufzählung schreibt rund 1.500 Monats-Streams: in der gemeinsamen
+/// Datenbank machten sie jede spätere Abfrage über alle Monate langsamer, und parallele Teile bremsten sich über
+/// die Tabellensperren des Shared Cache aus (infrastructure-x7p2e).
+let private ownBudgetDb () : Microsoft.Data.Sqlite.SqliteConnection * (unit -> Microsoft.Data.Sqlite.SqliteConnection) =
+    let anchor, connect = BudgetEventsFixture.isolatedDb ()
+    Budgeting.Persistence.createMonthStartHiddenSchemaOn anchor
+    Budgeting.Persistence.createPinnedCategoriesSchemaOn anchor
+    anchor, connect
+
+/// Geht eine Folge auf einem eigenen Monat in der Datenbank `connect` ab und prüft danach O1 bis O3 und das Soll
+/// gegen den Merker. `false`, wenn ein Schritt in seinem Stand nicht läuft.
+let private walkPath (connect: unit -> Microsoft.Data.Sqlite.SqliteConnection) (path: LeadStep list) : bool =
     let f, a, b = fake ()
+    f.Connect <- connect
     let month = freshMonth ()
     let shownPath = path |> List.map (fun s -> s.Name) |> String.concat ", "
     try
@@ -495,144 +532,164 @@ let private walkPath (path: LeadStep list) : bool =
 
 let private orderTests =
     testList "Reihenfolgen von Lesen und Senden" [
-        // Die Aufzählung aller Folgen aus drei Schritten (Doktrin Punkt 20). Die festen Wege darunter bleiben
-        // Pflicht: Sperre, Wiederholung mit Befehls-Id und Paarregel brauchen eigene Aufbauten.
-        testCase "Jede Folge aus drei Schritten hält O1 bis O3 und das Soll des Merkers" <| fun () ->
-            let walked = paths 3 |> List.filter walkPath |> List.length
+        // Die Aufzählung aller Folgen aus drei Schritten (Doktrin Punkt 20), ein Testfall je erstem Schritt, jeder
+        // auf einer eigenen Datenbank, damit Expecto die Teile über die Kerne verteilt (infrastructure-x7p2e, vorher
+        // ein Fall mit 16 s). Die festen Wege darunter bleiben Pflicht: Sperre, Wiederholung mit Befehls-Id und
+        // Paarregel brauchen eigene Aufbauten.
+        testCase "Die Teile nach dem ersten Schritt decken jede Folge aus drei Schritten genau einmal ab" <| fun () ->
+            let names (path: LeadStep list) = path |> List.map (fun s -> s.Name)
+            let split = leadSteps |> List.collect pathsFrom |> List.map names
+            Expect.equal (List.length split) 1728 "12 hoch 3 Folgen"
+            Expect.equal (List.sort split) (paths 3 |> List.map names |> List.sort) "dieselben Folgen wie die ganze Aufzählung"
+            Expect.equal (leadSteps |> List.map (fun s -> s.Name) |> List.distinct |> List.length) 12 "zwölf Schritte mit eigenem Namen"
             // 12 hoch 3 Folgen, ohne die 189, in denen Erneut senden vor jeder Entscheidung käme (144 + 3 · 12 + 3 · 3).
-            Expect.equal walked 1539 "so viele Folgen laufen wirklich"
+            Expect.equal (leadSteps |> List.sumBy (fun s -> walkedFrom s.Name)) 1539 "so viele Folgen laufen zusammen"
 
-        testCase "Lesen vor dem Befehl, dazwischen eine Änderung in YNAB" <| fun () ->
-            let f, a, b = fake ()
-            let month = freshMonth ()
-            let watched = watchPatches f month
-            read f month |> ignore
-            f.Assigned[b] <- 25000L
-            assignOk f month a 120000L |> ignore
-            checkOracles f month watched [ b, 20000L, 25000L ]
+        for first in leadSteps do
+            testCase $"Jede Folge aus drei Schritten ab „{first.Name}“ hält O1 bis O3 und das Soll des Merkers" <| fun () ->
+                let anchor, connect = ownBudgetDb ()
+                use _ = anchor
+                let walked = pathsFrom first |> List.filter (walkPath connect) |> List.length
+                Expect.equal walked (walkedFrom first.Name) "so viele Folgen laufen wirklich"
 
-        testCase "Befehl vor dem Lesen" <| fun () ->
-            let f, a, _ = fake ()
-            let month = freshMonth ()
-            let watched = watchPatches f month
-            assignOk f month a 120000L |> ignore
-            checkOracles f month watched []
+        // Die festen Wege laufen auf der gemeinsamen Datenbank, die Teile der Aufzählung oben auf eigenen.
+        yield!
+            [
+                testCase "Lesen vor dem Befehl, dazwischen eine Änderung in YNAB" <| fun () ->
+                    let f, a, b = fake ()
+                    let month = freshMonth ()
+                    let watched = watchPatches f month
+                    read f month |> ignore
+                    f.Assigned[b] <- 25000L
+                    assignOk f month a 120000L |> ignore
+                    checkOracles f month watched [ b, 20000L, 25000L ]
 
-        testCase "observeMonth wartet an der gehaltenen Sperre eines laufenden Befehls" <| fun () ->
-            let f, a, _ = fake ()
-            let month = freshMonth ()
-            let watched = watchPatches f month
-            use sending = new SemaphoreSlim(0, 1)
-            use release = new SemaphoreSlim(0, 1)
-            let check = f.OnWrite
-            f.OnWrite <-
-                fun category value ->
-                    check category value
-                    sending.Release() |> ignore
-                    release.Wait()
-            let command = Async.StartAsTask(async { return assign f month a 120000L None })
-            sending.Wait()
-            let readsBefore = f.Reads
-            let observing = Async.StartAsTask(observeMonth f.Port now month)
-            // Belegt über die Sperre selbst, nicht über eine Wartezeit (Review-Fund dgrp7, W7).
-            Expect.isTrue (atGate month) "observeMonth steht an der Sperre"
-            Expect.equal f.Reads readsBefore "kein FetchMonth, solange der Befehl die Sperre hält"
-            Expect.isFalse observing.IsCompleted "observeMonth wartet"
-            release.Release() |> ignore
-            Expect.isOk command.Result "Befehl"
-            Expect.isOk observing.Result "Beobachten"
-            Expect.equal f.Reads (readsBefore + 1) "danach genau ein FetchMonth"
-            f.OnWrite <- check
-            checkOracles f month watched []
+                testCase "Befehl vor dem Lesen" <| fun () ->
+                    let f, a, _ = fake ()
+                    let month = freshMonth ()
+                    let watched = watchPatches f month
+                    assignOk f month a 120000L |> ignore
+                    checkOracles f month watched []
 
-        testCase "Absturz zwischen Festhalten und Senden, dann Lesen, dann erneut senden" <| fun () ->
-            let f, a, _ = fake ()
-            let month = freshMonth ()
-            let watched = watchPatches f month
-            f.CrashOnWrite <- true
-            crashes (fun () -> assign f month a 120000L None |> ignore)
-            f.CrashOnWrite <- false
-            let page = read f month
-            Expect.equal ((shown page a).Assigned, (shown page a).OpenWriteBack) (eur 120000L, Some (lastDecision month)) "offen, Soll mit Markierung"
-            Expect.isEmpty (observations month) "keine Beobachtung"
-            let report = retryOk f (lastDecision month)
-            Expect.equal (report.Lines |> List.map (fun l -> l.Outcome)) [ Written ] "erneut gesendet"
-            Expect.contains (typesOf month) "AssignmentWrittenBackToYnab" "geschrieben"
-            checkOracles f month watched []
+                testCase "observeMonth wartet an der gehaltenen Sperre eines laufenden Befehls" <| fun () ->
+                    let f, a, _ = fake ()
+                    let month = freshMonth ()
+                    let watched = watchPatches f month
+                    use sending = new SemaphoreSlim(0, 1)
+                    use release = new SemaphoreSlim(0, 1)
+                    let check = f.OnWrite
+                    f.OnWrite <-
+                        fun category value ->
+                            check category value
+                            sending.Release() |> ignore
+                            release.Wait()
+                    let command = Async.StartAsTask(async { return assign f month a 120000L None })
+                    sending.Wait()
+                    let readsBefore = f.Reads
+                    let observing = Async.StartAsTask(observeMonth f.Port now month)
+                    // Belegt über die Sperre selbst, nicht über eine Wartezeit (Review-Fund dgrp7, W7).
+                    Expect.isTrue (atGate month) "observeMonth steht an der Sperre"
+                    Expect.equal f.Reads readsBefore "kein FetchMonth, solange der Befehl die Sperre hält"
+                    Expect.isFalse observing.IsCompleted "observeMonth wartet"
+                    release.Release() |> ignore
+                    Expect.isOk command.Result "Befehl"
+                    Expect.isOk observing.Result "Beobachten"
+                    Expect.equal f.Reads (readsBefore + 1) "danach genau ein FetchMonth"
+                    f.OnWrite <- check
+                    checkOracles f month watched []
 
-        testCase "Absturz, dann eine Änderung in YNAB auf einen dritten Wert" <| fun () ->
-            let f, a, _ = fake ()
-            let month = freshMonth ()
-            let watched = watchPatches f month
-            f.CrashOnWrite <- true
-            crashes (fun () -> assign f month a 120000L None |> ignore)
-            f.CrashOnWrite <- false
-            f.Assigned[a] <- 90000L
-            let page = read f month
-            Expect.equal ((shown page a).Assigned, (shown page a).OpenWriteBack) (eur 90000L, None) "YNAB gewinnt"
-            Expect.contains (typesOf month) "AssignmentWriteBackSupersededInYnab" "ersetzt"
-            checkOracles f month watched [ a, 120000L, 90000L ]
+                testCase "Absturz zwischen Festhalten und Senden, dann Lesen, dann erneut senden" <| fun () ->
+                    let f, a, _ = fake ()
+                    let month = freshMonth ()
+                    let watched = watchPatches f month
+                    f.CrashOnWrite <- true
+                    crashes (fun () -> assign f month a 120000L None |> ignore)
+                    f.CrashOnWrite <- false
+                    let page = read f month
+                    Expect.equal ((shown page a).Assigned, (shown page a).OpenWriteBack) (eur 120000L, Some (lastDecision month)) "offen, Soll mit Markierung"
+                    Expect.isEmpty (observations month) "keine Beobachtung"
+                    let report = retryOk f (lastDecision month)
+                    Expect.equal (report.Lines |> List.map (fun l -> l.Outcome)) [ Written ] "erneut gesendet"
+                    Expect.contains (typesOf month) "AssignmentWrittenBackToYnab" "geschrieben"
+                    checkOracles f month watched []
 
-        testCase "PATCH angekommen, Antwort verloren: das Lesen sieht ihn geschrieben" <| fun () ->
-            let f, a, _ = fake ()
-            let month = freshMonth ()
-            let watched = watchPatches f month
-            f.LostAnswers.Add a |> ignore
-            let report = assignOk f month a 120000L
-            Expect.isTrue (report.Lines |> List.forall (fun l -> l.Outcome <> Written)) "BB meldet fehlgeschlagen"
-            f.LostAnswers.Clear()
-            let page = read f month
-            Expect.isNone (shown page a).OpenWriteBack "geschrieben"
-            Expect.equal (List.last (typesOf month)) "AssignmentWrittenBackToYnab" "per Echo geschlossen"
-            checkOracles f month watched []
+                testCase "Absturz, dann eine Änderung in YNAB auf einen dritten Wert" <| fun () ->
+                    let f, a, _ = fake ()
+                    let month = freshMonth ()
+                    let watched = watchPatches f month
+                    f.CrashOnWrite <- true
+                    crashes (fun () -> assign f month a 120000L None |> ignore)
+                    f.CrashOnWrite <- false
+                    f.Assigned[a] <- 90000L
+                    let page = read f month
+                    Expect.equal ((shown page a).Assigned, (shown page a).OpenWriteBack) (eur 90000L, None) "YNAB gewinnt"
+                    Expect.contains (typesOf month) "AssignmentWriteBackSupersededInYnab" "ersetzt"
+                    checkOracles f month watched [ a, 120000L, 90000L ]
 
-        testCase "Verschiebung mit gescheiterter Quelle und einer Änderung am Ziel in YNAB" <| fun () ->
-            let f, a, b = fake ()
-            let month = freshMonth ()
-            let watched = watchPatches f month
-            f.Failures[a] <- YnabError.NetworkError "weg"
-            let report = moveOk f month a b 30000L
-            f.Failures.Clear()
-            f.Assigned[b] <- 25000L
-            let page = read f month
-            Expect.equal (shown page a).OpenWriteBack (Some (Guid.Parse report.ApplicationId)) "die Quelle bleibt offen"
-            f.Attempts.Clear()
-            retryOk f (Guid.Parse report.ApplicationId) |> ignore
-            Expect.isEmpty f.Attempts "die Quelle geht nicht hinaus, das Geld käme sonst aus Zu verteilen"
-            checkOracles f month watched [ b, 50000L, 25000L ]
+                testCase "PATCH angekommen, Antwort verloren: das Lesen sieht ihn geschrieben" <| fun () ->
+                    let f, a, _ = fake ()
+                    let month = freshMonth ()
+                    let watched = watchPatches f month
+                    f.LostAnswers.Add a |> ignore
+                    let report = assignOk f month a 120000L
+                    Expect.isTrue (report.Lines |> List.forall (fun l -> l.Outcome <> Written)) "BB meldet fehlgeschlagen"
+                    f.LostAnswers.Clear()
+                    let page = read f month
+                    Expect.isNone (shown page a).OpenWriteBack "geschrieben"
+                    Expect.equal (List.last (typesOf month)) "AssignmentWrittenBackToYnab" "per Echo geschlossen"
+                    checkOracles f month watched []
 
-        testCase "Verschiebung mit geschriebener Quelle und gescheitertem Ziel" <| fun () ->
-            let f, a, b = fake ()
-            let month = freshMonth ()
-            let watched = watchPatches f month
-            f.Failures[b] <- YnabError.NetworkError "weg"
-            let report = moveOk f month a b 30000L
-            f.Failures.Clear()
-            let page = read f month
-            Expect.equal ((shown page b).Assigned, (shown page b).OpenWriteBack) (eur 50000L, Some (Guid.Parse report.ApplicationId)) "das Ziel ist offen"
-            f.Attempts.Clear()
-            retryOk f (Guid.Parse report.ApplicationId) |> ignore
-            Expect.equal (List.ofSeq f.Attempts) [ b, 50000L ] "nur das Ziel"
-            checkOracles f month watched []
+                testCase "Verschiebung mit gescheiterter Quelle und einer Änderung am Ziel in YNAB" <| fun () ->
+                    let f, a, b = fake ()
+                    let month = freshMonth ()
+                    let watched = watchPatches f month
+                    f.Failures[a] <- YnabError.NetworkError "weg"
+                    let report = moveOk f month a b 30000L
+                    f.Failures.Clear()
+                    f.Assigned[b] <- 25000L
+                    let page = read f month
+                    Expect.equal (shown page a).OpenWriteBack (Some (Guid.Parse report.ApplicationId)) "die Quelle bleibt offen"
+                    f.Attempts.Clear()
+                    retryOk f (Guid.Parse report.ApplicationId) |> ignore
+                    Expect.isEmpty f.Attempts "die Quelle geht nicht hinaus, das Geld käme sonst aus Zu verteilen"
+                    checkOracles f month watched [ b, 50000L, 25000L ]
 
-        testCase "Wiederholung mit bekannter Befehls-Id nach Absturz vor dem Senden" <| fun () ->
-            let f, a, _ = fake ()
-            let month = freshMonth ()
-            let watched = watchPatches f month
-            let x = Guid.NewGuid()
-            f.CrashOnWrite <- true
-            crashes (fun () -> assign f month a 120000L (Some x) |> ignore)
-            f.CrashOnWrite <- false
-            let before = typesOf month
-            f.Reads <- 0
-            f.Attempts.Clear()
-            match assign f month a 120000L (Some x) with
-            | Ok (Ok report) -> Expect.equal (report.Lines |> List.map (fun l -> l.CategoryId)) [ a ] "die festgehaltene Entscheidung"
-            | other -> failtest $"Bericht erwartet: {other}"
-            Expect.equal f.Reads 0 "kein YNAB-Aufruf"
-            Expect.isEmpty f.Attempts "kein PATCH"
-            Expect.equal (typesOf month) before "keine Beobachtung, kein Ereignis"
-            checkOracles f month watched []
+                testCase "Verschiebung mit geschriebener Quelle und gescheitertem Ziel" <| fun () ->
+                    let f, a, b = fake ()
+                    let month = freshMonth ()
+                    let watched = watchPatches f month
+                    f.Failures[b] <- YnabError.NetworkError "weg"
+                    let report = moveOk f month a b 30000L
+                    f.Failures.Clear()
+                    let page = read f month
+                    Expect.equal ((shown page b).Assigned, (shown page b).OpenWriteBack) (eur 50000L, Some (Guid.Parse report.ApplicationId)) "das Ziel ist offen"
+                    f.Attempts.Clear()
+                    retryOk f (Guid.Parse report.ApplicationId) |> ignore
+                    Expect.equal (List.ofSeq f.Attempts) [ b, 50000L ] "nur das Ziel"
+                    checkOracles f month watched []
+
+                testCase "Wiederholung mit bekannter Befehls-Id nach Absturz vor dem Senden" <| fun () ->
+                    let f, a, _ = fake ()
+                    let month = freshMonth ()
+                    let watched = watchPatches f month
+                    let x = Guid.NewGuid()
+                    f.CrashOnWrite <- true
+                    crashes (fun () -> assign f month a 120000L (Some x) |> ignore)
+                    f.CrashOnWrite <- false
+                    let before = typesOf month
+                    f.Reads <- 0
+                    f.Attempts.Clear()
+                    match assign f month a 120000L (Some x) with
+                    | Ok (Ok report) -> Expect.equal (report.Lines |> List.map (fun l -> l.CategoryId)) [ a ] "die festgehaltene Entscheidung"
+                    | other -> failtest $"Bericht erwartet: {other}"
+                    Expect.equal f.Reads 0 "kein YNAB-Aufruf"
+                    Expect.isEmpty f.Attempts "kein PATCH"
+                    Expect.equal (typesOf month) before "keine Beobachtung, kein Ereignis"
+                    checkOracles f month watched []
+            ]
+            // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+            // (`TestGroups.InMemoryDb`).
+            |> List.map (testSequencedGroup TestGroups.InMemoryDb)
     ]
 
 // ============================================
@@ -640,7 +697,11 @@ let private orderTests =
 // ============================================
 
 let private takeoverTests =
-    testList "Übernahme" [
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`). Bis infrastructure-x7p2e lief diese Liste parallel und bremste die Gruppe über die
+    // Tabellensperren des Shared Cache aus (und umgekehrt).
+    testSequencedGroup TestGroups.InMemoryDb
+    <| testList "Übernahme" [
         testCase "Lesen und Befehl übernehmen denselben Monat gleichzeitig: ein Übernahme-Ereignis" <| fun () ->
             let f, a, _ = fake ()
             let month = freshMonth ()
@@ -870,7 +931,11 @@ let private readTests =
 // ============================================
 
 let private commandTests =
-    testList "Befehle und Beobachtung" [
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`). Bis infrastructure-x7p2e lief diese Liste parallel und bremste die Gruppe über die
+    // Tabellensperren des Shared Cache aus (und umgekehrt).
+    testSequencedGroup TestGroups.InMemoryDb
+    <| testList "Befehle und Beobachtung" [
         // QA 2: Scheitert das Festhalten von Übernahme und Beobachtung, entscheidet kein Befehl etwas.
         testCase "Lässt sich der Abgleich vor einem Befehl nicht festhalten, lehnen alle Befehle außen ab und nichts entsteht" <| fun () ->
             let f, a, b = fake ()
@@ -993,7 +1058,11 @@ let private generalRuns (category: Guid) : HistoryRun list =
     | Error message -> failtest message
 
 let private historyTests =
-    testList "Historie" [
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`). Bis infrastructure-x7p2e lief diese Liste parallel und bremste die Gruppe über die
+    // Tabellensperren des Shared Cache aus (und umgekehrt).
+    testSequencedGroup TestGroups.InMemoryDb
+    <| testList "Historie" [
         testCase "Übernahme und Beobachtung stehen in der Historie je Kategorie und der allgemeinen, eine ersetzte Zeile heißt anders als in YNAB geändert" <| fun () ->
             let f, a, _ = fake ()
             let month = freshMonth ()

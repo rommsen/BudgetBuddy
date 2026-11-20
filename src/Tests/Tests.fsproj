@@ -22,10 +22,13 @@
          Datenbank anfasst, damit ein Rückfall auf die Datei-Datenbank sofort und
          laut auffällt. -->
     <Compile Include="TestDatabaseGuardTests.fs" />
+    <!-- Gruppennamen für testSequencedGroup (infrastructure-x7p2e), vor jeder Datei, die sie nutzt. -->
+    <Compile Include="TestGroups.fs" />
     <!-- Mechanisierte Durchsetzung der Konvention "DB-Setup nur in testCase-Closures"
          (infra-sdad8, Iteration 2): muss nicht vor den DB-Tests stehen wie der Wächter
          oben, prüft aber deren Quelltext statisch, unabhängig von der Compile-Reihenfolge. -->
     <Compile Include="ModuleLevelDbInitGuardTests.fs" />
+    <Compile Include="TestSequencingGuardTests.fs" />
     <Compile Include="RemoteDataTests.fs" />
     <Compile Include="ServerConfigTests.fs" />
     <!-- Mechanisierte Durchsetzung von "app.Run() bekommt nie ein URL-Argument"

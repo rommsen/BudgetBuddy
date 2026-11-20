@@ -4,7 +4,7 @@ module LedgerPayeeTests
 //
 //  * Regeln `normalizePayee`, `payeeKey`, `payeeLockReason` und die Prüfung an der API-Grenze;
 //  * Ereignisse: Codec, Namen, Schema-Version, Replay;
-//  * Befehle gegen In-Memory-SQLite (`testSequenced`, Schema-Init je Testfall) mit einem
+//  * Befehle gegen In-Memory-SQLite (Gruppe `TestGroups.InMemoryDb`, Schema-Init je Testfall) mit einem
 //    injizierten Push, der nie YNAB erreicht und seine Aufrufe zählt;
 //  * `observe` mit Baseline (der Spiegel);
 //  * Historie;
@@ -289,7 +289,9 @@ let commandTests =
             initializeLedgerSchema ()
             body ())
 
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Payee: Befehle" [
 
         testCase "verknüpfte Buchung: zuerst EntryPayeeChangedInBb mit Alt und Neu, dann genau ein Push, der Zustand trägt den neuen Payee" <| fun () ->
@@ -583,7 +585,9 @@ let private importCandidate (txId: string) (importId: string) (reference: string
 
 [<Tests>]
 let importTests =
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Payee: Comdirect-Import" [
 
         testCase "ein geänderter Payee lässt import_id und Bank-Referenz stehen; derselbe Abruf legt keine zweite Buchung an" <| fun () ->
@@ -647,7 +651,9 @@ let payeeWriteGuardTests =
                 Expect.isEmpty probe.Calls "noch kein Push")
             command
 
-    testSequenced
+    // Geteilt: die In-Memory-DB (`TestGroups.InMemoryDb`), dazu die prozessweite Schreib-Sperre: jeder Fall hält
+    // einen Spiegel-Lauf fest, und Listen, die über alle Buchungen zählen, sähen seine Buchungen.
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Payee: Schreib-Sperre" [
 
         testCase "Payee ändern während eines Spiegel-Laufs schreibt und pusht erst nach dem Lauf" <| fun () ->

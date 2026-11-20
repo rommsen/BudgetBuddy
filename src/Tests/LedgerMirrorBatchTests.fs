@@ -84,7 +84,9 @@ let private entryOf (system: LinkSystem) (value: string) : EntryId =
 
 [<Tests>]
 let tests =
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Spiegel-Lauf: ein Batch mit allen Fällen (ledger-r8h19, Charakterisierung)" [
         testCase "neue Buchung, Treffer über YNAB-Id und ImportId, Übertragspaar und ersetzte Id schreiben dieselben Ereignisse" <| fun () ->
             initializeLedgerSchema ()
@@ -217,7 +219,9 @@ let openCaptureTests =
         tag, giro, budget, ledgerGiro
     let isOpen (entryId: EntryId) = not (loadEntry entryId |> Async.RunSynchronously |> Option.get).LinkedToYnab
 
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Spiegel-Lauf: offene Erfassung (ledger-ay81j)" [
         testCase "ein eindeutiges Paar wird verknüpft, observe vergleicht danach gegen den verknüpften Stand" <| fun () ->
             let tag, giro, budget, ledgerGiro = setup ()

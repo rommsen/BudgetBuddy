@@ -1017,7 +1017,11 @@ let bookingTests =
         testCase name (fun () ->
             Ledger.Persistence.initializeLedgerSchema ()
             body ())
-    testList "Abruf bucht ins Kassenbuch und nach YNAB" [
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`). Bis infrastructure-x7p2e lief diese Liste parallel und bremste die Gruppe über die
+    // Tabellensperren des Shared Cache aus (und umgekehrt).
+    testSequencedGroup TestGroups.InMemoryDb
+    <| testList "Abruf bucht ins Kassenbuch und nach YNAB" [
 
         testCase "drei neue Umsätze: je Buchung Entstehung, Kategorisierung, ein Push und die Verknüpfung" <| fun () ->
             let probe = Probe(connected)
@@ -1251,7 +1255,11 @@ let repeatedFetchTests =
             Ledger.Persistence.initializeLedgerSchema ()
             body ())
     // ADR 0093 Punkt 7: dieselbe Reference kommt bei jedem Abruf im Zeitraum wieder.
-    testList "Wiederholter Abruf: Abgleich mit dem Kassenbuch über die import_id" [
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`). Bis infrastructure-x7p2e lief diese Liste parallel und bremste die Gruppe über die
+    // Tabellensperren des Shared Cache aus (und umgekehrt).
+    testSequencedGroup TestGroups.InMemoryDb
+    <| testList "Wiederholter Abruf: Abgleich mit dem Kassenbuch über die import_id" [
 
         testCase "wartend und verworfen: kein Ereignis, kein Push" <| fun () ->
             let probe = Probe(connected)
@@ -1391,7 +1399,11 @@ let autoFetchRunTests =
         testCase name (fun () ->
             Ledger.Persistence.initializeLedgerSchema ()
             body ())
-    testList "Automatisch abrufen: der Lauf" [
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`). Bis infrastructure-x7p2e lief diese Liste parallel und bremste die Gruppe über die
+    // Tabellensperren des Shared Cache aus (und umgekehrt).
+    testSequencedGroup TestGroups.InMemoryDb
+    <| testList "Automatisch abrufen: der Lauf" [
 
         testCase "Schalter aus: kein Bankzugriff, kein Eintrag in der Historie" <| fun () ->
             let probe, _, auto = autoFetchProbe connected

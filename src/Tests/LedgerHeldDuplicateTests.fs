@@ -144,7 +144,9 @@ let domainTests =
 
 [<Tests>]
 let readTests =
-    testSequenced <| testList "Wartende Buchung: Lesen" [
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb <| testList "Wartende Buchung: Lesen" [
 
         testCase "sie zählt im Kontostand, in der Aktivität ihrer Kategorie und in Zu prüfen, nicht in Buchung nicht in YNAB" <| fun () ->
             let own = { CategoryId = YnabCategoryId (Guid.NewGuid()); CategoryName = "Eigene" }
@@ -203,7 +205,9 @@ let private commands : (string * (EntryId -> Async<Result<unit, string>>)) list 
 
 [<Tests>]
 let commandTests =
-    testSequenced <| testList "Wartende Buchung: jeder schreibende Befehl lehnt sie ab" [
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb <| testList "Wartende Buchung: jeder schreibende Befehl lehnt sie ab" [
         for name, command in commands do
             testCase $"{name} lehnt eine wartende Buchung mit dem Satz aus ADR 0093 ab" <| fun () ->
                 let _, entryId = seedHeld ()
@@ -214,7 +218,9 @@ let commandTests =
 
 [<Tests>]
 let batchTests =
-    testSequenced <| testList "Wartende Buchung: Sammelbefehle überspringen sie mit eigenem Grund" [
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb <| testList "Wartende Buchung: Sammelbefehle überspringen sie mit eigenem Grund" [
 
         testCase "setReviewMarkBatch zählt sie als vielleicht doppelt" <| fun () ->
             let _, entryId = seedHeld ()

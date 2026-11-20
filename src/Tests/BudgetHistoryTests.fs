@@ -288,7 +288,9 @@ let queryTests =
             Budgeting.Persistence.initializeBudgetingSchema ()
             body ())
 
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Historie: Abfrage (SQLite)" [
         testCase "Nur Bewegungen der Kategorie im Monat, neueste zuerst, mit jüngstem Ergebnis und Gegenseite" <| fun () ->
             let a, b = Guid.NewGuid(), Guid.NewGuid()

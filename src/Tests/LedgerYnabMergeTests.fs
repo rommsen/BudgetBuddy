@@ -650,7 +650,9 @@ let mirrorRunTests =
             global.Persistence.initializeDatabase ()
             body ())
 
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Zusammenlegung in YNAB: Spiegel-Lauf" [
 
         testCase "von YNAB abgeglichene Buchung bleibt nicht doppelt im Kassenbuch" <| fun () ->
@@ -852,7 +854,9 @@ let fullReadGenerationTests =
             global.Persistence.initializeDatabase ()
             body ())
 
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Spiegel: Vollabruf-Generation" [
 
         testCase "Knowledge gespeichert, Marker fehlt: der Lauf liest alles, der Folgelauf das Delta" <| fun () ->

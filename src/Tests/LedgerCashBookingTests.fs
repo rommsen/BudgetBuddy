@@ -296,7 +296,9 @@ let cashBookingPartsTests =
 let addCashBookingTests =
     let testCase name body = testCase name (fun () -> initialize (); body ())
 
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Ledger Barbuchung (Befehl)" [
         testCase "gelingt der Push, steht die Buchung verknüpft unter der vorgegebenen Id, mit Actor Bob" <| fun () ->
             let entryId = newEntryId ()
@@ -407,7 +409,9 @@ let private fakeYnab = [ "ynab_token", "token-kuenstlich"; "ynab_default_budget_
 let adapterTests =
     let testCase name body = testCase name (fun () -> initialize (); body ())
 
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Ledger Barbuchung (Adapter mit Ports)" [
         testCase "Import-Push und erzwungener Import ohne gespiegeltes Kassenbuch-Konto: Fehler vor jedem Schreiben" <| fun () ->
             let setting = settingsFrom (fakeYnab @ [ "ynab_default_account_id", Guid.NewGuid().ToString() ])
@@ -492,7 +496,9 @@ let private comdirectImport (account: LedgerAccount) (reference: string) : Entry
 let liveSinglePostTests =
     let testCase name body = testCase name (fun () -> initialize (); body ())
 
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Ledger Versand ohne import_id (echter Einzel-Post, ledger-ay81j)" [
         // Regression ledger-ay81j: YNAB glich eine Barbuchung mit import_id wie einen Bankimport gegen
         // eine eine Woche ältere Handbuchung gleichen Betrags ab und verbarg sie. Vor dem Fix trug jeder
@@ -714,7 +720,9 @@ let lostPushAnswerTests =
             ("EntryLinkedToYnab", YnabMirror)
             "der Spiegel verknüpft"
 
-    testSequenced
+    // Geteilt: die In-Memory-DB. Die DB-Listen laufen nacheinander in dieser Gruppe, parallel zum Rest
+    // (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb
     <| testList "Ledger Barbuchung (verlorene Antwort, ledger-ay81j)" [
         testCase "Kaputt: der Push scheitert mit Netzfehler, YNAB hat angelegt; der Spiegel verknüpft die offene Erfassung" <| fun () ->
             // GIVEN: YNAB legt die Buchung ohne import_id an, BB sieht nur die Zeitüberschreitung und
