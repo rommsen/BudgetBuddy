@@ -11,18 +11,18 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 1
-- **Todo:** 1
-- **Doing:** 0
+- **Todo:** 0
+- **Doing:** 1
 - **Done:** 10
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **categorization-t6j00** — "Regeln ohne Toast (R3): gelöschte Regel als gestrichelte Zeile am Platz mit Rückgängig, gespeicherte Regel leuchtet kurz, Fehler an der Regel oder als Hinweis der Seite" (feature) — `todo/categorization-t6j00-regeln-ohne-toast.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **categorization-t6j00** — "Regeln ohne Toast (R3): gelöschte Regel als gestrichelte Zeile am Platz mit Rückgängig, gespeicherte Regel leuchtet kurz, Fehler an der Regel oder als Hinweis der Seite" (feature) — `doing/categorization-t6j00-regeln-ohne-toast.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)

@@ -1,7 +1,7 @@
 ---
 id: budgeting-gtrgk
 title: "Budget-Seite und Sheet „Geld“ am Handy ohne Toast (R3): Ergebnis und Fehler in der Zeile über dem Knopf, „Verfügbar“ leuchtet kurz, Hinweis „nicht neu gelesen“ unter „Zu verteilen“ mit „Neu laden“"
-status: todo
+status: doing
 type: feature
 context: budgeting
 created: 2026-11-19

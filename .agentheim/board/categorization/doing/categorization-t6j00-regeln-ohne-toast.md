@@ -1,7 +1,7 @@
 ---
 id: categorization-t6j00
 title: "Regeln ohne Toast (R3): gelöschte Regel als gestrichelte Zeile am Platz mit Rückgängig, gespeicherte Regel leuchtet kurz, Fehler an der Regel oder als Hinweis der Seite"
-status: todo
+status: doing
 type: feature
 context: categorization
 created: 2026-11-19

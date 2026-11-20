@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-20 01:43 -- Batch started: [ledger-gwr9j, budgeting-gtrgk, categorization-t6j00]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-gwr9j - "Kassenbuch am Handy ohne Toast (R3), Teil 1 Liste: Texte der Leiste für Wische, Spiegeln, Neue Buchung, Mehrfachauswahl und Ladefehler, „Spiegeln läuft“, Rückgängig nach n Wischen ohne Sprung der Liste", budgeting-gtrgk - "Budget-Seite und Sheet „Geld“ am Handy ohne Toast (R3): Ergebnis und Fehler in der Zeile über dem Knopf, „Verfügbar“ leuchtet kurz, Hinweis „nicht neu gelesen“ unter „Zu verteilen“ mit „Neu laden“", categorization-t6j00 - "Regeln ohne Toast (R3): gelöschte Regel als gestrichelte Zeile am Platz mit Rückgängig, gespeicherte Regel leuchtet kurz, Fehler an der Regel oder als Hinweis der Seite"
+**Parallel:** yes (3 workers; sx9v5, p3sk0, vwhfm, ns4re bereit, auf die nächste Welle gehalten wegen MAX_PARALLEL 3)
+
+---
+
 ## 2026-11-20 01:43 -- Modeling / Promoted: banking-import-ns4re - "Abrufen ohne Toast (R3): Meldungen im Sheet, solange es offen ist; Ergebnis und Fehler nach geschlossenem Sheet in der Meldungsleiste"
 
 **Type:** Modeling / Promote
