@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-20 01:43 -- Modeling / Promoted: budgeting-gtrgk - "Budget-Seite und Sheet „Geld“ am Handy ohne Toast (R3): Ergebnis und Fehler in der Zeile über dem Knopf, „Verfügbar“ leuchtet kurz, Hinweis „nicht neu gelesen“ unter „Zu verteilen“ mit „Neu laden“"
+
+**Type:** Modeling / Promote
+**BC:** budgeting
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-20 01:43 -- Modeling / Promoted: ledger-gwr9j - "Kassenbuch am Handy ohne Toast (R3), Teil 1 Liste: Texte der Leiste für Wische, Spiegeln, Neue Buchung, Mehrfachauswahl und Ladefehler, „Spiegeln läuft“, Rückgängig nach n Wischen ohne Sprung der Liste"
 
 **Type:** Modeling / Promote
