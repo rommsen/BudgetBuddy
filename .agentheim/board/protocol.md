@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-11-20 02:45 -- Capture / Captured: budgeting-k7m3q - "Kann-Sammlung budgeting"
+
+**Type:** Capture
+**BC:** budgeting
+**Filed to:** backlog
+**Summary:** Kann-Sammlung budgeting angelegt (Funde aus budgeting-gtrgk)
+
+---
+
 ## 2026-11-20 02:45 -- Batch started: [budgeting-y1kkr, budgeting-p3sk0]
 
 **Type:** Work / Batch start
