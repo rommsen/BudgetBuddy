@@ -1,15 +1,15 @@
 ---
 id: budgeting-m5pqn
-title: "Budget-Seite sofort da: BB liest den Monat aus seinem eigenen Stand statt bei jedem Aufruf live aus YNAB"
+title: "Budget-Monat aus BB: YNAB-Stand je Monat festhalten, getBudgetMonth liest nur die Datenbank, Verfügbar und Zu verteilen leitet BB aus Soll, Kassenbuch und Stand ab"
 status: backlog
 type: feature
 context: budgeting
 created: 2026-11-20
 completed:
-depends_on: [design-system-001]
-blocks: []
+depends_on: []
+blocks: [budgeting-ffjk9, budgeting-vksa6]
 tags: [budget-seite, lesemodell, performance, ynab]
-related_adrs: [0065, 0083]
+related_adrs: [0065, 0074, 0076, 0083, 0084, 0088, 0101]
 related_research: []
 prior_art: [budgeting-zkbbd]
 ---
@@ -17,33 +17,78 @@ prior_art: [budgeting-zkbbd]
 ## Why
 Roman (2026-11-20): „Budget-Seite ist nervig, dass die Budgets immer erst geladen werden müssen. Die Seite muss
 instant da sein.“ Auf die Rückfrage, ob ein zuletzt bekannter Stand mit Abgleich im Hintergrund reicht: „Wir hatten
-doch entschieden, dass Budgets führend sind. Also immer zuerst BB.“ (budgeting-zkbbd: BB führt das Budget, YNAB wird
-Spiegel.)
+doch entschieden, dass Budgets führend sind. Also immer zuerst BB.“ (budgeting-zkbbd).
+
+Heute fragt jeder Aufruf YNAB live: `getBudgetMonth` → `budgetMonthWithLedger` → `observeMonthWith` (`GET /months/{m}`)
+und `targetRulesBestEffort` (`GET /categories`). Der Rahmen kostet zwei weitere Aufrufe (budgeting-yx51n).
+
+Teil 1 von 4 nach ADR 0101 (Entwurf): dieser Monat, budgeting-yx51n Rahmen, budgeting-ffjk9 Nachziehen beim Öffnen,
+budgeting-vksa6 Monat beim Ortswechsel halten.
 
 ## What
-Heute fragt jeder Aufruf der Budget-Seite YNAB live ab:
-- `getBudgetMonth` → `Budgeting.QueryHandlers.budgetMonthWithLedger` → `CommandHandlers.observeMonthWith` holt den
-  Monat aus YNAB (Zuweisungen, verfügbar, Kategorien), dazu `targetRulesBestEffort`.
-- Der Rahmen (`QueryHandlers.frame`) holt Monatsliste und Kategorie-Reihenfolge aus YNAB.
+Quellen je Wert (ADR 0101):
 
-Ziel: Die Seite rendert aus BBs eigener Datenbank, ohne auf YNAB zu warten. Was BB schon führt (Zuweisen,
-Verschieben, Targets, Pausen als Ereignisse in `events`, Aktivität aus dem Kassenbuch, Deaktivierung und Reihenfolge
-der Kategorien), kommt aus BB. Was BB heute noch aus YNAB übernimmt, wird in BB gehalten (Lesemodell) und vom Spiegel
-nachgezogen, nicht im Lesepfad der Seite geholt.
+| Wert | Künftig |
+|---|---|
+| Zugewiesen | BB-Soll (Faltung `budgeting:month:<YYYY-MM>`), wie heute |
+| Aktivität | BB, aus dem Kassenbuch (`getMonthlyActivityByCategory`); vor dem ersten Kassenbuch-Monat aus dem Stand |
+| Vortrag (intern) | Stand, beim Nachziehen aus einem YNAB-Monat berechnet |
+| Verfügbar | abgeleitet: Vortrag + Soll + Aktivität |
+| Zu verteilen | Stand minus Summe (Soll minus YNAB-Zugewiesen) |
+| Name, Gruppe, ausgeblendet, gelöscht, `internal` | Stand (ADR 0088: YNAB bleibt Quelle der Liste) |
+| Goal-Vergleich (`TargetInYnab`) | Stand |
+| Target, Pause, offene Rückschreibung, Deaktiviert | BB, wie heute |
+
+- Zustand `YnabMonthSnapshot` (ADR 0083: Zustand, kein Ereignis), Schema über `initializeDatabase`, wiederholbar,
+  Beträge als Milliunits `int64`. In der UI heißt er „YNAB-Stand“.
+- Einziger Schreiber ist `observeUnguarded` (`src/Server/Budgeting/CommandHandlers.fs`, aufgerufen von
+  `observeMonthWith` und `ensureTakenOverWith`), in derselben Transaktion wie Übernahme und Beobachtungen. Damit füllen
+  ihn auch alle Befehle und der `TakeoverWorker`.
+- `budgetMonthWithLedger` liest Faltung, Stand, Kassenbuch, Pausen, Regeln, offene Target-Schreibungen und Layout und
+  ruft weder `observeMonthWith` noch `targetRulesBestEffort` mit YNAB-Port; `withTargetInYnab` liest das Goal aus dem
+  Stand.
+- Reine Funktionen in `Server.Budgeting.Domain` für Vortrag, Verfügbar und Zu verteilen.
+- Ein Monat ohne Stand wird einmal beobachtet wie heute (F3), danach nie mehr im Lesepfad.
+- Neues Feld `CopiedAt: DateTime option` in `BudgetMonth`.
+- Die Echo-Regel aus ADR 0084 Punkt 3 bleibt unverändert, sie läuft künftig beim Nachziehen (budgeting-ffjk9).
 
 ## Acceptance criteria
-- To be defined during refinement.
+- [ ] Handler-Test mit zählendem `YnabPort` (alle Felder zählen): `budgetMonthWithLedger` für einen Monat mit Stand
+      macht null Aufrufe; mit einem Port, der bei jedem Aufruf wirft, kommt der Monat trotzdem.
+- [ ] Handler-Test: ein Monat ohne Stand wird genau einmal beobachtet (ein `FetchMonth`), das zweite Lesen macht null
+      Aufrufe.
+- [ ] Handler-Test: nach `observeMonthWith` steht der Stand in der DB, nach einem Befehl (Zuweisen) ebenso; scheitert
+      das Festhalten, wird weder Stand noch Beobachtung geschrieben (eine Transaktion).
+- [ ] Domain-Test: ohne offene Rückschreibung und mit Kassenbuch gleich YNAB sind Verfügbar und Zu verteilen gleich
+      den Werten des Stands, für jede Kategorie.
+- [ ] Domain-Test: Soll 50 bei Stand-Zugewiesen 30 ergibt Verfügbar +20 und Zu verteilen −20; eine Verschiebung
+      zwischen zwei Kategorien lässt Zu verteilen unverändert.
+- [ ] Domain-Test: der Vortrag ist bei jedem Soll gleich; eine Kassenbuch-Buchung von −12 ändert Verfügbar um −12.
+- [ ] Domain-Test: für einen Monat vor der ersten Kassenbuch-Buchung kommt die Aktivität aus dem Stand.
+- [ ] Handler-Test: der Fehlbetrag rechnet mit dem Vortrag aus dem Stand, die bisherigen Fehlbetrag-Fälle bleiben grün.
+- [ ] Live-Port-Stellen nach Doktrin Punkt 3 aufgelistet (`Api.budgetMonthFor`, `budgetApiWith`, Übersicht) und je
+      per Verhalten oder Strukturwächter mit Gegenbeweis belegt.
+- [ ] Pipeline- und Negativtests für `getBudgetMonth` grün; Fixtures in `scripts/*.test.mjs` tragen `CopiedAt` im
+      selben Schritt.
+- [ ] ADR 0101 auf `accepted`, Nachträge an ADR 0065 Punkt 1, 0076 Punkt 5 und 0084 (dgrp7-Satz) angehängt; README
+      budgeting nachgezogen, Delta mit `npm run check:readme-delta` geprüft.
+- [ ] `./verify.sh` endet mit `VERIFY: PASS`.
 
 ## Notes
-Offen für die Verfeinerung (Architekt, eventuell ADR):
-- Welche Werte liefert YNAB heute noch, die BB nicht selbst führt (Monatsliste, Kategorie-Liste und Gruppen,
-  „Zu verteilen“, Vortrag, verfügbar aus Monaten vor der Übernahme)? Je Wert: führt BB ihn künftig selbst oder hält
-  BB eine Kopie, die der Spiegel nachzieht?
-- Wann zieht der Spiegel YNAB nach (Intervall wie beim Kassenbuch-Spiegel, nach jedem Schreiben, beim Öffnen im
-  Hintergrund)? Was zeigt die Seite, wenn YNAB etwas anderes sagt als BB (ADR 0065: BB hält fest, was es geschrieben
-  hat)?
-- Client: Bleibt der geladene Monat beim Wechsel zwischen Orten im Model, damit die Rückkehr gar nicht neu lädt?
-- Messbares Kriterium für „sofort“: etwa kein YNAB-Aufruf im Lesepfad von `getBudgetMonth` und Rahmen (Handler-Test
-  mit zählendem Port, null Aufrufe).
-- Bezug: budgeting-bk6tq (Vortrag ab dem ersten Tag) und budgeting-wnkgj (Budget angleichen) im Backlog berühren
-  dieselben Werte.
+- Fragen an Roman vor dem Promote (ADR 0101 Punkte 7 und 8 hängen daran):
+  - F1: Vortrag und Zu verteilen bleiben vorerst eine Kopie von YNABs Rechnung, die BB im Hintergrund nachzieht.
+    Zugewiesen, Aktivität und Verfügbar kommen aus BB, die Seite wartet nie. Selbst rechnen später mit
+    Parallelrechnung. Empfehlung: ja.
+  - F2: Aktivität aus dem Kassenbuch: eine in BB erfasste Buchung (Bob, Neue Buchung) senkt Verfügbar sofort, auch
+    bevor sie in YNAB ist. Empfehlung: ja.
+  - F3: Monat ohne Stand (direkt nach dem Deploy, nie geöffneter Monat) einmal wie heute laden. Empfehlung: ja.
+  - F5: Verfügbar ändert sich sofort beim Zuweisen, auch bei offener Rückschreibung; der dgrp7-Satz „Verfügbar und Zu
+    verteilen bleiben YNABs Werte“ fällt. Empfehlung: ja.
+- Konflikt der Spezialisten: der Architekt wollte die Aktivität aus dem Stand (sonst gemischte Quellen im Vortrag);
+  gefolgt wurde dem tactical-modeler, weil der Vortrag beim Nachziehen aus einem einzigen YNAB-Monat gerechnet wird.
+- Die PATCH-Antwort von YNAB wird nicht gebraucht (`YnabClient.setAssignedWith` dekodiert zu `unit`).
+- Risiko: die Target-Übernahme beim Lesen entfällt; sie läuft künftig beim Nachziehen (budgeting-ffjk9) und vor
+  Befehlen.
+- Später, nicht ohne Roman: BB rechnet Vortrag und Zu verteilen selbst (Anker bei der Übernahme, Überziehungsregeln,
+  Parallelrechnung). Dafür klären, ob Roman in YNAB Kreditkarten-Konten nutzt.
+- budgeting-wnkgj (Budget angleichen) soll die abgeleiteten Gruppensummen nutzen und nach dieser Task gebaut werden.

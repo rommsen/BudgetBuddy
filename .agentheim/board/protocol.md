@@ -5,6 +5,71 @@ Newest entries on top.
 
 ---
 
+## 2026-11-20 23:14 -- Modeling / Promoted: budgeting-yx51n - "Budget-Rahmen aus BB: Monatsfenster und Kategorie-Platzierung als YNAB-Stand, der Rahmen der Budget-Seite liest ohne YNAB-Aufruf"
+
+**Type:** Modeling / Promote
+**BC:** budgeting
+**From → To:** backlog → todo
+
+---
+
+## 2026-11-20 23:14 -- Modeling / Refined: ledger-cyd1t - Aufteilen auf der Karte
+
+**Type:** Modeling / Refine
+**BC:** ledger
+**Status after:** backlog
+**Summary:** Drei Orte für den Knopf, Empfehlung neben dem Feld Kategorie. Editor über der Karte ohne neues Zustandsfeld, Esc-Kette und Bestätigung am Feld. Offen sechs Fragen an Roman und die Skizze.
+
+---
+
+## 2026-11-20 23:14 -- Modeling / Refined: budgeting-nyx75 - Gruppe deaktivieren
+
+**Type:** Modeling / Refine
+**BC:** budgeting
+**Status after:** backlog
+**Summary:** YNAB-API kann Gruppen weder ausblenden noch löschen (Spezifikation 1.91.0). Eigene Tabelle, Regel wirksam deaktiviert, Kriterien ausgearbeitet. Offen fünf Fragen an Roman und die Skizze.
+**ADRs written:** Nachtrag 0088 (Entwurf)
+
+---
+
+## 2026-11-20 23:14 -- Modeling / Refined: budgeting-m5pqn - Budget-Monat aus BB
+
+**Type:** Modeling / Refine
+**BC:** budgeting
+**Status after:** backlog
+**Summary:** Architekt und tactical-modeler: getBudgetMonth liest nur die DB, Zugewiesen und Aktivität führt BB, Vortrag und Zu verteilen als YNAB-Stand. Offen F1 bis F5 an Roman.
+**Split into:** budgeting-yx51n, budgeting-ffjk9, budgeting-vksa6
+**ADRs written:** 0101 (proposed)
+
+---
+
+## 2026-11-20 23:14 -- Modeling / Captured: budgeting-vksa6 - "Budget-Seite hält den Monat beim Ortswechsel: Rückkehr aus Kassenbuch, Übersicht oder Einstellungen zeigt den geladenen Monat sofort und liest still nach"
+
+**Type:** Modeling / Capture
+**BC:** budgeting
+**Filed to:** backlog
+**Summary:** Teil 4 aus budgeting-m5pqn: Client hält den geladenen Monat beim Ortswechsel.
+
+---
+
+## 2026-11-20 23:14 -- Modeling / Captured: budgeting-ffjk9 - "Nachziehen beim Öffnen: Budget-Seite und Übersicht zeigen sofort BBs Stand und gleichen danach still mit YNAB ab (syncBudgetMonth, Frische 60 s und 5 min, spätere Monate veraltet)"
+
+**Type:** Modeling / Capture
+**BC:** budgeting
+**Filed to:** backlog
+**Summary:** Teil 3 aus budgeting-m5pqn: syncBudgetMonth zieht beim Öffnen still nach (60 s, 5 min, veraltet).
+
+---
+
+## 2026-11-20 23:14 -- Modeling / Captured: budgeting-yx51n - "Budget-Rahmen aus BB: Monatsfenster und Kategorie-Platzierung als YNAB-Stand, der Rahmen der Budget-Seite liest ohne YNAB-Aufruf"
+
+**Type:** Modeling / Capture
+**BC:** budgeting
+**Filed to:** backlog
+**Summary:** Teil 2 aus budgeting-m5pqn: Monatsfenster und Kategorie-Platzierung als YNAB-Stand, Rahmen ohne YNAB-Aufruf.
+
+---
+
 ## 2026-11-20 23:01 -- Review-Lauf: 555fa096..8200b83b
 
 **Type:** Review / Review-Lauf

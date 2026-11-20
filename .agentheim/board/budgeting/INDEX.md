@@ -10,14 +10,15 @@ Catalog of this bounded context's tasks by status.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 6
-- **Todo:** 0
+- **Backlog:** 8
+- **Todo:** 1
 - **Doing:** 0
 - **Done:** 73
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **budgeting-yx51n** — "Budget-Rahmen aus BB: Monatsfenster und Kategorie-Platzierung als YNAB-Stand, der Rahmen der Budget-Seite liest ohne YNAB-Aufruf" (feature) — `todo/budgeting-yx51n-budget-rahmen-aus-bb.md`
 <!-- todo-list:end -->
 
 ### Doing
@@ -108,6 +109,8 @@ prior-art matcher additionally checks `done-archive/` when present.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **budgeting-vksa6** — "Budget-Seite hält den Monat beim Ortswechsel: Rückkehr aus Kassenbuch, Übersicht oder Einstellungen zeigt den geladenen Monat sofort und liest still nach" (feature) — `backlog/budgeting-vksa6-budget-monat-beim-ortswechsel-halten.md`
+- **budgeting-ffjk9** — "Nachziehen beim Öffnen: Budget-Seite und Übersicht zeigen sofort BBs Stand und gleichen danach still mit YNAB ab (syncBudgetMonth, Frische 60 s und 5 min, spätere Monate veraltet)" (feature) — `backlog/budgeting-ffjk9-budget-nachziehen-beim-oeffnen.md`
 - **budgeting-nyx75** — "Kategorie-Gruppe in BB deaktivieren: die Gruppe verschwindet samt ihren Kategorien aus Budget-Liste und Pickern, in YNAB bleibt sie" (feature) — `backlog/budgeting-nyx75-gruppe-deaktivieren.md`
 - **budgeting-m5pqn** — "Budget-Seite sofort da: BB liest den Monat aus seinem eigenen Stand statt bei jedem Aufruf live aus YNAB" (feature) — `backlog/budgeting-m5pqn-budget-seite-sofort-aus-bb.md`
 - **budgeting-k7m3q** — "Kann-Sammlung budgeting" (chore) — `backlog/budgeting-k7m3q-kann-sammlung-budgeting.md`
