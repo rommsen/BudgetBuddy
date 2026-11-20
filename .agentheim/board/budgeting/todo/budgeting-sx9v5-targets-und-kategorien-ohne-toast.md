@@ -1,7 +1,7 @@
 ---
 id: budgeting-sx9v5
 title: "Targets und Kategorien verwalten am Handy ohne Toast (R3): Ergebnis am Target im Sheet und in der Zeile der Prüfung, Kategorien verwalten mit leuchtender Zeile und Fehler am Feld, Hinweis „nicht neu gelesen“ auf der Seite"
-status: backlog
+status: todo
 type: feature
 context: budgeting
 created: 2026-11-19
