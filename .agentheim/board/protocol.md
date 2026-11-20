@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-20 05:17 -- Modeling / Promoted: ledger-mf2bg - "Durchgehen: Kategorie und Übertrag auf der Karte am Feld bestätigt (Feld leuchtet, „<Name> · <Betrag> verfügbar“ mit Rückgängig), ohne Toast"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-20 05:17 -- Task verified and completed: ledger-pz5wv - "Durchgehen ohne Toast (B3): letzte Aktion unter „Passt, weiter“ mit Rückgängig für jede Aktion, Fehler rot an derselben Stelle"
 
 **Type:** Work / Task completion
