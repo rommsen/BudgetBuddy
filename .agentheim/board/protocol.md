@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-11-20 17:42 -- Capture / Captured: infrastructure-x7p2e - "Expecto wieder schnell: weniger testSequenced, lange Aufzählungen teilen, kurze Zeitgeber"
+
+**Type:** Capture
+**BC:** infrastructure
+**Filed to:** backlog
+**Summary:** Expecto braucht 65 s statt 14 s: 101 sequenzielle Listen (rund 34 s), lange Aufzählungen bis 16 s, echte Wartezeiten in Zeitgeber-Tests. Roman hat die Task am 20.11. bestellt.
+
+---
+
 ## 2026-11-20 07:39 -- Work session ended
 
 **Type:** Work / Session end
