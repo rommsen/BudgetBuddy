@@ -1497,6 +1497,7 @@ let private FeedbackDemo () =
                         prop.children [
                             Feedback.removedRowIn "Regel drei" Feedback.RemovedPhase.Removing
                             Feedback.removedRow "Regel drei" undo
+                            Feedback.removedRowUnnamed "Buchung" (Feedback.RemovedPhase.Removed undo)
                             Feedback.removedRowIn "Eine Regel mit einem sehr langen Namen für die Zeile" Feedback.RemovedPhase.Restoring
                             Feedback.removedRowIn
                                 "Regel drei"

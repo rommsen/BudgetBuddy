@@ -432,14 +432,16 @@ const DETAIL_HISTORY = [
   { Sequence: 3, OccurredAt: "2026-11-07T09:20:00.0000000", Origin: "DecidedInBb", Description: "In BB als geprüft markiert", Amount: null },
 ];
 
-async function mockLedger(page, { accounts = 3, held = false, withoutPayee = false } = {}) {
+async function mockLedger(page, { accounts = 3, held = false, withoutPayee = false, hiddenPayees = null } = {}) {
   await mockApp(page);
   const accountsFixture = buildAccountsFixture(accounts);
   accountsFixture.Accounts[2].Name = "Gemeinschaftskonto mit einem sehr langen Kontonamen";
   await mockFilterBarApi(page, {
     accountsFixture,
     balancesFixture: buildBalancesFixture(accountsFixture.Accounts).map((b, i) => (i === 2 ? { ...b, Balance: eur(-12345.67) } : b)),
-    resolveEntries: () => ledgerEntries(accountsFixture.DefaultAccountId, { held, withoutPayee }),
+    // ledger-k68sd: `hiddenPayees` (ein Set) nimmt Buchungen aus jeder späteren Antwort, etwa nach dem Löschen.
+    resolveEntries: () =>
+      ledgerEntries(accountsFixture.DefaultAccountId, { held, withoutPayee }).filter((e) => !(hiddenPayees && hiddenPayees.has(e.Payee))),
   });
   for (const [name, body] of [
     ["getEntryHistory", []],
@@ -1997,6 +1999,38 @@ export const STATES = [
         await bar.getByTestId("feedback-action").filter({ hasText: /^Geprüft$/ }).waitFor();
         await bar.getByTestId("feedback-detail").filter({ hasText: "Bauhaus" }).waitFor();
       }
+    },
+  },
+  // ledger-k68sd: nach „Buchung löschen“ steht an ihrem Platz die Zeile „„…“ gelöscht · Rückgängig“ (R3), am Handy und
+  // am PC, ohne Leiste und ohne Toast. Das Nachladen nimmt die Buchung aus der Liste, die Zeile bleibt. Gelöscht wird die
+  // Buchung mit dem langen Payee: der Name wird gekürzt, „gelöscht“ und „Rückgängig“ nie (Invariante 4).
+  {
+    name: "kassenbuch-geloescht-zeile",
+    route: "/ledger",
+    widths: [...HANDY_WIDTHS, 412, 1280],
+    mock: async (page) => {
+      const hiddenPayees = new Set();
+      await mockLedger(page, { hiddenPayees });
+      await page.route("**/api/LedgerApi/deleteEntry", (r) => {
+        hiddenPayees.add(LONG_PAYEE);
+        return json(r, { Ok: null });
+      });
+    },
+    open: async (page, { mobile }) => {
+      await openLedger(page);
+      const row = page.getByText(LONG_PAYEE, { exact: true }).locator("visible=true").first();
+      await (mobile ? row.tap() : row.click());
+      const remove = page.getByRole("button", { name: "Buchung löschen" }).locator("visible=true").first();
+      await remove.scrollIntoViewIfNeeded();
+      await (mobile ? remove.tap() : remove.click());
+      await page.locator('[data-testid="ledger-deleted-row"]:visible [data-phase="removed"]').waitFor();
+      await page.waitForFunction(() => document.querySelectorAll(".bottom-sheet.active").length === 0);
+      // Gegenstück zur Leiste: die Zeile am Platz meldet, es gibt keine Meldung (R3).
+      const bar = await page.locator('[data-testid="feedback-bar"] [data-testid="feedback-action"]').count();
+      if (bar > 0) throw new Error("Nach dem Löschen steht eine Meldung in der Leiste, erwartet ist nur die Zeile am Platz");
+      const toast = await page.locator(".toast-layer:visible").count();
+      if (toast > 0) throw new Error("Nach dem Löschen steht ein Toast, erwartet ist nur die Zeile am Platz");
+      await settle(page, { where: "Buchung gelöscht, Zeile am Platz" });
     },
   },
   // design-system-gkded, ledger-gwr9j: drei Wische nacheinander werden eine Meldung „✓ 3 geprüft“ ohne zweite Zeile mit

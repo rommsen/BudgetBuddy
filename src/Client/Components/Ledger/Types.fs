@@ -1445,6 +1445,24 @@ type CategoriesFetch =
     /// Ein Abruf läuft, gestartet mit dieser `CategoriesGeneration`. Ein neuer Start ersetzt ihn.
     | CategoriesFetching of generation: int
 
+/// Wie weit die Zeile am Platz einer gelöschten Buchung ist (ledger-k68sd, Regel R3). `DeletedRowShown`: gelöscht,
+/// mit „Rückgängig“. `DeletedRowRestoring`: das Wiederherstellen läuft. `DeletedRowRestoreFailed`: rot mit Grund,
+/// „Rückgängig“ bleibt zum erneuten Versuch.
+type DeletedRowPhase =
+    | DeletedRowShown
+    | DeletedRowRestoring
+    | DeletedRowRestoreFailed of reason: string
+
+/// Die Zeile am Platz einer in BB gelöschten Buchung, bis zur nächsten Aktion (ledger-k68sd). `Entry` ist der Stand
+/// vor dem Löschen; die Zeile steht vor `Before` (der Buchung, die in der Liste danach kam) oder, fehlt sie, an
+/// `Index`. So bleibt der Platz, auch wenn das Nachladen die Buchung aus der Liste nimmt.
+type DeletedEntryRow = {
+    Entry: LedgerEntryView
+    Index: int
+    Before: Guid option
+    Phase: DeletedRowPhase
+}
+
 type Model = {
     /// Die Konten samt Vorauswahl des Servers.
     Accounts: RemoteData<LedgerAccountsView>
@@ -1746,6 +1764,13 @@ type Model = {
 
     /// Buchungen, deren "Rückgängig" nach dem Löschen gerade läuft: ein zweiter Tipp schickt nichts.
     RestoringEntries: Set<Guid>
+
+    /// Die Zeile am Platz der zuletzt gelöschten Buchung (ledger-k68sd), `None` ohne. Endet mit der nächsten Aktion
+    /// (`State.endsDeletedRow`), einem Neuaufbau der Liste und beim Verlassen der Seite.
+    DeletedRow: DeletedEntryRow option
+
+    /// Warum „Buchung löschen“ scheiterte, rot unter dem Knopf im offenen Detail dieser Buchung (ledger-k68sd).
+    DeleteFailure: (Guid * string) option
 
     /// Die Vorschläge zum Payee für den offenen Picker (höchstens drei, häufigste zuerst).
     /// Leer, bis die Antwort da ist, bei einem Fehler und ohne Payee.
@@ -2725,6 +2750,8 @@ type Msg =
     | StartRestoreDeletedEntry of Guid
     | RunRestoreDeletedEntry of Guid
     | EntryRestoreFinished of Guid * Result<unit, string>
+    /// Das Kassenbuch ist verlassen (andere Seite als Liste, Buchung und Regeln): die Zeile am Platz endet (ledger-k68sd).
+    | LedgerLeft
     | TransferTargetsLoaded of Result<YnabAccount list, string>
     | AddSplitLine
     | RemoveSplitLine of int

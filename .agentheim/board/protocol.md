@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-20 04:32 -- Task verified and completed: ledger-k68sd - "Kassenbuch am Handy ohne Toast (R3), Teil 4: gelöschte Buchung hinterlässt eine Zeile am Platz „… gelöscht · Rückgängig“ statt Toast, Fehler beim Löschen unter dem Knopf"
+
+**Type:** Work / Task completion
+**Task:** ledger-k68sd - "Kassenbuch am Handy ohne Toast (R3), Teil 4: gelöschte Buchung hinterlässt eine Zeile am Platz „… gelöscht · Rückgängig“ statt Toast, Fehler beim Löschen unter dem Knopf"
+**Summary:** Kassenbuch ohne Toast, Teil 4: gelöschte Buchung als Zeile am Platz mit Rückgängig, Fehler unter dem Knopf
+**Duration:** 50m
+**Verification:** PASS (iteration 1, nach Merge-Auflösung in styleguide.md; Sweep-Flackern einzeln grün)
+**Files changed:** 9
+**Tests added:** 15
+**ADRs written:** none
+
+---
+
 ## 2026-11-20 04:16 -- Task verified and completed: budgeting-p3sk0 - "Angepinnt ohne Meldung (R3): Anpinnen und Lösen im Kategorie-Detail ohne Toast, die Kategorie leuchtet auf der Übersicht im Bereich „Angepinnt“ kurz, ein Fehler beim Speichern steht am Ort"
 
 **Type:** Work / Task completion

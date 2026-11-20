@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 12
 - **Todo:** 0
-- **Doing:** 3
-- **Done:** 158
+- **Doing:** 2
+- **Done:** 159
 <!-- task-counts:end -->
 
 ### Todo
@@ -23,12 +23,12 @@ research touching this BC, and concept synthesis pages.
 ### Doing
 <!-- doing-list:start -->
 - **ledger-pz5wv** — "Durchgehen ohne Toast (B3): letzte Aktion unter „Passt, weiter“ mit Rückgängig für jede Aktion, Fehler rot an derselben Stelle" (feature) — `doing/ledger-pz5wv-durchgehen-ohne-toast-letzte-aktion.md`
-- **ledger-k68sd** — "Kassenbuch am Handy ohne Toast (R3), Teil 4: gelöschte Buchung hinterlässt eine Zeile am Platz „… gelöscht · Rückgängig“ statt Toast, Fehler beim Löschen unter dem Knopf" (feature) — `doing/ledger-k68sd-geloeschte-buchung-als-zeile-am-platz.md`
 - **ledger-p5y9s** — "Kassenbuch am Handy ohne Toast (R3), Teil 2 Detail I: Rückgängig am Feld im Detail-Sheet als Mechanik, Kategorie, Übertrag und Aufteilen bestätigen am Feld, Fehler am Feld, Übergang beim Schließen" (feature) — `doing/ledger-p5y9s-detail-ohne-toast-kategorie-uebertrag-aufteilen.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)
 <!-- done-list:start -->
+- **ledger-k68sd** — "Kassenbuch am Handy ohne Toast (R3), Teil 4: gelöschte Buchung hinterlässt eine Zeile am Platz „… gelöscht · Rückgängig“ statt Toast, Fehler beim Löschen unter dem Knopf" (feature) — `done/ledger-k68sd-geloeschte-buchung-als-zeile-am-platz.md`
 - **ledger-gwr9j** — "Kassenbuch am Handy ohne Toast (R3), Teil 1 Liste: Texte der Leiste für Wische, Spiegeln, Neue Buchung, Mehrfachauswahl und Ladefehler, „Spiegeln läuft“, Rückgängig nach n Wischen ohne Sprung der Liste" (feature) — `done/ledger-gwr9j-kassenbuch-ohne-toast.md`
 - **ledger-wg42w** — "Durchgehen: Memo auf der Karte nur lesen (C3), „Memo“ über dem Text, so lang, wie Platz ist (gemessen); Bearbeiten nur in „Details“, Memo-Sheet und -Dialog der Karte entfallen" (feature) — `done/ledger-wg42w-durchgehen-memo-nur-lesen.md`
 - **ledger-s2cg3** — "Durchgehen am Handy: Wischen mit Fläche darunter (A1), Karte füllt den Platz bis zu den Knöpfen, Seite ohne Scrollen" (feature) — `done/ledger-s2cg3-durchgehen-wischen-mit-flaeche.md`

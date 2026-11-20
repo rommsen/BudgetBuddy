@@ -174,3 +174,5 @@ Sammelstelle für Befunde, die stimmen, aber die Schwelle der Backlog-Disziplin 
 
 152. **Review-Lauf 2026-11-19**: `Components/Settings/State.fs:296` zeigt den englischen Toast „Failed to load Lena flag colour: …“ mit roher Fehlermeldung; deutsch und nach §8 formulieren. 2026-11-19: geht in banking-import-vwhfm auf (Einstellungen ohne Toast). **Erledigt** mit banking-import-vwhfm (2026-11-20): Texte der Einstellungen und der genannten Server-Fehler deutsch.
 153. **Work-Lauf 2026-11-20 (ledger-wg42w)**: der Kommentar über `durchgehen-details-memo` in `scripts/layout-states.mjs` nennt noch „übernimmt die Prüfung von `durchgehen-memo`“; der Zustand ist entfernt.
+154. **Work-Lauf 2026-11-20 (ledger-k68sd)**: nach gescheitertem Wiederherstellen heißt der Knopf in der Zeile am Platz „Rückgängig“ (Task), bei den Regeln und in Styleguide §5/§7.13 „Erneut“; vereinheitlichen und §7.13 nachziehen.
+155. **Work-Lauf 2026-11-20 (ledger-k68sd)**: am PC springt die Pfeilnavigation (`MoveFocus`) über die Zeile am Platz hinweg, weil sie nicht in `Entries` steht.

@@ -295,7 +295,7 @@ let routeNavigation (current: Page) (target: Page) : RouteNavigation =
 
 /// Was das Betreten von `page` lädt. Zwischen Buchung und Liste bleibt die geladene Seite stehen,
 /// sonst leert das Neuladen eine begonnene Auswahl.
-let urlChangedCmd (ledger: Components.Ledger.Types.Model) (current: Page) (page: Page) : Cmd<Msg> =
+let private urlChangedPageCmd (ledger: Components.Ledger.Types.Model) (current: Page) (page: Page) : Cmd<Msg> =
     let leave (target: Components.Ledger.Types.RouteLeftFor) =
         Cmd.map LedgerMsg (Cmd.ofMsg (Components.Ledger.Types.LeaveRouteEntry target))
     match current, page with
@@ -335,6 +335,15 @@ let urlChangedCmd (ledger: Components.Ledger.Types.Model) (current: Page) (page:
     | Review, target when target <> Review ->
         Cmd.batch [ Cmd.map LedgerMsg (Cmd.ofMsg Components.Ledger.Types.ReviewLeft); pageLoadCmd page ]
     | _ -> pageLoadCmd page
+
+/// Was ein Seitenwechsel lädt (`urlChangedPageCmd`). Verlässt er das Kassenbuch (Liste, Buchung und Regeln sind eine
+/// Seite, `pageKey`), endet dort die Zeile am Platz einer gelöschten Buchung (ledger-k68sd).
+let urlChangedCmd (ledger: Components.Ledger.Types.Model) (current: Page) (page: Page) : Cmd<Msg> =
+    let cmd = urlChangedPageCmd ledger current page
+    if pageKey current = pageKey Ledger && pageKey page <> pageKey Ledger then
+        Cmd.batch [ Cmd.map LedgerMsg (Cmd.ofMsg Components.Ledger.Types.LedgerLeft); cmd ]
+    else
+        cmd
 
 // ============================================
 // Bereitschaftssignal (design-system-yxrxb)

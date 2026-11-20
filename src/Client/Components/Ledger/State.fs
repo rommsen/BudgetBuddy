@@ -151,6 +151,8 @@ let init () : Model * Cmd<Msg> =
         DiscardingCaptured = Set.empty
         DeletingEntries = Set.empty
         RestoringEntries = Set.empty
+        DeletedRow = None
+        DeleteFailure = None
         CategorySuggestions = []
         CategoryRows = Map.empty
         FlagRows = Map.empty
@@ -187,6 +189,8 @@ let private resetEntries (model: Model) : Model = {
         Selection = NoSelection
         SelectionAnchor = None
         SelectionMode = false
+        // Die Zeile am Platz einer gelöschten Buchung gehört zur alten Liste (ledger-k68sd).
+        DeletedRow = None
         // Eine neu aufgesetzte Liste kennt weder ausgegraute Zeilen noch eine veraltete
         // Reihenfolge (ledger-sfab0).
         FilteredOut = Set.empty
@@ -1362,8 +1366,102 @@ let private submitCapture (capture: Capture.CaptureState) (model: Model) : Model
         (if errors.AmountMessage.IsSome then Cmd.ofMsg RevealCaptureAmountError else Cmd.none),
         NoOp
 
-let entryDeletedText = "Buchung gelöscht, auch in YNAB"
-let entryRestoredText = "Buchung wiederhergestellt"
+/// Die Meldung nach „Buchung löschen“, wenn die Buchung nicht in der geladenen Liste steht (über die Route geöffnet,
+/// Filter, Durchgehen): am Handy die Leiste, am PC der Toast, je mit „Rückgängig“ (ledger-k68sd). Steht sie in der
+/// Liste, meldet die Zeile am Platz (`DeletedRow`) und es gibt keine Meldung.
+let entryDeletedFeedback (payee: string option) (entryId: Guid) : FeedbackNote =
+    { Tone = FeedbackOk
+      Action = "Gelöscht"
+      Detail = Some (payee |> Option.defaultValue "ohne Payee")
+      Act = Some { Label = undoToastLabel; Kind = UndoDeleteEntry entryId } }
+
+/// Das Wiederherstellen ist gescheitert und es gibt keine Zeile am Platz: rot am Meldungsplatz, „Rückgängig“ bleibt
+/// zum erneuten Versuch (ledger-k68sd).
+let entryRestoreFailedFeedback (reason: string) (entryId: Guid) : FeedbackNote =
+    { failedFeedback "Nicht wiederhergestellt" reason with
+        Act = Some { Label = undoToastLabel; Kind = UndoDeleteEntry entryId } }
+
+/// Die Zeile am Platz für diese Buchung, wenn sie in der geladenen Liste steht, sonst `None` (dann meldet die Leiste
+/// bzw. der Toast). Im Durchgehen gibt es keine Liste (ledger-k68sd).
+let deletedRowFor (model: Model) (entryId: Guid) : DeletedEntryRow option =
+    match model.Review, model.Entries with
+    | None, Success rows ->
+        rows
+        |> List.tryFindIndex (fun e -> e.Id = entryId)
+        |> Option.map (fun index ->
+            { Entry = rows.[index]
+              Index = index
+              Before = rows |> List.tryItem (index + 1) |> Option.map (fun e -> e.Id)
+              Phase = DeletedRowShown })
+    | _ -> None
+
+/// Setzt die gelöschte Buchung an ihren Platz in der Liste (ledger-k68sd): vor die Buchung, die danach kam, sonst an
+/// den alten Index. Steht sie noch in der Liste („gelöschte zeigen“), ersetzt der Stand vor dem Löschen sie, es gibt
+/// keine zweite Zeile. Rein; die Ansicht zeigt an dieser Stelle die Zeile „gelöscht“, „Rückgängig“ setzt damit die
+/// Buchung zurück, bis das Nachladen den Stand des Servers bringt.
+let withDeletedPlaced (row: DeletedEntryRow option) (entries: LedgerEntryView list) : LedgerEntryView list =
+    match row with
+    | None -> entries
+    | Some row ->
+        let others = entries |> List.filter (fun e -> e.Id <> row.Entry.Id)
+        let at =
+            row.Before
+            |> Option.bind (fun before -> others |> List.tryFindIndex (fun e -> e.Id = before))
+            |> Option.defaultValue (min row.Index others.Length)
+        List.insertAt at row.Entry others
+
+/// Beendet diese Nachricht die Zeile am Platz einer gelöschten Buchung (ledger-k68sd, R3: bis zur nächsten Aktion)?
+/// Aktionen sind Wisch, Spiegeln, Neue Buchung, Filter und Sortierung, das Öffnen einer Buchung, Prüfen, Lena, Auswahl,
+/// ein weiteres Löschen und das Verlassen der Seite. Antworten, Nachladen und „Rückgängig“ selbst nicht. Ein Neuaufbau
+/// der Liste (`resetEntries`) nimmt die Zeile ohnehin weg.
+let endsDeletedRow (msg: Msg) : bool =
+    match msg with
+    | StartSwipeReviewed _
+    | StartMirror
+    | OpenCapture
+    | OpenCaptureUnfiltered
+    | OpenDetail _
+    | OpenFocusedDetail
+    | OpenRouteEntry _
+    | StartDeleteEntry _
+    | StartSetReviewMark _
+    | ReviewKeyPressed _
+    | LenaKeyPressed
+    | StartSetLenaFlag _
+    | StartSelectionMode _
+    | ToggleRowSelected _
+    | ClickRowCheckbox _
+    | ToggleSelectAll
+    | ToggleHeaderCheckbox
+    | ClickRowWithModifier _
+    | StartReviewMarkBatch
+    | StartCategoryBatch _
+    | StartLenaBatch _
+    | SelectFilter _
+    | PresetFilter _
+    | PresetQuickFilter _
+    | SetSort _
+    | SetSortExactly _
+    | ToggleIncludeDeleted
+    | ToggleOnlyNeedsReview
+    | ToggleWithoutCategory
+    | ToggleOnlyAskLena
+    | FilterByRowPayee _
+    | FilterByRowCategory _
+    | ApplyCategoryFilter
+    | RemoveCategoryFilter
+    | ApplyDateFilter
+    | RemoveDateFilter
+    | CommitSearch _
+    | RemoveSearch
+    | CommitAmountFilter _
+    | RemoveAmountFilter
+    | SetAmountDirection _
+    | RemoveAmountAndDirection
+    | ClearAllFilters
+    | ReviewOpened
+    | LedgerLeft -> true
+    | _ -> false
 
 /// Setzt alles zurück, was am offenen Detail hängt (Historie samt aufgeklappter, Memo, Betrag, Payee), lässt aber
 /// `DetailFor` stehen. Das Kassenbuch schließt darüber das Detail (`closeDetail`), das Durchgehen „Details“, wo die
@@ -1374,7 +1472,8 @@ let clearDetailEdits (model: Model) : Model =
         HistoryOpenFor = None
         MemoEdit = None
         AmountEdit = None
-        PayeeEdit = None }
+        PayeeEdit = None
+        DeleteFailure = None }
 
 /// Schließt das Detail samt allem, was daran hängt: Historie, Sheet "Notiz" und Sheet "Betrag".
 /// Jede Stelle, die das Detail schließt, geht hier durch, damit kein offenes Sheet stehen bleibt.
@@ -1441,7 +1540,8 @@ let private showDetail (entry: LedgerEntryView) (model: Model) : Model * Cmd<Msg
         HistoryOpenFor = None
         MemoEdit = None
         AmountEdit = None
-        PayeeEdit = None },
+        PayeeEdit = None
+        DeleteFailure = None },
     Cmd.ofMsg (LoadHistory entry.Id)
 
 /// Folgt ein offenes Panel der Markierung? Zeigt es eine andere Buchung als die markierte
@@ -3628,7 +3728,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         if model.DeletingEntries.Contains entryId then
             model, Cmd.none, NoOp
         else
-            { model with DeletingEntries = model.DeletingEntries.Add entryId },
+            { model with DeletingEntries = model.DeletingEntries.Add entryId; DeleteFailure = None },
             Cmd.ofMsg (RunDeleteEntry entryId),
             NoOp
 
@@ -3642,26 +3742,41 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         NoOp
 
     | EntryDeleteFinished (entryId, Ok ()) ->
-        // Nach Erfolg schließt das Detail, der Toast bietet "Rückgängig" (ADR 0092 Punkt 2).
+        // Nach Erfolg schließt das Detail (ADR 0092 Punkt 2). Steht die Buchung in der Liste, hinterlässt sie dort die
+        // Zeile „… gelöscht · Rückgängig“, ohne Meldung, auf jeder Breite (R3, ledger-k68sd). Sonst meldet die Leiste,
+        // am PC der Toast, mit „Rückgängig“.
         let model = { model with DeletingEntries = model.DeletingEntries.Remove entryId }
+        let payee =
+            model.DetailFor
+            |> Option.filter (fun d -> d.Id = entryId)
+            |> Option.bind (fun d -> d.Payee)
+        let row = deletedRowFor model entryId
         let model' =
             if model.DetailFor |> Option.exists (fun d -> d.Id = entryId) then closeDetail model
             else
                 model
-        model',
+        { model' with DeletedRow = row },
         Cmd.batch [ Cmd.ofMsg RefreshEntries; Cmd.ofMsg LoadBalances ],
-        ShowToastWithAction (entryDeletedText, ToastSuccess, { Label = undoToastLabel; Kind = UndoDeleteEntry entryId })
+        (match row with
+         | Some _ -> NoOp
+         | None -> PostFeedback (entryDeletedFeedback payee entryId))
 
     | EntryDeleteFinished (entryId, Error message) ->
-        // Das Detail bleibt offen, der Toast nennt den Grund.
-        { model with DeletingEntries = model.DeletingEntries.Remove entryId },
-        Cmd.none, ShowToast ($"Löschen nicht möglich: {message}", ToastError)
+        // Das Detail bleibt offen, der Grund steht rot unter „Buchung löschen“ (Fehler am Ort, ledger-k68sd).
+        { model with
+            DeletingEntries = model.DeletingEntries.Remove entryId
+            DeleteFailure = Some (entryId, message) },
+        Cmd.none, NoOp
 
     | StartRestoreDeletedEntry entryId ->
         if model.RestoringEntries.Contains entryId then
             model, Cmd.none, NoOp
         else
-            { model with RestoringEntries = model.RestoringEntries.Add entryId },
+            { model with
+                RestoringEntries = model.RestoringEntries.Add entryId
+                DeletedRow =
+                    model.DeletedRow
+                    |> Option.map (fun row -> if row.Entry.Id = entryId then { row with Phase = DeletedRowRestoring } else row) },
             Cmd.ofMsg (RunRestoreDeletedEntry entryId),
             NoOp
 
@@ -3675,13 +3790,29 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         NoOp
 
     | EntryRestoreFinished (entryId, Ok ()) ->
-        { model with RestoringEntries = model.RestoringEntries.Remove entryId },
-        Cmd.batch [ Cmd.ofMsg RefreshEntries; Cmd.ofMsg LoadBalances ],
-        ShowToast (entryRestoredText, ToastSuccess)
+        // Die Buchung steht sofort wieder an ihrem Platz, ohne Meldung; das Nachladen bringt danach den Stand des
+        // Servers (ledger-k68sd).
+        let model = { model with RestoringEntries = model.RestoringEntries.Remove entryId }
+        let model' =
+            match model.DeletedRow with
+            | Some row when row.Entry.Id = entryId ->
+                { model with
+                    DeletedRow = None
+                    Entries = model.Entries |> RemoteData.map (withDeletedPlaced (Some row)) }
+            | _ -> model
+        model', Cmd.batch [ Cmd.ofMsg RefreshEntries; Cmd.ofMsg LoadBalances ], NoOp
 
     | EntryRestoreFinished (entryId, Error message) ->
-        { model with RestoringEntries = model.RestoringEntries.Remove entryId },
-        Cmd.none, ShowToast ($"Wiederherstellen nicht möglich: {message}", ToastError)
+        // Rot in der Zeile am Platz, „Rückgängig“ bleibt; ohne Zeile rot am Meldungsplatz (ledger-k68sd).
+        let model = { model with RestoringEntries = model.RestoringEntries.Remove entryId }
+        match model.DeletedRow with
+        | Some row when row.Entry.Id = entryId ->
+            { model with DeletedRow = Some { row with Phase = DeletedRowRestoreFailed message } }, Cmd.none, NoOp
+        | _ -> model, Cmd.none, PostFeedback (entryRestoreFailedFeedback message entryId)
+
+    | LedgerLeft ->
+        // Die Zeile am Platz nimmt `update` vorher über `endsDeletedRow` weg.
+        model, Cmd.none, NoOp
 
     | RunLoadTransferTargets ->
         { model with TransferTargets = Loading },
@@ -4782,6 +4913,8 @@ let captureAnsweredOn (onLedgerPage: bool) (model: Model) : Model =
 /// deckt jeden Weg ab: Kästchen, Umschalt-Klick, Leertaste, Kopfzeile, "Alle" und das lange
 /// Drücken am Handy.
 let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
+    // Die Zeile am Platz einer gelöschten Buchung bleibt bis zur nächsten Aktion (ledger-k68sd).
+    let model = if model.DeletedRow.IsSome && endsDeletedRow msg then { model with DeletedRow = None } else model
     let model', cmd, external = updateCore msg model
     // Das Durchgehen hält seine Karte in `DetailFor`. Hat ein Schritt im Detail sie geschlossen (etwa
     // „Buchung löschen“), steht die Karte wieder da; das Neulesen überspringt sie, wenn sie weg ist.

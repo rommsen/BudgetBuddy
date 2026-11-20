@@ -1385,6 +1385,13 @@ let detailReviewSwitchVisible (entry: LedgerEntryView) : bool =
 let detailDeleteVisible (entry: LedgerEntryView) : bool =
     not entry.DeletedInYnab && not entry.Reconciled && entry.LinkedToYnab
 
+/// Der Grund, aus dem „Buchung löschen“ für diese Buchung scheiterte, oder `None` (ledger-k68sd).
+let deleteFailureFor (model: Model) (entry: LedgerEntryView) : string option =
+    model.DeleteFailure |> Option.filter (fun (id, _) -> id = entry.Id) |> Option.map snd
+
+/// Der Satz unter „Buchung löschen“ nach einem Fehler.
+let deleteFailureText (reason: string) : string = $"Nicht gelöscht: {reason}"
+
 /// Die Nachricht des Betrags-Knopfs im Kopf, oder `None`, wenn er nichts öffnen darf
 /// (`State.amountEditOpenable`, ledger-m7mye, ADR 0092).
 /// Die Nachricht eines Tipps auf die Payee-Zeile: öffnet die Payee-Auswahl, wenn der Payee sich
@@ -1892,6 +1899,14 @@ let private detailContent (dispatch: Msg -> unit) (model: Model) (entry: LedgerE
                       ClassName = Some "w-full"
                       OnClick = fun () -> dispatch (StartDeleteEntry entry.Id)
               }
+              // Scheitert das Löschen, steht der Grund rot unter dem Knopf, das Detail bleibt offen (ledger-k68sd).
+              match deleteFailureFor model entry with
+              | Some reason ->
+                  Html.div [
+                      prop.custom ("data-testid", "detail-delete-error")
+                      prop.children [ ErrorDisplay.inline' (deleteFailureText reason) ]
+                  ]
+              | None -> ()
           ] ]
 
 /// Das Detail als Seitenpanel (PC). Gerendert in der Spalte der Liste (`FilterBarColumn`).
@@ -2593,6 +2608,53 @@ let mobileRowLongPress (selectionMode: bool) (mouse: bool) : bool = not selectio
 /// Eine Zeile der Handy-Liste: im Normalbetrieb mit Wisch-Geste, im Auswahl-Modus mit
 /// Kästchen und ohne Wisch (ein Wisch wäre dort überraschend, ledger-r1d2f). In beiden Fällen
 /// unter derselben Hülle für das lange Drücken.
+/// Der Name in der Zeile am Platz einer gelöschten Buchung: der Payee, ohne Payee `None` („Buchung gelöscht“,
+/// ledger-k68sd).
+let deletedRowName (entry: LedgerEntryView) : string option =
+    entry.Payee |> Option.filter (fun p -> not (String.IsNullOrWhiteSpace p))
+
+/// Die Phase des DS-Bausteins zur Zeile am Platz. „Rückgängig“ bleibt auch nach einem Fehler (ledger-k68sd).
+let deletedRowPhase (undo: Feedback.Act) (phase: DeletedRowPhase) : Feedback.RemovedPhase =
+    match phase with
+    | DeletedRowShown -> Feedback.RemovedPhase.Removed undo
+    | DeletedRowRestoring -> Feedback.RemovedPhase.Restoring
+    | DeletedRowRestoreFailed reason -> Feedback.RemovedPhase.RestoreFailed (reason, undo)
+
+/// Die Zeile „„Payee“ gelöscht · Rückgängig“ am Platz der Buchung (`Feedback.removedRowIn`, Regel R3).
+let private deletedEntryRow (dispatch: Msg -> unit) (row: DeletedEntryRow) : ReactElement =
+    let undo : Feedback.Act = { Label = undoToastLabel; OnClick = fun () -> dispatch (StartRestoreDeletedEntry row.Entry.Id) }
+    let phase = deletedRowPhase undo row.Phase
+    match deletedRowName row.Entry with
+    | Some name -> Feedback.removedRowIn name phase
+    | None -> Feedback.removedRowUnnamed "Buchung" phase
+
+/// Am Handy: die Zeile in der Liste, mit Abstand zu den Nachbarn (ledger-k68sd).
+let private deletedEntryRowMobile (dispatch: Msg -> unit) (row: DeletedEntryRow) : ReactElement =
+    Html.div [
+        prop.key ("deleted-" + string row.Entry.Id)
+        prop.custom ("data-testid", "ledger-deleted-row")
+        prop.className $"border-b {Tokens.Borders.subtle} px-3 py-1.5"
+        prop.children [ deletedEntryRow dispatch row ]
+    ]
+
+/// Am PC: eine Tabellenzeile über alle Spalten (ledger-k68sd).
+let private deletedEntryTableRow (dispatch: Msg -> unit) (columnCount: int) (row: DeletedEntryRow) : ReactElement =
+    Html.tr [
+        prop.key ("deleted-" + string row.Entry.Id)
+        prop.custom ("data-testid", "ledger-deleted-row")
+        prop.children [
+            Html.td [
+                prop.colSpan columnCount
+                prop.className $"{Tokens.ListRoles.cellPaddingX} py-1.5"
+                prop.children [ deletedEntryRow dispatch row ]
+            ]
+        ]
+    ]
+
+/// Die Tagessumme ohne die Zeile am Platz: die gelöschte Buchung zählt nicht mehr (ledger-k68sd).
+let daySumWithout (deletedId: Guid option) (includeDeleted: bool) (group: LedgerEntryView list) : Money =
+    daySum includeDeleted (group |> List.filter (fun e -> Some e.Id <> deletedId))
+
 let private mobileEntryRow
     (dispatch: Msg -> unit)
     (accountNameOf: (Guid -> string) option)
@@ -2640,6 +2702,7 @@ let private mobileEntryRow
 let private entryListMobile
     (dispatch: Msg -> unit)
     (accountNameOf: (Guid -> string) option)
+    (deletedRow: DeletedEntryRow option)
     (includeDeleted: bool)
     (reviewRows: Map<Guid, ReviewMarkRowState>)
     (selectionMode: bool)
@@ -2659,8 +2722,12 @@ let private entryListMobile
     let wrap (children: ReactElement list) =
         if alwaysVisible then Html.div children else Primitives.Responsive.mobileOnly children
 
+    let deletedId = deletedRow |> Option.map (fun row -> row.Entry.Id)
     wrap [
         let row (flat: bool) (entry: LedgerEntryView) =
+          match deletedRow with
+          | Some deleted when deleted.Entry.Id = entry.Id -> deletedEntryRowMobile dispatch deleted
+          | _ ->
             mobileEntryRow
                 dispatch
                 accountNameOf
@@ -2684,7 +2751,7 @@ let private entryListMobile
                 | Some groups ->
                     groups
                     |> List.collect (fun (date, group) ->
-                        dateGroupHeader date (daySum includeDeleted group)
+                        dateGroupHeader date (daySumWithout deletedId includeDeleted group)
                         :: (group |> List.map (row false)))
                 | None -> entries |> List.map (row true)
             )
@@ -2830,6 +2897,7 @@ let private entryListDesktop
     (isAllAccounts: bool)
     (accountAbbreviationOf: Guid -> string)
     (accountNameOf: Guid -> string)
+    (deletedRow: DeletedEntryRow option)
     (includeDeleted: bool)
     (reviewRows: Map<Guid, ReviewMarkRowState>)
     (headerState: HeaderCheckState)
@@ -2847,7 +2915,11 @@ let private entryListDesktop
     let sortHeader (text: string) (align: string option) (field: LedgerSortField) =
         Table.calmSortableHeaderCell text align (headerSortDirection sort field) (fun () -> dispatch (SetSort field))
 
+    let deletedId = deletedRow |> Option.map (fun row -> row.Entry.Id)
     let bodyRows (entry: LedgerEntryView) =
+      match deletedRow with
+      | Some deleted when deleted.Entry.Id = entry.Id -> deletedEntryTableRow dispatch (List.length visible) deleted
+      | _ ->
         let rowState = reviewRows |> Map.tryFind entry.Id
         React.keyedFragment (
             string entry.Id,
@@ -2903,7 +2975,7 @@ let private entryListDesktop
                     | Some groups ->
                         groups
                         |> List.collect (fun (date, group) ->
-                            dateGroupRow columnsBeforeAmount date (daySum includeDeleted group)
+                            dateGroupRow columnsBeforeAmount date (daySumWithout deletedId includeDeleted group)
                             :: (group |> List.map bodyRows))
                     | None -> entries |> List.map bodyRows
                 )
@@ -2950,7 +3022,8 @@ let private entryList
         let byId = accounts |> List.map (fun a -> a.Id, a.Name) |> Map.ofList
         fun (id: Guid) -> byId |> Map.tryFind id |> Option.defaultValue "?"
 
-    match model.Entries with
+    // Die gelöschte Buchung steht als Zeile an ihrem Platz, auch wenn das Nachladen sie aus der Liste nahm (ledger-k68sd).
+    match model.Entries |> RemoteData.map (Components.Ledger.State.withDeletedPlaced model.DeletedRow) with
     | NotAsked ->
         Card.emptyState
             (Icons.banknotes Icons.XL Icons.Default)
@@ -3012,6 +3085,7 @@ let private entryList
             entryListMobile
                 dispatch
                 (if isAllAccounts then Some accountNameOf else None)
+                model.DeletedRow
                 model.IncludeDeleted
                 model.ReviewMarkRows
                 model.SelectionMode
@@ -3033,6 +3107,7 @@ let private entryList
                     isAllAccounts
                     abbreviationOf
                     accountNameOf
+                    model.DeletedRow
                     model.IncludeDeleted
                     model.ReviewMarkRows
                     (headerCheckState model)

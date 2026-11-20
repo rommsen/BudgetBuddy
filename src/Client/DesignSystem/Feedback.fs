@@ -429,7 +429,7 @@ let removedRowText (phase: RemovedPhase) : string =
 /// Was in einer Liste gelöscht wurde, hinterlässt an seinem Platz diese Zeile bis zur nächsten Aktion, in jeder Phase
 /// gleich hoch: „„Regel drei“ gelöscht · Rückgängig“. Der Name wird mit „…“ gekürzt, der Rest und der Knopf nie.
 /// Scheitert das Zurückholen, wird die Zeile rot (Rand und Text in der Fehlerrolle), der Grund bricht darunter um.
-let removedRowIn (name: string) (phase: RemovedPhase) : ReactElement =
+let private removedRowWith (title: ReactElement) (phase: RemovedPhase) : ReactElement =
     let failed, act =
         match phase with
         | RemovedPhase.Removed undo -> false, Some undo
@@ -456,7 +456,7 @@ let removedRowIn (name: string) (phase: RemovedPhase) : ReactElement =
                     Html.span [
                         prop.className "flex min-w-0 items-baseline gap-1"
                         prop.children [
-                            Truncate.text "" $"„{name}“"
+                            title
                             Html.span [ prop.className "flex-none"; prop.text (removedRowText phase) ]
                         ]
                     ]
@@ -475,6 +475,14 @@ let removedRowIn (name: string) (phase: RemovedPhase) : ReactElement =
             | None -> Html.none
         ]
     ]
+
+let removedRowIn (name: string) (phase: RemovedPhase) : ReactElement =
+    removedRowWith (Truncate.text "" $"„{name}“") phase
+
+/// Dieselbe Zeile ohne Namen, etwa „Buchung gelöscht“ für eine Buchung ohne Payee (ledger-k68sd): das Wort davor wird
+/// nicht gekürzt und steht ohne Anführungszeichen.
+let removedRowUnnamed (noun: string) (phase: RemovedPhase) : ReactElement =
+    removedRowWith (Html.span [ prop.className "flex-none"; prop.text noun ]) phase
 
 /// Die Zeile „gelöscht“ mit „Rückgängig“ (`removedRowIn` in der Phase `Removed`).
 let removedRow (name: string) (undo: Act) : ReactElement = removedRowIn name (RemovedPhase.Removed undo)
