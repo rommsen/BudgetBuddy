@@ -101,6 +101,41 @@ Ein Lauf mit genau einer Push-TAN, Protokoll der Beobachtungssonde. Einzelne Mes
 - **Kontenabruf:** `getAccounts` lieferte in allen sechs Runden 404. Die Ursache blieb offen, weil der Code jeden Fehlschlag als 404 meldete. Der Abruf ist seit `banking-import-v8n3k` entfernt, der Verbindungstest liest stattdessen die erste Umsatzseite (ADR 0071, Nachtrag 2026-11-01).
 - **Offen, falsche Konto-Id:** Nicht gemessen, wie Comdirect auf eine fremde Konto-Id antwortet. Bei 401 oder 403 endet auch der Verbindungstest nach dem Refresh in einem Verlust (`banking-import-m4xrt`).
 
+## Live-Befund ING per FinTS (2026-11-20, `banking-import-y7m4r`, vorläufig)
+
+Drei Läufe mit python-fints 5.0.1 und einer mit libfintx 1.4.0, eigene Produktnummer, Wegwerf-Sonden außerhalb des Repos.
+Nur Struktur und Zählungen. Der Referenzvergleich über mehr als einen Tag steht noch aus.
+
+- **Produktnummer:** Die ING nimmt sie an (0020 „Angemeldet.“). Laut DK-Schreiben übernimmt jedes Institut neue Nummern
+  zu einem eigenen Zeitpunkt; die ING hatte sie zwei Tage nach der Zuteilung schon.
+- **Anmeldung:** Einschritt-Verfahren 999 ohne TAN, obwohl die ING mit 3920 nur Verfahren 900 nennt. Kein Geschäftsvorfall
+  zum Lesen verlangt eine TAN (HIPINS: HKKAZ, HKCAZ, HKSAL, HKWPD, HKSPA mit „N“). PIN laut HIPINS 5 bis 64 Zeichen.
+- **BPD (Version 9):** HIKAZS 5, HISALS 5, HIWPDS 5 und 6, **HICAZS 1 mit camt.052.001.02** (die Recherche kannte 2024 nur
+  MT940), dazu Zahlungs- und Dauerauftragssegmente, HITANS 1.
+- **Konten (UPD):** neun Konten in drei Gruppen aus Girokonto, Extra-Konto und Direkt-Depot. Girokonten und Extra-Konten
+  erlauben HKKAZ, HKCAZ und HKSAL, die Depots nur HKWPD. Der Kontotyp in HIUPD ist leer, unterscheiden lässt sich nur über
+  die Produktbezeichnung.
+- **Rückschau:** Girokonten bis zu 86 Tage, mit 3010 „Nur die Umsatzanzeige der letzten 90 Tage ist möglich“.
+  Extra-Konten lieferten bei 730 angefragten Tagen 379 bis 382 Tage ohne 3010, also etwa ein Jahr.
+- **MT940:** Keine Bankreferenz nach `//`, Kundenreferenz immer `NONREF`. `:86:` strukturiert mit Geschäftsvorfallcode und
+  Unterfeldern `?00` bis `?33`, darin `SVWZ+`, auf einem Extra-Konto auch `MREF+` und `CRED+`; nie `EREF+` oder `KREF+`.
+  Umlaute (ä, ü, Ü) kommen unverändert in Latin1, außerhalb des SWIFT-Zeichensatzes.
+- **CAMT:** gleiche Buchungen wie MT940, alle `BOOK`. Jede Buchung hat eine `AcctSvcrRef`, aber sie ist sechsstellig und je
+  Konto nur vier verschiedene Werte, also eine Art Vorgangscode und kein Schlüssel je Buchung. Kein `EndToEndId`, kein
+  `NtryRef`.
+- **Dedup-Schlüssel:** Die ING liefert keine Referenz je Buchung, weder in MT940 noch in CAMT. Bleibt der Inhalt (Konto,
+  Buchungstag, Valuta, Betrag, Richtung, Text aus `:86:`). Inhaltsgleiche Buchungen gab es in keinem Konto. Zwei Abrufe am
+  selben Tag waren gleich, auch in der Reihenfolge. Über mehrere Tage: offen.
+- **Vormerkungen:** keine (kein MT942-Teil, CAMT nur `BOOK`).
+- **Saldo:** HKSAL liefert ihn für Girokonten und Extra-Konten ohne TAN.
+- **Depot:** HKWPD liefert Bestände ohne TAN (MT535), je Position ISIN, Name, Kurs, Stückzahl, Gesamtwert und Einstandskurs,
+  ohne Bewertungsdatum. libfintx hat keine Methode für HKWPD.
+- **python-fints 5.0.1:** alles ohne Eingriff, auch die Maskierung von Sonderzeichen im Passwort.
+- **libfintx 1.4.0:** maskiert die PIN nicht. `?`, `+`, `:`, `'` und `@` gehen roh in HNSHA (an einem Dummy-Server belegt),
+  die ING sähe ein falsches Passwort, und Fehlversuche können den Zugang sperren. Mit selbst maskierter PIN liefen Anmeldung, Saldo,
+  MT940 und CAMT, Zahlen gleich wie bei python-fints, Umlaute richtig. `UserIdEscaped` maskiert `@` nicht. Teilweise
+  ausgeführte Aufträge (3010 neben 3997) meldet libfintx als `IsSuccess = false`, obwohl die Daten da sind.
+
 ## Open questions
 - **ING** als zweite Quelle: eigener Adapter oder Generalisierung des Comdirect-Musters?
 - **Bank-Source-Port**: durch ADR 0071 Punkt 5 beantwortet (siehe **Bank-Port**). Offen bleibt der ING-Adapter.
