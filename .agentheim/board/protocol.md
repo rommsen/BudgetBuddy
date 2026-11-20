@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-20 18:01 -- Modeling / Promoted: infrastructure-x7p2e - "Expecto wieder schnell: testSequenced nur bei geteiltem Zustand, lange Aufzählungen teilen, Ziel höchstens 30 s"
+
+**Type:** Modeling / Promote
+**BC:** infrastructure
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-20 18:01 -- Modeling / Refined: infrastructure-x7p2e - Expecto wieder schnell
 
 **Type:** Modeling / Refine
