@@ -277,11 +277,10 @@ Zuletzt aktualisiert: 2026-11-20 morgens, nach Work- und Review-Lauf für ledger
   Ort. Review-Lauf 624bf480..8ac5411b: 4 Agents, 31 Funde behoben in 3d1f6915..79fb7b52 (darunter: alte Bestätigung
   tauchte nach Seitenwechsel in der Leiste auf, Hintergrund-Spiegeln verdrängte ein Rückgängig, „YNAB-Token ungültig:
   kein Token gespeichert“, fehlender Test zur neuen Befehls-Id beim Rückgängig einer Verschiebung). Gate auf
-  79fb7b52: VERIFY: PASS (dotnet 5479, node 357). Nicht gepusht, nicht deployt. Kann-Sammlungen ledger,
+  79fb7b52: VERIFY: PASS (dotnet 5479, node 357). Deployt 2026-11-20 (ca803f49, ab 1f40983e, also mit den Läufen vom 19.11.), Health-Check grün; nicht nach GitHub gepusht. Kann-Sammlungen ledger,
   design-system, budgeting (neu: budgeting-k7m3q), banking-import, categorization ergänzt.
 - **Nächster Schritt:** Romans Blick in die Prüfliste https://claude.ai/artifact/L6YCruuxKW9SjWJf7hsJjW, neue Gruppen
-  16 bis 19 (Durchgehen, Kassenbuch, andere Seiten, nachts entschieden; mit Bildern) und weiter offen 14 und 15. Danach
-  Deploy auf Anweisung. Teil D budgeting-wnkgj fertig verfeinern, sobald Roman w07 beantwortet hat. Verfeinern bei
+  16 bis 19 (Durchgehen, Kassenbuch, andere Seiten, nachts entschieden; mit Bildern) und weiter offen 14 und 15. Teil D budgeting-wnkgj fertig verfeinern, sobald Roman w07 beantwortet hat. Verfeinern bei
   Gelegenheit: ledger-fp4wn, ledger-zqst5, design-system-m4e7q, ledger-h7de3, ledger-t4rk8 (Geld, Roman entscheidet),
   ledger-ayjzq nach Gespräch mit Roman. Lehre aus dem Lauf: Tasks auf denselben Kassenbuch-Dateien nacheinander statt
   parallel; der Layout-Sweep flackert unter Last (Kann-Sammlung design-system).
