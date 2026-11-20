@@ -504,6 +504,16 @@ const feedbackAction = (page) =>
     .locator(page.viewportSize().width < 1024 ? '[data-testid="feedback-bar"] [data-feedback-action="true"]' : '[data-toast-action="true"]')
     .first();
 
+/// „Rückgängig“ an der Bestätigung unter einem Feld des offenen Details (ledger-p5y9s): im Sheet am Handy und im
+/// Panel am PC, nie in Leiste oder Toast.
+const fieldUndo = (page) => page.locator('[data-testid="detail-note"] [data-feedback-action="true"]').filter({ visible: true }).first();
+
+/// Kein Toast im DOM (ab 1024 px der Behälter `Toast.single`, darunter `hidden`): die Meldung steht am Feld.
+const expectNoToast = async (page, where) => {
+  const toasts = await page.locator(".toast-layer > *").count();
+  if (toasts !== 0) throw new Error(`${where}: ${toasts} Toast statt der Bestätigung am Feld`);
+};
+
 /// Wischt per Touch nach rechts über die Zeile eines Payees (CDP, wie `scripts/ledger-review-mark.test.mjs`): der
 /// Wisch prüft die Buchung.
 const swipeReviewed = async (page, payee) => {
@@ -604,7 +614,7 @@ const openFilteredOut = async (page, { mobile }) => {
   // Ohne die Optionen des Kategorie-Filters: dessen geschlossenes Sheet steht weiter im DOM (role="option" seit
   // design-system-gcpws).
   await page.locator('[role="option"]:not([id^="category-multi-select-option-"])', { hasText: "Nebenkosten" }).filter({ visible: true }).last().click();
-  await feedbackAction(page).waitFor();
+  await fieldUndo(page).waitFor();
   await page.locator('[data-testid="filtered-out-note"]').filter({ visible: true }).first().waitFor();
   if (mobile) {
     // Erst wenn der Picker zu ist und das Detail steht, schließt „Schließen“ es.
@@ -2025,12 +2035,12 @@ export const STATES = [
         throw new Error("Die Kategorie-Auswahl im Detail liegt als zweites Sheet über dem Detail");
     },
   },
-  // Regression c819eeb (Toast hinter dem Detail-Sheet): am PC liegt der Toast nach dem Kategoriewechsel über dem
-  // Panel (Invariante 5). Am Handy steht kein Toast mehr (R3, design-system-gkded): die Meldung steht nach dem
-  // Schließen des Sheets in der Leiste (bis ledger-gwr9j liegt die Leiste unter einem offenen Sheet, Entscheidung
-  // Roman 2026-11-19), Invariante 12 prüft sie dort.
+  // ledger-p5y9s (R3 Platz 1, Entscheidung Roman 2026-11-19): nach dem Kategoriewechsel steht „✓ Geändert“ mit
+  // „Rückgängig“ unter „Kategorie“, im Sheet am Handy wie im Panel am PC, ohne Toast. Vorher
+  // `kassenbuch-kategorie-toast`: am PC stand der Toast 5 s über „Historie“ (Ausnahme der Invariante 5, entfällt).
+  // Regression c819eeb (Toast über dem Panel) prüft seit design-system-gkded `uebersicht-meldung` @ 1280.
   {
-    name: "kassenbuch-kategorie-toast",
+    name: "kassenbuch-kategorie-rueckgaengig",
     route: "/ledger",
     widths: [...HANDY_WIDTHS, 1280],
     mock: mockLedger,
@@ -2042,22 +2052,96 @@ export const STATES = [
         const picker = page.locator(".bottom-sheet.active", { hasText: "Ziel wählen" });
         await picker.waitFor();
         await picker.locator('[role="option"]', { hasText: "Nebenkosten" }).last().tap();
-        await feedbackAction(page).waitFor();
         await page.waitForFunction(() => document.querySelectorAll(".bottom-sheet.active").length === 1);
-        await settle(page, { where: "Kategorie geändert, Detail offen" });
-        await closeLedgerSheet(page);
       } else {
         await openLedger(page);
         await page.getByText("Bauhaus", { exact: true }).locator("visible=true").first().click();
         await page.locator('[data-testid="detail-category-arrow"]').filter({ visible: true }).first().click();
         await page.locator('[role="option"]', { hasText: "Nebenkosten" }).filter({ visible: true }).last().click();
-        await feedbackAction(page).waitFor();
       }
+      await fieldUndo(page).waitFor();
+      const note = page.locator('[data-testid="detail-note"][data-note-field="category"]').filter({ visible: true });
+      if (!/Geändert/.test(await note.textContent())) throw new Error("Unter „Kategorie“ fehlt „Geändert“");
+      await expectNoToast(page, "Kategorie geändert");
     },
-    // Der Toast am PC steht unten rechts über dem Panel und deckt dort, solange er steht (5 s), den Knopf „Historie“
-    // am Ende des Details. Schon vor design-system-gkded so (gleiche Lage); die Folge-Tasks nehmen Meldungen mit Ort
-    // aus dem Toast (ledger-gwr9j). Kann-Sammlung design-system.
-    exceptions: [{ width: 1280, inv: 5, selector: '[data-testid="detail-history-toggle"]' }],
+    reach: (page) => fieldUndo(page),
+  },
+  // ledger-p5y9s: nach „Speichern“ im Split-Editor steht wieder das Detail, „✓ Aufgeteilt in 2 Zeilen“ mit
+  // „Rückgängig“ unter den Split-Zeilen, ohne Toast (Abweichung vom Anhang der Skizze: das Sheet deckt die Leiste zu).
+  {
+    name: "kassenbuch-aufgeteilt-rueckgaengig",
+    route: "/ledger",
+    widths: [...HANDY_WIDTHS, 1280],
+    mock: async (page) => {
+      await mockLedger(page);
+      await page.route("**/api/LedgerApi/setEntrySplits", (r) =>
+        json(r, { Ok: { Previous: null, Change: "CategoryChanged", WriteBack: "CategorySent" } })
+      );
+    },
+    open: async (page, { mobile }) => {
+      const scope = mobile
+        ? await openLedgerDetail(page, "Bauhaus")
+        : await (async () => {
+            const row = page.locator("table tbody tr", { hasText: "Bauhaus" }).first();
+            await row.waitFor();
+            await row.locator("td").nth(2).click();
+            return page.locator('[data-testid="ledger-detail-panel"]');
+          })();
+      const press = (locator) => (mobile ? locator.tap() : locator.click());
+      await press(scope.locator('[data-testid="detail-split-action"]'));
+      await scope.locator('[data-testid="split-summary"]').waitFor();
+      // Bauhaus: 81,90 €, aufgeteilt in 10,00 € Lebensmittel und 71,90 € Nebenkosten.
+      await scope.locator('[data-testid="split-amount-0"] input').fill("10");
+      await press(scope.locator('[data-testid="split-target-1"]'));
+      await press(page.locator('[role="option"]', { hasText: "Nebenkosten" }).filter({ visible: true }).last());
+      // Der Betrag statt „Rest“: nach der Wahl im Picker schluckt `Viewport.swallowNextClick` 350 ms lang den Tipp.
+      await page.locator('[data-testid="split-amount-1"] input').filter({ visible: true }).fill("71,90");
+      // „Speichern“ wie `closeLedgerSheet` erneut, bis der Editor zu ist: `Viewport.swallowNextClick` schluckt den
+      // Tipp, wenn er innerhalb von 350 ms nach der Wahl im Picker kommt.
+      const summary = page.locator('[data-testid="split-summary"]').filter({ visible: true });
+      for (let attempt = 0; attempt < 5 && (await summary.count()) > 0; attempt++) {
+        const footer = mobile ? page.locator(".bottom-sheet.active").first() : page.locator('[data-testid="split-footer"]');
+        await press(footer.getByRole("button", { name: "Speichern", exact: true }));
+        await summary.first().waitFor({ state: "detached", timeout: 1000 }).catch(() => {});
+      }
+      const note = page.locator('[data-testid="detail-note"][data-note-field="splits"]').filter({ visible: true });
+      await note.getByText("Aufgeteilt in 2 Zeilen", { exact: true }).waitFor();
+      await fieldUndo(page).waitFor();
+      await expectNoToast(page, "Aufgeteilt");
+    },
+    reach: (page) => fieldUndo(page),
+  },
+  // ledger-p5y9s (Styleguide-Regel `task-ui-vorgaben`): ein abgelehnter Kategoriewechsel steht rot unter „Kategorie“,
+  // nicht als Toast und nicht in der Leiste.
+  {
+    name: "kassenbuch-kategorie-fehler-feld",
+    route: "/ledger",
+    widths: [...HANDY_WIDTHS, 1280],
+    mock: async (page) => {
+      await mockLedger(page);
+      await page.route("**/api/LedgerApi/setEntryCategory", (r) => json(r, { Error: "YNAB nicht erreichbar" }));
+    },
+    open: async (page, { mobile }) => {
+      if (mobile) {
+        const sheet = await openLedgerDetail(page, "Bauhaus");
+        await sheet.locator('[data-testid="detail-category-arrow"]').tap();
+        const picker = page.locator(".bottom-sheet.active", { hasText: "Ziel wählen" });
+        await picker.waitFor();
+        await picker.locator('[role="option"]', { hasText: "Nebenkosten" }).last().tap();
+        await page.waitForFunction(() => document.querySelectorAll(".bottom-sheet.active").length === 1);
+      } else {
+        await openLedger(page);
+        await page.getByText("Bauhaus", { exact: true }).locator("visible=true").first().click();
+        await page.locator('[data-testid="detail-category-arrow"]').filter({ visible: true }).first().click();
+        await page.locator('[role="option"]', { hasText: "Nebenkosten" }).filter({ visible: true }).last().click();
+      }
+      const note = page.locator('[data-testid="detail-note"][data-note-field="category"] [data-tone="error"]').filter({ visible: true });
+      await note.getByText("Nicht geändert: YNAB nicht erreichbar").waitFor();
+      await expectNoToast(page, "Kategorie nicht geändert");
+      const inBar = await page.locator('[data-testid="feedback-bar"] [data-testid="feedback-action"]').filter({ visible: true }).count();
+      if (inBar !== 0) throw new Error("Fehler am Feld steht zusätzlich in der Leiste");
+    },
+    reach: (page) => page.locator('[data-testid="detail-note"] [data-tone="error"]').filter({ visible: true }).first(),
   },
   // design-system-gkded (Regel R3, ADR 0098): nach einem Wisch (bei 900 px nach einer Kategorieänderung) steht die
   // Meldung in der Leiste über der Navigation bzw. der Tastenleiste,
@@ -2084,7 +2168,8 @@ export const STATES = [
         const picker = page.locator(".bottom-sheet.active", { hasText: "Ziel wählen" });
         await picker.waitFor();
         await picker.locator('[role="option"]', { hasText: "Nebenkosten" }).last().click();
-        await feedbackAction(page).waitFor();
+        // ledger-p5y9s: im offenen Sheet steht „Rückgängig“ am Feld; erst das Schließen gibt es an die Leiste.
+        await fieldUndo(page).waitFor();
         await page.waitForFunction(() => document.querySelectorAll(".bottom-sheet.active").length === 1);
         await settle(page, { where: "Kategorie geändert, Detail offen" });
         await closeLedgerSheet(page);
@@ -2230,7 +2315,7 @@ export const STATES = [
       const picker = page.locator(".bottom-sheet.active", { hasText: "Ziel wählen" });
       await picker.waitFor();
       await picker.locator('[role="option"]', { hasText: "Nebenkosten" }).last().tap();
-      await feedbackAction(page).waitFor();
+      await fieldUndo(page).waitFor();
       await page.locator('.bottom-sheet.active [data-testid="rule-offer"]').waitFor();
     },
   },

@@ -176,3 +176,5 @@ Sammelstelle für Befunde, die stimmen, aber die Schwelle der Backlog-Disziplin 
 153. **Work-Lauf 2026-11-20 (ledger-wg42w)**: der Kommentar über `durchgehen-details-memo` in `scripts/layout-states.mjs` nennt noch „übernimmt die Prüfung von `durchgehen-memo`“; der Zustand ist entfernt.
 154. **Work-Lauf 2026-11-20 (ledger-k68sd)**: nach gescheitertem Wiederherstellen heißt der Knopf in der Zeile am Platz „Rückgängig“ (Task), bei den Regeln und in Styleguide §5/§7.13 „Erneut“; vereinheitlichen und §7.13 nachziehen.
 155. **Work-Lauf 2026-11-20 (ledger-k68sd)**: am PC springt die Pfeilnavigation (`MoveFocus`) über die Zeile am Platz hinweg, weil sie nicht in `Entries` steht.
+156. **Work-Lauf 2026-11-20 (ledger-p5y9s)**: die Zeile der Bestätigung am Feld trägt `border-b` wie die Feldzeilen; unter „Kategorie“ entstehen zwei Linien knapp übereinander, ohne Rahmen wäre sie näher an Skizze 06.
+157. **Work-Lauf 2026-11-20 (Verifier ledger-p5y9s)**: in `Components/Ledger/View.fs` hängt der Doc-Kommentar „Die Betragszeile …“ jetzt an `noteTone`, `detailAmountRow` hat keine Doku mehr.

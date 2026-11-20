@@ -568,7 +568,7 @@ let reducerTests =
             let closeBusy, _, _ = update CloseSplitEditor started
             Expect.isSome closeBusy.SplitEditor "und der Editor bleibt"
 
-        testCase "Aufgeteilt: Toast mit Rückgängig, Zeile bleibt, ungeprüft, Liste und Detail zeigen die Splits" <| fun () ->
+        testCase "Aufgeteilt: Bestätigung mit Rückgängig unter den Split-Zeilen, Zeile bleibt, ungeprüft, Liste und Detail zeigen die Splits" <| fun () ->
             let model = { opened (entryOf 1) with CategoryRows = Map.ofList [ idOf 1, CategorySending ] }
             let lines = [ moebel; haushalt ]
             let after, cmd, external = update (SplitsSaved (idOf 1, lines, Ok (changedOutcome (Some haushaltChoice) CategorySent))) model
@@ -576,6 +576,7 @@ let reducerTests =
             for sub in cmd do
                 sub sent.Add
             // Das Detail ist offen: es holt die Historie mit der neuen Zeile (ledger-nc708), sonst nichts.
+            // Das Ende des Leuchtens (ledger-p5y9s) kommt erst nach 0,7 s.
             Expect.equal (List.ofSeq sent) [ LoadHistory (idOf 1) ] "bei Erfolg nur das Neuladen der Historie"
             let row = rowOf 1 after
             Expect.equal row.Splits lines "Splits in der Liste"
@@ -586,15 +587,15 @@ let reducerTests =
             Expect.equal row.SplitCategoryGroupNames (Map.ofList [ catGuid 2, "Wohnen"; catGuid 1, "Alltag" ]) "Gruppen für die Anzeige"
             Expect.isNone after.SplitEditor "Editor zu"
             Expect.isFalse (after.CategoryRows |> Map.containsKey (idOf 1)) "Zeilenzustand weg"
-            match external with
-            | ShowToastWithAction (text, ToastSuccess, action) ->
-                Expect.equal text "Aufgeteilt in 2 Zeilen" "Text"
-                Expect.equal action.Label "Rückgängig" "Knopf"
+            Expect.equal external NoOp "kein Toast (ledger-p5y9s)"
+            match after.DetailNote with
+            | Some note ->
+                Expect.equal (note.Field, note.Tone, note.Text) (AtSplits, FeedbackOk, "Aufgeteilt in 2 Zeilen") "unter den Split-Zeilen"
                 Expect.equal
-                    action.Kind
-                    (UndoSplit (idOf 1, [ { Target = ToCategory (catId 1, "Haushalt"); Amount = eur -81.90m; Memo = None } ]))
+                    note.Undo
+                    (Some (UndoSplit (idOf 1, [ { Target = ToCategory (catId 1, "Haushalt"); Amount = eur -81.90m; Memo = None } ])))
                     "Rückweg: eine Zeile der alten Kategorie über den vollen Betrag"
-            | other -> failtestf "Toast mit Rückgängig erwartet: %A" other
+            | None -> failtest "Bestätigung am Platz der Aufteilung erwartet"
 
         testCase "Rückgängig stellt die Kategorie wieder her, ein zweiter Befehl ohne Sonderlogik" <| fun () ->
             let restore = [ { Target = ToCategory (catId 1, "Haushalt"); Amount = eur -81.90m; Memo = None } ]
@@ -607,21 +608,20 @@ let reducerTests =
             Expect.isEmpty row.Splits "keine Splits mehr"
             Expect.equal row.CategoryId (Some (catGuid 1)) "Kategorie zurück"
             Expect.equal row.CategoryName (Some "Haushalt") "Name"
-            match external with
-            | ShowToast (text, ToastSuccess) -> Expect.equal text "Aufteilung zurückgenommen" "ohne neuen Knopf"
-            | other -> failtestf "Toast erwartet: %A" other
+            // ledger-p5y9s: im offenen Detail entfällt der Rücknahme-Toast, bei geschlossenem bleibt er.
+            Expect.equal external NoOp "kein Rücknahme-Toast im Detail"
+            Expect.isNone after.DetailNote "keine Bestätigung"
+            let _, _, closedExternal = update (SplitsRestored (idOf 1, restore, Ok (changedOutcome None CategorySent))) { started with DetailFor = None }
+            Expect.equal closedExternal (ShowToast ("Aufteilung zurückgenommen", ToastSuccess)) "Detail zu: ohne neuen Knopf"
 
         testCase "Rückgängig nach Ändern schickt die alten Zeilen" <| fun () ->
             let entry = splitEntry 1
             let model = { opened entry with CategoryRows = Map.ofList [ idOf 1, CategorySending ] }
             let changedLines = [ { moebel with Amount = eur -40.00m }; { haushalt with Amount = eur -41.90m } ]
-            let _, _, external = update (SplitsSaved (idOf 1, changedLines, Ok (changedOutcome None CategorySent))) model
-            match external with
-            | ShowToastWithAction (_, _, action) ->
-                Expect.equal action.Kind (UndoSplit (idOf 1, [ moebel; haushalt ])) "die Zeilen vor dem Speichern"
-            | other -> failtestf "Toast mit Rückgängig erwartet: %A" other
+            let after, _, _ = update (SplitsSaved (idOf 1, changedLines, Ok (changedOutcome None CategorySent))) model
+            Expect.equal (after.DetailNote |> Option.bind (fun n -> n.Undo)) (Some (UndoSplit (idOf 1, [ moebel; haushalt ]))) "die Zeilen vor dem Speichern"
 
-        testCase "Aufheben: eine Zeile, Toast Aufteilung aufgehoben, die Buchung trägt die Kategorie" <| fun () ->
+        testCase "Aufheben: eine Zeile, „Aufteilung aufgehoben“ unter Kategorie, die Buchung trägt die Kategorie" <| fun () ->
             let model = { opened (splitEntry 1) with CategoryRows = Map.ofList [ idOf 1, CategorySending ] }
             let single = [ { Target = ToCategory (catId 1, "Haushalt"); Amount = eur -81.90m; Memo = None } ]
             let after, _, external = update (SplitsSaved (idOf 1, single, Ok (changedOutcome None CategorySent))) model
@@ -629,29 +629,30 @@ let reducerTests =
             Expect.isEmpty row.Splits "Split aufgehoben"
             Expect.equal row.CategoryId (Some (catGuid 1)) "Kategorie"
             Expect.equal row.CategoryGroupName (Some "Alltag") "Gruppe"
-            match external with
-            | ShowToastWithAction (text, _, action) ->
-                Expect.equal text "Aufteilung aufgehoben" "Text"
-                Expect.equal action.Kind (UndoSplit (idOf 1, [ moebel; haushalt ])) "Rückweg: die alten Zeilen"
-            | other -> failtestf "Toast mit Rückgängig erwartet: %A" other
+            Expect.equal external NoOp "kein Toast"
+            match after.DetailNote with
+            | Some note ->
+                Expect.equal (note.Field, note.Text) (AtCategory, "Aufteilung aufgehoben") "unter Kategorie, es gibt keine Split-Zeilen mehr"
+                Expect.equal note.Undo (Some (UndoSplit (idOf 1, [ moebel; haushalt ]))) "Rückweg: die alten Zeilen"
+            | None -> failtest "Bestätigung erwartet"
 
-        testCase "Rückgängig fehlt im Toast, wenn der Rückweg gesperrt wäre (import_id ohne BB:)" <| fun () ->
+        testCase "Rückgängig fehlt, wenn der Rückweg gesperrt wäre (import_id ohne BB:)" <| fun () ->
             let foreign = { entryOf 1 with SplitLocks = locks None (Some "Eine Split-Buchung mit einer import_id aus YNAB lässt sich nur aufteilen, nicht ändern oder aufheben") }
             let model = { opened foreign with CategoryRows = Map.ofList [ idOf 1, CategorySending ] }
-            let _, _, external = update (SplitsSaved (idOf 1, [ moebel; haushalt ], Ok (changedOutcome (Some haushaltChoice) CategorySent))) model
-            match external with
-            | ShowToast (text, ToastSuccess) -> Expect.equal text "Aufgeteilt in 2 Zeilen" "nur der Text"
-            | other -> failtestf "Toast ohne Aktion erwartet: %A" other
+            let after, _, _ = update (SplitsSaved (idOf 1, [ moebel; haushalt ], Ok (changedOutcome (Some haushaltChoice) CategorySent))) model
+            Expect.equal (after.DetailNote |> Option.map (fun n -> n.Text, n.Undo)) (Some ("Aufgeteilt in 2 Zeilen", None)) "nur der Text"
 
-        testCase "Fehlschlag beim Versand nach YNAB: Hinweis an der Buchung, Toast mit Warnung, Buchung wird neu geholt" <| fun () ->
+        testCase "Fehlschlag beim Versand nach YNAB: Hinweis an der Buchung, gelb am Platz, Buchung wird neu geholt" <| fun () ->
             let model = { opened (entryOf 1) with CategoryRows = Map.ofList [ idOf 1, CategorySending ] }
             let after, sent, external =
                 run (SplitsSaved (idOf 1, [ moebel; haushalt ], Ok (changedOutcome (Some haushaltChoice) (CategorySendFailed "HTTP 500")))) model
             Expect.equal (rowOf 1 after).CategorizationWriteBackFailure (Some "HTTP 500") "Grund an der Buchung"
             Expect.contains sent (RunRefreshEntry (idOf 1)) "die Buchung wird neu geholt (Neuanlage offen?)"
-            match external with
-            | ShowToastWithAction (text, ToastWarning, _) -> Expect.stringContains text "HTTP 500" "Grund im Toast"
-            | other -> failtestf "Warnung erwartet: %A" other
+            Expect.equal external NoOp "kein Toast"
+            Expect.equal
+                (after.DetailNote |> Option.map (fun n -> n.Tone, n.Text))
+                (Some (FeedbackWarning, "Aufgeteilt in 2 Zeilen, nicht in YNAB: HTTP 500"))
+                "gelb am Platz"
             let refreshed = { rowOf 1 after with SplitLocks = Some { CannotSplitReason = None; CannotChangeReason = None; ReplacementPending = true } }
             let final, _, _ = update (EntryRefreshed (idOf 1, Some (rowOf 1 after), Ok (Some refreshed))) after
             Expect.equal (rowOf 1 final).SplitLocks refreshed.SplitLocks "Neuanlage offen sichtbar"
@@ -684,6 +685,24 @@ let reducerTests =
             Expect.isNone after.SplitEditor "zu"
             Expect.equal (rowOf 1 after).Splits [ moebel; haushalt ] "unverändert"
             Expect.equal external NoOp "kein Toast"
+
+        testCase "Rückgängig gescheitert: rot am Platz der Bestätigung (ledger-p5y9s)" <| fun () ->
+            let model = { opened (entryOf 1) with CategoryRows = Map.ofList [ idOf 1, CategorySending ] }
+            let saved, _, _ = update (SplitsSaved (idOf 1, [ moebel; haushalt ], Ok (changedOutcome (Some haushaltChoice) CategorySent))) model
+            let restore = saved.DetailNote.Value.Undo |> Option.bind detailNoteUndoMsg |> Option.get
+            let started, _, _ = update restore saved
+            let failed, _, external = update (SplitsRestored (idOf 1, [], Error "YNAB weg")) started
+            Expect.equal external NoOp "kein Toast"
+            Expect.equal
+                (failed.DetailNote |> Option.map (fun n -> n.Field, n.Tone, n.Text))
+                (Some (AtSplits, FeedbackError, "Rückgängig nicht möglich: YNAB weg"))
+                "rot unter den Split-Zeilen"
+
+        testCase "Speicherfehler bei schon geschlossenem Editor: die Leiste (am PC der Toast) meldet ihn" <| fun () ->
+            let model = { opened (entryOf 1) with CategoryRows = Map.ofList [ idOf 1, CategorySending ] }
+            let editorClosed = { model with SplitEditor = None }
+            let _, _, external = update (SplitsSaved (idOf 1, [ moebel; haushalt ], Error "YNAB weg")) editorClosed
+            Expect.equal external (ShowToast ("Aufteilung nicht gespeichert: YNAB weg", ToastError)) "rot in der Leiste"
 
         testCase "wechselt das Detail auf eine andere Buchung, endet der Editor" <| fun () ->
             let model = opened (entryOf 1)

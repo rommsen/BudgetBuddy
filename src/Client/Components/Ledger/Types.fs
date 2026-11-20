@@ -655,6 +655,120 @@ let categoryHintFor (rowState: CategoryRowState option) (entry: LedgerEntryView)
     | _, None -> None
 
 // ============================================
+// Bestätigung am Feld im Detail (ledger-p5y9s, Regel R3 Platz 1, ADR 0098)
+// ============================================
+
+/// Unter welchem Feld des Details die Bestätigung steht.
+type DetailNoteField =
+    /// Unter „Kategorie“: Kategorie, Übertrag und eine aufgehobene Aufteilung.
+    | AtCategory
+    /// Unter den Zeilen der Aufteilung (`Detail.splitCard`).
+    | AtSplits
+    /// Am Betrag oben im Detail (Aufteilung mit neuem Betrag, ADR 0092).
+    | AtAmount
+
+/// Die eine Bestätigung im offenen Detail (Sheet am Handy, Panel am PC): sie steht unter dem Feld, das sich geändert
+/// hat, ohne Zeitlimit, bis die nächste Aktion im Detail sie ersetzt oder das Detail schließt. Schließt es mit
+/// „Rückgängig“, wandert sie in die Leiste (am PC in den Toast), dafür trägt sie Aktion und Detail der Leiste mit.
+type DetailNote = {
+    EntryId: Guid
+    Field: DetailNoteField
+    Tone: FeedbackTone
+    /// Der Text unter dem Feld („Geändert“, „Nicht geändert: Grund“), ohne Zeichen.
+    Text: string
+    /// Die Rücknahme; dieselbe Art wie früher im Toast (`UndoCategory`, `UndoTransfer`, `UndoSplit`).
+    Undo: ToastActionKind option
+    /// Obere Zeile der Leiste, wenn die Meldung keinen Platz im Detail hat.
+    BarAction: string
+    /// Untere Zeile der Leiste (Payee oder Grund).
+    BarDetail: string option
+    /// Leuchtet das Feld noch? Nur nach einer Änderung, nicht bei einem Fehler.
+    Flashing: bool
+    /// Die Nummer der Bestätigung: das Ende des Leuchtens gilt nur für die eigene.
+    Version: int
+}
+
+/// So lange leuchtet das Feld (`Feedback.flash`, Keyframes `feedbackFlash`, 0,7 s). Ohne Bewegung steht der Ring
+/// so lange (`prefers-reduced-motion` in styles.css).
+let detailNoteFlashMs = 700
+
+/// Die zweite Zeile der Leiste nach einer Änderung: der Payee, ohne Payee die Anzeige der Liste.
+let private notePayee (payee: string option) : string option =
+    Some (payee |> Option.filter (fun p -> not (String.IsNullOrWhiteSpace p)) |> Option.defaultValue "ohne Payee")
+
+let private changeNote entryId field tone text undo barAction barDetail : DetailNote =
+    { EntryId = entryId
+      Field = field
+      Tone = tone
+      Text = text
+      Undo = undo
+      BarAction = barAction
+      BarDetail = barDetail
+      Flashing = true
+      Version = 0 }
+
+/// Ein Fehler am Feld: rot, ohne Leuchten und ohne Rückgängig. `action` ist die obere Zeile der Leiste
+/// („Kategorie nicht geändert“), `fieldText` der Anfang unter dem Feld („Nicht geändert“).
+let failedDetailNote (entryId: Guid) (field: DetailNoteField) (fieldText: string) (action: string) (reason: string) : DetailNote =
+    { changeNote entryId field FeedbackError $"{fieldText}: {reason}" None action (Some reason) with Flashing = false }
+
+/// „Rückgängig nicht möglich: Grund“ rot am Feld (Zeile 2621, 2672, 3826).
+let undoFailedDetailNote (entryId: Guid) (field: DetailNoteField) (reason: string) : DetailNote =
+    failedDetailNote entryId field "Rückgängig nicht möglich" "Rückgängig nicht möglich" reason
+
+/// Eine YNAB-Warnung ohne Änderung in BB (Kategorie unverändert, Versand gescheitert): gelb am Feld, ohne Leuchten.
+let notInYnabDetailNote (entryId: Guid) (field: DetailNoteField) (reason: string) : DetailNote =
+    { changeNote entryId field FeedbackWarning $"Nicht in YNAB: {reason}" None categoryHintTitle (Some reason) with
+        Flashing = false }
+
+/// Nach einer Änderung: „✓ <ok>“, bei gescheitertem Versand gelb „<ok>, nicht in YNAB: Grund“.
+let private changedNote
+    entryId field (okText: string) (barAction: string) (payee: string option) (sendFailure: string option) undo
+    : DetailNote =
+    match sendFailure with
+    | Some reason ->
+        changeNote entryId field FeedbackWarning $"{okText}, nicht in YNAB: {reason}" undo $"{barAction}, nicht in YNAB" (Some reason)
+    | None -> changeNote entryId field FeedbackOk okText undo barAction (notePayee payee)
+
+/// Kategorie geändert (Tabelle der Task, Zeile 2577/2578): „✓ Geändert“ unter „Kategorie“ mit „Rückgängig“; ohne
+/// neue Kategorie „✓ Entfernt“. In der Leiste „Kategorie geändert“ bzw. „Kategorie entfernt“ mit dem Payee.
+let categoryChangedNote
+    (entryId: Guid) (payee: string option) (removed: bool) (sendFailure: string option) (undo: ToastActionKind)
+    : DetailNote =
+    if removed then changedNote entryId AtCategory "Entfernt" "Kategorie entfernt" payee sendFailure (Some undo)
+    else changedNote entryId AtCategory "Geändert" "Kategorie geändert" payee sendFailure (Some undo)
+
+/// Übertrag gesetzt (Zeile 2663): „✓ Gegenbuchung angelegt“ unter „Kategorie“ mit „Rückgängig“. In der Leiste
+/// „Übertrag auf <Konto>“ mit dem Payee.
+let transferSetNote
+    (entryId: Guid) (account: string option) (payee: string option) (sendFailure: string option) (undo: ToastActionKind)
+    : DetailNote =
+    let barAction =
+        match account with
+        | Some name -> $"Übertrag auf {name}"
+        | None -> "Übertrag gesetzt"
+    changedNote entryId AtCategory "Gegenbuchung angelegt" barAction payee sendFailure (Some undo)
+
+/// Aufteilung gespeichert (Zeile 3759/3761): „✓ Aufgeteilt in n Zeilen“ unter den Split-Zeilen, „✓ Aufteilung
+/// aufgehoben“ unter „Kategorie“ (dann gibt es keine Split-Zeilen mehr). „Rückgängig“ nur, wo der Toast es hatte.
+let splitSavedNote
+    (entryId: Guid) (text: string) (unsplit: bool) (payee: string option) (sendFailure: string option) (undo: ToastActionKind option)
+    : DetailNote =
+    changedNote entryId (if unsplit then AtCategory else AtSplits) text text payee sendFailure undo
+
+/// Betrag mit Aufteilung geändert (Zeile 3785/3786): „✓ Geändert“ am Betrag, ohne Rückgängig (ADR 0092). In der
+/// Leiste „Betrag geändert“ mit dem neuen Betrag.
+let amountChangedNote (entryId: Guid) (amountText: string) (sendFailure: string option) : DetailNote =
+    match sendFailure with
+    | Some reason -> changeNote entryId AtAmount FeedbackWarning $"Geändert, nicht in YNAB: {reason}" None "Betrag geändert, nicht in YNAB" (Some reason)
+    | None -> changeNote entryId AtAmount FeedbackOk "Geändert" None "Betrag geändert" (Some amountText)
+
+/// Nach „Rückgängig“ mit gescheitertem Versand (Zeile 2612, 3818): gelb am Feld, ohne neues Rückgängig.
+let restoredNotInYnabNote (entryId: Guid) (field: DetailNoteField) (reason: string) : DetailNote =
+    { changeNote entryId field FeedbackWarning $"Zurückgesetzt, nicht in YNAB: {reason}" None categoryHintTitle (Some reason) with
+        Flashing = true }
+
+// ============================================
 // Lena fragen im Detail (ledger-xfjcp, ADR 0056)
 // ============================================
 
@@ -1182,19 +1296,6 @@ let rowMatchesFilters (filters: Filters) (entry: LedgerEntryView) : bool =
             && not entry.IsTransfer
             && List.isEmpty entry.Splits
         inCategories || withoutCategory
-
-/// Der Toast nach einer Änderung (ohne Beträge, die stehen in der Karte).
-let categoryChangedToastText (newName: string option) (previous: CategoryChoice option) : string =
-    match newName, previous with
-    | Some name, _ -> $"Kategorie geändert: {name}"
-    | None, Some old -> $"Kategorie entfernt: {old.CategoryName}"
-    | None, None -> "Kategorie entfernt"
-
-/// Der Toast nach "Übertrag auf ein Konto" (ledger-qvjvs).
-let transferSetToastText (name: string option) : string =
-    match name with
-    | Some n -> $"Übertrag auf {n}"
-    | None -> "Übertrag gesetzt"
 
 /// Der Toast nach "Rückgängig" eines Übertrags; ohne bekannten Kontonamen nur der Satz.
 let transferUndoneToastText (name: string option) : string =
@@ -1804,6 +1905,12 @@ type Model = {
 
     /// Das Angebot „Regel anlegen?“ nach einer Kategorie-Änderung im Detail (ledger-hg5m5).
     RuleOffer: RuleOffer option
+
+    /// Die eine Bestätigung am Feld im offenen Detail (ledger-p5y9s, R3 Platz 1).
+    DetailNote: DetailNote option
+
+    /// Zählt die Bestätigungen am Feld; jede neue bekommt die nächste Nummer (Ende des Leuchtens).
+    DetailNoteVersion: int
 
     /// Zeilen, die nach einer Änderung nicht mehr zum aktiven Filter passen. Sie bleiben
     /// ausgegraut stehen (ADR 0055, Nachtrag). Neuladen, Filter- und Sortierwechsel leeren die Menge.
@@ -2826,6 +2933,8 @@ type Msg =
     | FlagRetried of Guid * Result<FlagWriteBack, string>
     /// Die Karte "Budget nach dem Wechsel" läuft ab (nur die mit dieser Version).
     | CategoryCardExpired of version: int
+    /// Das Leuchten des Felds der Bestätigung mit dieser Nummer ist vorbei (ledger-p5y9s).
+    | DetailNoteFlashEnded of version: int
 
     // Regel aus der Buchung (ledger-hg5m5)
     /// „Regel anlegen“ im Detail, auf der Karte beim Durchgehen oder „Anlegen“ im Angebot.
@@ -3302,3 +3411,53 @@ let nextPageLoading (model: Model) : bool =
     match model.ListActivity with
     | LoadingMorePage | LoadingMoreThenRefresh -> true
     | ListIdle | Refreshing _ -> false
+
+// ============================================
+// Bestätigung am Feld: wohin und was beim Schließen (ledger-p5y9s, ADR 0098)
+// ============================================
+
+/// Wohin die Rückmeldung einer Aktion auf Kategorie, Übertrag oder Aufteilung geht.
+type DetailNoteRoute =
+    /// Das Detail dieser Buchung steht offen (Sheet oder Panel, im Durchgehen mit „Details“): unter dem Feld.
+    | NoteAtField
+    /// Die Karte des Durchgehens ohne „Details“: wie bisher (ledger-pz5wv regelt sie).
+    | NoteOnReviewCard
+    /// Das Detail ist zu, als die Antwort kam: in die Leiste, am PC in den Toast.
+    | NoteInBar
+
+/// Wohin die Rückmeldung zu dieser Buchung jetzt geht. Rein.
+let detailNoteRoute (model: Model) (entryId: Guid) : DetailNoteRoute =
+    if detailShows model entryId then NoteAtField
+    elif isReviewCard model entryId then NoteOnReviewCard
+    else NoteInBar
+
+/// Die Bestätigung als Meldung der Leiste (am PC der Toast): Aktion, Payee oder Grund, „Rückgängig“ wie am Feld.
+let detailNoteBar (note: DetailNote) : FeedbackNote =
+    { Tone = note.Tone
+      Action = note.BarAction
+      Detail = note.BarDetail
+      Act = note.Undo |> Option.map (fun kind -> { Label = undoToastLabel; Kind = kind }) }
+
+/// Detail schließt mit offener Bestätigung (Entscheidung Roman 2026-11-19): steht ihre Buchung nicht mehr im Detail,
+/// endet sie. Trägt sie „Rückgängig“, wandert sie in die Leiste (am PC in den Toast), außer der Schritt meldet selbst
+/// etwas (eine neue Aktion ersetzt sie). Ohne „Rückgängig“ (Fehler, Warnung) endet sie still. Rein.
+let handOverDetailNote (model: Model, external: ExternalMsg) : Model * ExternalMsg =
+    match model.DetailNote with
+    | Some note when not (detailShows model note.EntryId) ->
+        let cleared = { model with DetailNote = None }
+        match external, note.Undo with
+        | NoOp, Some _ -> cleared, PostFeedback (detailNoteBar note)
+        | _ -> cleared, external
+    | _ -> model, external
+
+/// Die Bestätigung unter diesem Feld der Buchung, falls eine steht.
+let detailNoteAt (model: Model) (entryId: Guid) (field: DetailNoteField) : DetailNote option =
+    model.DetailNote |> Option.filter (fun note -> note.EntryId = entryId && note.Field = field)
+
+/// Die Nachricht hinter „Rückgängig“ am Feld: dieselbe wie früher im Toast (`State.toastActionMsg`).
+let detailNoteUndoMsg (kind: ToastActionKind) : Msg option =
+    match kind with
+    | UndoCategory (entryId, previous) -> Some (StartUndoCategory (entryId, previous))
+    | UndoTransfer (entryId, account) -> Some (StartSetEntryTransfer (entryId, account, true))
+    | UndoSplit (entryId, restore) -> Some (StartUndoSplit (entryId, restore))
+    | _ -> None

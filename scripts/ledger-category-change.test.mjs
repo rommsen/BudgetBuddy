@@ -159,7 +159,7 @@ const panel = (p) => p.locator('[data-testid="ledger-detail-panel"]');
 const categoryRow = (scope) => scope.locator('[data-testid="detail-category"]');
 const arrow = (scope) => scope.locator('[data-testid="detail-category-arrow"]');
 
-test("[flow:kategorie-aendern] PC (1440): Pfeil öffnet den Picker im Panel, Auswahl ändert, Karte und Toast erscheinen, Rückgängig stellt zurück", async () => {
+test("[flow:kategorie-aendern] PC (1440): Pfeil öffnet den Picker im Panel, Auswahl ändert, Karte und Bestätigung am Feld erscheinen, Rückgängig stellt zurück", async () => {
   resetState();
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const page = await open(context);
@@ -193,14 +193,53 @@ test("[flow:kategorie-aendern] PC (1440): Pfeil öffnet den Picker im Panel, Aus
   const card = panel(page).locator('[data-testid="category-change-card"]');
   assert.match(await card.textContent(), /Budget nach dem Wechsel/);
   assert.match(await card.textContent(), /120,50/, "alter Wert der alten Kategorie");
-  // Toast mit Rückgängig, ohne Beträge.
-  const toastText = page.getByText("Kategorie geändert: Nebenkosten", { exact: true });
-  await toastText.waitFor();
-  assert.doesNotMatch(await toastText.textContent(), /\d+,\d\d/, "keine Beträge im Toast");
-  await page.locator('[data-toast-action="true"]', { hasText: "Rückgängig" }).click();
+  // ledger-p5y9s: „✓ Geändert“ und „Rückgängig“ unter „Kategorie“ im Panel, kein Toast.
+  const note = panel(page).locator('[data-testid="detail-note"][data-note-field="category"]');
+  await note.waitFor();
+  assert.match(await note.textContent(), /✓\s*Geändert\s*Rückgängig/, "Bestätigung am Feld");
+  // Ein Toast ohne Bezug (nicht gemockte Einstellungen) darf stehen, keiner zur Kategorie oder Aufteilung.
+  assert.doesNotMatch(await page.locator(".toast-layer").textContent(), /Kategorie|Aufgeteilt|Aufteilung|Rückgängig/, "kein Toast");
+  await note.getByRole("button", { name: "Rückgängig" }).click();
   for (let i = 0; i < 50 && state.setCalls.length < 2; i += 1) await new Promise((r) => setTimeout(r, 40));
   assert.deepEqual(state.setCalls[1].choice, { YnabCategoryId: CAT.lebensmittel.id }, "Rückgängig sendet die alte Kategorie");
   await page.waitForFunction(() => /Alltag: Lebensmittel/.test(document.querySelector('[data-testid="detail-category"]')?.textContent ?? ""));
   assert.equal(await page.locator('[data-testid="category-change-card"]').count(), 0, "Rücknahme zeigt keine neue Karte");
+  await note.waitFor({ state: "detached" });
+  assert.doesNotMatch(await page.locator(".toast-layer").textContent(), /Kategorie|Aufgeteilt|Aufteilung|Rückgängig|zurück/, "kein Rücknahme-Toast");
+  await context.close();
+});
+
+test("[layout] Handy (412): Kategorie ändern im Sheet, Bestätigung am Feld ohne Scrollen sichtbar, Rückgängig stellt zurück", async () => {
+  resetState();
+  const context = await browser.newContext({ viewport: { width: 412, height: 915 }, hasTouch: true, isMobile: true });
+  const page = await open(context);
+  await page.getByText("REWE Mitte", { exact: true }).first().tap();
+  const sheet = page.locator(".bottom-sheet.active").first();
+  await sheet.locator('[data-testid="detail-category-arrow"]').tap();
+  await page.locator('.bottom-sheet.active [role="option"]', { hasText: "Nebenkosten" }).last().tap();
+  const note = page.locator('.bottom-sheet.active [data-testid="detail-note"][data-note-field="category"]');
+  await note.waitFor();
+  assert.match(await note.textContent(), /✓\s*Geändert\s*Rückgängig/, "Bestätigung am Feld");
+  // Sichtbar ohne Scrollen: ganz im Viewport und nicht unter einer anderen Ebene.
+  const box = await note.boundingBox();
+  assert.ok(box && box.y >= 0 && box.y + box.height <= 915, `Bestätigung im Bild (${box?.y}..${box && box.y + box.height})`);
+  const onTop = await note.evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    const hit = document.elementFromPoint(r.left + 8, r.top + r.height / 2);
+    return el.contains(hit);
+  });
+  assert.ok(onTop, "nichts liegt über der Bestätigung");
+  // Eine Meldung ohne Bezug (nicht gemockte Einstellungen) darf in der Leiste stehen, keine zur Kategorie.
+  assert.doesNotMatch(await page.locator('[data-testid="feedback-bar"]').textContent(), /Kategorie|Rückgängig/, "nicht in der Leiste");
+  assert.equal(await page.locator(".toast-layer > *").filter({ visible: true }).count(), 0, "kein Toast");
+  // Wie `closeLedgerSheet` (layout-states.mjs): `Viewport.swallowNextClick` schluckt einen Tipp innerhalb von 350 ms
+  // nach der Wahl im Picker; dann gilt der nächste.
+  for (let attempt = 0; attempt < 5 && state.setCalls.length < 2; attempt += 1) {
+    await note.getByRole("button", { name: "Rückgängig" }).tap();
+    for (let i = 0; i < 10 && state.setCalls.length < 2; i += 1) await new Promise((r) => setTimeout(r, 40));
+  }
+  assert.deepEqual(state.setCalls[1].choice, { YnabCategoryId: CAT.lebensmittel.id }, "Rückgängig sendet die alte Kategorie");
+  await note.waitFor({ state: "detached" });
+  await page.waitForFunction(() => /Lebensmittel/.test(document.querySelector('.bottom-sheet.active [data-testid="detail-category"]')?.textContent ?? ""));
   await context.close();
 });

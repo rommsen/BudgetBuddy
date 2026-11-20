@@ -374,15 +374,29 @@ let stateHint (testId: string) (text: string) (reasons: string list) (act: Act o
         ]
     ]
 
-/// Die Bestätigung unter einem Feld (Platz 1): klein, gedämpft, Text und Knopf in einer umbrechenden Zeile
-/// („Bahn · 84,20 € verfügbar · Rückgängig“). Der Knopf hat unter 1024 px 48 px Trefferfläche.
-let fieldNote (text: string) (act: Act option) : ReactElement =
+/// Farbe des Texts unter einem Feld: gedämpft für ok und Info, gelb für die Warnung, rot für den Fehler.
+let private fieldNoteColor (tone: Tone) =
+    match tone with
+    | Tone.Warning -> Colors.attention
+    | Tone.Error -> Colors.error
+    | Tone.Ok
+    | Tone.Running
+    | Tone.Info -> Colors.textMuted
+
+/// Die Rückmeldung unter einem Feld (Platz 1) mit Ton (ledger-p5y9s): ok mit grünem ✓ („✓ Geändert · Rückgängig“),
+/// Warnung gelb mit !, Fehler rot mit ! (Fehler am Feld, §5). Text und Knopf stehen in einer umbrechenden Zeile, der
+/// Knopf hat unter 1024 px 48 px Trefferfläche. Info und Läuft zeigen kein Zeichen und den Text gedämpft wie `fieldNote`.
+let fieldNoteWith (tone: Tone) (text: string) (act: Act option) : ReactElement =
     Html.div [
         prop.custom ("data-testid", "feedback-field-note")
-        prop.custom ("aria-live", "polite")
-        prop.className $"flex flex-wrap items-center gap-x-2 gap-y-0.5 {FontSizes.xs} {Colors.textMuted}"
+        prop.custom ("data-tone", (string tone).ToLowerInvariant())
+        if tone = Tone.Error then prop.role "alert" else prop.custom ("aria-live", "polite")
+        prop.className $"flex flex-wrap items-center gap-x-2 gap-y-0.5 {FontSizes.xs} {fieldNoteColor tone}"
         prop.children [
-            Html.span [ prop.className "break-words"; prop.text text ]
+            match markSymbol tone with
+            | Some symbol -> Html.span [ prop.className $"flex-none {markColor tone}"; prop.ariaHidden true; prop.text symbol ]
+            | None -> Html.none
+            Html.span [ prop.className "min-w-0 break-words"; prop.text text ]
             match act with
             | Some a ->
                 Html.button [
@@ -398,6 +412,10 @@ let fieldNote (text: string) (act: Act option) : ReactElement =
             | None -> Html.none
         ]
     ]
+
+/// Die Bestätigung unter einem Feld (Platz 1): klein, gedämpft, Text und Knopf in einer umbrechenden Zeile
+/// („Bahn · 84,20 € verfügbar · Rückgängig“), ohne Zeichen. Der Knopf hat unter 1024 px 48 px Trefferfläche.
+let fieldNote (text: string) (act: Act option) : ReactElement = fieldNoteWith Tone.Info text act
 
 /// Eine Bestätigung in der Erfolgsrolle (Platz 1, „✓ Gespeichert“): klein und halbfett, im Kopf einer Karte an der
 /// Stelle der Statusanzeige oder unter einem Feld, das beim Ändern speichert. Ohne Knopf, bis zur nächsten Aktion.

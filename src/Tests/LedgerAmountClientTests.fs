@@ -297,7 +297,7 @@ let amountReducerTests =
             let _, msgs, _ = run StartSaveSplits opened
             Expect.equal msgs [ RunSaveSplits (idOf 1, splitLines) ] "ohne Betrag"
 
-        testCase "Split mit Betrag gespeichert: Betrag in der Zeile, Toast ohne Rückgängig" <| fun () ->
+        testCase "Split mit Betrag gespeichert: Betrag in der Zeile, „Geändert“ am Betrag ohne Rückgängig" <| fun () ->
             let opened, _, _ = run (StartSaveAmount (idOf 1)) (typed [ splitEntry 1 ] "50")
             let lines =
                 [ { Target = ToCategory (catId 1, "Lebensmittel"); Amount = eur -30.00m; Memo = None }
@@ -309,9 +309,19 @@ let amountReducerTests =
             Expect.equal (rowOf 1 model).Splits lines "neue Zeilen"
             Expect.isNone model.SplitEditor "Editor zu"
             Expect.contains msgs (LoadBalances) "Kontostände neu"
-            match external with
-            | ShowToast (text, ToastSuccess) -> Expect.stringStarts text "Betrag geändert · " "Toast"
-            | other -> failtest $"erwartet Toast ohne Rückgängig, war {other}"
+            // ledger-p5y9s: im offenen Detail am Betrag, ohne Toast.
+            Expect.equal external NoOp "kein Toast"
+            Expect.equal
+                (model.DetailNote |> Option.map (fun n -> n.Field, n.Tone, n.Text, n.Undo))
+                (Some (AtAmount, FeedbackOk, "Geändert", None))
+                "am Betrag, ohne Rückgängig"
+            let warned, _, _ =
+                run (SplitsWithAmountSaved (idOf 1, lines, eur -50m, Ok { changed with WriteBack = CategorySendFailed "HTTP 500" })) opened
+            Expect.equal (warned.DetailNote |> Option.map (fun n -> n.Tone, n.Text)) (Some (FeedbackWarning, "Geändert, nicht in YNAB: HTTP 500")) "gelb"
+            let _, _, closedExternal = run (SplitsWithAmountSaved (idOf 1, lines, eur -50m, Ok changed)) { opened with DetailFor = None }
+            match closedExternal with
+            | PostFeedback note -> Expect.equal (note.Action, note.Act) ("Betrag geändert", None) "Detail zu: Leiste ohne Rückgängig"
+            | other -> failtest $"erwartet Leiste, war {other}"
 
         testCase "AmountSet Ok: Betrag in Zeile und Detail, Sheet zu, Toast mit Rückgängig, Historie und Kontostände neu" <| fun () ->
             let before, _, _ = run (StartSaveAmount (idOf 1)) (typed [ entryOf 1 ] "45")

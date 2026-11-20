@@ -231,13 +231,15 @@ let changeTests =
                     "zwei Zeilen, alte zuerst"
                 Expect.isTrue (card.Lines |> List.forall (fun l -> l.OldText.IsSome && l.NewText.IsSome)) "alt und neu je Zeile"
             | None -> failtest "die Karte sollte stehen"
-            match external with
-            | ShowToastWithAction (text, ToastSuccess, action) ->
-                Expect.equal text "Kategorie geändert: Möbel" "Toast-Text"
-                Expect.equal action.Label "Rückgängig" "Aktion"
-                Expect.equal action.Kind (UndoCategory (idOf 1, Some lebensmittel)) "Rücknahme kennt den alten Stand"
-                Expect.isFalse (text |> Seq.exists Char.IsDigit) "keine Beträge im Toast"
-            | other -> failtestf "unerwarteter Toast: %A" other
+            // ledger-p5y9s: im offenen Detail kein Toast, die Bestätigung steht unter „Kategorie“.
+            Expect.equal external NoOp "kein Toast"
+            match model.DetailNote with
+            | Some note ->
+                Expect.equal (note.EntryId, note.Field, note.Tone, note.Text) (idOf 1, AtCategory, FeedbackOk, "Geändert") "✓ Geändert unter Kategorie"
+                Expect.equal note.Undo (Some (UndoCategory (idOf 1, Some lebensmittel))) "Rücknahme kennt den alten Stand"
+                Expect.isTrue note.Flashing "das Feld leuchtet"
+                Expect.equal (note.BarAction, note.BarDetail) ("Kategorie geändert", Some "Payee 1") "Leiste nach dem Schließen"
+            | None -> failtest "Bestätigung am Feld erwartet"
 
         testCase "CategoryUnchanged erzeugt weder Karte noch Toast und lässt Available stehen" <| fun () ->
             let outcome = { Previous = Some lebensmittel; Change = CategoryUnchanged; WriteBack = CategoryNotSent; PreviousTransferAccountId = None }
@@ -252,11 +254,12 @@ let changeTests =
             let row = rowOf 1 model
             Expect.isNone row.CategoryId "ohne Kategorie"
             Expect.isNone row.CategoryName "ohne Namen"
-            match external with
-            | ShowToastWithAction (text, _, action) ->
-                Expect.equal text "Kategorie entfernt: Lebensmittel" "Text"
-                Expect.equal action.Kind (UndoCategory (idOf 1, Some lebensmittel)) "Rücknahme"
-            | other -> failtestf "unerwarteter Toast: %A" other
+            Expect.equal external NoOp "kein Toast"
+            match model.DetailNote with
+            | Some note ->
+                Expect.equal (note.Text, note.BarAction) ("Entfernt", "Kategorie entfernt") "Text"
+                Expect.equal note.Undo (Some (UndoCategory (idOf 1, Some lebensmittel))) "Rücknahme"
+            | None -> failtest "Bestätigung am Feld erwartet"
             Expect.equal (availableOf 1 model) 110m "die alte Kategorie bekommt den Betrag zurück"
 
         testCase "Die Karte zeigt nur die Zeilen mit Zahlen für Buchungen des laufenden Monats" <| fun () ->
@@ -275,7 +278,8 @@ let changeTests =
                 Components.Ledger.State.update (EntryCategorySet (idOf 1, Some (catId 3), Ok (changed (Some lebensmittel) CategorySent))) (defaultModel ())
             // Das offene Detail lädt daneben sofort seine Historie neu (ledger-nc708) und fragt nach dem Regel-Angebot
             // (ledger-hg5m5); gemessen wird der Zeitgeber.
-            let reload = function LoadHistory _ | RunCheckRuleOffer _ -> true | _ -> false
+            // (ledger-hg5m5) und beendet das Leuchten des Felds (ledger-p5y9s); gemessen wird der Zeitgeber der Karte.
+            let reload = function LoadHistory _ | RunCheckRuleOffer _ | DetailNoteFlashEnded _ -> true | _ -> false
             Tests.CmdTiming.expectAfterIgnoring reload categoryCardDurationMs (CategoryCardExpired model.CategoryCard.Value.Version) cmd
 
         testCase "Die Karte läuft ab, aber nur die mit ihrer Version" <| fun () ->
@@ -300,15 +304,18 @@ let changeTests =
             let next, _, _ = update (StartSetEntryCategory (idOf 1, Some (catId 2))) model
             Expect.isNone next.CategoryCard "nächste Änderung"
 
-        testCase "Schlägt der Versand nach YNAB fehl, bleibt die Kategorie, die Zeile trägt den Grund und der Toast warnt" <| fun () ->
+        testCase "Schlägt der Versand nach YNAB fehl, bleibt die Kategorie, die Zeile trägt den Grund und das Feld warnt gelb" <| fun () ->
             let model, _, external =
                 update (EntryCategorySet (idOf 1, Some (catId 3), Ok (changed (Some lebensmittel) (CategorySendFailed "HTTP 500")))) (defaultModel ())
             let row = rowOf 1 model
             Expect.equal row.CategoryId (Some (catGuid 3)) "Kategorie bleibt in BB"
             Expect.equal row.CategorizationWriteBackFailure (Some "HTTP 500") "Fehlschlag an der Zeile"
-            match external with
-            | ShowToastWithAction (text, ToastWarning, _) -> Expect.stringContains text "HTTP 500" "Grund im Toast"
-            | other -> failtestf "unerwarteter Toast: %A" other
+            Expect.equal external NoOp "kein Toast"
+            match model.DetailNote with
+            | Some note ->
+                Expect.equal (note.Tone, note.Text) (FeedbackWarning, "Geändert, nicht in YNAB: HTTP 500") "gelb am Feld"
+                Expect.equal note.Undo (Some (UndoCategory (idOf 1, Some lebensmittel))) "mit Rückgängig"
+            | None -> failtest "Warnung am Feld erwartet"
             match categoryHintFor None row with
             | Some hint ->
                 Expect.equal hint.Title "Kategorie nicht in YNAB" "Titel"
@@ -316,13 +323,25 @@ let changeTests =
                 Expect.equal hint.RetryLabel (Some "Erneut senden") "Knopf"
             | None -> failtest "Hinweis erwartet"
 
-        testCase "Ein Befehlsfehler lässt die Kategorie stehen und meldet einen Fehler-Toast" <| fun () ->
+        testCase "Ein Befehlsfehler lässt die Kategorie stehen und steht rot unter dem Feld, ohne Toast" <| fun () ->
             let model, _, external = update (EntryCategorySet (idOf 1, Some (catId 3), Error "nicht erreichbar")) (defaultModel ())
             Expect.equal (rowOf 1 model).CategoryId (Some (catGuid 1)) "unverändert"
+            Expect.equal external NoOp "kein Toast, keine Leiste"
+            match model.DetailNote with
+            | Some note ->
+                Expect.equal (note.Field, note.Tone, note.Text) (AtCategory, FeedbackError, "Nicht geändert: nicht erreichbar") "rot unter Kategorie"
+                Expect.isNone note.Undo "ohne Rückgängig"
+                Expect.isFalse note.Flashing "ein Fehler leuchtet nicht"
+            | None -> failtest "Fehler am Feld erwartet"
+            // Kein zweites Rot in der Hinweisleiste darüber.
+            Expect.isFalse (model.CategoryRows |> Map.containsKey (idOf 1)) "kein Befehlsfehler an der Zeile"
+
+        testCase "Ein Befehlsfehler bei geschlossenem Detail geht in die Leiste und bleibt an der Zeile" <| fun () ->
+            let closed = { defaultModel () with DetailFor = None }
+            let model, _, external = update (EntryCategorySet (idOf 1, Some (catId 3), Error "nicht erreichbar")) closed
             Expect.equal (model.CategoryRows |> Map.tryFind (idOf 1)) (Some (CategoryCommandFailed "nicht erreichbar")) "Befehlsfehler"
-            match external with
-            | ShowToast (_, ToastError) -> ()
-            | other -> failtestf "unerwartet: %A" other
+            Expect.equal external (PostFeedback (failedFeedback "Kategorie nicht geändert" "nicht erreichbar")) "rot in der Leiste"
+            Expect.isNone model.DetailNote "kein Feld"
     ]
 
 [<Tests>]
@@ -359,9 +378,10 @@ let undoTests =
             Expect.equal (availableOf 1 model) 100m "Available vertauscht zurück"
             Expect.equal (availableOf 3 model) 200m "Available vertauscht zurück"
             Expect.isNone model.CategoryCard "keine neue Karte, die alte mit den überholten Zahlen endet"
-            match external with
-            | ShowToast (text, ToastSuccess) -> Expect.stringContains text "Lebensmittel" "Text nennt die alte Kategorie"
-            | other -> failtestf "der Rücknahme-Toast hat keine Aktion: %A" other
+            // ledger-p5y9s: der alte Wert steht im Feld, die Bestätigung ist weg, kein Rücknahme-Toast.
+            Expect.isSome restoring.DetailNote "während der Rücknahme steht die Bestätigung noch"
+            Expect.isNone model.DetailNote "Bestätigung weg"
+            Expect.equal external NoOp "kein Rücknahme-Toast"
 
         testCase "Rücknahme auf ohne Kategorie setzt die Zeile auf keine Kategorie" <| fun () ->
             let afterChange, _, _ =
@@ -369,9 +389,10 @@ let undoTests =
             let outcome = changed (Some { CategoryId = catId 3; CategoryName = "Möbel" }) CategorySent
             let model, _, external = update (EntryCategoryRestored (idOf 1, None, Ok outcome)) afterChange
             Expect.isNone (rowOf 1 model).CategoryId "ohne Kategorie"
-            match external with
-            | ShowToast (text, _) -> Expect.stringContains text "ohne Kategorie" "Text"
-            | other -> failtestf "unerwartet: %A" other
+            Expect.equal external NoOp "kein Rücknahme-Toast im offenen Detail"
+            let closed, _, closedExternal = update (EntryCategoryRestored (idOf 1, None, Ok outcome)) { afterChange with DetailFor = None }
+            Expect.isNone closed.DetailNote "kein Feld"
+            Expect.equal closedExternal (ShowToast ("Kategorie zurückgesetzt: ohne Kategorie", ToastSuccess)) "Detail zu: Leiste wie bisher"
 
         testCase "Erneut senden ruft retryCategorizationWriteBack und räumt den Fehlschlag bei CategorySent" <| fun () ->
             let failing = { entryOf 1 with CategorizationWriteBackFailure = Some "HTTP 500" }
@@ -384,7 +405,10 @@ let undoTests =
             Expect.equal external NoOp "kein Toast"
             let again, _, warn = update (CategorizationRetried (idOf 1, Ok (CategorySendFailed "noch immer"))) started
             Expect.equal (rowOf 1 again).CategorizationWriteBackFailure (Some "noch immer") "neuer Grund"
-            match warn with
+            // ledger-p5y9s (Zeile 2707): die Hinweisleiste im offenen Detail zeigt den neuen Grund, keine Meldung.
+            Expect.equal warn NoOp "im offenen Detail keine Meldung"
+            let _, _, closedWarn = update (CategorizationRetried (idOf 1, Ok (CategorySendFailed "noch immer"))) { started with DetailFor = None }
+            match closedWarn with
             | ShowToast (_, ToastWarning) -> ()
             | other -> failtestf "Warnung erwartet: %A" other
             let broken, _, _ = update (CategorizationRetried (idOf 1, Error "Netz")) started
@@ -610,8 +634,6 @@ let viewTests =
             Expect.isEmpty (Components.Ledger.View.categoryCardLinesFor { model with CategoryCard = None } (entryOf 1)) "nach Ablauf weg"
 
         testCase "Der Tooltip-Text und die Toast-Texte kommen aus reinen Funktionen ohne Beträge" <| fun () ->
-            Expect.equal (categoryChangedToastText (Some "Möbel") (Some lebensmittel)) "Kategorie geändert: Möbel" "geändert"
-            Expect.equal (categoryChangedToastText None (Some lebensmittel)) "Kategorie entfernt: Lebensmittel" "entfernt"
             Expect.equal (categoryRestoredToastText None) "Kategorie zurückgesetzt: ohne Kategorie" "zurückgesetzt"
 
         // Befund vom 2026-10-24: ein Ladefehler sah im Picker aus wie "es gibt keine Kategorien".
@@ -723,20 +745,24 @@ let transferClientTests =
             Expect.isNone row.CategoryId "ohne Kategorie"
             Expect.equal (transferCategoryLabel model row) (Some "Übertrag → Tagesgeld ING") "Zeile Kategorie im Detail"
             Expect.contains sent (RunRefreshEntry (idOf 1)) "lädt die Buchung nach"
-            match external with
-            | ShowToastWithAction (text, ToastSuccess, action) ->
-                Expect.equal text "Übertrag auf Tagesgeld ING" "Toast"
-                Expect.equal action.Kind (UndoCategory (idOf 1, Some lebensmittel)) "Rückgängig setzt die Kategorie zurück"
-            | other -> failtestf "unerwarteter Toast: %A" other
+            Expect.equal external NoOp "kein Toast"
+            match model.DetailNote with
+            | Some note ->
+                Expect.equal (note.Field, note.Tone, note.Text) (AtCategory, FeedbackOk, "Gegenbuchung angelegt") "✓ Gegenbuchung angelegt"
+                Expect.equal note.Undo (Some (UndoCategory (idOf 1, Some lebensmittel))) "Rückgängig setzt die Kategorie zurück"
+                Expect.equal note.BarAction "Übertrag auf Tagesgeld ING" "Leiste nach dem Schließen"
+            | None -> failtest "Bestätigung am Feld erwartet"
 
         testCase "ein gescheiterter Push bleibt sichtbar: Fehlschlag an der Zeile, Toast als Warnung" <| fun () ->
             let account = YnabAccountId targetId
             let model, _, external =
                 run (EntryTransferSet (idOf 1, account, false, Ok (transferOutcome (Some lebensmittel) None (CategorySendFailed "Timeout")))) (withTargets (defaultModel ()))
             Expect.equal (rowOf 1 model).CategorizationWriteBackFailure (Some "Timeout") "Fehlschlag an der Zeile"
-            match external with
-            | ShowToastWithAction (text, ToastWarning, _) -> Expect.stringContains text "Timeout" "Grund im Toast"
-            | other -> failtestf "unerwarteter Toast: %A" other
+            Expect.equal external NoOp "kein Toast"
+            Expect.equal
+                (model.DetailNote |> Option.map (fun n -> n.Tone, n.Text))
+                (Some (FeedbackWarning, "Gegenbuchung angelegt, nicht in YNAB: Timeout"))
+                "gelb am Feld"
 
         testCase "zurück auf eine Kategorie: Rückgängig macht wieder den Übertrag, die Zeile ist kein Übertrag mehr" <| fun () ->
             let transfer =
@@ -745,28 +771,172 @@ let transferClientTests =
                 run (EntryCategorySet (idOf 1, Some (catId 2), Ok (transferOutcome None (Some targetId) CategorySent))) (withTargets (modelWith [ transfer; entryOf 2 ]))
             Expect.isFalse (rowOf 1 model).IsTransfer "kein Übertrag mehr"
             Expect.contains sent (RunRefreshEntry (idOf 1)) "lädt die Buchung nach (Payee aus BB)"
-            match external with
-            | ShowToastWithAction (_, _, action) -> Expect.equal action.Kind (UndoTransfer (idOf 1, YnabAccountId targetId)) "Rückgängig: Übertrag"
-            | other -> failtestf "unerwarteter Toast: %A" other
+            Expect.equal external NoOp "kein Toast"
+            Expect.equal (model.DetailNote |> Option.bind (fun n -> n.Undo)) (Some (UndoTransfer (idOf 1, YnabAccountId targetId))) "Rückgängig: Übertrag"
             match State.toastActionMsg (UndoTransfer (idOf 1, YnabAccountId targetId)) with
             | State.LedgerMsg msg ->
                 Expect.equal msg (StartSetEntryTransfer (idOf 1, YnabAccountId targetId, true)) "die Rücknahme geht über setEntryTransfer, ohne neues Rückgängig"
             | other -> failtestf "unerwartete Nachricht: %A" other
 
         // Regression (Review ledger-qvjvs): ohne bekannten Kontonamen hieß es "Übertrag zurückgesetzt: Übertrag gesetzt".
-        testCase "Rückgängig eines Übertrags ohne bekannten Kontonamen meldet nur Übertrag zurückgesetzt" <| fun () ->
+        // Regression (Review ledger-qvjvs): ohne bekannten Kontonamen hieß es "Übertrag zurückgesetzt: Übertrag gesetzt".
+        // Seit ledger-p5y9s gilt der Satz nur noch bei geschlossenem Detail.
+        testCase "Rückgängig eines Übertrags ohne bekannten Kontonamen meldet bei geschlossenem Detail nur Übertrag zurückgesetzt" <| fun () ->
             let _, _, external =
-                run (EntryTransferSet (idOf 1, YnabAccountId targetId, true, Ok (transferOutcome (Some lebensmittel) None CategorySent))) (defaultModel ())
+                run (EntryTransferSet (idOf 1, YnabAccountId targetId, true, Ok (transferOutcome (Some lebensmittel) None CategorySent))) { defaultModel () with DetailFor = None }
             Expect.equal external (ShowToast ("Übertrag zurückgesetzt", ToastSuccess)) "Toast"
 
-        testCase "Rückgängig eines Übertrags nennt das Konto, wenn es bekannt ist" <| fun () ->
+        testCase "Rückgängig eines Übertrags nennt bei geschlossenem Detail das Konto, wenn es bekannt ist" <| fun () ->
             let _, _, external =
-                run (EntryTransferSet (idOf 1, YnabAccountId targetId, true, Ok (transferOutcome (Some lebensmittel) None CategorySent))) (withTargets (defaultModel ()))
+                run (EntryTransferSet (idOf 1, YnabAccountId targetId, true, Ok (transferOutcome (Some lebensmittel) None CategorySent))) { withTargets (defaultModel ()) with DetailFor = None }
             Expect.equal external (ShowToast ("Übertrag zurückgesetzt: Tagesgeld ING", ToastSuccess)) "Toast"
 
-        testCase "ein abgelehnter Übertrag nennt den Grund und lässt die Zeile stehen" <| fun () ->
+        testCase "Rückgängig eines Übertrags im offenen Detail: Bestätigung weg, kein Rücknahme-Toast" <| fun () ->
+            let account = YnabAccountId targetId
+            let set, _, _ = run (EntryTransferSet (idOf 1, account, false, Ok (transferOutcome (Some lebensmittel) None CategorySent))) (withTargets (defaultModel ()))
+            let restoring, _, _ = update (StartSetEntryTransfer (idOf 1, account, true)) set
+            Expect.isSome restoring.DetailNote "während der Rücknahme steht die Bestätigung"
+            let restored, _, external =
+                run (EntryTransferSet (idOf 1, account, true, Ok (transferOutcome (Some lebensmittel) None CategorySent))) restoring
+            Expect.isNone restored.DetailNote "Bestätigung weg"
+            Expect.equal external NoOp "kein Toast"
+
+        testCase "ein abgelehnter Übertrag nennt den Grund rot am Feld und lässt die Zeile stehen" <| fun () ->
             let account = YnabAccountId targetId
             let model, _, external = run (EntryTransferSet (idOf 1, account, false, Error "Ein Übertrag auf das eigene Konto geht nicht")) (defaultModel ())
             Expect.equal (rowOf 1 model) (entryOf 1) "Zeile unverändert"
-            Expect.equal external (ShowToast ("Übertrag nicht gesetzt: Ein Übertrag auf das eigene Konto geht nicht", ToastError)) "Toast"
+            Expect.equal external NoOp "kein Toast"
+            Expect.equal
+                (model.DetailNote |> Option.map (fun n -> n.Tone, n.Text))
+                (Some (FeedbackError, "Nicht gesetzt: Ein Übertrag auf das eigene Konto geht nicht"))
+                "rot unter Kategorie"
+            let undoFailed, _, _ = run (EntryTransferSet (idOf 1, account, true, Error "YNAB weg")) (defaultModel ())
+            Expect.equal (undoFailed.DetailNote |> Option.map (fun n -> n.Text)) (Some "Rückgängig nicht möglich: YNAB weg") "Rücknahme rot am Feld"
+    ]
+
+/// Nach einer Kategorie-Änderung im offenen Detail: die Bestätigung steht unter „Kategorie“.
+let private changedInDetail (model: Model) : Model =
+    let changedModel, _, _ = update (EntryCategorySet (idOf 1, Some (catId 3), Ok (changed (Some lebensmittel) CategorySent))) model
+    changedModel
+
+[<Tests>]
+let detailNoteTests =
+    testList "Bestätigung am Feld im Detail (ledger-p5y9s)" [
+
+        testCase "Sheet am Handy und Panel am PC zeigen dieselbe Bestätigung, ohne Toast" <| fun () ->
+            let panel = changedInDetail (defaultModel ())
+            let sheet = changedInDetail { defaultModel () with DetailForm = DetailSheet }
+            Expect.isSome panel.DetailNote "Panel"
+            Expect.equal sheet.DetailNote panel.DetailNote "Sheet gleich"
+
+        testCase "Schließen mit offenem Rückgängig: die Bestätigung wandert in die Leiste und Rückgängig dort löst dieselbe Nachricht aus" <| fun () ->
+            let model = changedInDetail { defaultModel () with DetailForm = DetailSheet }
+            let closed, _, external = update CloseDetail model
+            Expect.isNone closed.DetailNote "am Feld weg"
+            match external with
+            | PostFeedback note ->
+                Expect.equal (note.Tone, note.Action, note.Detail) (FeedbackOk, "Kategorie geändert", Some "Payee 1") "Kategorie geändert / Payee"
+                match note.Act with
+                | Some act ->
+                    Expect.equal act.Label "Rückgängig" "Knopf"
+                    Expect.equal
+                        (State.toastActionMsg act.Kind)
+                        (State.LedgerMsg (StartUndoCategory (idOf 1, Some lebensmittel)))
+                        "dieselbe Nachricht wie am Feld"
+                | None -> failtest "Rückgängig erwartet"
+            | other -> failtestf "Leiste erwartet: %A" other
+            Expect.equal
+                (model.DetailNote |> Option.bind (fun n -> n.Undo) |> Option.bind detailNoteUndoMsg)
+                (Some (StartUndoCategory (idOf 1, Some lebensmittel)))
+                "Rückgängig am Feld: dieselbe Nachricht"
+
+        testCase "Esc und der Wechsel auf eine andere Buchung im Panel übergeben ebenfalls an die Leiste (am PC der Toast)" <| fun () ->
+            let model = changedInDetail (defaultModel ())
+            let esc, _, escExternal = update EscapePressed model
+            Expect.isNone esc.DetailNote "Esc: am Feld weg"
+            Expect.isTrue (match escExternal with PostFeedback { Act = Some _ } -> true | _ -> false) "Esc: Leiste mit Rückgängig"
+            let switched, _, switchExternal = update (OpenDetail (entryOf 2)) model
+            Expect.isNone switched.DetailNote "Wechsel: am Feld weg"
+            Expect.isTrue (match switchExternal with PostFeedback { Act = Some _ } -> true | _ -> false) "Wechsel: Leiste mit Rückgängig"
+
+        testCase "Ohne Rückgängig (Fehler) endet die Bestätigung beim Schließen still" <| fun () ->
+            let failed, _, _ = update (EntryCategorySet (idOf 1, Some (catId 3), Error "nicht erreichbar")) (defaultModel ())
+            let closed, _, external = update CloseDetail failed
+            Expect.isNone closed.DetailNote "weg"
+            Expect.equal external NoOp "nichts in der Leiste"
+
+        testCase "Meldet der schließende Schritt selbst etwas, ersetzt das die Bestätigung" <| fun () ->
+            let model = { changedInDetail (defaultModel ()) with DetailFor = None }
+            let own = ShowToast ("Buchung gelöscht", ToastSuccess)
+            let after, external = handOverDetailNote (model, own)
+            Expect.isNone after.DetailNote "weg"
+            Expect.equal external own "die eigene Meldung bleibt"
+
+        testCase "Kommt die Antwort bei geschlossenem Detail, geht die Meldung mit Rückgängig in die Leiste" <| fun () ->
+            let closed = { defaultModel () with DetailFor = None }
+            let model, _, external = update (EntryCategorySet (idOf 1, Some (catId 3), Ok (changed (Some lebensmittel) CategorySent))) closed
+            Expect.isNone model.DetailNote "kein Feld"
+            Expect.equal
+                external
+                (PostFeedback
+                    { Tone = FeedbackOk
+                      Action = "Kategorie geändert"
+                      Detail = Some "Payee 1"
+                      Act = Some { Label = "Rückgängig"; Kind = UndoCategory (idOf 1, Some lebensmittel) } })
+                "Leiste"
+
+        testCase "Die nächste Aktion im Detail ersetzt die Bestätigung, das Leuchten endet nur für die eigene" <| fun () ->
+            let first = changedInDetail (defaultModel ())
+            let version = first.DetailNote.Value.Version
+            let started, _, _ = update (StartSetEntryCategory (idOf 1, Some (catId 2))) first
+            Expect.isNone started.DetailNote "die neue Aktion nimmt die alte Bestätigung weg"
+            let second, _, _ =
+                update (EntryCategorySet (idOf 1, Some (catId 2), Ok (changed (Some { CategoryId = catId 3; CategoryName = "Möbel" }) CategorySent))) started
+            Expect.equal (second.DetailNote |> Option.map (fun n -> n.Undo)) (Some (Some (UndoCategory (idOf 1, Some { CategoryId = catId 3; CategoryName = "Möbel" })))) "neue Rücknahme"
+            Expect.isGreaterThan second.DetailNote.Value.Version version "neue Nummer"
+            let stale, _, _ = update (DetailNoteFlashEnded version) second
+            Expect.isTrue stale.DetailNote.Value.Flashing "das Ende der alten leuchtet weiter"
+            let ended, _, _ = update (DetailNoteFlashEnded second.DetailNote.Value.Version) second
+            Expect.isFalse ended.DetailNote.Value.Flashing "eigenes Ende"
+            Expect.equal ended.DetailNote.Value.Text "Geändert" "die Bestätigung bleibt ohne Zeitlimit"
+
+        testCase "Der Zeitgeber des Leuchtens meldet nach 0,7 s das Ende mit der Nummer der Bestätigung" <| fun () ->
+            let model, cmd, _ =
+                Components.Ledger.State.update (EntryCategorySet (idOf 1, Some (catId 3), Ok (changed (Some lebensmittel) CategorySent))) (defaultModel ())
+            let other = function DetailNoteFlashEnded _ -> false | _ -> true
+            Expect.equal detailNoteFlashMs 700 "0,7 s wie `feedbackFlash`"
+            Tests.CmdTiming.expectAfterIgnoring other detailNoteFlashMs (DetailNoteFlashEnded model.DetailNote.Value.Version) cmd
+
+        testCase "Ein zweiter Tipp auf Rückgängig während der Rücknahme schickt nichts" <| fun () ->
+            let model = changedInDetail (defaultModel ())
+            let undo = model.DetailNote.Value.Undo |> Option.bind detailNoteUndoMsg |> Option.get
+            let restoring, sent, _ = run undo model
+            Expect.equal sent [ RunUndoCategory (idOf 1, Some lebensmittel) ] "ein Aufruf"
+            let again, sentAgain, _ = run undo restoring
+            Expect.equal again restoring "unverändert"
+            Expect.isEmpty sentAgain "kein zweiter Aufruf"
+
+        testCase "Rückgängig gescheitert: rot unter Kategorie; nach Rückgängig mit YNAB-Fehler gelb am Feld" <| fun () ->
+            let model = changedInDetail (defaultModel ())
+            let failed, _, external = update (EntryCategoryRestored (idOf 1, Some lebensmittel, Error "YNAB weg")) model
+            Expect.equal external NoOp "kein Toast"
+            Expect.equal (failed.DetailNote |> Option.map (fun n -> n.Tone, n.Text, n.Undo)) (Some (FeedbackError, "Rückgängig nicht möglich: YNAB weg", None)) "rot"
+            let outcome = changed (Some { CategoryId = catId 3; CategoryName = "Möbel" }) (CategorySendFailed "HTTP 500")
+            let warned, _, warnExternal = update (EntryCategoryRestored (idOf 1, Some lebensmittel, Ok outcome)) model
+            Expect.equal warnExternal NoOp "kein Toast"
+            Expect.equal (warned.DetailNote |> Option.map (fun n -> n.Tone, n.Text)) (Some (FeedbackWarning, "Zurückgesetzt, nicht in YNAB: HTTP 500")) "gelb"
+
+        testCase "Kategorie unverändert, aber nicht in YNAB: gelb unter Kategorie" <| fun () ->
+            let outcome = { Previous = Some lebensmittel; Change = CategoryUnchanged; WriteBack = CategorySendFailed "HTTP 500"; PreviousTransferAccountId = None }
+            let model, _, external = update (EntryCategorySet (idOf 1, Some (catId 1), Ok outcome)) (defaultModel ())
+            Expect.equal external NoOp "kein Toast"
+            Expect.equal (model.DetailNote |> Option.map (fun n -> n.Field, n.Tone, n.Text)) (Some (AtCategory, FeedbackWarning, "Nicht in YNAB: HTTP 500")) "gelb"
+
+        testCase "Rückgängig am Feld löst für Kategorie, Übertrag und Aufteilung dieselbe Nachricht aus wie früher der Toast" <| fun () ->
+            let kinds =
+                [ UndoCategory (idOf 1, Some lebensmittel)
+                  UndoTransfer (idOf 1, YnabAccountId (catGuid 9))
+                  UndoSplit (idOf 1, []) ]
+            for kind in kinds do
+                Expect.equal (detailNoteUndoMsg kind |> Option.map State.LedgerMsg) (Some (State.toastActionMsg kind)) $"%A{kind}"
     ]

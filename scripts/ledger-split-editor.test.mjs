@@ -152,7 +152,7 @@ async function openDetail(page, payee) {
   await page.waitForFunction((p) => document.querySelector('[data-testid="detail-title"]')?.textContent === p, payee);
 }
 
-test("[flow:aufteilen] PC: Aufteilen mit Übertrag über den Picker im Panel: Tastatur, Lage des Popovers, Vorzeichen und Rückgängig", async () => {
+test("[flow:aufteilen] PC: Aufteilen mit Übertrag über den Picker im Panel: Tastatur, Lage des Popovers, Vorzeichen und Rückgängig am Feld", async () => {
   resetState();
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const page = await open(context);
@@ -188,15 +188,21 @@ test("[flow:aufteilen] PC: Aufteilen mit Übertrag über den Picker im Panel: Ta
   await line(panel(page), 1).getByRole("button", { name: "Rest", exact: true }).click();
   assert.equal((await restOf(panel(page)).textContent()).trim(), "0,00 €");
   await save(panel(page)).click();
-  await page.locator(".toast-layer").getByText("Aufgeteilt in 2 Zeilen", { exact: true }).waitFor();
+  // ledger-p5y9s: „✓ Aufgeteilt in 2 Zeilen“ und „Rückgängig“ unter den Split-Zeilen im Panel, kein Toast.
+  const note = panel(page).locator('[data-testid="detail-note"][data-note-field="splits"]');
+  await note.getByText("Aufgeteilt in 2 Zeilen", { exact: true }).waitFor();
+  // Ein Toast ohne Bezug (nicht gemockte Einstellungen) darf stehen, keiner zur Kategorie oder Aufteilung.
+  assert.doesNotMatch(await page.locator(".toast-layer").textContent(), /Kategorie|Aufgeteilt|Aufteilung|Rückgängig/, "kein Toast");
   assert.equal(state.saveCalls.length, 1, "setEntrySplits genau einmal");
   assert.ok(state.saveCalls[0].lines[1].Target.ToTransfer, "zweite Zeile ist ein Übertrag");
   assert.equal(state.saveCalls[0].lines[1].Amount.Amount, -51.9, "Vorzeichen der Buchung");
   assert.match(await row(page, "Bauhaus").textContent(), /2 Split-Zeilen/);
 
-  await page.locator('[data-toast-action="true"]', { hasText: "Rückgängig" }).click();
+  await note.getByRole("button", { name: "Rückgängig" }).click();
   await pollUntil(() => state.saveCalls.length >= 2);
   assert.deepEqual(state.saveCalls[1].lines, [toCategory(CAT.lebensmittel, -81.9)]);
+  await note.waitFor({ state: "detached" });
+  assert.doesNotMatch(await page.locator(".toast-layer").textContent(), /Kategorie|Aufgeteilt|Aufteilung|Rückgängig|zurück/, "kein Rücknahme-Toast");
   await context.close();
 });
 

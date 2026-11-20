@@ -162,6 +162,8 @@ let init () : Model * Cmd<Msg> =
         CategoryCard = None
         CategoryCardVersion = 0
         RuleOffer = None
+        DetailNote = None
+        DetailNoteVersion = 0
         FilteredOut = Set.empty
         OrderStale = false
         EntriesGeneration = 0
@@ -1065,6 +1067,81 @@ let private splitSaveFailed (entryId: Guid) (text: string) (model: Model) : Mode
     | Some editor when editor.EntryId = entryId ->
         { cleared with SplitEditor = Some { editor with SaveError = Some text } }, Cmd.none, NoOp
     | _ -> cleared, Cmd.none, ShowToast (text, ToastError)
+
+/// Setzt die Bestätigung am Feld (ersetzt eine stehende, ledger-p5y9s) und beendet ihr Leuchten nach
+/// `detailNoteFlashMs`.
+let private postDetailNote (note: DetailNote) (model: Model) : Model * Cmd<Msg> =
+    let version = model.DetailNoteVersion + 1
+    let timer =
+        if note.Flashing then
+            Cmd.OfAsync.perform (fun () -> async { do! Async.Sleep detailNoteFlashMs }) () (fun () -> DetailNoteFlashEnded version)
+        else
+            Cmd.none
+    { model with DetailNote = Some { note with Version = version }; DetailNoteVersion = version }, timer
+
+/// Meldet nach dem Ort (`detailNoteRoute`): am Feld, in der Leiste (am PC Toast) oder auf der Karte des Durchgehens
+/// wie bisher (`onCard`, ledger-pz5wv).
+let private reportDetailNote
+    (route: DetailNoteRoute)
+    (note: DetailNote)
+    (onCard: ExternalMsg)
+    (model: Model, cmd: Cmd<Msg>)
+    : Model * Cmd<Msg> * ExternalMsg =
+    match route with
+    | NoteAtField ->
+        let model', timer = postDetailNote note model
+        model', Cmd.batch [ cmd; timer ], NoOp
+    | NoteOnReviewCard -> model, cmd, onCard
+    | NoteInBar -> model, cmd, PostFeedback (detailNoteBar note)
+
+/// Die Bestätigung dieser Buchung endet: „Rückgängig“ gelang oder eine neue Aktion auf ihrem Feld beginnt.
+let private clearDetailNote (entryId: Guid) (model: Model) : Model =
+    match model.DetailNote with
+    | Some note when note.EntryId = entryId -> { model with DetailNote = None }
+    | _ -> model
+
+/// Das Feld der stehenden Bestätigung dieser Buchung: dort steht auch der Fehler einer Rücknahme. Ohne Bestätigung
+/// „Kategorie“.
+let private detailNoteFieldOf (model: Model) (entryId: Guid) : DetailNoteField =
+    model.DetailNote
+    |> Option.filter (fun note -> note.EntryId = entryId)
+    |> Option.map (fun note -> note.Field)
+    |> Option.defaultValue AtCategory
+
+/// Ein Befehl auf Kategorie, Übertrag oder Aufteilung scheiterte (`note` ist der rote Fehler). Im offenen Detail steht
+/// er rot unter dem Feld, ohne Toast und ohne zweite Zeile in der Hinweisleiste. Sonst trägt die Zeile den
+/// Befehlsfehler (die Hinweisleiste zeigt ihn beim nächsten Öffnen) und die Leiste meldet ihn (am PC der Toast); die
+/// Karte des Durchgehens ohne „Details“ meldet wie bisher.
+let private categoryCommandFailed (entryId: Guid) (reason: string) (note: DetailNote) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
+    let failedRow = { model with CategoryRows = model.CategoryRows |> Map.add entryId (CategoryCommandFailed reason) }
+    match detailNoteRoute model entryId with
+    | NoteAtField ->
+        let model', timer = postDetailNote note { model with CategoryRows = model.CategoryRows |> Map.remove entryId }
+        model', timer, NoOp
+    | NoteOnReviewCard -> failedRow, Cmd.none, ShowToast ($"{note.BarAction}: {reason}", ToastError)
+    | NoteInBar -> failedRow, Cmd.none, PostFeedback (detailNoteBar note)
+
+/// Nach einer gelungenen Rücknahme: im offenen Detail steht der alte Wert im Feld und die Bestätigung ist weg (die
+/// Rücknahme-Toasts entfallen); eine YNAB-Warnung bleibt gelb am Feld. Ist das Detail zu, meldet die Leiste wie
+/// bisher (`closedText`).
+let private restoredReport
+    (route: DetailNoteRoute)
+    (entryId: Guid)
+    (field: DetailNoteField)
+    (outcome: CategoryChangeOutcome)
+    (closedText: string)
+    (model: Model, cmd: Cmd<Msg>)
+    : Model * Cmd<Msg> * ExternalMsg =
+    match outcome.WriteBack with
+    | CategorySendFailed reason ->
+        reportDetailNote
+            route
+            (restoredNotInYnabNote entryId field reason)
+            (ShowToast ($"{categoryHintTitle}: {reason}", ToastWarning))
+            (model, cmd)
+    | _ when outcome.Change = CategoryUnchanged -> model, cmd, NoOp
+    | _ when route = NoteAtField -> model, cmd, NoOp
+    | _ -> model, cmd, ShowToast (closedText, ToastSuccess)
 
 /// Der Name eines Übertrag-Ziels aus der Kontenliste.
 let private accountNameOf (model: Model) (id: YnabAccountId) : string option =
@@ -2649,7 +2726,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         whenRowIdle CategoryLock entryId model (fun () ->
             match findEntry model entryId with
             | Some entry when categoryLockFor entry = CategoryEditable ->
-                { model with
+                { clearDetailNote entryId model with
                     CategoryRows = model.CategoryRows |> Map.add entryId CategorySending
                     CategoryPickerFor = None
                     CategorySuggestions = []
@@ -2682,27 +2759,31 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
                 Cmd.batch [ cmd; Cmd.ofMsg (RunCheckRuleOffer (entryId, payee, memo, categoryId)) ]
             | _ -> model', cmd
         let newName = categoryOfId model newId |> Option.map (fun c -> c.Name)
-        let external =
-            match outcome.Change, outcome.WriteBack with
-            | CategoryUnchanged, CategorySendFailed reason -> ShowToast ($"{categoryHintTitle}: {reason}", ToastWarning)
-            | CategoryUnchanged, _ -> NoOp
-            | CategoryChanged, writeBack ->
-                let text =
-                    if isReviewCard model' entryId then
-                        reviewCategoryToastText newName (categoryOfId model' newId |> Option.bind (fun c -> c.Available))
-                    else categoryChangedToastText newName outcome.Previous
-                let action = { Label = undoToastLabel; Kind = undoKindFor entryId outcome }
-                match writeBack with
-                | CategorySendFailed reason ->
-                    ShowToastWithAction ($"{text}. {categoryHintTitle}: {reason}", ToastWarning, action)
-                | _ -> ShowToastWithAction (text, ToastSuccess, action)
-        model', Cmd.batch [ cmd; afterEntryChange entryId model' ], external
+        let route = detailNoteRoute model entryId
+        let payee = findEntry model entryId |> Option.bind (fun e -> e.Payee)
+        let cmd = Cmd.batch [ cmd; afterEntryChange entryId model' ]
+        match outcome.Change, outcome.WriteBack with
+        | CategoryUnchanged, CategorySendFailed reason ->
+            reportDetailNote
+                route
+                (notInYnabDetailNote entryId AtCategory reason)
+                (ShowToast ($"{categoryHintTitle}: {reason}", ToastWarning))
+                (model', cmd)
+        | CategoryUnchanged, _ -> model', cmd, NoOp
+        | CategoryChanged, writeBack ->
+            let failure = match writeBack with CategorySendFailed reason -> Some reason | _ -> None
+            let undo = undoKindFor entryId outcome
+            // Die Karte des Durchgehens ohne „Details“ meldet wie bisher (ledger-pz5wv).
+            let onCard =
+                let text = reviewCategoryToastText newName (categoryOfId model' newId |> Option.bind (fun c -> c.Available))
+                let action = { Label = undoToastLabel; Kind = undo }
+                match failure with
+                | Some reason -> ShowToastWithAction ($"{text}. {categoryHintTitle}: {reason}", ToastWarning, action)
+                | None -> ShowToastWithAction (text, ToastSuccess, action)
+            reportDetailNote route (categoryChangedNote entryId payee newId.IsNone failure undo) onCard (model', cmd)
 
     | EntryCategorySet (entryId, _, Error message) ->
-        { model with
-            CategoryRows = model.CategoryRows |> Map.add entryId (CategoryCommandFailed message) },
-        Cmd.none,
-        ShowToast ($"Kategorie nicht geändert: {message}", ToastError)
+        categoryCommandFailed entryId message (failedDetailNote entryId AtCategory "Nicht geändert" "Kategorie nicht geändert" message) model
 
     | StartUndoCategory (entryId, previous) ->
         whenRowIdle CategoryLock entryId model (fun () ->
@@ -2721,29 +2802,29 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         model, cmd, NoOp
 
     | EntryCategoryRestored (entryId, previous, Ok outcome) ->
-        // Ohne neue Karte, mit vertauschten Kategorien in Available; der Rücknahme-Toast hat
-        // kein "Rückgängig" (eine Aktion, ein Toast, eine Rücknahme).
+        // Ohne neue Karte, mit vertauschten Kategorien in Available. Im Detail steht danach die alte Kategorie im Feld,
+        // die Bestätigung verschwindet (ledger-p5y9s); eine YNAB-Warnung bleibt gelb am Feld.
         let newId = previous |> Option.map (fun p -> p.CategoryId)
         let fallback = previous |> Option.map (fun p -> p.CategoryName)
         let model', cmd = applyCategoryResult entryId newId fallback false outcome model |> afterTransferCleared entryId outcome
         let name = categoryOfId model newId |> Option.map (fun c -> c.Name) |> Option.orElse fallback
-        let external =
-            match outcome.WriteBack with
-            | CategorySendFailed reason -> ShowToast ($"{categoryHintTitle}: {reason}", ToastWarning)
-            | _ when outcome.Change = CategoryUnchanged -> NoOp
-            | _ -> ShowToast (categoryRestoredToastText name, ToastSuccess)
-        model', Cmd.batch [ cmd; afterEntryChange entryId model' ], external
+        let cmd = Cmd.batch [ cmd; afterEntryChange entryId model' ]
+        restoredReport
+            (detailNoteRoute model entryId)
+            entryId
+            AtCategory
+            outcome
+            (categoryRestoredToastText name)
+            (clearDetailNote entryId model', cmd)
 
     | EntryCategoryRestored (entryId, _, Error message) ->
-        { model with
-            CategoryRows = model.CategoryRows |> Map.add entryId (CategoryCommandFailed message) },
-        Cmd.none,
-        ShowToast ($"Rückgängig nicht möglich: {message}", ToastError)
+        categoryCommandFailed entryId message (undoFailedDetailNote entryId AtCategory message) model
 
     | StartSetEntryTransfer (entryId, account, undo) ->
         whenRowIdle CategoryLock entryId model (fun () ->
             match findEntry model entryId with
             | Some entry when categoryLockFor entry = CategoryEditable ->
+                let model = if undo then model else clearDetailNote entryId model
                 { model with
                     CategoryRows = model.CategoryRows |> Map.add entryId CategorySending
                     CategoryPickerFor = None
@@ -2767,29 +2848,39 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         let (YnabAccountId accountGuid) = account
         let name = transferAccountName model accountGuid
         let failed = match outcome.WriteBack with CategorySendFailed reason -> Some reason | _ -> None
-        let external =
-            match outcome.Change, failed with
-            | CategoryUnchanged, Some reason -> ShowToast ($"{categoryHintTitle}: {reason}", ToastWarning)
-            | CategoryUnchanged, None -> NoOp
-            | CategoryChanged, _ ->
-                let text =
-                    if undo then transferUndoneToastText name
-                    elif isReviewCard model' entryId then reviewTransferToastText name
-                    else transferSetToastText name
-                let text, toastType =
-                    match failed with
-                    | Some reason -> $"{text}. {categoryHintTitle}: {reason}", ToastWarning
-                    | None -> text, ToastSuccess
-                if undo then ShowToast (text, toastType)
-                else ShowToastWithAction (text, toastType, { Label = undoToastLabel; Kind = undoKindFor entryId outcome })
         let refresh = if outcome.Change = CategoryChanged then Cmd.ofMsg (RunRefreshEntry entryId) else Cmd.none
-        model', Cmd.batch [ refresh; afterEntryChange entryId model' ], external
+        let cmd = Cmd.batch [ refresh; afterEntryChange entryId model' ]
+        let route = detailNoteRoute model entryId
+        // Die Karte des Durchgehens ohne „Details“ meldet wie bisher (ledger-pz5wv).
+        let toastOf text =
+            match failed with
+            | Some reason -> $"{text}. {categoryHintTitle}: {reason}", ToastWarning
+            | None -> text, ToastSuccess
+        match outcome.Change, failed with
+        | CategoryUnchanged, Some reason ->
+            reportDetailNote
+                route
+                (notInYnabDetailNote entryId AtCategory reason)
+                (ShowToast ($"{categoryHintTitle}: {reason}", ToastWarning))
+                (model', cmd)
+        | CategoryUnchanged, None -> model', cmd, NoOp
+        | CategoryChanged, _ when undo ->
+            restoredReport route entryId AtCategory outcome (transferUndoneToastText name) (clearDetailNote entryId model', cmd)
+        | CategoryChanged, _ ->
+            let kind = undoKindFor entryId outcome
+            let payee = findEntry model entryId |> Option.bind (fun e -> e.Payee)
+            let text, toastType = toastOf (reviewTransferToastText name)
+            reportDetailNote
+                route
+                (transferSetNote entryId name payee failed kind)
+                (ShowToastWithAction (text, toastType, { Label = undoToastLabel; Kind = kind }))
+                (model', cmd)
 
     | EntryTransferSet (entryId, _, undo, Error message) ->
-        { model with
-            CategoryRows = model.CategoryRows |> Map.add entryId (CategoryCommandFailed message) },
-        Cmd.none,
-        ShowToast ((if undo then $"Rückgängig nicht möglich: {message}" else $"Übertrag nicht gesetzt: {message}"), ToastError)
+        let note =
+            if undo then undoFailedDetailNote entryId AtCategory message
+            else failedDetailNote entryId AtCategory "Nicht gesetzt" "Übertrag nicht gesetzt" message
+        categoryCommandFailed entryId message note model
 
     | StartRetryCategorization entryId ->
         whenRowIdle CategoryLock entryId model (fun () ->
@@ -2822,8 +2913,11 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             | Some entry ->
                 replaceEntry { entry with CategorizationWriteBackFailure = failure; SplitLocks = locksOf entry } cleared
             | None -> cleared
+        // Im offenen Detail zeigt die Hinweisleiste „Kategorie nicht in YNAB“ den neuen Grund (Zustand, keine
+        // Meldung, ledger-p5y9s).
         let external =
             match writeBack with
+            | CategorySendFailed _ when detailShows model entryId -> NoOp
             | CategorySendFailed reason -> ShowToast ($"{categoryHintTitle}: {reason}", ToastWarning)
             | _ -> NoOp
         model', afterEntryChange entryId model', external
@@ -3745,7 +3839,9 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         // Nach Erfolg schließt das Detail (ADR 0092 Punkt 2). Steht die Buchung in der Liste, hinterlässt sie dort die
         // Zeile „… gelöscht · Rückgängig“, ohne Meldung, auf jeder Breite (R3, ledger-k68sd). Sonst meldet die Leiste,
         // am PC der Toast, mit „Rückgängig“.
-        let model = { model with DeletingEntries = model.DeletingEntries.Remove entryId }
+        // Das Löschen ist die neue Aktion im Detail: es ersetzt die Bestätigung am Feld dieser Buchung, sonst ginge deren
+        // „Rückgängig“ beim Schließen für die gelöschte Buchung in die Leiste (ledger-p5y9s, `handOverDetailNote`).
+        let model = clearDetailNote entryId { model with DeletingEntries = model.DeletingEntries.Remove entryId }
         let payee =
             model.DetailFor
             |> Option.filter (fun d -> d.Id = entryId)
@@ -3872,7 +3968,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
                         match editor.AmountFrom with
                         | Some _ -> RunSaveSplitsWithAmount (editor.EntryId, lines, editor.Total)
                         | None -> RunSaveSplits (editor.EntryId, lines)
-                    { model with
+                    { clearDetailNote editor.EntryId model with
                         CategoryRows = model.CategoryRows |> Map.add editor.EntryId CategorySending
                         SplitEditor = Some { editor with SaveError = None } },
                     Cmd.ofMsg run,
@@ -3893,25 +3989,34 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         // Der Stand vor dem Speichern steht noch in der Liste: daraus kommt der Rückweg.
         let before = findEntry model entryId
         let model', cmd = applySplitResult entryId lines outcome model
-        let external =
-            match outcome.Change, outcome.WriteBack, before with
-            | CategoryUnchanged, CategorySendFailed reason, _ ->
-                ShowToast ($"{categoryHintTitle}: {reason}", ToastWarning)
-            | CategoryUnchanged, _, _ -> NoOp
-            | CategoryChanged, writeBack, Some entry ->
-                let text = SplitEditor.savedToastText lines
-                let full =
-                    match writeBack with
-                    | CategorySendFailed reason -> $"{text}. {categoryHintTitle}: {reason}"
-                    | _ -> text
-                let tone = (match writeBack with CategorySendFailed _ -> ToastWarning | _ -> ToastSuccess)
+        let cmd = Cmd.batch [ cmd; afterEntryChange entryId model' ]
+        let route = detailNoteRoute model entryId
+        let unsplit = SplitEditor.isUnsplitResult lines
+        let field = if unsplit then AtCategory else AtSplits
+        match outcome.Change, outcome.WriteBack, before with
+        | CategoryUnchanged, CategorySendFailed reason, _ ->
+            reportDetailNote
+                route
+                (notInYnabDetailNote entryId field reason)
+                (ShowToast ($"{categoryHintTitle}: {reason}", ToastWarning))
+                (model', cmd)
+        | CategoryUnchanged, _, _ -> model', cmd, NoOp
+        | CategoryChanged, writeBack, Some entry ->
+            let text = SplitEditor.savedToastText lines
+            let failure = match writeBack with CategorySendFailed reason -> Some reason | _ -> None
+            let undo =
                 if SplitEditor.undoAvailable entry.SplitLocks lines then
-                    let restore = SplitEditor.undoLines (SplitEditor.startState entry).Before entry.Amount
-                    ShowToastWithAction (full, tone, { Label = SplitEditor.undoLabel; Kind = UndoSplit (entryId, restore) })
+                    Some (UndoSplit (entryId, SplitEditor.undoLines (SplitEditor.startState entry).Before entry.Amount))
                 else
-                    ShowToast (full, tone)
-            | CategoryChanged, _, None -> NoOp
-        model', Cmd.batch [ cmd; afterEntryChange entryId model' ], external
+                    None
+            let onCard =
+                let full = match failure with Some reason -> $"{text}. {categoryHintTitle}: {reason}" | None -> text
+                let tone = if failure.IsSome then ToastWarning else ToastSuccess
+                match undo with
+                | Some kind -> ShowToastWithAction (full, tone, { Label = SplitEditor.undoLabel; Kind = kind })
+                | None -> ShowToast (full, tone)
+            reportDetailNote route (splitSavedNote entryId text unsplit entry.Payee failure undo) onCard (model', cmd)
+        | CategoryChanged, _, None -> model', cmd, NoOp
 
     | RunSaveSplitsWithAmount (entryId, lines, amount) ->
         let cmd =
@@ -3931,14 +4036,21 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             match findEntry model' entryId with
             | Some entry when changed -> replaceEntry { entry with Amount = amount } model'
             | _ -> model'
-        let external =
-            match outcome.WriteBack with
-            | CategorySendFailed reason -> ShowToast ($"{amountToastText amount}. {amountHintTitle}: {reason}", ToastWarning)
-            | _ when changed -> ShowToast (amountToastText amount, ToastSuccess)
-            | _ -> NoOp
         let follow = if changed then afterAmountChange entryId model'' else Cmd.none
         // Ein Fehlschlag holt die Buchung ohnehin neu (`applySplitResult`); sonst die Sperren nach dem Ersatz.
-        model'', Cmd.batch [ cmd; follow ], external
+        let cmd = Cmd.batch [ cmd; follow ]
+        let amountText = Client.DesignSystem.Money.formatAmountText false true amount.Amount amount.Currency
+        let route = detailNoteRoute model entryId
+        match outcome.WriteBack with
+        | CategorySendFailed reason ->
+            reportDetailNote
+                route
+                (amountChangedNote entryId amountText (Some reason))
+                (ShowToast ($"{amountToastText amount}. {amountHintTitle}: {reason}", ToastWarning))
+                (model'', cmd)
+        | _ when changed ->
+            reportDetailNote route (amountChangedNote entryId amountText None) (ShowToast (amountToastText amount, ToastSuccess)) (model'', cmd)
+        | _ -> model'', cmd, NoOp
 
     // Der Editor bleibt offen: der Entwurf geht nicht verloren.
     | SplitsWithAmountSaved (entryId, _, _, Error message) ->
@@ -3962,19 +4074,18 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         model, cmd, NoOp
 
     | SplitsRestored (entryId, lines, Ok outcome) ->
-        // Ohne neuen Toast-Knopf: eine Aktion, ein Toast, eine Rücknahme.
+        // Ohne neuen Knopf: eine Aktion, eine Rücknahme. Im Detail steht die alte Aufteilung, die Bestätigung ist weg.
         let model', cmd = applySplitResult entryId lines outcome model
-        let external =
-            match outcome.WriteBack with
-            | CategorySendFailed reason -> ShowToast ($"{categoryHintTitle}: {reason}", ToastWarning)
-            | _ when outcome.Change = CategoryUnchanged -> NoOp
-            | _ -> ShowToast ("Aufteilung zurückgenommen", ToastSuccess)
-        model', Cmd.batch [ cmd; afterEntryChange entryId model' ], external
+        restoredReport
+            (detailNoteRoute model entryId)
+            entryId
+            (if SplitEditor.isUnsplitResult lines then AtCategory else AtSplits)
+            outcome
+            "Aufteilung zurückgenommen"
+            (clearDetailNote entryId model', Cmd.batch [ cmd; afterEntryChange entryId model' ])
 
     | SplitsRestored (entryId, _, Error message) ->
-        { model with CategoryRows = model.CategoryRows |> Map.add entryId (CategoryCommandFailed message) },
-        Cmd.none,
-        ShowToast ($"Rückgängig nicht möglich: {message}", ToastError)
+        categoryCommandFailed entryId message (undoFailedDetailNote entryId (detailNoteFieldOf model entryId) message) model
 
     | RunRefreshEntry entryId ->
         let answer = entryRefreshAnswer model entryId
@@ -4069,6 +4180,11 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
     | RuleOfferChecked _ -> model, Cmd.none, NoOp
 
     | RuleOfferDismissed -> { model with RuleOffer = None }, Cmd.none, NoOp
+
+    | DetailNoteFlashEnded version ->
+        match model.DetailNote with
+        | Some note when note.Version = version -> { model with DetailNote = Some { note with Flashing = false } }, Cmd.none, NoOp
+        | _ -> model, Cmd.none, NoOp
 
     | CategoryCardExpired version ->
         match model.CategoryCard with
@@ -4978,6 +5094,8 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         match model'.RuleOffer with
         | Some offer when not (ruleOfferStays model' offer) -> { model' with RuleOffer = None }
         | _ -> model'
+    // Detail schließt mit offener Bestätigung (ledger-p5y9s): mit „Rückgängig“ wandert sie in die Leiste.
+    let model', external = handOverDetailNote (model', external)
     let detailId = model'.DetailFor |> Option.map (fun d -> d.Id)
     let pickerStays = model'.CategoryPickerFor.IsNone || model'.CategoryPickerFor = detailId
     let cardStays = model'.CategoryCard |> Option.forall (fun c -> Some c.EntryId = detailId)

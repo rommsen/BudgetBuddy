@@ -278,3 +278,31 @@ let deletedRowTests =
             Expect.isFalse (leaves Page.Ledger (Page.LedgerEntry (idOf 1))) "Buchung"
             Expect.isFalse (leaves Page.Overview Page.Ledger) "kommt"
     ]
+
+// ledger-p5y9s (Verifier, Iteration 1): das Löschen ist die neue Aktion im Detail und ersetzt die Bestätigung am Feld.
+// Vorher schickte `handOverDetailNote` deren „Rückgängig“ für die gelöschte Buchung in die Leiste.
+[<Tests>]
+let deleteWithDetailNoteTests =
+    testList "Buchung löschen mit offener Bestätigung am Feld (ledger-p5y9s)" [
+
+        testCase "Löschen gelingt bei offener Bestätigung mit Rückgängig: nur die Zeile am Platz, keine Meldung" <| fun () ->
+            let note = categoryChangedNote (idOf 1) (Some "Payee 1") false None (UndoCategory (idOf 1, None))
+            let model = { modelWith [ entryOf 1; entryOf 2 ] with DetailNote = Some note; DeletingEntries = Set.singleton (idOf 1) }
+            let after, _, external = run (EntryDeleteFinished (idOf 1, Ok ())) model
+            Expect.isSome after.DeletedRow "Zeile am Platz"
+            Expect.isNone after.DetailNote "Bestätigung ersetzt"
+            Expect.equal external NoOp "kein Rückgängig für die gelöschte Buchung in der Leiste"
+
+        testCase "Löschen einer Buchung außerhalb der Liste: nur „gelöscht“ in der Leiste, nicht die Bestätigung" <| fun () ->
+            let note = categoryChangedNote (idOf 9) (Some "Payee 9") false None (UndoCategory (idOf 9, None))
+            let model =
+                { modelWith [ entryOf 1; entryOf 2 ] with
+                    DetailFor = Some (entryOf 9)
+                    DetailNote = Some note
+                    DeletingEntries = Set.singleton (idOf 9) }
+            let after, _, external = run (EntryDeleteFinished (idOf 9, Ok ())) model
+            Expect.isNone after.DetailNote "Bestätigung ersetzt"
+            match external with
+            | PostFeedback feedback -> Expect.notEqual feedback (detailNoteBar note) "die Meldung des Löschens, nicht die Bestätigung"
+            | other -> failtestf "Meldung „gelöscht“ erwartet: %A" other
+    ]

@@ -1485,6 +1485,10 @@ let private FeedbackDemo () =
                                 ]
                             ]
                             Feedback.fieldNote "Bahn · 84,20 € verfügbar" (Some undo)
+                            // ledger-p5y9s: mit Ton, wie im Detail des Kassenbuchs.
+                            Feedback.fieldNoteWith Feedback.Tone.Ok "Geändert" (Some undo)
+                            Feedback.fieldNoteWith Feedback.Tone.Warning "Geändert, nicht in YNAB: HTTP 500" (Some undo)
+                            Feedback.fieldNoteWith Feedback.Tone.Error "Nicht geändert: YNAB nicht erreichbar" None
                             // „✓ Gespeichert“ in der Erfolgsrolle (Einstellungen, banking-import-vwhfm).
                             Feedback.saved "✓ Gespeichert"
                         ]

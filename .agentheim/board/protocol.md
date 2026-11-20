@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-20 05:08 -- Task verified and completed: ledger-p5y9s - "Kassenbuch am Handy ohne Toast (R3), Teil 2 Detail I: Rückgängig am Feld im Detail-Sheet als Mechanik, Kategorie, Übertrag und Aufteilen bestätigen am Feld, Fehler am Feld, Übergang beim Schließen"
+
+**Type:** Work / Task completion
+**Task:** ledger-p5y9s - "Kassenbuch am Handy ohne Toast (R3), Teil 2 Detail I: Rückgängig am Feld im Detail-Sheet als Mechanik, Kategorie, Übertrag und Aufteilen bestätigen am Feld, Fehler am Feld, Übergang beim Schließen"
+**Summary:** Kassenbuch ohne Toast, Teil 2: Kategorie, Übertrag und Aufteilen mit Rückgängig am Feld im Detail
+**Duration:** 150m
+**Verification:** PASS (iteration 2: Löschen bei offener Bestätigung behoben; nach Merge-Auflösungen; Sweep-Flackern einzeln grün)
+**Files changed:** 13
+**Tests added:** 19
+**ADRs written:** none
+
+---
+
 ## 2026-11-20 05:08 -- Task verified and completed: budgeting-sx9v5 - "Targets und Kategorien verwalten am Handy ohne Toast (R3): Ergebnis am Target im Sheet und in der Zeile der Prüfung, Kategorien verwalten mit leuchtender Zeile und Fehler am Feld, Hinweis „nicht neu gelesen“ auf der Seite"
 
 **Type:** Work / Task completion

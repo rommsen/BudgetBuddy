@@ -1411,6 +1411,36 @@ let private detailTitleHead (today: DateTime) (model: Model) (entry: LedgerEntry
 /// Die Betragszeile: der Betrag als Knopf, der das Sheet "Betrag" öffnet; gesperrt steht er ohne Pfeil, mit dem
 /// Grund darunter (ADR 0092). Rechts der Prüfstand, nicht bei einer in YNAB gelöschten Buchung: sie ist ein
 /// Lesezustand ohne Prüf-Knopf, ein „zu prüfen“ daneben verspräche eine Aktion, die es nicht gibt.
+/// Der Ton der Bestätigung am Feld im Design-System.
+let private noteTone (tone: FeedbackTone) : Feedback.Tone =
+    match tone with
+    | FeedbackOk -> Feedback.Tone.Ok
+    | FeedbackWarning -> Feedback.Tone.Warning
+    | FeedbackError -> Feedback.Tone.Error
+    | FeedbackRunning -> Feedback.Tone.Running
+    | FeedbackInfo -> Feedback.Tone.Info
+
+/// Die Bestätigung unter einem Feld des Details (ledger-p5y9s, R3 Platz 1): „✓ Geändert · Rückgängig“, gelb bei
+/// einer YNAB-Warnung, rot bei einem Fehler. „Rückgängig“ schickt dieselbe Nachricht wie früher der Toast.
+let private detailNoteView (dispatch: Msg -> unit) (model: Model) (entry: LedgerEntryView) (field: DetailNoteField) : ReactElement =
+    match detailNoteAt model entry.Id field with
+    | Some note ->
+        let act =
+            note.Undo
+            |> Option.bind detailNoteUndoMsg
+            |> Option.map (fun msg -> ({ Label = undoToastLabel; OnClick = fun () -> dispatch msg } : Feedback.Act))
+        Html.div [
+            prop.custom ("data-testid", "detail-note")
+            prop.custom ("data-note-field", (match field with AtCategory -> "category" | AtSplits -> "splits" | AtAmount -> "amount"))
+            prop.className $"px-4 detail-inset py-1.5 border-b {Tokens.Borders.subtle}"
+            prop.children [ Feedback.fieldNoteWith (noteTone note.Tone) note.Text act ]
+        ]
+    | None -> Html.none
+
+/// Leuchtet das Feld der Bestätigung gerade (`Feedback.flash`)?
+let private noteFlashing (model: Model) (entry: LedgerEntryView) (field: DetailNoteField) : bool =
+    detailNoteAt model entry.Id field |> Option.exists (fun note -> note.Flashing)
+
 let private detailAmountRow (dispatch: Msg -> unit) (model: Model) (entry: LedgerEntryView) =
     let amountElement =
         match amountLockFor entry with
@@ -1421,7 +1451,15 @@ let private detailAmountRow (dispatch: Msg -> unit) (model: Model) (entry: Ledge
                 entry.Amount.Currency
                 amountEditLabel
                 (amountEditMsg model entry |> Option.map (fun msg -> fun () -> dispatch msg))
-    Detail.amountRow amountElement (if detailReadOnly entry then Html.none else Detail.reviewStatus entry.NeedsReview)
+    React.fragment [
+        Html.div [
+            prop.className ("rounded-md" + (if noteFlashing model entry AtAmount then " " + Feedback.flash else ""))
+            prop.children [
+                Detail.amountRow amountElement (if detailReadOnly entry then Html.none else Detail.reviewStatus entry.NeedsReview)
+            ]
+        ]
+        detailNoteView dispatch model entry AtAmount
+    ]
 
 /// Der Kopf über dem Split-Editor: der Gesamtbetrag des Editors ohne Knopf. Kommt der Editor aus
 /// dem Sheet "Betrag", steht dort schon der neue Betrag (ledger-m7mye).
@@ -1571,8 +1609,9 @@ let private categoryField (dispatch: Msg -> unit) (model: Model) (entry: LedgerE
     let pickerProps = detailPickerProps dispatch model entry
     React.fragment [
         Html.div [
-            // Das Popover hängt unter dieser Zeile (`position: relative`, wie bei den Chips).
-            prop.className "relative"
+            // Das Popover hängt unter dieser Zeile (`position: relative`, wie bei den Chips). Nach einer Änderung
+            // leuchtet die Zeile kurz (ledger-p5y9s).
+            prop.className ("relative" + (if noteFlashing model entry AtCategory then " " + Feedback.flash else ""))
             prop.children [
                 Detail.fieldRowWith
                     (if arrowMsg.IsSome then Some onArrow else None)
@@ -1597,6 +1636,7 @@ let private categoryField (dispatch: Msg -> unit) (model: Model) (entry: LedgerE
                 | PickerSheet -> ()
             ]
         ]
+        detailNoteView dispatch model entry AtCategory
         match categoryCardLinesFor model entry with
         | [] -> ()
         | lines ->
@@ -1841,7 +1881,13 @@ let private detailContent (dispatch: Msg -> unit) (model: Model) (entry: LedgerE
 
               match splitLineTexts entry with
               | [] -> ()
-              | lines -> Detail.splitCard lines
+              | lines ->
+                  Html.div [
+                      prop.className (if noteFlashing model entry AtSplits then Feedback.flash else "")
+                      prop.children [ Detail.splitCard lines ]
+                  ]
+
+              detailNoteView dispatch model entry AtSplits
 
               match ruleOfferFor model entry with
               | Some payee -> ruleOfferRow dispatch entry payee
