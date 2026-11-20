@@ -5,6 +5,22 @@ Newest entries on top.
 
 ---
 
+## 2026-11-20 23:42 -- Modeling / Promoted: budgeting-nyx75 - "Kategorie-Gruppe in BB deaktivieren: die Gruppe verschwindet samt ihren Kategorien aus Budget-Liste und Pickern, in YNAB bleibt sie"
+
+**Type:** Modeling / Promote
+**BC:** budgeting
+**From → To:** backlog → todo
+
+---
+
+## 2026-11-20 23:42 -- Modeling / Promoted: ledger-cyd1t - "Durchgehen: Textlink „Aufteilen“ unter dem Feld Kategorie öffnet das Detail mit offenem Split-Editor, ohne Umweg über „Details“"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-20 23:37 -- Modeling / Refined: ledger-cyd1t - Aufteilen auf der Karte
 
 **Type:** Modeling / Refine

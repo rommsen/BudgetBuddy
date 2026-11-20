@@ -10,14 +10,15 @@ Catalog of this bounded context's tasks by status.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 7
-- **Todo:** 2
+- **Backlog:** 6
+- **Todo:** 3
 - **Doing:** 0
 - **Done:** 73
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **budgeting-nyx75** — "Kategorie-Gruppe in BB deaktivieren: die Gruppe verschwindet samt ihren Kategorien aus Budget-Liste und Pickern, in YNAB bleibt sie" (feature) — `todo/budgeting-nyx75-gruppe-deaktivieren.md`
 - **budgeting-m5pqn** — "Budget-Monat aus BB: YNAB-Stand je Monat festhalten, getBudgetMonth liest nur die Datenbank, Verfügbar und Zu verteilen leitet BB aus Soll, Kassenbuch und Stand ab" (feature) — `todo/budgeting-m5pqn-budget-seite-sofort-aus-bb.md`
 - **budgeting-yx51n** — "Budget-Rahmen aus BB: Monatsfenster und Kategorie-Platzierung als YNAB-Stand, der Rahmen der Budget-Seite liest ohne YNAB-Aufruf" (feature) — `todo/budgeting-yx51n-budget-rahmen-aus-bb.md`
 <!-- todo-list:end -->
@@ -112,7 +113,6 @@ prior-art matcher additionally checks `done-archive/` when present.
 <!-- backlog-list:start -->
 - **budgeting-vksa6** — "Budget-Seite hält den Monat beim Ortswechsel: Rückkehr aus Kassenbuch, Übersicht oder Einstellungen zeigt den geladenen Monat sofort und liest still nach" (feature) — `backlog/budgeting-vksa6-budget-monat-beim-ortswechsel-halten.md`
 - **budgeting-ffjk9** — "Nachziehen beim Öffnen: Budget-Seite und Übersicht zeigen sofort BBs Stand und gleichen danach still mit YNAB ab (syncBudgetMonth, Frische 60 s und 5 min, spätere Monate veraltet)" (feature) — `backlog/budgeting-ffjk9-budget-nachziehen-beim-oeffnen.md`
-- **budgeting-nyx75** — "Kategorie-Gruppe in BB deaktivieren: die Gruppe verschwindet samt ihren Kategorien aus Budget-Liste und Pickern, in YNAB bleibt sie" (feature) — `backlog/budgeting-nyx75-gruppe-deaktivieren.md`
 - **budgeting-k7m3q** — "Kann-Sammlung budgeting" (chore) — `backlog/budgeting-k7m3q-kann-sammlung-budgeting.md`
 - **budgeting-wnkgj** — "Budget-Seite angleichen (Teil D): Kopf, Gruppensummen, Panel am PC, Kategorie-Detail, Dialog „Targets anwenden“, Leerflächen am PC" (feature) — `backlog/budgeting-wnkgj-budget-angleichen.md`
 - **budgeting-h9c3w** — "Kann-Sammlung budgeting" (chore) — `backlog/budgeting-h9c3w-review-befunde-sammlung.md`

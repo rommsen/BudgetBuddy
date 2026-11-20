@@ -1,7 +1,7 @@
 ---
 id: ledger-cyd1t
 title: "Durchgehen: Textlink „Aufteilen“ unter dem Feld Kategorie öffnet das Detail mit offenem Split-Editor, ohne Umweg über „Details“"
-status: backlog
+status: todo
 type: feature
 context: ledger
 created: 2026-11-20
@@ -21,7 +21,7 @@ will den Einstieg direkt auf der Karte. Das nimmt Abweichung (a) zurück.
 
 ## What
 Vorlage ist die Skizze zu dieser Task (https://claude.ai/artifact/Ko5u9VtVYxY9hFsqCV83LD, Version 4, von Roman
-freizugeben).
+am 2026-11-20 freigegeben).
 
 Entschieden (Roman, 2026-11-20): kein eigener Ort für den Editor über der Karte, sondern der vorhandene Weg über das
 Detail wird wiederverwendet. „Aufteilen“ tut dasselbe wie „Details“ und öffnet direkt danach den Split-Editor.

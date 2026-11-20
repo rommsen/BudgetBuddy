@@ -1,7 +1,7 @@
 ---
 id: budgeting-nyx75
 title: "Kategorie-Gruppe in BB deaktivieren: die Gruppe verschwindet samt ihren Kategorien aus Budget-Liste und Pickern, in YNAB bleibt sie"
-status: backlog
+status: todo
 type: feature
 context: budgeting
 created: 2026-11-20
@@ -65,7 +65,8 @@ bleiben deaktiviert und stehen danach einzeln im Abschnitt „Deaktiviert“. BB
 - Regeln aus `rules.yml`, bestehende Buchungen und Historie: wie bei einer einzeln deaktivierten Kategorie, keine
   eigene Prüfung, keine Warnung.
 
-**Seite „Kategorien“** (Form legt die Skizze fest)
+**Seite „Kategorien“** (Form legt die Skizze fest: https://claude.ai/artifact/Ko5u9VtVYxY9hFsqCV83LD, Abschnitt 2,
+Version 4, von Roman am 2026-11-20 freigegeben)
 - Eine deaktivierte Gruppe fehlt oben und steht im Abschnitt „Deaktiviert (n)“ als ein Eintrag, ihre Kategorien nicht
   einzeln: Name gedämpft, darunter klein „Gruppe · 3 Kategorien“ (ohne Kategorien „Gruppe · keine Kategorien“), rechts
   „Aktivieren“ (secondary, klein, Name „Gruppe Wohnen aktivieren“). Gruppen in YNABs Folge vor den einzelnen
@@ -123,7 +124,7 @@ bleiben deaktiviert und stehen danach einzeln im Abschnitt „Deaktiviert“. BB
       im Outcome. [human-eye]
 
 ## Notes
-- Entschieden (Roman, 2026-11-20, alle Empfehlungen; Nachtrag ADR 0088 freigegeben). Offen nur die Skizze:
+- Entschieden (Roman, 2026-11-20, alle Empfehlungen; Nachtrag ADR 0088 freigegeben). Skizze freigegeben (2026-11-20, Version 4, Abschnitt 2):
   1. Wo deaktiviert man? (a) Schalter „Aktiv“ im Gruppen-Formular, (b) eigener Textknopf am Gruppenkopf.
      Entschieden (a).
   2. Was bringt „Aktivieren“ zurück? Entschieden: nur die vorher aktiven Kategorien.
