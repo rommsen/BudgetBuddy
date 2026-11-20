@@ -35,6 +35,8 @@
   --color-surface-elevated: var(--bg-elevated);
   --color-surface-input: var(--bg-input);
   --color-surface-hover: var(--bg-hover);
+  /* Eine Stufe heller als surface-hover, Text darauf in text-primary: „Später“ eingerastet (ledger-s2cg3). */
+  --color-surface-hover-strong: var(--bg-hover-strong);
 
   /* Border Colors */
   --color-border-default: var(--border);
@@ -592,9 +594,11 @@ nav a:focus-visible {
   }
 }
 
-/* Eine Zeile in einer Karte mit `overflow-clip` (Kategorien, Targets prüfen): der Ring außen läge abgeschnitten, dort
-   leuchtet die Zeile innen (budgeting-sx9v5, Skizze `.flash-row`). */
-.overflow-clip .feedback-flash:not(:has(> .input-field)) {
+/* Eine Zeile in einer Karte mit `overflow-clip` (Kategorien, Targets prüfen) oder in einer Karte mit
+   `Feedback.flashInside` (Regeln, `overflow-hidden`): der Ring außen läge abgeschnitten, dort leuchtet die Zeile innen
+   (budgeting-sx9v5, Skizze `.flash-row`). */
+.overflow-clip .feedback-flash:not(:has(> .input-field)),
+.feedback-flash-inside .feedback-flash:not(:has(> .input-field)) {
   animation: feedbackFlashInset 0.7s ease-out;
 }
 
@@ -831,7 +835,8 @@ nav a:focus-visible {
     border-color: var(--color-accent);
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 22%, transparent);
   }
-  .overflow-clip .feedback-flash:not(:has(> .input-field)) {
+  .overflow-clip .feedback-flash:not(:has(> .input-field)),
+  .feedback-flash-inside .feedback-flash:not(:has(> .input-field)) {
     animation: none !important;
     border-color: var(--color-accent);
     box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--color-accent) 45%, transparent);
@@ -1602,7 +1607,7 @@ nav a:focus-visible {
   color: var(--color-text-secondary);
 }
 .review-swipe-under.is-skip.is-armed {
-  background: var(--bg-hover-strong);
+  background: var(--color-surface-hover-strong);
   color: var(--color-text-primary);
 }
 .review-swipe-under.is-no-target {

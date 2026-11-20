@@ -46,6 +46,8 @@ module Backgrounds =
     let surface = "bg-surface-elevated"
     let elevated = "bg-surface-input"
     let subtle = "bg-surface-input"
+    /// Eine Stufe heller als `surface-hover`, Text darauf nur in `text-primary` („Später“ eingerastet, ledger-s2cg3).
+    let hoverStrong = "bg-surface-hover-strong"
 
     /// Gefüllte Fläche der Hauptaktion (Text darauf `Colors.onAccent`)
     let accent = "bg-accent"
@@ -54,6 +56,7 @@ module Backgrounds =
     let accentSubtle = "bg-accent/10"
     let attentionSubtle = "bg-attention/10"
     let successSubtle = "bg-success/10"
+    let errorSubtle = "bg-error/10"
 
 /// Border color tokens
 module Borders =

@@ -56,7 +56,7 @@ let settingsFeedbackTests =
                 let editing = { loaded () with EditingSection = Some section }
                 let saved, cmd, external = run answer editing
                 Expect.isNone saved.EditingSection "Abschnitt geschlossen"
-                expectFeedback saved (CardHead section) (SettingsNote.Done "✓ Gespeichert")
+                expectFeedback saved (CardHead section) (SettingsNote.Done "Gespeichert")
                 Expect.equal saved.Flash (Some (SectionRow section)) "die geänderte Zeile leuchtet"
                 Expect.equal external NoOp "kein Toast"
                 Tests.CmdTiming.expectAfter SettingsState.flashDurationMs (FlashEnded (SectionRow section)) cmd
@@ -112,7 +112,7 @@ let settingsFeedbackTests =
               { loadedYnab with QuickAddAccountId = Some accountId } ] do
             test $"{label}: gespeichert steht darunter „✓ Gespeichert“, abgelehnt rot der Grund und der alte Wert" {
                 let saved, _, external = run ok (loaded ())
-                expectFeedback saved (Field field) (SettingsNote.Done "✓ Gespeichert")
+                expectFeedback saved (Field field) (SettingsNote.Done "Gespeichert")
                 Expect.equal external NoOp "kein Toast"
                 Expect.equal saved.Settings (Success { loadedView with Ynab = Some stored }) "der neue Wert gilt, die übrigen bleiben"
                 let failed, _, external = run rejected (loaded ())
@@ -124,12 +124,12 @@ let settingsFeedbackTests =
         test "Automatisch abrufen: der Schalter bestätigt unter sich selbst" {
             let off, _, _ = run (SetAutoFetchEnabled false) (loaded ())
             let saved, _, external = run (AutoFetchSaved (autoFetchSettingsToSave off, Ok ())) off
-            expectFeedback saved (Field (AutoFetchField AutoFetchSwitch)) (SettingsNote.Done "✓ Gespeichert")
+            expectFeedback saved (Field (AutoFetchField AutoFetchSwitch)) (SettingsNote.Done "Gespeichert")
             Expect.equal external NoOp "kein Toast"
         }
 
         // YNAB „Verbindung testen“: das Ergebnis steht unter den Knöpfen, in Lesen und Bearbeiten.
-        for count, text in [ 2, "✓ Verbunden, 2 Budgets gefunden"; 1, "✓ Verbunden, 1 Budget gefunden" ] do
+        for count, text in [ 2, "Verbunden, 2 Budgets gefunden"; 1, "Verbunden, 1 Budget gefunden" ] do
             test $"YNAB-Verbindung mit {count} Budgets: „{text}“ unter „Verbindung testen“" {
                 let budgets = [ for i in 1 .. count -> budget $"Budget {i}" ]
                 let tested, _, external = run (YnabConnectionTested (Ok budgets)) (loaded ())
@@ -215,7 +215,7 @@ let settingsFeedbackTests =
 // der Aktionen als Orakel. Nachrichten, deren Cmd `Client.Api` direkt berührt, prüft `isNextAction` allein.
 [<Tests>]
 let settingsNextActionTests =
-    let standing = { loaded () with Feedback = Some (CardHead YnabSection, SettingsNote.Done "✓ Gespeichert") }
+    let standing = { loaded () with Feedback = Some (CardHead YnabSection, SettingsNote.Done "Gespeichert") }
     testList "Einstellungen: die nächste Aktion nimmt die Rückmeldung weg" [
         for label, msg in
             [ "Tippen im Token", UpdateYnabTokenInput "a"

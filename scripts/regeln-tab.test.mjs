@@ -120,6 +120,15 @@ test("[flow:regel-anlegen] Am Handy auf dem Tab Regeln eine neue Regel mit Kateg
     assert.ok(chosen.length > 0, "Kategorie gewählt");
     const last = page.locator('[data-testid="rule-row"]:visible').last();
     assert.match(await last.innerText(), /baeckerei/, "am Ende der Liste");
+    // design-system-ytgnc: die Karte schneidet ihren Inhalt ab, das Leuchten einer Zeile liegt deshalb innen
+    // (`feedbackFlashInset`); der Ring außen wäre abgeschnitten.
+    const flashName = await last.evaluate((el) => {
+      el.classList.add("feedback-flash");
+      const name = getComputedStyle(el).animationName;
+      el.classList.remove("feedback-flash");
+      return name;
+    });
+    assert.equal(flashName, "feedbackFlashInset", "das Leuchten liegt innen");
   } finally {
     await context.close();
   }

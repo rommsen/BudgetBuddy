@@ -236,12 +236,12 @@ let doneAt (place: FeedbackPlace) (model: Model) : string option =
     | Some (SettingsNote.Done text) -> Some text
     | _ -> None
 
-/// Die Bestätigung nach dem Speichern, im Kopf der Karte oder unter dem Feld.
-let savedText = "✓ Gespeichert"
+/// Die Bestätigung nach dem Speichern, im Kopf der Karte oder unter dem Feld. Das „✓“ setzt `Feedback.saved`.
+let savedText = "Gespeichert"
 
-/// Das Ergebnis von „Verbindung testen“ bei YNAB.
+/// Das Ergebnis von „Verbindung testen“ bei YNAB. Das „✓“ setzt `Feedback.saved`.
 let budgetsFoundText (count: int) : string =
-    if count = 1 then "✓ Verbunden, 1 Budget gefunden" else $"✓ Verbunden, {count} Budgets gefunden"
+    if count = 1 then "Verbunden, 1 Budget gefunden" else $"Verbunden, {count} Budgets gefunden"
 
 /// Der Satz vor dem Grund, wenn ein Speichern scheitert (Skizze: „Nicht gespeichert: YNAB antwortet nicht“).
 let notSavedText (reason: string) : string = $"Nicht gespeichert: {reason}"

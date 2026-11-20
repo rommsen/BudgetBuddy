@@ -209,7 +209,7 @@ let private ynabSettingsCard (model: Model) (dispatch: Msg -> unit) =
                             settingFlashRow
                                 (model.Flash = Some (SectionRow YnabSection))
                                 "API Token"
-                                "Pers\u00f6nlicher Access Token"
+                                "Persönlicher Access Token"
                                 (secretStatus ynab.HasToken)
 
                             Html.div [
@@ -220,7 +220,7 @@ let private ynabSettingsCard (model: Model) (dispatch: Msg -> unit) =
                                 ]
                             ]
                             if model.YnabBudgets = Loading then
-                                Html.div [ prop.className "pt-3"; prop.children [ Loading.inlineWithText "Verbindung wird getestet..." ] ]
+                                Html.div [ prop.className "pt-3"; prop.children [ Loading.inlineWithText "Verbindung wird getestet…" ] ]
                             match feedbackAt YnabTestResult model with
                             | Some note -> Html.div [ prop.className "pt-3"; prop.children [ noteBelow (Some note) ] ]
                             | None -> ()
@@ -234,7 +234,7 @@ let private ynabSettingsCard (model: Model) (dispatch: Msg -> unit) =
                 prop.className "space-y-4 p-4"
                 prop.children [
                     // Token input with label
-                    credentialGroupWithError "Pers\u00f6nlicher Access Token" (ynabTokenIsSet model) (faultAt (FormField YnabSection) model) (
+                    credentialGroupWithError "Persönlicher Access Token" (ynabTokenIsSet model) (faultAt (FormField YnabSection) model) (
                         Input.password model.YnabTokenInput (UpdateYnabTokenInput >> dispatch) "YNAB-Token eingeben")
 
                     // Save button with validation
@@ -249,7 +249,7 @@ let private ynabSettingsCard (model: Model) (dispatch: Msg -> unit) =
                     Html.div [
                         prop.className "text-xs text-text-muted"
                         prop.children [
-                            Html.text "Token erh\u00e4ltlich unter "
+                            Html.text "Token erhältlich unter "
                             Html.a [
                                 prop.href "https://app.youneedabudget.com/settings/developer"
                                 prop.target "_blank"
@@ -281,7 +281,7 @@ let private ynabSettingsCard (model: Model) (dispatch: Msg -> unit) =
                     // Budget/Account selection (shown after successful test)
                     match model.YnabBudgets with
                     | Loading ->
-                        Loading.inlineWithText "Verbindung wird getestet..."
+                        Loading.inlineWithText "Verbindung wird getestet…"
 
                     | Success budgets when not budgets.IsEmpty ->
                         Html.div [
@@ -300,7 +300,7 @@ let private ynabSettingsCard (model: Model) (dispatch: Msg -> unit) =
                                                 |> Option.defaultValue ""
                                             | _ -> "")
                                             (fun value -> dispatch (SetDefaultBudget (YnabBudgetId value)))
-                                            (selectOption "" "Budget w\u00e4hlen..."
+                                            (selectOption "" "Budget wählen…"
                                              :: [ for bwa in budgets do
                                                       let (YnabBudgetId id) = bwa.Budget.Id
                                                       selectOption id bwa.Budget.Name ])
@@ -324,7 +324,7 @@ let private ynabSettingsCard (model: Model) (dispatch: Msg -> unit) =
                                                     |> Option.map (fun (YnabAccountId id) -> id.ToString())
                                                     |> Option.defaultValue "")
                                                     (fun value -> onSelect (YnabAccountId (System.Guid.Parse value)))
-                                                    (selectOption "" "Konto wählen..."
+                                                    (selectOption "" "Konto wählen…"
                                                      :: [ for account in bwa.Accounts do
                                                               let (YnabAccountId id) = account.Id
                                                               selectOption (id.ToString()) (accountOptionLabel account) ])
@@ -381,10 +381,10 @@ let private tanWaitingBlock (editing: SettingsSection option) (dispatch: Msg -> 
     Html.div [
         prop.className "space-y-3"
         prop.children [
-            ErrorDisplay.notice "Warte auf die TAN-Best\u00e4tigung: bitte best\u00e4tige die Push-TAN in deiner Comdirect App."
+            ErrorDisplay.notice "Warte auf die TAN-Bestätigung: bitte bestätige die Push-TAN in deiner Comdirect App."
             Button.view {
                 Button.defaultProps with
-                    Text = "TAN best\u00e4tigt"
+                    Text = "TAN bestätigt"
                     Variant = tanConfirmVariant editing
                     OnClick = fun () -> dispatch ConfirmComdirectTan
             }
@@ -519,7 +519,7 @@ let private comdirectSettingsCard (model: Model) (dispatch: Msg -> unit) =
                                     lockableButton isDisconnecting "Verbindung testen" (fun () -> dispatch TestComdirectConnection)
                                     if canDisconnectBank model then
                                         if isDisconnecting then
-                                            Loading.inlineWithText "Bank wird getrennt..."
+                                            Loading.inlineWithText "Bank wird getrennt…"
                                         elif model.ConfirmingBankDisconnect then
                                             // "Abbrechen" steht dort, wo eben "Bank trennen" stand: ein Doppeltipp trifft ihn.
                                             Button.ghost "Abbrechen" (fun () -> dispatch AbortBankDisconnect)
@@ -588,7 +588,7 @@ let private comdirectSettingsCard (model: Model) (dispatch: Msg -> unit) =
                             Html.p [
                                 prop.className "text-xs md:text-sm text-text-muted"
                                 prop.children [
-                                    Html.text "Du ben\u00f6tigst Zugang zur Comdirect API. Besuche "
+                                    Html.text "Du benötigst Zugang zur Comdirect API. Besuche "
                                     Html.a [
                                         prop.href "https://www.comdirect.de/cms/kontakt-zugaenge-api.html"
                                         prop.target "_blank"
@@ -612,7 +612,7 @@ let private comdirectSettingsCard (model: Model) (dispatch: Msg -> unit) =
                             if connectionTestVisible model then
                                 match model.ComdirectConnectionValid with
                                 | Loading ->
-                                    Loading.inlineWithText "Verbindung wird getestet..."
+                                    Loading.inlineWithText "Verbindung wird getestet…"
                                 | Success _ ->
                                     ErrorDisplay.success "Zugangsdaten geprüft"
                                 // Der Grund steht im Block Bankverbindung über dem Formular.
@@ -661,7 +661,7 @@ let private syncSettingsCard (model: Model) (dispatch: Msg -> unit) =
                     settingFlashRow
                         (model.Flash = Some (SectionRow SyncSection))
                         "Transaktionszeitraum"
-                        "Wie weit zur\u00fcckliegende Transaktionen synchronisiert werden"
+                        "Wie weit zurückliegende Transaktionen synchronisiert werden"
                         (sprintf "%d Tage" daysToFetch)
 
                     Html.div [
@@ -877,7 +877,7 @@ let view (back: ReactElement) (model: Model) (dispatch: Msg -> unit) =
             // Loading state
             match model.Settings with
             | Loading ->
-                Loading.centered "Einstellungen werden geladen..."
+                Loading.centered "Einstellungen werden geladen…"
 
             | Failure error ->
                 ErrorDisplay.cardCompact $"Einstellungen konnten nicht geladen werden: {error}" (Some (fun () -> dispatch LoadSettings))

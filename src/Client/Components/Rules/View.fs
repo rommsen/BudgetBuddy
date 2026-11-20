@@ -162,7 +162,7 @@ let private ruleTable (model: Model) (rules: Rule list) (dispatch: Msg -> unit) 
     let grid = "grid grid-cols-[28px_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_64px_88px] items-center gap-3 px-3.5"
     Html.div [
         prop.custom ("data-testid", "rules-table")
-        prop.className $"overflow-hidden rounded-xl border {Borders.default'} {Backgrounds.dark}"
+        prop.className ($"overflow-hidden rounded-xl border {Borders.default'} {Backgrounds.dark} " + Feedback.flashInside)
         prop.children [
             Html.div [
                 prop.className $"{grid} h-[34px] border-b {Borders.subtle} {ListRoles.groupHeader}"
@@ -232,7 +232,7 @@ let private ruleCard (model: Model) (rules: Rule list) (dispatch: Msg -> unit) =
     let selected = selectedId model
     Html.div [
         prop.custom ("data-testid", "rules-card")
-        prop.className $"overflow-hidden rounded-xl border {Borders.default'} {Backgrounds.dark}"
+        prop.className ($"overflow-hidden rounded-xl border {Borders.default'} {Backgrounds.dark} " + Feedback.flashInside)
         prop.children [
             for row in listRows rules model.Removed do
                 match row with

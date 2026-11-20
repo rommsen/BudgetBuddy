@@ -2691,7 +2691,10 @@ export const STATES = [
       await form.locator("select").selectOption("purple");
       await form.getByRole("button", { name: "Einstellungen speichern" }).click();
       await page.locator('[data-testid="settings-lena-card"]').waitFor();
-      await page.locator('[data-testid="feedback-saved"]').getByText("✓ Gespeichert").waitFor();
+      const saved = page.locator('[data-testid="feedback-saved"]');
+      await saved.getByText("Gespeichert", { exact: true }).waitFor();
+      // Das „✓“ setzt der Baustein, nur fürs Auge (design-system-ytgnc).
+      if ((await saved.locator('[aria-hidden="true"]').innerText()) !== "✓") throw new Error("✓ fehlt vor „Gespeichert“");
       await frames(page);
     },
   },
@@ -2708,7 +2711,7 @@ export const STATES = [
     open: async (page) => {
       await openSettings(page);
       await page.getByRole("button", { name: "Verbindung testen" }).first().click();
-      await page.getByText("✓ Verbunden, 1 Budget gefunden").waitFor();
+      await page.getByText("Verbunden, 1 Budget gefunden", { exact: true }).waitFor();
       await page.getByRole("button", { name: "Bearbeiten" }).first().click();
       const quickAdd = page.getByText("Quick-Add-Konto (z. B. Bar)", { exact: true }).locator("xpath=..").locator("select");
       await quickAdd.selectOption(guid(9102));

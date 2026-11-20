@@ -195,8 +195,11 @@ test("[flow:geld-verschieben] Handy: Zeile wählen, Abgeben, Gegenseite suchen, 
     assert.equal(await page.locator('[data-testid="money-mode"][aria-pressed="true"]').innerText(), "Abgeben", "der Modus bleibt");
 
     // budgeting-y1kkr, ADR 0099: Rückgängig ist dieselbe Verschiebung in die Gegenrichtung, mit eigener Befehls-Id.
+    const firstLine = await line.elementHandle();
     await line.locator('[data-feedback-action="true"]', { hasText: "Rückgängig" }).click();
     await line.filter({ hasText: "Rückgängig: 20,00 € zurück von Urlaub afd8h" }).waitFor();
+    // design-system-ytgnc: eine neue Meldung baut die Zeile neu, damit sie wieder einblendet (`feedback-in`).
+    assert.equal(await firstLine.evaluate((el) => el.isConnected), false, "die neue Meldung ist ein neues Element");
     assert.match(await text(line), /^✓ Rückgängig: 20,00 € zurück von Urlaub afd8h$/, "Ergebnis ohne Aktion");
     assert.equal(await line.locator('[data-feedback-action="true"]').count(), 0, "kein Rückgängig des Rückgängig");
     assert.equal(await page.locator(".toast-layer > *").count(), 0, "kein Toast im DOM");
@@ -232,6 +235,8 @@ test("[flow:verschiebung-erneut-senden] Fehlgeschlagener PATCH: der Hinweis steh
     const line = page.locator('.bottom-sheet.active [data-testid="feedback-sheet-line"]');
     await line.filter({ hasText: "Nicht vollständig verschoben: Rate-Limit" }).waitFor();
     assert.equal(await line.getAttribute("data-tone"), "error", "rot");
+    // design-system-ytgnc: auch die umbrechende Form trägt das Zeichen vor der Aktion.
+    assert.match(await text(line), /^! Nicht vollständig verschoben/, "! vor dem Fehler");
     // Der Hinweis der offenen Verschiebung steht in jedem Tab des Sheets (aus dem früheren Layout-Test in
     // budget-money-tab.test.mjs hierher gezogen).
     const hint = page.locator('.bottom-sheet.fixed-height.active [data-testid="move-retry"]');

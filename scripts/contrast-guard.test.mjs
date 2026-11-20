@@ -4,6 +4,7 @@
 // src/Client/styles.css und rechnet nach WCAG 2 (relative Leuchtdichte, (L1 + 0,05) / (L2 + 0,05)).
 // Jeder `--color-*` aus `@theme` steht in genau einer Klasse (CLASSES unten), sonst ist der Lauf rot:
 //   - Fläche (`--color-surface-*`): Hintergrund, gegen den alle anderen Klassen geprüft werden,
+//   - Fläche nur für `text-primary` (eine Fläche, auf der nur Text in text-primary steht): mindestens 4,5:1,
 //   - Text/Rolle (`--color-text-*` und die Rollenfarben): mindestens 4,5:1 gegen jede Fläche,
 //   - Rand (border-strong, Rand eines Bedienelements): mindestens 3:1 gegen jede Fläche,
 //   - Flag (`--color-flag-*`, nur im Flag-Symbol, ADR 0087 Punkt 8): mindestens 3:1 wie ein Bedienelement,
@@ -63,8 +64,9 @@ export function redeclared(css, names) {
 }
 
 /**
- * Ordnet jeden Token einer Klasse zu. Eine Klasse hat `prefix` (alle Tokens mit dem Präfix) oder `tokens`
- * (feste Liste). Ergebnis: { byClass: Map<klasse, token[]>, unclassified: token[], ambiguous: token[] }.
+ * Ordnet jeden Token einer Klasse zu. Eine Klasse hat `prefix` (alle Tokens mit dem Präfix außer denen in
+ * `exclude`) oder `tokens` (feste Liste). Ergebnis: { byClass: Map<klasse, token[]>, unclassified: token[],
+ * ambiguous: token[] }.
  */
 export function classify(tokens, classes) {
   const byClass = new Map(Object.keys(classes).map((k) => [k, []]));
@@ -72,7 +74,7 @@ export function classify(tokens, classes) {
   const ambiguous = [];
   for (const t of tokens) {
     const hits = Object.entries(classes).filter(
-      ([, c]) => (c.prefix && t.startsWith(c.prefix)) || (c.tokens && t in c.tokens)
+      ([, c]) => (c.prefix && t.startsWith(c.prefix) && !(c.exclude ?? []).includes(t)) || (c.tokens && t in c.tokens)
     );
     if (hits.length === 0) unclassified.push(t);
     else if (hits.length > 1) ambiguous.push(`${t} (${hits.map(([k]) => k).join(", ")})`);
@@ -129,7 +131,10 @@ export function failures(props, foregrounds, backgrounds, min) {
 // Ein `tokens`-Eintrag ist { token: Grund }. Der Grund steht nur bei den Ausnahmen in der Meldung, er hält
 // aber auch fest, warum ein Token in seiner Klasse steht.
 const CLASSES = {
-  flaeche: { prefix: "--color-surface-" },
+  flaeche: { prefix: "--color-surface-", exclude: ["--color-surface-hover-strong"] },
+  flaecheTextPrimary: {
+    tokens: { "--color-surface-hover-strong": "„Später“ eingerastet unter der Karte, Text darauf nur in text-primary (ledger-s2cg3)" },
+  },
   textRolle: {
     prefix: "--color-text-",
     tokens: {
@@ -163,7 +168,7 @@ test("Jeder --color-* aus @theme steht in genau einer Klasse", () => {
   assert.deepEqual(ambiguous, [], `in mehr als einer Klasse: ${ambiguous.join(", ")}`);
   const stale = Object.values(CLASSES).flatMap((c) => Object.keys(c.tokens ?? {})).filter((t) => !themeTokens.includes(t));
   assert.deepEqual(stale, [], "in CLASSES, aber nicht in @theme");
-  for (const k of ["flaeche", "textRolle", "rand", "flag"]) assert.ok(byClass.get(k).length > 0, `Klasse ${k} ist leer`);
+  for (const k of ["flaeche", "flaecheTextPrimary", "textRolle", "rand", "flag"]) assert.ok(byClass.get(k).length > 0, `Klasse ${k} ist leer`);
 });
 
 test("Jeder geprüfte Farbwert ist in styles.css genau einmal deklariert", () => {
@@ -174,6 +179,11 @@ test("Jeder geprüfte Farbwert ist in styles.css genau einmal deklariert", () =>
 
 test("Text- und Rollenfarben haben mindestens 4,5:1 gegen jede Fläche", () => {
   const bad = failures(props, byClass.get("textRolle"), SURFACES, 4.5);
+  assert.deepEqual(bad, [], show(bad));
+});
+
+test("text-primary hat mindestens 4,5:1 auf den Flächen nur für text-primary", () => {
+  const bad = failures(props, ["--color-text-primary"], byClass.get("flaecheTextPrimary"), 4.5);
   assert.deepEqual(bad, [], show(bad));
 });
 

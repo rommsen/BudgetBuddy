@@ -132,6 +132,10 @@ let parts (message: Message) : Parts =
 /// eines Felds (`Input.pickerField`) leuchtet das Feld selbst.
 let flash = "feedback-flash"
 
+/// Klasse für eine Karte mit `overflow-hidden`, die ihre Zeilen abschneidet: eine Zeile darin leuchtet innen, wie in
+/// einer Karte mit `overflow-clip` (Tab „Regeln“).
+let flashInside = "feedback-flash-inside"
+
 /// Farbe des Knopfs: im Akzent, in der getönten Zeile im Sheet in `text-primary`.
 [<RequireQualifiedAccess>]
 type private ActColor =
@@ -143,18 +147,26 @@ let private actColorClass (color: ActColor) =
     | ActColor.Accent -> Colors.accent
     | ActColor.Primary -> Colors.textPrimary
 
-/// Knopf einer Meldung, 48 px Trefferfläche.
-let private actButton (color: ActColor) (act: Act) =
+/// Knopf einer Meldung, 48 px Trefferfläche. `running`: die Aktion läuft, der Knopf steht gedämpft mit `aria-busy`
+/// da und ein Tipp tut nichts (kein `disabled`, der Fokus bleibt).
+let private actButtonWith (color: ActColor) (running: bool) (act: Act) =
     Html.button [
         prop.type' "button"
         prop.custom ("data-feedback-action", "true")
+        if running then
+            prop.custom ("aria-busy", true)
+            prop.custom ("aria-disabled", true)
         prop.className (
             $"flex-none inline-flex items-center justify-center {TouchTargets.minSize} px-2 {FontSizes.compact} "
             + $"{FontWeights.semibold} {actColorClass color} whitespace-nowrap touch-manipulation"
+            + (if running then " opacity-60 cursor-wait" else "")
         )
-        prop.onClick (fun _ -> act.OnClick ())
+        prop.onClick (fun _ -> if not running then act.OnClick ())
         prop.text act.Label
     ]
+
+/// Knopf einer Meldung, 48 px Trefferfläche.
+let private actButton (color: ActColor) (act: Act) = actButtonWith color false act
 
 let private markSpan (tone: Tone) =
     match markSymbol tone with
@@ -286,17 +298,19 @@ let bar (placement: BarPlacement) (message: Message option) (add: Add option) : 
 
 /// Die Zeile im Sheet über dem Hauptknopf (Platz 2): eine Zeile, mindestens 36 px hoch, die Aktion halbfett und
 /// gekürzt (sie ist hier zugleich der Name, „50,00 € nach Reise“). Fehler und Warnung stehen auf getönter Fläche
-/// und brechen um, der Knopf dort in `text-primary`.
+/// und brechen um, der Knopf dort in `text-primary`. Beide Formen tragen das Zeichen (✓ grün, ! gelb, ! rot).
 let sheetLine (message: Message) : ReactElement =
     let p = parts message
     if p.DetailWraps then
-        let surface = if message.Tone = Tone.Error then "bg-error/10" else Backgrounds.attentionSubtle
+        let surface = if message.Tone = Tone.Error then Backgrounds.errorSubtle else Backgrounds.attentionSubtle
         Html.div [
+            prop.key (messageKey message)
             prop.custom ("data-testid", "feedback-sheet-line")
             prop.custom ("data-tone", (string message.Tone).ToLowerInvariant())
             if p.IsAlert then prop.role "alert" else prop.custom ("aria-live", "polite")
             prop.className $"feedback-in flex flex-wrap items-center gap-x-2 gap-y-0.5 {Radius.md} {surface} py-1.5 pl-2.5 pr-1.5 {FontSizes.compact} {actionColor message.Tone}"
             prop.children [
+                markSpan message.Tone
                 Html.span [
                     prop.className "min-w-0 flex-[1_1_170px] break-words"
                     prop.children [
@@ -313,6 +327,7 @@ let sheetLine (message: Message) : ReactElement =
         ]
     else
         Html.div [
+            prop.key (messageKey message)
             prop.custom ("data-testid", "feedback-sheet-line")
             prop.custom ("data-tone", (string message.Tone).ToLowerInvariant())
             prop.custom ("aria-live", "polite")
@@ -367,9 +382,9 @@ let line (message: Message) : ReactElement =
     ]
 
 /// Ein Zustand der Seite als Hinweis am Ort (ADR 0098: „ein Zustand der Seite ist keine Meldung“, budgeting-gtrgk,
-/// Skizze ledger-vf5h6 `.mk-hint`): gelb getönte Fläche, „! <Text>“ in Gelb, darunter kleiner die Gründe, rechts eine
-/// Textaktion im Akzent („Neu laden“). Er bleibt, bis die App ihn wegnimmt; kein ✕, kein Zeitlimit. `running`: die
-/// Aktion läuft, sie steht gedämpft mit `aria-busy` da und ein Tipp tut nichts.
+/// Skizze ledger-vf5h6 `.mk-hint`): gelb getönte Fläche, „! <Text>“ in Gelb (das „!“ `aria-hidden`), darunter kleiner
+/// die Gründe, rechts eine Textaktion im Akzent („Neu laden“). Er bleibt, bis die App ihn wegnimmt; kein ✕, kein
+/// Zeitlimit. `running`: die Aktion läuft, sie steht gedämpft mit `aria-busy` da und ein Tipp tut nichts.
 let stateHint (testId: string) (text: string) (reasons: string list) (act: Act option) (running: bool) : ReactElement =
     Html.div [
         prop.custom ("data-testid", testId)
@@ -382,7 +397,13 @@ let stateHint (testId: string) (text: string) (reasons: string list) (act: Act o
             Html.div [
                 prop.className "flex min-w-0 flex-[1_1_180px] flex-col"
                 prop.children [
-                    Html.span [ prop.className "break-words"; prop.text $"! {text}" ]
+                    Html.span [
+                        prop.className "flex items-baseline gap-1.5"
+                        prop.children [
+                            Html.span [ prop.className $"flex-none {markColor Tone.Warning}"; prop.ariaHidden true; prop.text "!" ]
+                            Html.span [ prop.className "min-w-0 break-words"; prop.text text ]
+                        ]
+                    ]
                     for reason in reasons do
                         Html.span [
                             prop.custom ("data-testid", $"{testId}-reason")
@@ -393,20 +414,7 @@ let stateHint (testId: string) (text: string) (reasons: string list) (act: Act o
                 ]
             ]
             match act with
-            | Some a ->
-                Html.button [
-                    prop.type' "button"
-                    prop.custom ("data-feedback-action", "true")
-                    prop.custom ("aria-busy", running)
-                    prop.custom ("aria-disabled", running)
-                    prop.className (
-                        $"flex-none inline-flex items-center justify-center {TouchTargets.minSize} px-2 {FontSizes.compact} "
-                        + $"{FontWeights.semibold} {Colors.accent} whitespace-nowrap touch-manipulation"
-                        + (if running then " opacity-60 cursor-wait" else "")
-                    )
-                    prop.onClick (fun _ -> if not running then a.OnClick ())
-                    prop.text a.Label
-                ]
+            | Some a -> actButtonWith ActColor.Accent running a
             | None -> Html.none
         ]
     ]
@@ -456,11 +464,15 @@ let fieldNote (text: string) (act: Act option) : ReactElement = fieldNoteWith To
 
 /// Eine Bestätigung in der Erfolgsrolle (Platz 1, „✓ Gespeichert“): klein und halbfett, im Kopf einer Karte an der
 /// Stelle der Statusanzeige oder unter einem Feld, das beim Ändern speichert. Ohne Knopf, bis zur nächsten Aktion.
+/// Der Aufrufer übergibt nur das Wort („Gespeichert“), das „✓“ setzt der Baustein (`aria-hidden`).
 let saved (text: string) : ReactElement =
     Html.span [
         prop.custom ("data-testid", "feedback-saved")
-        prop.className $"{FontSizes.xs} {FontWeights.semibold} {Colors.success} whitespace-nowrap"
-        prop.text text
+        prop.className $"inline-flex items-center gap-1 {FontSizes.xs} {FontWeights.semibold} {Colors.success} whitespace-nowrap"
+        prop.children [
+            Html.span [ prop.className "flex-none"; prop.ariaHidden true; prop.text "✓" ]
+            Html.span [ prop.text text ]
+        ]
     ]
 
 /// Wie weit das Gelöschte ist. `Removing`: das Löschen läuft („wird gelöscht …“, ohne Knopf, damit die Liste nicht

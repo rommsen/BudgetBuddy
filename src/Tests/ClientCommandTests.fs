@@ -200,7 +200,7 @@ let autoFetchSettingsClientTests =
                 (Components.Settings.Types.doneAt
                     (Components.Settings.Types.Field (Components.Settings.Types.AutoFetchField Components.Settings.Types.AutoFetchIntervalField))
                     saved)
-                (Some "✓ Gespeichert")
+                (Some "Gespeichert")
                 "unter „Alle“"
             Expect.equal external Components.Settings.Types.NoOp "kein Toast"
         }
