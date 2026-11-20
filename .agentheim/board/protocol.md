@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-20 04:16 -- Task verified and completed: budgeting-p3sk0 - "Angepinnt ohne Meldung (R3): Anpinnen und Lösen im Kategorie-Detail ohne Toast, die Kategorie leuchtet auf der Übersicht im Bereich „Angepinnt“ kurz, ein Fehler beim Speichern steht am Ort"
+
+**Type:** Work / Task completion
+**Task:** budgeting-p3sk0 - "Angepinnt ohne Meldung (R3): Anpinnen und Lösen im Kategorie-Detail ohne Toast, die Kategorie leuchtet auf der Übersicht im Bereich „Angepinnt“ kurz, ein Fehler beim Speichern steht am Ort"
+**Summary:** Angepinnt ohne Meldung: Pin-Knopf ohne Toast, neu angepinnte Kategorie leuchtet, Speicherfehler am Ort
+**Duration:** 75m
+**Verification:** PASS (iteration 2: Build nach Merge mit budgeting-y1kkr repariert)
+**Files changed:** 10
+**Tests added:** 19
+**ADRs written:** none
+
+---
+
 ## 2026-11-20 04:14 -- Batch started: [budgeting-sx9v5]
 
 **Type:** Work / Batch start

@@ -258,8 +258,8 @@ type EntryAction =
 /// Stand und Umschalten herein; `None`, solange sie nicht geladen sind (dann fehlt der Knopf).
 type InspectorPin = {
     IsPinned: System.Guid -> bool
-    /// Umschalten mit Id und Name der Kategorie (für den Toast).
-    Toggle: System.Guid -> string -> unit
+    /// Umschalten mit der Id der Kategorie, ohne Meldung: der Knopf zeigt den neuen Stand (budgeting-p3sk0).
+    Toggle: System.Guid -> unit
 }
 
 /// Die Tabs des Inspektors.

@@ -339,15 +339,22 @@ let private recentBlock (actions: Actions) (today: DateTime) (recent: RemoteData
 
 let private pct (share: float) = sprintf "%.2f%%" (share * 100.0)
 
-/// Eine Zeile: Name und Verfügbar (davor „fehlt“), Balken 5 px, „<ausgegeben> von <Betrag> ausgegeben“.
-let private pinnedRow (actions: Actions) (line: PinnedLine) =
+/// Eine Zeile: Name und Verfügbar (davor „fehlt“), Balken 5 px, „<ausgegeben> von <Betrag> ausgegeben“. Eine neu
+/// angepinnte leuchtet kurz (`Feedback.flash`, budgeting-p3sk0); der Schlüssel baut sie je Leuchten neu, so beginnt die
+/// Animation auch beim zweiten Mal von vorn.
+let private pinnedRow (actions: Actions) (flash: PinFlash) (line: PinnedLine) =
     let c = line.Category
     let negative = c.Available.Amount < 0m
+    let flashing = Set.contains c.Id flash.Ids
     Html.button [
-        prop.key (string c.Id)
+        prop.key (if flashing then $"{c.Id}-{flash.Count}" else string c.Id)
         prop.type' "button"
         prop.custom ("data-testid", "overview-pinned")
-        prop.className $"w-full flex flex-col items-stretch gap-1.5 px-3 py-[11px] text-left border-b {Borders.subtle} last:border-b-0 {rowHover}"
+        prop.custom ("data-flash", flashing)
+        prop.className (
+            $"w-full flex flex-col items-stretch gap-1.5 px-3 py-[11px] text-left border-b {Borders.subtle} last:border-b-0 {rowHover}"
+            + if flashing then " rounded-[14px] " + Feedback.flash else ""
+        )
         prop.onClick (fun _ -> actions.OpenPinned c.Id)
         prop.children [
             Html.span [
@@ -413,6 +420,13 @@ let private pinSkeleton (rows: int) =
         ]
     ]
 
+/// Der Satz „Nicht gespeichert: …“ am Ort (budgeting-p3sk0): rot, bis zur nächsten Aktion an den Pins.
+let private pinErrorLine (testId: string) (place: PinErrorPlace) (model: Model) =
+    match pinErrorShown model with
+    | Some (shownAt, text) when shownAt = place ->
+        Html.div [ prop.custom ("data-testid", testId); prop.children [ ErrorDisplay.inline' text ] ]
+    | _ -> Html.none
+
 let private pinBlock (actions: Actions) (model: Model) =
     let state = pinBlockState model
     let openSheet () = actions.Dispatch PinSheetOpened
@@ -444,8 +458,9 @@ let private pinBlock (actions: Actions) (model: Model) =
             | PinsShown lines ->
                 Html.div [
                     prop.className cardClass
-                    prop.children [ for line in lines -> pinnedRow actions line ]
+                    prop.children [ for line in lines -> pinnedRow actions model.PinFlash line ]
                 ]
+            pinErrorLine "overview-pins-not-saved" PinErrorInBlock model
         ]
     ]
 
@@ -539,6 +554,8 @@ let private pinSheetBody (model: Model) (sheet: PinSheet) (dispatch: Msg -> unit
                                 ]
                         ]
                     ]
+                // Unter „Angepinnt (n)“; ist nach dem Rücksprung nichts mehr angepinnt, direkt unter der Suche.
+                pinErrorLine "pin-sheet-not-saved" PinErrorInSheet model
                 let groups = pinSheetGroups model.CategoryOrder sheet.Query month
                 let offsets = groups |> List.scan (fun acc (_, cs) -> acc + List.length cs) 0
                 Html.div [

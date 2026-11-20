@@ -295,7 +295,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
                                      | Success _ ->
                                          Some (
                                              { IsPinned = Components.Overview.Types.isPinned model.Overview
-                                               Toggle = fun id name -> dispatch (TogglePinFromInspector (id, name)) }
+                                               Toggle = TogglePinFromInspector >> dispatch }
                                              : Components.Budget.Types.InspectorPin
                                          )
                                      | _ -> None)

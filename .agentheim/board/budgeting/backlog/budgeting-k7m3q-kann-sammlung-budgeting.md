@@ -22,3 +22,5 @@ Kann-Sammlung des BC nach der Regel Backlog-Disziplin in CLAUDE.md. Funde ohne G
 - Work-Lauf 2026-11-20 (budgeting-gtrgk): nach einem Fehler stehen „Erneut senden“ am Hinweis der offenen Verschiebung und in der roten Zeile doppelt da.
 - Work-Lauf 2026-11-20 (budgeting-y1kkr): nach erfolgreichem „Erneut senden“ (alle Zeilen geschrieben) gibt es kein „Rückgängig“; die Task nennt nur die letzte Verschiebung aus dem Tab.
 - Work-Lauf 2026-11-20 (budgeting-y1kkr): ein Doppeltipp auf „Rückgängig“ zeigt beim zweiten Tipp gelb „Eine Verschiebung läuft noch“; der Auftrag geht nur einmal hinaus.
+- Work-Lauf 2026-11-20 (budgeting-p3sk0): ist der Monat beim ersten Betreten der Übersicht noch nicht geladen und dauert das Laden länger als 0,9 s, ist das Leuchten der neu angepinnten Kategorie vorbei, bevor die Zeile erscheint.
+- Work-Lauf 2026-11-20 (budgeting-p3sk0): auf einem anderen Gerät angepinnte Kategorien leuchten beim nächsten Betreten nach einem Neu-Lesen ebenfalls.

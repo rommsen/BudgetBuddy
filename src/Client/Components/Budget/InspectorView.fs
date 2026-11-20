@@ -368,7 +368,7 @@ let private sheetStepper (model: Model) (shown: BudgetGroup list) (dispatch: Msg
 let private pinButton (pin: InspectorPin option) (category: BudgetCategory) =
     match pin with
     | Some pin ->
-        Button.pinToggle "inspector-pin" (pin.IsPinned category.Id) (fun () -> pin.Toggle category.Id category.Name)
+        Button.pinToggle "inspector-pin" (pin.IsPinned category.Id) (fun () -> pin.Toggle category.Id)
     | None -> Html.none
 
 /// Offene Verschiebungen im festen Bereich des Sheets. Es deckt die Seite ab, der Hinweis dort wäre

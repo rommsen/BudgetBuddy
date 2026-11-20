@@ -2775,33 +2775,62 @@ export const STATES = [
     // Wie `uebersicht`: bei 320 px bricht der Satz des ersten Eintrags in „Zu tun“ um (§7.4), die Konten rutschen mit.
     exceptions: [{ width: 320, inv: 9, selector: '[data-testid="overview-account"]' }],
   },
-  // design-system-gkded: auf der Übersicht steht eine Meldung (Speichern der Pins gescheitert) in der Leiste, „+ Buchung“
-  // rund und ruhig daneben (§7.14, „Zu tun“ hat Einträge). Bei 1280 px bleibt der Dialog „Angepinnt“ offen und der
-  // Toast liegt über ihm (Regression c819eeb am PC: der Toast lag hinter der offenen Ebene, Gegenbeweis in
-  // layout-invariants.test.mjs).
+  // design-system-gkded: auf der Übersicht steht eine Meldung ohne Ort in der Leiste, „+ Buchung“ rund und ruhig daneben
+  // (§7.14, „Zu tun“ hat Einträge). Bei 1280 px ist der Dialog „Angepinnt“ offen und der Toast liegt über ihm (Regression
+  // c819eeb am PC: der Toast lag hinter der offenen Ebene, Gegenbeweis in layout-invariants.test.mjs). Seit budgeting-p3sk0
+  // steht ein Speicherfehler der Pins am Ort; die Meldung kommt deshalb vom Abbrechen eines Abrufs, das scheitert
+  // (`cancelSync` ohne Mock, am PC mit Verzögerung, damit der Dialog vorher offen ist).
   {
     name: "uebersicht-meldung",
     route: "/",
     widths: [390, 412, 1280],
     mock: async (page) => {
-      await mockOverview(page);
+      await mockFetch({ TanRequired: syncSession("AwaitingTan") })(page);
       await page.route("**/api/BudgetApi/getPinnedCategories", (r) => json(r, { Ok: [guid(1), guid(2), guid(3)] }));
-      await page.route("**/api/BudgetApi/setPinnedCategories", (r) => json(r, { Error: "YNAB antwortet nicht" }));
+      await page.route("**/api/SyncApi/cancelSync", async (r) => {
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        await r.fulfill({ status: 500, contentType: "application/json", body: '{"error":"nicht erreichbar"}' });
+      });
     },
     open: async (page, { mobile }) => {
+      await openFetch("fetch-tan")(page);
       await page.locator('[data-testid="overview-pins-edit"]').waitFor();
       if (!mobile) {
+        await fetchLayer(page).getByRole("button", { name: "Abbrechen" }).click();
+        await page.locator('[data-layer="dialog"]').waitFor({ state: "detached" });
         await page.locator('[data-testid="overview-pins-edit"]').click();
-        await page.locator('[data-testid="pin-sheet-row"]').first().click();
-        await page.locator(".toast-layer", { hasText: "Nicht gespeichert" }).getByRole("button", { name: "Schließen" }).waitFor();
+        await page.locator('[data-testid="pin-sheet-row"]').first().waitFor();
+        await page.locator(".toast-layer").getByRole("button", { name: "Schließen" }).waitFor();
         return;
       }
-      await page.locator('[data-testid="overview-pins-edit"]').tap();
-      await page.locator('[data-testid="pin-sheet-row"]').first().tap();
-      await page.locator('[data-testid="feedback-bar"] [data-testid="feedback-message"]').waitFor();
-      await page.locator(".bottom-sheet.active").getByRole("button", { name: "Fertig", exact: true }).tap();
+      await fetchLayer(page).getByRole("button", { name: "Abbrechen" }).tap();
       await page.waitForFunction(() => document.querySelectorAll(".bottom-sheet.active").length === 0);
+      await page.locator('[data-testid="feedback-bar"] [data-testid="feedback-message"]').waitFor();
       await page.locator('[data-testid="overview-capture-fab"][data-shape="round"]').waitFor();
+    },
+  },
+  // budgeting-p3sk0 (R3, ADR 0098): das Speichern der Pins scheitert, nachdem das Sheet „Angepinnt“ zu ist. Der Satz
+  // „Nicht gespeichert: …“ steht rot im Bereich „Angepinnt“, keine Meldung in der Leiste und kein Toast. Die Antwort kommt
+  // verzögert, damit „Fertig“ vorher schließt (bei offenem Sheet stünde der Satz im Sheet).
+  {
+    name: "uebersicht-angepinnt-fehler",
+    route: "/",
+    widths: [320, 412, 1280],
+    mock: async (page) => {
+      await mockOverview(page);
+      await page.route("**/api/BudgetApi/getPinnedCategories", (r) => json(r, { Ok: [guid(1), guid(2), guid(3)] }));
+      await page.route("**/api/BudgetApi/setPinnedCategories", async (r) => {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        await json(r, { Error: "YNAB antwortet nicht" });
+      });
+    },
+    open: async (page) => {
+      await page.locator('[data-testid="overview-pins-edit"]').waitFor();
+      await page.locator('[data-testid="overview-pins-edit"]').click();
+      await page.locator('[data-testid="pin-sheet-row"]').first().click();
+      await page.locator('[data-layer="dialog"]').or(page.locator(".bottom-sheet.active").first()).getByRole("button", { name: "Fertig", exact: true }).click();
+      await page.locator('[data-testid="overview-pins-not-saved"]').waitFor();
+      await page.waitForFunction(() => document.querySelectorAll(".bottom-sheet.active").length === 0);
     },
   },
   // budgeting-w9yt4: das Sheet „Angepinnt“, am Handy als Sheet, ab 1024 px als Dialog; „Fertig“ ohne Scrollen erreichbar.

@@ -179,9 +179,7 @@ let pinChangeTests =
             Expect.equal model.Pins (Success [ food; kids ]) "bleibt"
             Expect.equal effect NoPinEffect "nichts zu speichern"
 
-        testCase "Rückmeldung des Pin-Knopfs" <| fun () ->
-            Expect.equal (pinToggleNotice "Restaurant" false) "Restaurant angepinnt" "anpinnen"
-            Expect.equal (pinToggleNotice "Restaurant" true) "Restaurant gelöst" "lösen"
+        testCase "Angepinnt oder nicht" <| fun () ->
             Expect.isTrue (isPinned (loaded [ restaurant ]) restaurant) "angepinnt"
             Expect.isFalse (isPinned { loaded [ restaurant ] with Pins = Loading } restaurant) "ohne Stand nie"
     ]
@@ -254,7 +252,7 @@ let saveOrderTests =
                 while inFlight.IsSome do
                     drain [ Answer true ]
                 Expect.equal model.Pins (Success server) "die Übersicht zeigt, was gespeichert ist"
-                Expect.equal (List.ofSeq notices) (List.ofSeq expectedNotices) "Toast nur, wenn die Anzeige zurückspringt"
+                Expect.equal (List.ofSeq notices) (List.ofSeq expectedNotices) "ein Satz nur, wenn die Anzeige zurückspringt"
     ]
 
 /// budgeting-w9yt4 Review: eine späte Antwort auf das Lesen (etwa nach jedem Abruf über ReloadRequested) überschrieb
@@ -379,7 +377,11 @@ let private toastsOf (cmd: Elmish.Cmd<State.Msg>) : State.Msg list =
     let collected = System.Collections.Concurrent.ConcurrentQueue<State.Msg>()
     cmd |> List.iter (fun effect -> effect collected.Enqueue)
     collected.ToArray()
-    |> Array.filter (function State.ShowToast _ -> true | _ -> false)
+    |> Array.filter (function
+        | State.ShowToast _
+        | State.ShowToastWithAction _
+        | State.ShowFeedback _ -> true
+        | _ -> false)
     |> List.ofArray
 
 [<Tests>]
@@ -404,34 +406,188 @@ let openPinnedTests =
             | None -> failtest "Tab Geld erwartet"
             Expect.isNone opened.EntryAction "verbraucht"
 
-        testCase "Ein Speicherfehler kommt als Toast „Nicht gespeichert: <Grund>“, die Anzeige springt zurück" <| fun () ->
-            let start = rootModel Overview
-            let saving =
-                { start with
-                    Overview =
-                        { start.Overview with Pins = Success [ food; kids ]; PinsConfirmed = [ food ]; PinsSaving = Some [ food; kids ] } }
-            let model, cmd = State.update (State.OverviewMsg (PinsSaved (Error "Datenbank gesperrt"))) saving
-            Expect.equal model.Overview.Pins (Success [ food ]) "zurück auf den vorigen Stand"
-            Expect.contains (dispatched cmd) (State.ShowToast ("Nicht gespeichert: Datenbank gesperrt", ToastError)) "Toast"
-
-        // budgeting-w9yt4 Review: der Toast muss den Stand vor dem Umschalten lesen, sonst sagte er „gelöst“ beim
-        // Anpinnen. Gegenprobe: `wasPinned` nach dem Umschalten gelesen macht diesen Test rot.
-        testCase "Der Pin-Knopf im Kategorie-Detail pinnt ans Ende an und löst wieder, je mit Toast und gespeichert" <| fun () ->
+        // budgeting-p3sk0 (R3, ADR 0098): der Knopf zeigt den neuen Stand selbst, in keiner Breite eine Meldung.
+        testCase "Der Pin-Knopf im Kategorie-Detail pinnt ans Ende an und löst wieder, ohne Meldung, je gespeichert" <| fun () ->
             let start = rootModel Budget
             let withPins = { start with Overview = { start.Overview with Pins = Success [ food ]; PinsConfirmed = [ food ] } }
-            let pinned, pinCmd = State.update (State.TogglePinFromInspector (restaurant, "Restaurant")) withPins
+            let pinned, pinCmd = State.update (State.TogglePinFromInspector restaurant) withPins
             Expect.equal pinned.Overview.Pins (Success [ food; restaurant ]) "am Ende"
             Expect.equal pinned.Overview.PinsSaving (Some [ food; restaurant ]) "gespeichert wird die ganze Liste"
-            Expect.equal (toastsOf pinCmd) [ State.ShowToast ("Restaurant angepinnt", ToastSuccess) ] "Toast anpinnen"
+            Expect.isEmpty (toastsOf pinCmd) "keine Meldung beim Anpinnen"
+            Expect.isNone pinned.Feedback "der Meldungsplatz bleibt leer"
             let saved, _ = State.update (State.OverviewMsg (PinsSaved (Ok ()))) pinned
-            let loosened, looseCmd = State.update (State.TogglePinFromInspector (restaurant, "Restaurant")) saved
+            let loosened, looseCmd = State.update (State.TogglePinFromInspector restaurant) saved
             Expect.equal loosened.Overview.Pins (Success [ food ]) "gelöst"
             Expect.equal loosened.Overview.PinsSaving (Some [ food ]) "gespeichert"
-            Expect.equal (toastsOf looseCmd) [ State.ShowToast ("Restaurant gelöst", ToastSuccess) ] "Toast lösen"
+            Expect.isEmpty (toastsOf looseCmd) "keine Meldung beim Lösen"
+            Expect.isNone loosened.Feedback "der Meldungsplatz bleibt leer"
 
         testCase "Der Pin-Knopf ohne geladene Pins tut nichts" <| fun () ->
-            let model, cmd = State.update (State.TogglePinFromInspector (restaurant, "Restaurant")) (rootModel Budget)
+            let model, cmd = State.update (State.TogglePinFromInspector restaurant) (rootModel Budget)
             Expect.equal model.Overview.Pins NotAsked "unberührt"
             Expect.isEmpty (dispatched cmd) "kein Toast, kein Speichern"
     ]
 
+
+// ============================================
+// budgeting-p3sk0: Angepinnt ohne Meldung (R3, ADR 0098)
+// ============================================
+
+[<Tests>]
+let newlyPinnedTests =
+    testList "Angepinnt: neu seit dem letzten Anzeigen" [
+        testCase "Anpinnen ergibt die neue Kategorie" <| fun () ->
+            Expect.equal (newlyPinned [ food ] [ food; kids ]) (Set.ofList [ kids ]) "Kinderkram ist neu"
+
+        testCase "Lösen ergibt kein Leuchten" <| fun () ->
+            Expect.isEmpty (newlyPinned [ food; kids ] [ food ]) "nichts neu"
+
+        testCase "Anpinnen und wieder lösen ergibt kein Leuchten" <| fun () ->
+            let between = togglePin kids [ food ]
+            Expect.isEmpty (newlyPinned [ food ] (togglePin kids between)) "nichts neu"
+
+        testCase "Reihenfolge ändern ergibt kein Leuchten" <| fun () ->
+            Expect.isEmpty (newlyPinned [ food; restaurant; kids ] [ kids; food; restaurant ]) "nur umgeordnet"
+    ]
+
+/// Die Übersicht nach `Entered`, ohne den Remoting-Proxy: der reine Teil plus `notePinsShown`.
+let private enter (model: Model) : Model = beginEnter (DateTime(2026, 11, 20)) (notePinsShown model)
+
+[<Tests>]
+let pinFlashTests =
+    testList "Angepinnt: neu angepinnte leuchten" [
+        testCase "Das erste Laden setzt den Vergleich: was schon angepinnt war, leuchtet nicht" <| fun () ->
+            let model, _ = step (PinsLoaded (1, Ok [ food; kids ])) { init with PinsRead = 1 }
+            let shown = enter model
+            Expect.isEmpty shown.PinFlash.Ids "nichts leuchtet"
+            Expect.equal shown.PinsSeen (Some [ food; kids ]) "gesehen"
+
+        testCase "Im Kategorie-Detail angepinnt: beim nächsten Betreten der Übersicht leuchtet sie" <| fun () ->
+            let seen = enter (loaded [ food ])
+            let pinned, _ = step (PinToggled kids) seen
+            let saved, _ = step (PinsSaved (Ok ())) pinned
+            let shown = enter saved
+            Expect.equal shown.PinFlash.Ids (Set.ofList [ kids ]) "Kinderkram leuchtet"
+            Expect.equal shown.PinFlash.Count (seen.PinFlash.Count + 1) "ein neues Leuchten"
+            let again = enter shown
+            Expect.isEmpty again.PinFlash.Ids "beim Betreten danach nicht mehr"
+
+        testCase "Gelöst verschwindet ohne Leuchten" <| fun () ->
+            let seen = enter (loaded [ food; kids ])
+            let loosened, _ = step (PinToggled kids) seen
+            let shown = enter loosened
+            Expect.isEmpty shown.PinFlash.Ids "nichts leuchtet"
+            Expect.equal shown.PinFlash.Count seen.PinFlash.Count "kein Leuchten begonnen"
+
+        testCase "Im Sheet „Angepinnt“ angepinnt: nach dem Schließen leuchtet die Zeile" <| fun () ->
+            let seen = enter (loaded [ food ])
+            let opened, _ = step PinSheetOpened seen
+            let pinned, _ = step (PinToggled restaurant) opened
+            Expect.isEmpty pinned.PinFlash.Ids "solange das Sheet offen ist, nicht"
+            let closed, _ = step PinSheetClosed pinned
+            Expect.equal closed.PinFlash.Ids (Set.ofList [ restaurant ]) "nach dem Schließen"
+
+        testCase "Im Sheet nur umgeordnet: nach dem Schließen leuchtet nichts" <| fun () ->
+            let seen = enter (loaded [ food; kids ])
+            let opened, _ = step PinSheetOpened seen
+            let moved, _ = step (PinMovedUp kids) opened
+            let closed, _ = step PinSheetClosed moved
+            Expect.isEmpty closed.PinFlash.Ids "nichts leuchtet"
+
+        testCase "Das Ende des Leuchtens nimmt es ab, ein älteres Ende nicht" <| fun () ->
+            let seen = enter (loaded [ food ])
+            let pinned, _ = step (PinToggled kids) seen
+            let shown = enter pinned
+            let stale, _ = step (PinFlashEnded (shown.PinFlash.Count - 1)) shown
+            Expect.equal stale.PinFlash.Ids (Set.ofList [ kids ]) "älteres Ende wirkt nicht"
+            let ended, _ = step (PinFlashEnded shown.PinFlash.Count) shown
+            Expect.isEmpty ended.PinFlash.Ids "aus"
+
+        testCase "Ein neues Leuchten stellt den Zeitgeber, sonst keiner" <| fun () ->
+            let seen = enter (loaded [ food ])
+            let pinned, _ = step (PinToggled kids) seen
+            let _, cmd = update PinSheetClosed { pinned with PinSheet = Some { Query = ""; Marked = 0 } }
+            Tests.CmdTiming.expectAfter pinFlashMs (PinFlashEnded (seen.PinFlash.Count + 1)) cmd
+            let _, quiet = update PinSheetClosed { seen with PinSheet = Some { Query = ""; Marked = 0 } }
+            Expect.isEmpty quiet "ohne Leuchten kein Zeitgeber"
+    ]
+
+/// Ein Speichern, das gleich scheitert: die Übersicht zeigt `[food; kids]`, bestätigt ist `[food]`.
+let private savingKids (model: Model) : Model =
+    { model with Pins = Success [ food; kids ]; PinsConfirmed = [ food ]; PinsSaving = Some [ food; kids ] }
+
+[<Tests>]
+let pinErrorTests =
+    testList "Angepinnt: Speicherfehler am Ort" [
+        testCase "Auf der Übersicht steht der Satz im Block „Angepinnt“, die Anzeige springt zurück" <| fun () ->
+            let model, _ = step (PinsSaved (Error "Platte voll")) (savingKids (loaded [ food ]))
+            Expect.equal model.Pins (Success [ food ]) "zurück"
+            Expect.equal (pinErrorShown model) (Some (PinErrorInBlock, "Nicht gespeichert: Platte voll")) "im Block"
+
+        testCase "Bei offenem Sheet steht er im Sheet unter „Angepinnt (n)“" <| fun () ->
+            let opened = { savingKids (loaded [ food ]) with PinSheet = Some { Query = ""; Marked = 0 } }
+            let model, _ = step (PinsSaved (Error "Platte voll")) opened
+            Expect.equal (pinErrorShown model) (Some (PinErrorInSheet, "Nicht gespeichert: Platte voll")) "im Sheet"
+
+        testCase "Er bleibt bis zur nächsten Aktion an den Pins, die Pfeile der Markierung zählen nicht" <| fun () ->
+            let opened = { savingKids (loaded [ food ]) with PinSheet = Some { Query = ""; Marked = 0 } }
+            let failed, _ = step (PinsSaved (Error "Platte voll")) opened
+            let marked, _ = step (PinMarkMoved 1) failed
+            Expect.isSome (pinErrorShown marked) "Pfeil zeigt nur"
+            for action in [ PinToggled kids; PinMovedUp food; PinMarkedToggled; PinSheetClosed; PinSheetOpened; PinSearchChanged "Ess" ] do
+                let next, _ = step action failed
+                Expect.isNone next.PinError $"{action} beendet ihn"
+
+        testCase "Wartet eine neuere Änderung, steht kein Satz" <| fun () ->
+            let pending = { savingKids (loaded [ food ]) with Pins = Success [ food; kids; restaurant ] }
+            let model, _ = step (PinsSaved (Error "Platte voll")) pending
+            Expect.isNone model.PinError "die neuere Liste geht hinterher"
+    ]
+
+/// Das Budget mit offenem Kategorie-Detail (Sheet, am PC Panel).
+let private inspectorOpen (budget: Components.Budget.Types.Model) : Components.Budget.Types.Model =
+    { budget with
+        Selected = Some { CategoryId = kids; Entries = NotAsked; History = NotAsked; ReturnPending = false } }
+
+[<Tests>]
+let pinErrorRootTests =
+    testList "Angepinnt: Speicherfehler am Ort, Wurzel" [
+        testCase "Im offenen Kategorie-Detail steht der Satz rot in der Zeile, kein Toast" <| fun () ->
+            let start = rootModel Budget
+            let saving = { start with Overview = savingKids start.Overview; Budget = inspectorOpen start.Budget }
+            let model, cmd = State.update (State.OverviewMsg (PinsSaved (Error "Datenbank gesperrt"))) saving
+            Expect.equal model.Overview.Pins (Success [ food ]) "zurück auf den vorigen Stand"
+            Expect.equal
+                model.Budget.SheetLine
+                (Some { Tone = Components.Budget.Types.LineError; Text = "Nicht gespeichert: Datenbank gesperrt"; Retry = None; Undo = None })
+                "in der Zeile"
+            Expect.isNone model.Overview.PinError "nicht zusätzlich auf der Übersicht"
+            Expect.isEmpty (toastsOf cmd) "kein Toast"
+
+        testCase "Der nächste Tipp auf den Pin-Knopf beendet die Zeile" <| fun () ->
+            let start = rootModel Budget
+            let withLine =
+                { start with
+                    Overview = { start.Overview with Pins = Success [ food ]; PinsConfirmed = [ food ] }
+                    Budget =
+                        { inspectorOpen start.Budget with
+                            SheetLine = Some { Tone = Components.Budget.Types.LineError; Text = "Nicht gespeichert: x"; Retry = None; Undo = None } } }
+            let model, _ = State.update (State.TogglePinFromInspector kids) withLine
+            Expect.isNone model.Budget.SheetLine "beendet"
+
+        testCase "Auf der Übersicht steht er im Bereich „Angepinnt“, kein Toast, auch am PC nicht" <| fun () ->
+            let start = rootModel Overview
+            let saving = { start with Overview = savingKids start.Overview }
+            let model, cmd = State.update (State.OverviewMsg (PinsSaved (Error "Datenbank gesperrt"))) saving
+            Expect.equal (pinErrorShown model.Overview) (Some (PinErrorInBlock, "Nicht gespeichert: Datenbank gesperrt")) "im Block"
+            Expect.isEmpty (toastsOf cmd) "kein Toast"
+            Expect.isNone model.Feedback "der Meldungsplatz bleibt leer"
+
+        testCase "Ist das Kategorie-Detail inzwischen zu, wartet er im Bereich „Angepinnt“ der Übersicht" <| fun () ->
+            let start = rootModel Budget
+            let saving = { start with Overview = savingKids start.Overview }
+            let model, cmd = State.update (State.OverviewMsg (PinsSaved (Error "Datenbank gesperrt"))) saving
+            Expect.isNone model.Budget.SheetLine "keine Zeile ohne Sheet"
+            Expect.equal model.Overview.PinError (Some "Nicht gespeichert: Datenbank gesperrt") "auf der Übersicht"
+            Expect.isEmpty (toastsOf cmd) "kein Toast"
+    ]

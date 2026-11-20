@@ -89,8 +89,9 @@ type Msg =
     | CaptureFromOverview
     /// Eine Zeile im Block „Angepinnt“ (budgeting-w9yt4): die Kategorie im Budget des laufenden Monats, Tab Geld.
     | OpenPinnedCategory of System.Guid
-    /// Der Pin-Knopf im Kategorie-Detail (budgeting-w9yt4): anpinnen oder lösen, mit Toast.
-    | TogglePinFromInspector of categoryId: System.Guid * name: string
+    /// Der Pin-Knopf im Kategorie-Detail (budgeting-w9yt4): anpinnen oder lösen. Ohne Meldung: der Knopf zeigt den
+    /// neuen Stand selbst (budgeting-p3sk0, ADR 0098).
+    | TogglePinFromInspector of categoryId: System.Guid
 
 // ============================================
 // Helper Functions
@@ -964,24 +965,28 @@ let rec updateWith (ports: UpdatePorts) (msg: Msg) (model: Model) : Model * Cmd<
 
     | OverviewMsg overviewMsg ->
         let overview', cmd = Components.Overview.State.update overviewMsg model.Overview
-        // Ein gescheitertes Speichern der Pins meldet ein Toast (Ergebnis einer Aktion, Styleguide §5).
-        let noticeCmd =
-            match Components.Overview.State.pinSaveNotice overviewMsg model.Overview with
-            | Some message -> Cmd.ofMsg (ShowToast (message, ToastError))
-            | None -> Cmd.none
-        { model with Overview = overview' }, Cmd.batch [ Cmd.map OverviewMsg cmd; noticeCmd ]
+        // Ein gescheitertes Speichern der Pins steht am Ort, nie als Toast (budgeting-p3sk0): bei offenem Kategorie-Detail
+        // in dessen Zeile, sonst auf der Übersicht (`Overview.Types.pinErrorShown`).
+        match Components.Overview.State.pinSaveNotice overviewMsg model.Overview with
+        | Some text when model.CurrentPage = Budget && Components.Budget.State.sheetOpen model.Budget ->
+            { model with
+                Overview = { overview' with PinError = None }
+                Budget =
+                    { model.Budget with
+                        SheetLine = Some { Tone = Components.Budget.Types.LineError; Text = text; Retry = None; Undo = None } } },
+            Cmd.map OverviewMsg cmd
+        | _ -> { model with Overview = overview' }, Cmd.map OverviewMsg cmd
 
     | OpenPinnedCategory categoryId ->
         let model', cmd =
             updateWith ports (BudgetMsg (Components.Budget.Types.EnterWithAction (Components.Budget.Types.OpenPinnedFromOverview categoryId))) model
         model', Cmd.batch [ cmd; Cmd.ofMsg (NavigateTo Budget) ]
 
-    | TogglePinFromInspector (categoryId, name) ->
+    | TogglePinFromInspector categoryId ->
         match model.Overview.Pins with
         | Success _ ->
-            let wasPinned = Components.Overview.Types.isPinned model.Overview categoryId
-            let model', cmd = updateWith ports (OverviewMsg (Components.Overview.Types.PinToggled categoryId)) model
-            model', Cmd.batch [ cmd; Cmd.ofMsg (ShowToast (Components.Overview.Types.pinToggleNotice name wasPinned, ToastSuccess)) ]
+            // Der Tipp ist die nächste Aktion im Sheet: eine stehende Zeile (etwa ein früheres „Nicht gespeichert“) endet.
+            updateWith ports (OverviewMsg (Components.Overview.Types.PinToggled categoryId)) { model with Budget = { model.Budget with SheetLine = None } }
         | _ -> model, Cmd.none
 
     | OpenLedgerAccount filter ->

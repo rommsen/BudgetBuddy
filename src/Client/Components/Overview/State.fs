@@ -126,7 +126,9 @@ let applyAnswer (msg: Msg) (model: Model) : Model =
     | SyncHistoryLoaded (_, Error _) -> model
     | LenaFlagLoaded (Ok settings) -> { model with LenaFlagColor = settings.SavedColor }
     | LenaFlagLoaded (Error _) -> model
-    | PinsLoaded (_, Ok pins) -> { model with Pins = Success pins; PinsConfirmed = pins }
+    // Das erste Laden setzt den Vergleich fürs Leuchten: was schon angepinnt war, ist nicht neu.
+    | PinsLoaded (_, Ok pins) ->
+        { model with Pins = Success pins; PinsConfirmed = pins; PinsSeen = model.PinsSeen |> Option.orElse (Some pins) }
     | PinsLoaded (_, Error message) -> { model with Pins = RemoteData.lateFailure message model.Pins }
     | PinsNeeded
     | PinToggled _
@@ -138,6 +140,7 @@ let applyAnswer (msg: Msg) (model: Model) : Model =
     | PinMarkMoved _
     | PinMarkedToggled
     | CategoryOrderLoaded _
+    | PinFlashEnded _
     | Entered _
     | ReloadRequested
     | SidebarNeedsAccounts
@@ -174,10 +177,36 @@ let private sheetRows (model: Model) : Shared.Budgeting.BudgetCategory list =
     | Some sheet, Success month -> pinSheetRows model.CategoryOrder sheet.Query month
     | _ -> []
 
+/// Die Übersicht zeigt die Pins: was seit dem letzten Anzeigen neu angepinnt ist, leuchtet (budgeting-p3sk0). Ohne
+/// geladene Pins bleibt alles, wie es ist.
+let notePinsShown (model: Model) : Model =
+    match model.Pins with
+    | Success now ->
+        let ids = model.PinsSeen |> Option.map (fun seen -> newlyPinned seen now) |> Option.defaultValue Set.empty
+        { model with
+            PinsSeen = Some now
+            PinFlash =
+                if ids.IsEmpty then { model.PinFlash with Ids = Set.empty }
+                else { Ids = ids; Count = model.PinFlash.Count + 1 } }
+    | _ -> model
+
+/// Beendet die Nachricht den Satz „Nicht gespeichert: …“? Jede Aktion an den Pins: umschalten, ordnen, das Sheet öffnen
+/// oder schließen, suchen. Die Pfeile der Markierung zeigen nur.
+let private endsPinError (msg: Msg) : bool =
+    match msg with
+    | PinToggled _
+    | PinMovedUp _
+    | PinMarkedToggled
+    | PinSheetOpened
+    | PinSheetClosed
+    | PinSearchChanged _ -> true
+    | _ -> false
+
 /// Der reine Teil der Pins: Anpinnen, Lösen, Ordnen, das Sheet und die Antworten. Scheitert das Speichern ohne neuere
 /// Änderung, springt die Anzeige auf den bestätigten Stand zurück. Kam inzwischen eine Änderung, geht sie als ganze
 /// Liste hinterher, ob das Speichern davor gelang oder nicht.
 let pinStep (msg: Msg) (model: Model) : Model * PinEffect =
+    let model = if endsPinError msg then { model with PinError = None } else model
     match msg with
     | PinToggled categoryId -> changePins (togglePin categoryId) model
     | PinMovedUp categoryId ->
@@ -192,13 +221,18 @@ let pinStep (msg: Msg) (model: Model) : Model * PinEffect =
         | Some sent ->
             match result with
             | Ok () -> saveShown { model with PinsConfirmed = sent; PinsSaving = None }
-            | Error _ when model.Pins = Success sent ->
-                { model with Pins = Success model.PinsConfirmed; PinsSaving = None }, NoPinEffect
+            | Error reason when model.Pins = Success sent ->
+                { model with
+                    Pins = Success model.PinsConfirmed
+                    PinsSaving = None
+                    PinError = Some (pinsNotSavedText reason) },
+                NoPinEffect
             | Error _ -> saveShown { model with PinsSaving = None }
     | PinSheetOpened ->
         { model with PinSheet = Some { Query = ""; Marked = 0 } },
         (if model.CategoryOrder.IsNone then LoadCategoryOrder else NoPinEffect)
-    | PinSheetClosed -> { model with PinSheet = None }, NoPinEffect
+    // Nach dem Schließen leuchtet, was im Sheet neu angepinnt wurde.
+    | PinSheetClosed -> notePinsShown { model with PinSheet = None }, NoPinEffect
     | PinSearchChanged query ->
         { model with PinSheet = model.PinSheet |> Option.map (fun _ -> { Query = query; Marked = 0 }) }, NoPinEffect
     | PinMarkMoved delta ->
@@ -215,10 +249,13 @@ let pinStep (msg: Msg) (model: Model) : Model * PinEffect =
     | CategoryOrderLoaded (Ok frame) -> { model with CategoryOrder = Some frame.CategoryOrder }, NoPinEffect
     // Ohne BBs Reihenfolge gilt die Folge des Monats; beim nächsten Öffnen fragt das Sheet erneut.
     | CategoryOrderLoaded (Error _) -> model, NoPinEffect
+    | PinFlashEnded count when count = model.PinFlash.Count -> { model with PinFlash = { model.PinFlash with Ids = Set.empty } }, NoPinEffect
+    | PinFlashEnded _ -> model, NoPinEffect
     | _ -> applyAnswer msg model, NoPinEffect
 
-/// Die Rückmeldung zu einer Antwort auf das Speichern der Pins, gemessen am Modell vor der Antwort: ein Scheitern meldet
-/// sich, wenn die Anzeige zurückspringt. Wartet eine neuere Änderung, geht sie hinterher und meldet sich selbst.
+/// Der Satz zu einer Antwort auf das Speichern der Pins, gemessen am Modell vor der Antwort: ein Scheitern meldet sich,
+/// wenn die Anzeige zurückspringt. Wartet eine neuere Änderung, geht sie hinterher und meldet sich selbst. `pinStep`
+/// setzt ihn in `PinError`; die Wurzel liest ihn hier, um ihn bei offenem Kategorie-Detail dorthin zu setzen.
 let pinSaveNotice (msg: Msg) (model: Model) : string option =
     match msg, model.PinsSaving with
     | PinsSaved (Error reason), Some sent when model.Pins = Success sent -> Some (pinsNotSavedText reason)
@@ -240,6 +277,16 @@ let private pinEffectCmd (effect: PinEffect) : Cmd<Msg> =
             CategoryOrderLoaded
             (fun ex -> CategoryOrderLoaded (Error ex.Message))
 
+/// Wie lange neu angepinnte Zeilen leuchten: 0,7 s Animation (`.feedback-flash`), danach nimmt die App die Klasse ab.
+/// Mit `prefers-reduced-motion` steht der Ring so lange ohne Bewegung.
+let pinFlashMs = 900
+
+/// Der Zeitgeber, der ein neues Leuchten beendet.
+let pinFlashCmd (count: int) : Cmd<Msg> = Client.Debounce.delayed pinFlashMs (PinFlashEnded count)
+
+let private flashCmd (before: Model) (after: Model) : Cmd<Msg> =
+    if after.PinFlash.Count <> before.PinFlash.Count then pinFlashCmd after.PinFlash.Count else Cmd.none
+
 /// Was Betreten und „Erneut laden“ laden, für das Modell nach `beginEnter` oder `beginReload`.
 let private enterCmd (entered: Model) : Cmd<Msg> =
     Cmd.batch [
@@ -260,8 +307,8 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
         let reloading = beginReload model
         reloading, enterCmd reloading
     | Entered today ->
-        let entered = beginEnter today model
-        entered, enterCmd entered
+        let entered = beginEnter today (notePinsShown model)
+        entered, Cmd.batch [ enterCmd entered; flashCmd model entered ]
     | SidebarNeedsAccounts -> beginAccounts model, loadAccountsCmd ()
     | CountsNeeded ->
         let counting = beginCounts model
@@ -277,7 +324,8 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
     | PinSearchChanged _
     | PinMarkMoved _
     | PinMarkedToggled
-    | CategoryOrderLoaded _ ->
+    | CategoryOrderLoaded _
+    | PinFlashEnded _ ->
         let stepped, effect = pinStep msg model
-        stepped, pinEffectCmd effect
+        stepped, Cmd.batch [ pinEffectCmd effect; flashCmd model stepped ]
     | answer -> applyAnswer answer model, Cmd.none

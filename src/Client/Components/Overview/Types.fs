@@ -17,6 +17,10 @@ type PinSheet = {
     Marked: int
 }
 
+/// Das Leuchten neu angepinnter Kategorien im Block „Angepinnt“ (budgeting-p3sk0, Skizze `.flash-row`). `Count` zählt
+/// jedes Leuchten: das Ende eines älteren nimmt ein neueres nicht ab, und ein neues baut die Zeilen neu auf.
+type PinFlash = { Ids: Set<Guid>; Count: int }
+
 type Model = {
     /// Der laufende Monat für den Block „Monat“.
     Month: RemoteData<BudgetMonth>
@@ -61,6 +65,14 @@ type Model = {
     /// BBs Reihenfolge der Kategorien (ADR 0088) für die Liste im Sheet, geholt beim ersten Öffnen. Ohne sie gilt
     /// die Folge des Monats.
     CategoryOrder: Guid list option
+    /// Die Pins, wie die Übersicht sie zuletzt gezeigt hat (beim Betreten oder beim Schließen des Sheets). `None`, bis
+    /// sie einmal geladen sind: ohne Vergleich leuchtet nichts.
+    PinsSeen: Guid list option
+    /// Welche Zeilen im Block „Angepinnt“ gerade leuchten.
+    PinFlash: PinFlash
+    /// Der Satz, wenn das Speichern der Pins scheiterte und die Anzeige zurücksprang (budgeting-p3sk0). Er steht rot im
+    /// Sheet „Angepinnt“ oder im Block, bis zur nächsten Aktion an den Pins.
+    PinError: string option
 }
 
 let init : Model =
@@ -81,7 +93,10 @@ let init : Model =
       PinsConfirmed = []
       PinsSaving = None
       PinSheet = None
-      CategoryOrder = None }
+      CategoryOrder = None
+      PinsSeen = None
+      PinFlash = { Ids = Set.empty; Count = 0 }
+      PinError = None }
 
 /// Jeder Auslöser, der den Remoting-Proxy anfasst, ist geteilt: die reine Antwort setzt nur den Zustand.
 type Msg =
@@ -123,6 +138,8 @@ type Msg =
     /// Enter aus der Suche: die markierte Zeile umschalten.
     | PinMarkedToggled
     | CategoryOrderLoaded of Result<BudgetFrame, string>
+    /// Das Leuchten neu angepinnter Zeilen endet, mit seiner Zählung.
+    | PinFlashEnded of count: int
 
 /// Was Seitenleiste und Abschnitt „Konten“ zeigen. Die Views rufen es nur auf.
 type AccountsListState =
@@ -561,12 +578,24 @@ let pinSheetMarked (model: Model) : BudgetCategory option =
 let pinSheetPinnedSection (query: string) (pins: Guid list) (month: BudgetMonth) : BudgetCategory list =
     if query.Trim() <> "" then [] else visiblePins pins month
 
-/// Die Rückmeldung nach dem Pin-Knopf im Kategorie-Detail. `wasPinned`: der Stand vor dem Klick.
-let pinToggleNotice (name: string) (wasPinned: bool) : string =
-    if wasPinned then $"{name} gelöst" else $"{name} angepinnt"
-
-/// Die Rückmeldung, wenn das Speichern scheitert (Ergebnis einer Aktion, Styleguide §5).
+/// Der Satz, wenn das Speichern scheitert. Er steht am Ort (budgeting-p3sk0, ADR 0098), nie als Toast.
 let pinsNotSavedText (reason: string) : string = $"Nicht gespeichert: {reason}"
+
+/// Neu angepinnt seit dem letzten Anzeigen: was jetzt angepinnt ist und damals nicht. Gelöste, erst angepinnte und
+/// wieder gelöste und nur umgeordnete Kategorien leuchten nicht.
+let newlyPinned (seen: Guid list) (now: Guid list) : Set<Guid> =
+    Set.difference (Set.ofList now) (Set.ofList seen)
+
+/// Wo der Satz „Nicht gespeichert: …“ auf der Übersicht steht.
+type PinErrorPlace =
+    /// Im Sheet „Angepinnt“ unter der Liste „Angepinnt (n)“.
+    | PinErrorInSheet
+    /// Im Block „Angepinnt“ der Übersicht.
+    | PinErrorInBlock
+
+/// Der Satz zum gescheiterten Speichern und sein Ort: bei offenem Sheet dort, sonst im Block.
+let pinErrorShown (model: Model) : (PinErrorPlace * string) option =
+    model.PinError |> Option.map (fun text -> (if model.PinSheet.IsSome then PinErrorInSheet else PinErrorInBlock), text)
 
 /// Ist die Kategorie angepinnt? Ohne geladene Pins nie.
 let isPinned (model: Model) (categoryId: Guid) : bool =

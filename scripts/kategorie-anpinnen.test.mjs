@@ -2,7 +2,8 @@
 //
 // budgeting-w9yt4: angepinnte Kategorien. Der eine Happy Path am Handy (412 px): im Budget das Kategorie-Detail öffnen
 // und über den Pin-Knopf anpinnen, auf der Übersicht steht die Kategorie im Block „Angepinnt“, im Sheet „Angepinnt“
-// wird sie gelöst, danach steht die Leer-Karte da. Welche Zeilen in welcher Folge erscheinen, die Rechnung von Anteil,
+// wird sie gelöst, danach steht die Leer-Karte da. Seit budgeting-p3sk0 (R3, ADR 0098) ohne Meldung: der Knopf zeigt den
+// neuen Stand, auf der Übersicht leuchtet die neu angepinnte Zeile kurz (`data-flash`). Welche Zeilen in welcher Folge erscheinen, die Rechnung von Anteil,
 // ausgegeben und von, Ordnen, Suche, Markierung und der Rücksprung bei einem Speicherfehler prüfen die .NET-Tests
 // (`OverviewPinsTests.fs`, `PinnedCategoriesTests.fs`); das Layout der Sweep (Zustände `uebersicht-angepinnt` und
 // `uebersicht-angepinnt-sheet`).
@@ -55,16 +56,18 @@ test("[flow:kategorie-anpinnen] Am Handy eine Kategorie im Detail anpinnen, auf 
     assert.equal(await pin.getAttribute("aria-label"), "Auf der Übersicht anpinnen");
     const pinned = page.waitForRequest("**/api/BudgetApi/setPinnedCategories");
     await pin.tap();
-    // Am Handy steht die Rückmeldung in der Meldungsleiste (design-system-gkded).
-    await page.getByTestId("feedback-bar").getByTestId("feedback-action").filter({ hasText: "Kleidung angepinnt" }).waitFor();
-    assert.equal(await pin.getAttribute("aria-label"), "Von der Übersicht lösen", "der Knopf zeigt den neuen Stand");
+    await page.locator('[data-testid="inspector-pin"][aria-label="Von der Übersicht lösen"]').waitFor();
     assert.equal(JSON.parse((await pinned).postData())[0].length, 1, "die eine Kategorie gespeichert");
+    assert.equal(await page.locator(".toast-layer > *").count(), 0, "kein Toast im DOM");
+    assert.equal(await page.getByTestId("feedback-message").count(), 0, "keine Meldung in der Leiste");
 
     await sheet.getByRole("button", { name: "Schließen" }).first().tap();
     await page.getByRole("button", { name: "Übersicht", exact: true }).locator("visible=true").first().tap();
     const row = page.locator('[data-testid="overview-pinned"]');
-    await row.filter({ hasText: "Kleidung" }).waitFor();
+    // Das Leuchten dauert 0,9 s: gleich nach dem Betreten warten.
+    await row.filter({ hasText: "Kleidung" }).and(page.locator('[data-flash="true"]')).waitFor({ timeout: 5000 });
     assert.equal(await row.count(), 1, "genau die angepinnte Kategorie");
+    await row.and(page.locator('[data-flash="false"]')).waitFor();
 
     await page.locator('[data-testid="overview-pins-edit"]').tap();
     const pinSheet = page.locator(".bottom-sheet.active");
