@@ -62,7 +62,8 @@ export const MOBILE_BELOW = 768;
 export const HANDY_WIDTH = 412;
 export const PC_WIDTH = 1440;
 
-/// Höhe des Viewports je Breite: Handy hochkant, sonst ein übliches Querformat.
+/// Höhe des Viewports je Breite: Handy hochkant, sonst ein übliches Querformat. Der Zweig für 768 bis 1023 px trifft
+/// keine Breite des Sweeps mehr, `key-invariants.mjs` misst aber bei `NO_PANEL_WIDTH` (900 px) und braucht ihn.
 export const heightFor = (width) => (width < MOBILE_BELOW ? 844 : width < 1024 ? 1024 : 900);
 
 /// Wie eine offene Bildschirmtastatur: der sichtbare Bereich halbiert sich. `Viewport.fs` schreibt daraus

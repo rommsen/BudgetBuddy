@@ -1003,7 +1003,7 @@ export const STATES = [
     },
   },
   // budgeting-gtrgk (Regel R3): nach dem Abgeben steht „✓ 5,00 € nach Reise“ über dem Knopf, der Knopf bleibt ohne
-  // Scrollen erreichbar, auch bei offener Tastatur; im Panel bei 1280 ohne Toast. Rechts in der Zeile steht
+  // Scrollen erreichbar, auch bei offener Tastatur; im Panel am PC ohne Toast. Rechts in der Zeile steht
   // „Rückgängig“ (budgeting-y1kkr), seine Trefferfläche prüft Invariante 2.
   {
     name: "budget-geld-ergebnis",
@@ -1077,8 +1077,9 @@ export const STATES = [
     name: "budget-buchungen",
     route: "/budget",
     // design-system-gcpws, Abweichung (a) vom Prototyp (G11): das Panel nimmt 30 % des Fensters; neben ihm steht die
-    // Budget-Tabelle (rund 640 px Liste, Schwelle `@min-[40rem]`) erst ab rund 1340 px, bei 1024 und 1280 px die Zeilen
-    // wie am Handy. Bei 1280 px ragte die Tabelle sonst 40 px unter das Panel. Nachsehen in budgeting-wnkgj.
+    // Budget-Tabelle (rund 640 px Liste, Schwelle `@min-[40rem]`) erst ab rund 1340 px, darunter die Zeilen wie am
+    // Handy. Bei PC_WIDTH steht die Tabelle neben dem Panel. Die Regression budgeting-wnkgj (bei 1280 px ragte die
+    // Tabelle 40 px unter das Panel) entfällt mit den Breiten unter 1340 px, der Sweep besucht sie nicht mehr.
     widths: [HANDY_WIDTH, PC_WIDTH],
     mock: mockBudget,
     open: async (page, { mobile, width }) => {
@@ -1086,7 +1087,7 @@ export const STATES = [
       await page.locator('[data-testid="detail-entry"]:visible').first().waitFor();
       if (!mobile) {
         const table = await page.locator('[data-testid="budget-page"] table').filter({ visible: true }).count();
-        if ((table > 0) !== width >= 1440) throw new Error(`Budget-Tabelle bei ${width} px ${table > 0 ? "sichtbar" : "nicht sichtbar"}`);
+        if (table === 0) throw new Error(`Budget-Tabelle bei ${width} px nicht sichtbar`);
       }
     },
   },
@@ -1375,8 +1376,8 @@ export const STATES = [
     },
   },
   // ledger-qh9qx, ledger-qns4j (AC5), Regression ledger-filter-bar: Spaltenköpfe, Statuszelle mit zwei
-  // Kennzeichen, die Filterleiste haftet ohne den Tabellenkopf zu verdecken. Bei 768 und 900 px die Handy-Form
-  // ohne Konten-Spalte (ledger-d9z3n).
+  // Kennzeichen, die Filterleiste haftet ohne den Tabellenkopf zu verdecken. Unter 1024 px die Handy-Form ohne
+  // Konten-Spalte (ledger-d9z3n).
   {
     name: "kassenbuch",
     route: "/ledger",
@@ -1408,8 +1409,8 @@ export const STATES = [
   },
   // design-system-btwhg: Datumsfeld und Kategorie-Suche am Handy mit 16 px; seit ledger-d9z3n aus dem Filter-Sheet, seit
   // ledger-npqcb an Stelle der Filter im selben Sheet. Beim Tippen in der Suche bleibt der Fokus im Feld (die Tastatur
-  // bleibt offen); mit offener Tastatur steht der erste Treffer im Bild. „Übernehmen“ liegt dann bei 320 und 390 px
-  // unter der Tastatur (wie vorher im zweiten Sheet), Kann-Sammlung ledger.
+  // bleibt offen); mit offener Tastatur steht der erste Treffer im Bild. „Übernehmen“ lag dann bei 320 und
+  // 390 px unter der Tastatur (wie vorher im zweiten Sheet), Kann-Sammlung ledger; diese Breiten misst der Sweep nicht mehr.
   {
     name: "kassenbuch-filter-kategorie",
     route: "/ledger",
@@ -1548,11 +1549,9 @@ export const STATES = [
       if (mobile) {
         scope = await openLedgerDetail(page, "AMAZON PAYMENTS");
       } else {
-        // Neben dem Panel steht bei 1024 px die Kompaktliste, ab rund 1200 px die Tabelle (design-system-gcpws).
+        // Bei PC_WIDTH steht neben dem Panel die Tabelle (design-system-gcpws).
         await openLedger(page);
-        const tableRow = page.locator("table tbody tr", { hasText: "AMAZON PAYMENTS" }).locator("visible=true");
-        if ((await tableRow.count()) > 0) await tableRow.first().locator("td").nth(2).click();
-        else await page.getByText("AMAZON PAYMENTS", { exact: true }).locator("visible=true").first().click();
+        await page.locator("table tbody tr", { hasText: "AMAZON PAYMENTS" }).locator("visible=true").first().locator("td").nth(2).click();
         scope = page.locator('[data-testid="ledger-detail-panel"]');
         await scope.waitFor();
       }
@@ -1695,8 +1694,7 @@ export const STATES = [
   // ledger-q42pg: Speichern mit leerem Betrag zeigt den Feldfehler unter dem Feld. Das Feld verliert beim Speichern den
   // Fokus nicht, auch nicht bei "Einnahme" und "Ausgabe" (design-system-ak97z); hat es ihn verloren, bekommt es ihn
   // beim Speichern zurück, und es verweist per
-  // `aria-describedby` auf die Meldung. Geht die Tastatur danach auf, rollt die Meldung ins Bild, auch bei 320 px,
-  // wo sie in zwei Zeilen umbricht.
+  // `aria-describedby` auf die Meldung. Geht die Tastatur danach auf, rollt die Meldung ins Bild.
   // ledger-enjex (R3 Platz 2): lehnt der Server das Speichern ab, steht der Grund rot im Sheet über dem Fuß, das Sheet
   // bleibt mit dem Entwurf offen, kein Toast, nichts in der Leiste.
   {
@@ -1838,8 +1836,7 @@ export const STATES = [
       await page.locator('.bottom-sheet.active [data-testid="payee-picker-option"]').first().waitFor();
     },
   },
-  // ledger-fxt09: am PC die Payee-Auswahl. Mit Panel (1440) als Dialog über der Liste, das Detail-Panel bleibt
-  // rechts; ohne Panel (1280, Detail als Sheet) ersetzt sie den Inhalt des Sheets.
+  // ledger-fxt09: am PC die Payee-Auswahl als Dialog über der Liste, das Detail-Panel bleibt rechts.
   {
     name: "kassenbuch-payee-auswahl-pc",
     route: "/ledger",
@@ -2071,10 +2068,6 @@ export const STATES = [
       await panel.locator('[data-testid="capture-recent"]').waitFor();
     },
     primary: (page) => page.locator('[data-testid="ledger-detail-panel"]').getByRole("button", { name: "Buchung anlegen", exact: true }),
-    // Das DS-Panel (`Detail.panel`, unverändert, gilt auch für das Buchungs-Detail) überlappt nach dem Scrollen ans
-    // Ende den haftenden Tabellenkopf um 4 px und die feste Tastatur-Leiste um 9 px. Erster Zustand mit dem Panel am
-    // PC; Kann-Sammlung ledger (ledger-at63w).
-    exceptions: [PC_WIDTH].map((width) => ({ width, inv: 6, selector: '[data-testid="ledger-detail-panel"] und div' })),
   },
   // ledger-ea70s: die Kategorie-Auswahl im Buchungs-Detail ersetzt am Handy den Inhalt des Sheets (§7.15).
   {
@@ -2093,7 +2086,7 @@ export const STATES = [
   // ledger-p5y9s (R3 Platz 1, Entscheidung Roman 2026-11-19): nach dem Kategoriewechsel steht „✓ Geändert“ mit
   // „Rückgängig“ unter „Kategorie“, im Sheet am Handy wie im Panel am PC, ohne Toast. Vorher
   // `kassenbuch-kategorie-toast`: am PC stand der Toast 5 s über „Historie“ (Ausnahme der Invariante 5, entfällt).
-  // Regression c819eeb (Toast über dem Panel) prüft seit design-system-gkded `uebersicht-meldung` @ 1280.
+  // Regression c819eeb (Toast über dem Panel) prüft seit design-system-gkded `uebersicht-meldung` am PC.
   {
     name: "kassenbuch-kategorie-rueckgaengig",
     route: "/ledger",
@@ -2300,8 +2293,7 @@ export const STATES = [
     },
     reach: (page) => fieldUndo(page),
   },
-  // design-system-gkded (Regel R3, ADR 0098): nach einem Wisch (bei 900 px nach einer Kategorieänderung) steht die
-  // Meldung in der Leiste über der Navigation bzw. der Tastenleiste,
+  // design-system-gkded (Regel R3, ADR 0098): nach einem Wisch steht die Meldung in der Leiste über der Navigation,
   // „+ Buchung“ wird rund daneben. Regression design-system-vf94m: der Toast mit Aktion stand unten über dem
   // schwebenden Knopf und verdeckte ihn (Invariante 12 und Gegenbeweis (c) in layout-invariants.test.mjs).
   // ledger-gwr9j: am Handy „✓ Geprüft“, darunter der Payee, rechts „Rückgängig“ (Skizze 22).
@@ -2313,31 +2305,14 @@ export const STATES = [
       await mockLedger(page);
       await mockReviewMark(page);
     },
-    open: async (page, { mobile }) => {
+    open: async (page) => {
       await openLedger(page);
-      if (mobile) await swipeReviewed(page, "Bauhaus");
-      else {
-        // Von 768 bis 1023 px ohne Touch gibt es keinen Wisch, und G meldet am Ort: die Meldung kommt von einer
-        // Kategorieänderung im Detail-Sheet, sichtbar nach dem Schließen.
-        await page.getByText("Bauhaus", { exact: true }).locator("visible=true").first().click();
-        const sheet = ledgerSheet(page);
-        await sheet.locator('[data-testid="detail-category-arrow"]').click();
-        const picker = page.locator(".bottom-sheet.active", { hasText: "Ziel wählen" });
-        await picker.waitFor();
-        await picker.locator('[role="option"]', { hasText: "Nebenkosten" }).last().click();
-        // ledger-p5y9s: im offenen Sheet steht „Rückgängig“ am Feld; erst das Schließen gibt es an die Leiste.
-        await fieldUndo(page).waitFor();
-        await page.waitForFunction(() => document.querySelectorAll(".bottom-sheet.active").length === 1);
-        await settle(page, { where: "Kategorie geändert, Detail offen" });
-        await closeLedgerSheet(page);
-      }
+      await swipeReviewed(page, "Bauhaus");
       await feedbackAction(page).waitFor();
       await page.locator('[data-testid="ledger-capture-fab"][data-shape="round"]').waitFor();
-      if (mobile) {
-        const bar = page.getByTestId("feedback-bar");
-        await bar.getByTestId("feedback-action").filter({ hasText: /^Geprüft$/ }).waitFor();
-        await bar.getByTestId("feedback-detail").filter({ hasText: "Bauhaus" }).waitFor();
-      }
+      const bar = page.getByTestId("feedback-bar");
+      await bar.getByTestId("feedback-action").filter({ hasText: /^Geprüft$/ }).waitFor();
+      await bar.getByTestId("feedback-detail").filter({ hasText: "Bauhaus" }).waitFor();
     },
   },
   // ledger-k68sd: nach „Buchung löschen“ steht an ihrem Platz die Zeile „„…“ gelöscht · Rückgängig“ (R3), am Handy und
@@ -2494,9 +2469,6 @@ export const STATES = [
     name: "kassenbuch-regel-panel",
     route: "/ledger",
     widths: [PC_WIDTH],
-    // Schon vor ledger-hg5m5 bei jedem offenen Detail-Panel: nach dem Scrollen ragt die haftende Filterleiste 4 px
-    // unter den Kopf des Panels (Kann-Sammlung ledger).
-    exceptions: [{ width: PC_WIDTH, inv: 6, selector: '[data-testid="ledger-detail-panel"] und div' }],
     mock: mockLedger,
     open: async (page) => {
       const row = page.locator("table tbody tr", { hasText: "Bauhaus" }).first();
@@ -2532,7 +2504,7 @@ export const STATES = [
     mock: mockLedger,
     open: async (page) => {
       await openLedger(page);
-      // Tabelle oder Kompaktliste (bei 1024 px neben dem Panel): die Kästchen der ersten drei Buchungen.
+      // Die Kästchen der ersten drei Buchungen in der Tabelle.
       for (const payee of ["Bauhaus", "AMAZON PAYMENTS", "PayPal Shop"]) {
         await page.getByRole("checkbox", { name: `${payee} auswählen` }).locator("visible=true").first().click();
       }
@@ -2571,13 +2543,13 @@ export const STATES = [
     mock: (page) => mockLedger(page, { accounts: 30 }),
     open: async (page) => {
       await openLedger(page);
-      // Bei 1024 px steht neben dem Panel die Kompaktliste (ledger-cnaz3): das Kästchen über seinen Namen.
       await page.getByRole("checkbox", { name: /^Bauhaus.* auswählen$/ }).locator("visible=true").first().click();
       await page.locator(".selection-bar").filter({ visible: true }).waitFor();
     },
   },
-  // Regression ledger-filter-bar (feste Höhenschätzung): bei 1024 px bricht die Leiste mit zwei Kategorien um,
-  // der Tabellenkopf haftet trotzdem darunter.
+  // Regression ledger-filter-bar (feste Höhenschätzung): die Leiste bricht um, der Tabellenkopf haftet trotzdem
+  // darunter. Bei PC_WIDTH ist die Leiste neben der Konten-Spalte und dem Panel rund 730 px breit und zweizeilig
+  // (gemessen 88 px): mit zwei Kategorien stehen „Filter löschen“ und die Suche in der zweiten Zeile.
   {
     name: "kassenbuch-gefiltert",
     route: "/ledger",
@@ -2647,9 +2619,8 @@ export const STATES = [
       await page.getByText("Kontostände konnten nicht aktualisiert werden").locator("visible=true").first().waitFor();
     },
   },
-  // ledger-y54gr: die Auswahl-Leiste am Handy mit beiden Lena-Aktionen und dem Grund als Zeile. Bei 320 px bricht
-  // sie um und wird höher: am Ende der Liste liegt die letzte Buchung trotzdem über ihr (Invariante 5, am Ende
-  // gescrollt).
+  // ledger-y54gr: die Auswahl-Leiste am Handy mit beiden Lena-Aktionen und dem Grund als Zeile. Am Ende der Liste
+  // liegt die letzte Buchung über ihr (Invariante 5, am Ende gescrollt).
   {
     name: "kassenbuch-auswahl-handy",
     route: "/ledger",
@@ -2734,8 +2705,7 @@ export const STATES = [
     mock: mockRules,
     open: openRules,
   },
-  // categorization-n3sxw: am PC steht eine Regel rechts im Panel, der Picker hängt als Popover ganz im Bild. Ab 1024 px
-  // steht die Karte neben dem Panel, von 1024 bis 1279 px schmaler (Abweichung (f) der Task).
+  // categorization-n3sxw: am PC steht eine Regel rechts im Panel, der Picker hängt als Popover ganz im Bild.
   {
     name: "regeln-panel",
     route: "/ledger/rules",
@@ -2764,7 +2734,7 @@ export const STATES = [
   },
   // categorization-t6j00 (R3, ADR 0098): nach „Regel löschen“ steht an ihrem Platz die Zeile „„Name“ gelöscht“ mit
   // „Rückgängig“, ohne Nummer, kein Toast. Gelöscht wird die Regel mit dem langen Namen: der Name wird gekürzt,
-  // „gelöscht“ und „Rückgängig“ bleiben ganz. Am PC in der Tabelle (1440) und in der Karte neben dem Panel (1024).
+  // „gelöscht“ und „Rückgängig“ bleiben ganz. Am PC in der Tabelle.
   {
     name: "regeln-geloescht",
     route: "/ledger/rules",
@@ -3149,8 +3119,9 @@ export const STATES = [
       body: { Ok: budgetMonth(CURRENT) },
       loaded: (page) => page.locator('[data-testid="overview-month"]'),
     },
-    // Wie `uebersicht`: bei 390 px bricht der Satz des ersten Eintrags um (§7.4, „Zu tun“ wächst mit seinem Inhalt).
-    // Die Leer-Karte „Angepinnt“ (budgeting-w9yt4) rutscht aus demselben Grund mit.
+    // Bei 20 px Grundschrift bricht bei HANDY_WIDTH der Satz des ersten Eintrags in „Zu tun“ auf zwei Zeilen um
+    // (gemessen: „-12,50 € · Geld aus einer anderen Kategorie holen“), „Zu tun“ wächst mit seinem Inhalt (§7.4) und
+    // die Konten rutschen 20 px nach unten. Die Leer-Karte „Angepinnt“ (budgeting-w9yt4) rutscht aus demselben Grund mit.
     exceptions: [
       { width: HANDY_WIDTH, inv: 9, selector: '[data-testid="overview-account"]' },
       { width: HANDY_WIDTH, inv: 9, selector: '[data-testid="overview-pins-empty"]' },
@@ -3192,10 +3163,10 @@ export const STATES = [
       body: { Ok: budgetMonth(CURRENT) },
       loaded: (page) => page.locator('[data-testid="overview-pinned"]').first(),
     },
-    // Wie `uebersicht`: bei 320 px bricht der Satz des ersten Eintrags in „Zu tun“ um (§7.4), die Konten rutschen mit.
+    // Wie `uebersicht`: bei HANDY_WIDTH bricht der Satz des ersten Eintrags in „Zu tun“ nicht um, nichts rutscht.
   },
   // design-system-gkded: auf der Übersicht steht eine Meldung ohne Ort in der Leiste, „+ Buchung“ rund und ruhig daneben
-  // (§7.14, „Zu tun“ hat Einträge). Bei 1280 px ist der Dialog „Angepinnt“ offen und der Toast liegt über ihm (Regression
+  // (§7.14, „Zu tun“ hat Einträge). Am PC ist der Dialog „Angepinnt“ offen und der Toast liegt über ihm (Regression
   // c819eeb am PC: der Toast lag hinter der offenen Ebene, Gegenbeweis in layout-invariants.test.mjs). Seit budgeting-p3sk0
   // steht ein Speicherfehler der Pins am Ort; die Meldung kommt deshalb vom Abbrechen eines Abrufs, das scheitert
   // (`cancelSync` ohne Mock, am PC mit Verzögerung, damit der Dialog vorher offen ist).
