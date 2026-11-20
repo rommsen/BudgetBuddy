@@ -136,6 +136,7 @@
     <Compile Include="LedgerPageTests.fs" />
     <Compile Include="LedgerViewTests.fs" />
     <Compile Include="SettingsViewTests.fs" />
+    <Compile Include="SettingsFeedbackTests.fs" />
     <Compile Include="LedgerVisibleColumnsTests.fs" />
     <Compile Include="LedgerFilterButtonTests.fs" />
     <Compile Include="LedgerPagingTests.fs" />

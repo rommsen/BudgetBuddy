@@ -7,14 +7,26 @@ open Components.Settings.Types
 open Types
 open Shared.Domain
 
-let private settingsErrorToString (error: SettingsError) : string =
+/// Der Vorgang eines Datenbankfehlers als Wort nach „beim“. Unbekannte Vorgänge heißen „Speichern“: die Seite
+/// liest und schreibt nur Einstellungen.
+let private operationLabel (operation: string) : string =
+    match operation with
+    | "load" | "read" -> "Lesen"
+    | _ -> "Speichern"
+
+/// Ein Fehler der Einstellungen als deutscher Satz, ohne technischen Vorsatz (§8, banking-import-vwhfm).
+let settingsErrorToString (error: SettingsError) : string =
     match error with
-    | SettingsError.YnabTokenInvalid msg -> $"Invalid YNAB token: {msg}"
-    | SettingsError.YnabConnectionFailed (status, msg) -> $"YNAB connection failed (HTTP {status}): {msg}"
-    | SettingsError.ComdirectCredentialsInvalid (field, reason) -> $"Invalid Comdirect credentials ({field}): {reason}"
+    | SettingsError.YnabTokenInvalid msg -> $"YNAB-Token ungültig: {msg}"
+    // Ohne Status hat YNAB nicht geantwortet oder abgelehnt; der Grund sagt, was davon.
+    | SettingsError.YnabConnectionFailed (0, msg) -> $"YNAB-Verbindung gescheitert: {msg}"
+    | SettingsError.YnabConnectionFailed (status, msg) -> $"YNAB antwortet nicht (HTTP {status}): {msg}"
+    | SettingsError.ComdirectCredentialsInvalid (_, reason) -> $"Comdirect-Zugangsdaten ungültig: {reason}"
     | SettingsError.ComdirectConnectionTestFailed reason -> $"Verbindungstest gescheitert: {reason}"
-    | SettingsError.EncryptionFailed msg -> $"Encryption failed: {msg}"
-    | SettingsError.DatabaseError (op, msg) -> $"Database error during {op}: {msg}"
+    | SettingsError.EncryptionFailed msg -> $"Verschlüsselung gescheitert: {msg}"
+    // Eine Ablehnung der Validierung ist schon ein Satz für die Seite.
+    | SettingsError.DatabaseError ("validation", msg) -> msg
+    | SettingsError.DatabaseError (op, msg) -> $"Datenbankfehler beim {operationLabel op}: {msg}"
 
 /// Nach so vielen Millisekunden fällt die Rückfrage "Bank trennen" von selbst zurück.
 let bankDisconnectConfirmMs = 3000
@@ -33,9 +45,12 @@ let init () : Model * Cmd<Msg> =
         AutoFetchEnabledInput = defaultAutoFetchEnabled
         AutoFetchIntervalInput = defaultAutoFetchIntervalMinutes
         AutoFetchSaving = false
-        AutoFetchError = None
+        Feedback = None
+        Flash = None
+        BankFlashPending = false
         LenaFlagColorInput = ""
         LenaFlag = { SavedColor = None; SuggestedColor = None }
+        LenaFlagLoadError = None
         ComdirectConnectionValid = NotAsked
         ComdirectAuthPending = false
         BankStatus = NotAsked
@@ -65,9 +80,34 @@ let saveAutoFetchCmd (call: SyncSettings -> Async<SettingsResult<unit>>) (settin
 
 /// Die Meldung am Auswahlfeld: eine Ablehnung der Validierung steht ohne technischen Vorsatz da.
 let autoFetchErrorText (error: SettingsError) : string =
-    match error with
-    | SettingsError.DatabaseError ("validation", message) -> message
-    | other -> settingsErrorToString other
+    settingsErrorToString error
+
+/// So lange leuchtet eine Zeile (passend zu `feedbackFlash` in styles.css, wie im Tab Regeln).
+let flashDurationMs = 700
+
+/// Die Zeile leuchtet; nach `flashDurationMs` nimmt `FlashEnded` die Klasse ab (auch ohne Bewegung nötig).
+let private startFlash (target: FlashTarget) (model: Model) : Model * Cmd<Msg> =
+    { model with Flash = Some target }, Debounce.delayed flashDurationMs (FlashEnded target)
+
+/// Ein Formular ist gespeichert: der Kopf zeigt „✓ Gespeichert“, die geänderte Zeile leuchtet.
+let private savedForm (section: SettingsSection) (model: Model) : Model * Cmd<Msg> =
+    startFlash (SectionRow section) { model with Feedback = Some (CardHead section, SettingsNote.Done savedText) }
+
+/// Ein Formular ist nicht gespeichert: der Fehler steht am Feld, Abschnitt und Eingaben bleiben.
+let private formFault (section: SettingsSection) (error: SettingsError) (model: Model) : Model =
+    { model with Feedback = Some (FormField section, SettingsNote.Failed (notSavedText (settingsErrorToString error))) }
+
+/// Ein Feld, das selbst speichert: Bestätigung oder Fehler darunter. Das Feld zeigt den gespeicherten Stand.
+let private fieldNote (field: SettingsField) (result: Result<unit, YnabError>) (model: Model) : Model =
+    let note =
+        match result with
+        | Ok () -> SettingsNote.Done savedText
+        | Error err -> SettingsNote.Failed (notSavedText (ynabErrorText err))
+    { model with Feedback = Some (Field field, note) }
+
+/// Ein Fehler im Block Bankverbindung.
+let private bankFault (error: SettingsError) (model: Model) : Model =
+    { model with Feedback = Some (BankBlock, SettingsNote.Failed (settingsErrorToString error)) }
 
 /// Speichert die Karte Sync-Einstellungen. `call` ist der Remoting-Aufruf, unter .NET bleibt er ungerufen.
 let saveSyncDaysCmd (call: SyncSettings -> Async<SettingsResult<unit>>) (settings: SyncSettings) : Cmd<Msg> =
@@ -85,11 +125,11 @@ let private autoFetchTrigger (model: Model) (sent: SyncSettings) : AutoFetchCont
     | _ -> AutoFetchIntervalField
 
 let private startAutoFetchSave (model: Model) : Model * Cmd<Msg> * ExternalMsg =
-    let saving = { model with AutoFetchSaving = true; AutoFetchError = None }
+    let saving = { model with AutoFetchSaving = true }
     // Hinter einem Lambda: der Remoting-Proxy wirft unter .NET im Typinitialisierer.
     saving, saveAutoFetchCmd (fun settings -> Api.settings.saveSyncSettings settings) (autoFetchSettingsToSave saving), NoOp
 
-let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
+let private step (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     match msg with
     | LoadSettings ->
         let cmd =
@@ -112,7 +152,8 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         updatedModel, Cmd.none, NoOp
 
     | SettingsLoaded (Error err) ->
-        { model with Settings = Failure err }, Cmd.none, ShowToast ($"Failed to load settings: {err}", ToastError)
+        // Kein Toast: die Seite zeigt „Einstellungen konnten nicht geladen werden“ mit „Erneut versuchen“.
+        { model with Settings = Failure err }, Cmd.none, NoOp
 
     | UpdateYnabTokenInput value ->
         { model with YnabTokenInput = value }, Cmd.none, NoOp
@@ -143,10 +184,11 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
                 }
                 Success { settings with Ynab = Some newYnab }
             | other -> other
-        { model with Settings = updatedSettings; YnabTokenInput = ""; EditingSection = None }, Cmd.none, ShowToast ("YNAB token saved successfully", ToastSuccess)
+        let saved, cmd = savedForm YnabSection { model with Settings = updatedSettings; YnabTokenInput = ""; EditingSection = None }
+        saved, cmd, NoOp
 
     | YnabTokenSaved (Error err) ->
-        model, Cmd.none, ShowToast (settingsErrorToString err, ToastError)
+        formFault YnabSection err model, Cmd.none, NoOp
 
     | TestYnabConnection ->
         let cmd =
@@ -158,10 +200,18 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         { model with YnabBudgets = Loading }, cmd, NoOp
 
     | YnabConnectionTested (Ok budgets) ->
-        { model with YnabBudgets = Success budgets }, Cmd.none, ShowToast ($"Connected! Found {budgets.Length} budget(s)", ToastSuccess)
+        { model with
+            YnabBudgets = Success budgets
+            Feedback = Some (YnabTestResult, SettingsNote.Done (budgetsFoundText budgets.Length)) },
+        Cmd.none,
+        NoOp
 
     | YnabConnectionTested (Error err) ->
-        { model with YnabBudgets = Failure (settingsErrorToString err) }, Cmd.none, ShowToast (settingsErrorToString err, ToastError)
+        { model with
+            YnabBudgets = Failure (settingsErrorToString err)
+            Feedback = Some (YnabTestResult, SettingsNote.Failed (settingsErrorToString err)) },
+        Cmd.none,
+        NoOp
 
     | UpdateComdirectClientIdInput value ->
         { model with ComdirectClientIdInput = value }, Cmd.none, NoOp
@@ -201,18 +251,20 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
                 }
                 Success { settings with Comdirect = Some newComdirect }
             | other -> other
-        { model with
-            Settings = updatedSettings
-            ComdirectClientIdInput = ""
-            ComdirectClientSecretInput = ""
-            ComdirectUsernameInput = ""
-            ComdirectPasswordInput = ""
-            EditingSection = None },
-        Cmd.none,
-        ShowToast ("Comdirect credentials saved successfully", ToastSuccess)
+        let saved, cmd =
+            savedForm
+                ComdirectSection
+                { model with
+                    Settings = updatedSettings
+                    ComdirectClientIdInput = ""
+                    ComdirectClientSecretInput = ""
+                    ComdirectUsernameInput = ""
+                    ComdirectPasswordInput = ""
+                    EditingSection = None }
+        saved, cmd, NoOp
 
     | ComdirectCredentialsSaved (Error err) ->
-        model, Cmd.none, ShowToast (settingsErrorToString err, ToastError)
+        formFault ComdirectSection err model, Cmd.none, NoOp
 
     | UpdateSyncDaysInput value ->
         { model with SyncDaysInput = value }, Cmd.none, NoOp
@@ -232,10 +284,11 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
             | Success settings ->
                 Success { settings with Sync = { settings.Sync with DaysToFetch = model.SyncDaysInput } }
             | other -> other
-        { model with Settings = updatedSettings; EditingSection = None }, Cmd.none, ShowToast ("Sync settings saved successfully", ToastSuccess)
+        let saved, cmd = savedForm SyncSection { model with Settings = updatedSettings; EditingSection = None }
+        saved, cmd, NoOp
 
     | SyncSettingsSaved (Error err) ->
-        model, Cmd.none, ShowToast (settingsErrorToString err, ToastError)
+        formFault SyncSection err model, Cmd.none, NoOp
 
     | SetAutoFetchEnabled _
     | SetAutoFetchInterval _ when model.AutoFetchSaving -> model, Cmd.none, NoOp
@@ -247,6 +300,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         startAutoFetchSave { model with AutoFetchIntervalInput = minutes }
 
     | AutoFetchSaved (saved, Ok ()) ->
+        let trigger = autoFetchTrigger model saved
         let updatedSettings =
             match model.Settings with
             | Success settings ->
@@ -257,9 +311,12 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
                                 AutoFetchEnabled = saved.AutoFetchEnabled
                                 AutoFetchIntervalMinutes = saved.AutoFetchIntervalMinutes } }
             | other -> other
-        { model with Settings = updatedSettings; AutoFetchSaving = false; AutoFetchError = None },
+        { model with
+            Settings = updatedSettings
+            AutoFetchSaving = false
+            Feedback = Some (Field (AutoFetchField trigger), SettingsNote.Done savedText) },
         Cmd.none,
-        ShowToast ("Automatisch abrufen gespeichert", ToastSuccess)
+        NoOp
 
     // Abgelehnt: Schalter und Feld zeigen wieder, was gespeichert ist und gilt, die Meldung steht am Element,
     // das gespeichert hat (Review-Fund zu banking-import-t4raw: der Schalter blieb auf Aus, BB rief weiter ab).
@@ -272,7 +329,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
             AutoFetchEnabledInput = enabled
             AutoFetchIntervalInput = interval
             AutoFetchSaving = false
-            AutoFetchError = Some (autoFetchTrigger model sent, autoFetchErrorText err) },
+            Feedback = Some (Field (AutoFetchField (autoFetchTrigger model sent)), SettingsNote.Failed (autoFetchErrorText err)) },
         Cmd.none,
         NoOp
 
@@ -283,17 +340,19 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
                 ()
                 (Ok >> LenaFlagSettingsLoaded)
                 (fun ex -> Error ex.Message |> LenaFlagSettingsLoaded)
-        model, cmd, NoOp
+        { model with LenaFlagLoadError = None }, cmd, NoOp
 
     | LenaFlagSettingsLoaded (Ok settings) ->
         { model with
+            LenaFlagLoadError = None
             LenaFlag = settings
             LenaFlagColorInput = lenaFlagColorPreselection settings |> Option.defaultValue "" },
         Cmd.none,
         NoOp
 
     | LenaFlagSettingsLoaded (Error err) ->
-        model, Cmd.none, ShowToast ($"Failed to load Lena flag colour: {err}", ToastError)
+        // Ein Zustand der Karte (Kann-Sammlung ledger Punkt 152): rot in der Karte mit „Erneut versuchen“.
+        { model with LenaFlagLoadError = Some $"Lena-Farbe nicht geladen: {err}" }, Cmd.none, NoOp
 
     | UpdateLenaFlagColorInput value ->
         { model with LenaFlagColorInput = value }, Cmd.none, NoOp
@@ -309,14 +368,16 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         model, cmd, NoOp
 
     | LenaFlagColorSaved (color, Ok _) ->
-        { model with
-            LenaFlag = { model.LenaFlag with SavedColor = color }
-            EditingSection = None },
-        Cmd.none,
-        ShowToast ("Flag-Farbe für Lena gespeichert", ToastSuccess)
+        let saved, cmd =
+            savedForm
+                LenaSection
+                { model with
+                    LenaFlag = { model.LenaFlag with SavedColor = color }
+                    EditingSection = None }
+        saved, cmd, NoOp
 
     | LenaFlagColorSaved (_, Error err) ->
-        model, Cmd.none, ShowToast (settingsErrorToString err, ToastError)
+        formFault LenaSection err model, Cmd.none, NoOp
 
     | SetDefaultBudget budgetId ->
         let cmd =
@@ -337,10 +398,10 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
                     Success { settings with Ynab = Some { ynab with DefaultBudgetId = Some budgetId } }
                 | None -> Success settings
             | other -> other
-        { model with Settings = updatedSettings }, Cmd.none, ShowToast ("Default budget set", ToastSuccess)
+        fieldNote DefaultBudgetField (Ok ()) { model with Settings = updatedSettings }, Cmd.none, NoOp
 
     | DefaultBudgetSet (_, Error err) ->
-        model, Cmd.none, ShowToast (ynabErrorText err, ToastError)
+        fieldNote DefaultBudgetField (Error err) model, Cmd.none, NoOp
 
     | SetDefaultAccount accountId ->
         let cmd =
@@ -361,10 +422,10 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
                     Success { settings with Ynab = Some { ynab with DefaultAccountId = Some accountId } }
                 | None -> Success settings
             | other -> other
-        { model with Settings = updatedSettings }, Cmd.none, ShowToast ("Default account set", ToastSuccess)
+        fieldNote DefaultAccountField (Ok ()) { model with Settings = updatedSettings }, Cmd.none, NoOp
 
     | DefaultAccountSet (_, Error err) ->
-        model, Cmd.none, ShowToast (ynabErrorText err, ToastError)
+        fieldNote DefaultAccountField (Error err) model, Cmd.none, NoOp
 
     | SetQuickAddAccount accountId ->
         let cmd =
@@ -384,10 +445,10 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
                     Success { settings with Ynab = Some { ynab with QuickAddAccountId = Some accountId } }
                 | None -> Success settings
             | other -> other
-        { model with Settings = updatedSettings }, Cmd.none, ShowToast ("Quick-Add-Konto gespeichert", ToastSuccess)
+        fieldNote QuickAddAccountField (Ok ()) { model with Settings = updatedSettings }, Cmd.none, NoOp
 
     | QuickAddAccountSet (_, Error err) ->
-        model, Cmd.none, ShowToast (ynabErrorText err, ToastError)
+        fieldNote QuickAddAccountField (Error err) model, Cmd.none, NoOp
 
     // Comdirect connection test
     | TestComdirectConnection ->
@@ -401,16 +462,19 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
 
     | ComdirectAuthStarted (Ok BankConnectionActive) ->
         // Die Verbindung lebt, es gibt nichts zu bestätigen.
-        { model with ComdirectConnectionValid = Success (); ComdirectAuthPending = false; BankDisconnect = NotAsked },
+        // Die Plakette zeigt „Verbunden“, die Zeile leuchtet, sobald der Stand gelesen ist; kein Text.
+        { model with ComdirectConnectionValid = Success (); ComdirectAuthPending = false; BankDisconnect = NotAsked; BankFlashPending = true },
         Cmd.ofMsg LoadBankStatus,
-        ShowToast ("Bankverbindung aktiv", ToastSuccess)
+        NoOp
 
     | ComdirectAuthStarted (Ok (TanChallengeStarted _)) ->
-        // TAN challenge started - show waiting UI
-        { model with ComdirectAuthPending = true; ComdirectConnectionValid = NotAsked }, Cmd.ofMsg LoadBankStatus, ShowToast ("Push-TAN in der Comdirect-App bestätigen", ToastInfo)
+        // Der gelbe Hinweis mit „TAN bestätigt“ steht im Abschnitt, mehr braucht es nicht.
+        { model with ComdirectAuthPending = true; ComdirectConnectionValid = NotAsked }, Cmd.ofMsg LoadBankStatus, NoOp
 
     | ComdirectAuthStarted (Error err) ->
-        { model with ComdirectConnectionValid = Failure (settingsErrorToString err); ComdirectAuthPending = false }, Cmd.ofMsg LoadBankStatus, ShowToast (settingsErrorToString err, ToastError)
+        bankFault err { model with ComdirectConnectionValid = Failure (settingsErrorToString err); ComdirectAuthPending = false },
+        Cmd.ofMsg LoadBankStatus,
+        NoOp
 
     | ConfirmComdirectTan ->
         let cmd =
@@ -426,13 +490,17 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
             ComdirectConnectionValid = Success ()
             ComdirectAuthPending = false
             BankDisconnect = NotAsked
-        }, Cmd.ofMsg LoadBankStatus, ShowToast ("Zugangsdaten geprüft", ToastSuccess)
+            BankFlashPending = true
+        }, Cmd.ofMsg LoadBankStatus, NoOp
 
     | ComdirectTanConfirmed (Error err) ->
-        { model with
-            ComdirectConnectionValid = Failure (settingsErrorToString err)
-            ComdirectAuthPending = false
-        }, Cmd.ofMsg LoadBankStatus, ShowToast (settingsErrorToString err, ToastError)
+        bankFault
+            err
+            { model with
+                ComdirectConnectionValid = Failure (settingsErrorToString err)
+                ComdirectAuthPending = false },
+        Cmd.ofMsg LoadBankStatus,
+        NoOp
 
     | LoadBankStatus ->
         let reading = beginBankStatusRead model
@@ -442,12 +510,17 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     | BankStatusLoaded (version, _) when version <> model.BankStatusReadVersion ->
         model, Cmd.none, NoOp
 
+    // Nach Verbindungstest, TAN oder Trennen leuchtet die Zeile mit der neuen Plakette.
+    | BankStatusLoaded (_, Ok status) when model.BankFlashPending ->
+        let flashed, cmd = startFlash BankRow { model with BankStatus = Success status; BankFlashPending = false }
+        flashed, cmd, NoOp
+
     | BankStatusLoaded (_, Ok status) ->
         { model with BankStatus = Success status }, Cmd.none, NoOp
 
     // Kein Toast: die Seite zeigt den unbekannten Stand selbst.
     | BankStatusLoaded (_, Error reason) ->
-        { model with BankStatus = Failure reason }, Cmd.none, NoOp
+        { model with BankStatus = Failure reason; BankFlashPending = false }, Cmd.none, NoOp
 
     // Die Rückfrage fällt nach drei Sekunden zurück, wie das Löschen einer Regel.
     | RequestBankDisconnect ->
@@ -469,13 +542,15 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
             BankDisconnect = NotAsked
             ComdirectAuthPending = false
             ComdirectConnectionValid = NotAsked
-        }, Cmd.ofMsg LoadBankStatus, ShowToast ("Bank getrennt", ToastSuccess)
+            BankFlashPending = true
+        }, Cmd.ofMsg LoadBankStatus, NoOp
 
+    // Der Grund steht im Block Bankverbindung (`BankDisconnect`), kein Toast.
     | BankDisconnectFinished (Error error) ->
         let reason = bankDisconnectErrorText error
         { model with BankDisconnect = Failure reason },
         Cmd.ofMsg LoadBankStatus,
-        ShowToast (reason, ToastError)
+        NoOp
 
     // Edit mode toggling
     | StartEditing section ->
@@ -494,3 +569,14 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
             LenaFlagColorInput = lenaFlagColorPreselection model.LenaFlag |> Option.defaultValue "" },
         Cmd.none,
         NoOp
+
+    | FlashEnded target when model.Flash = Some target ->
+        { model with Flash = None }, Cmd.none, NoOp
+
+    | FlashEnded _ ->
+        model, Cmd.none, NoOp
+
+/// Jede Aktion des Nutzers nimmt die Rückmeldung weg (R3), dann gilt die Nachricht.
+let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
+    let model = if isNextAction msg then { model with Feedback = None } else model
+    step msg model

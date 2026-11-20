@@ -399,6 +399,15 @@ let fieldNote (text: string) (act: Act option) : ReactElement =
         ]
     ]
 
+/// Eine Bestätigung in der Erfolgsrolle (Platz 1, „✓ Gespeichert“): klein und halbfett, im Kopf einer Karte an der
+/// Stelle der Statusanzeige oder unter einem Feld, das beim Ändern speichert. Ohne Knopf, bis zur nächsten Aktion.
+let saved (text: string) : ReactElement =
+    Html.span [
+        prop.custom ("data-testid", "feedback-saved")
+        prop.className $"{FontSizes.xs} {FontWeights.semibold} {Colors.success} whitespace-nowrap"
+        prop.text text
+    ]
+
 /// Wie weit das Gelöschte ist. `Removing`: das Löschen läuft („wird gelöscht …“, ohne Knopf, damit die Liste nicht
 /// springt, wenn die Antwort kommt). `Removed`: gelöscht, mit „Rückgängig“. `Restoring`: das Zurückholen läuft.
 /// `RestoreFailed`: rot, darunter der Grund, rechts „Erneut“ (Fehler am selben Platz, R3).

@@ -10,27 +10,39 @@ open Client.DesignSystem
 // Settings Section Header
 // ============================================
 
-let private sectionHeaderLabeled (configuredLabel: string) (title: string) (isConfigured: bool) =
+/// Kopf einer Karte. Nach dem Speichern steht „✓ Gespeichert“ an der Stelle der Statusanzeige, bis zur nächsten
+/// Aktion (Regel R3, Skizze `.mk-saved`).
+let private sectionHeaderLabeled (configuredLabel: string) (title: string) (isConfigured: bool) (saved: string option) =
     Html.div [
-        prop.className "flex items-center justify-between p-4 border-b border-border-subtle"
+        prop.className "flex items-center justify-between gap-3 p-4 border-b border-border-subtle"
         prop.children [
             Html.h2 [
                 prop.className "text-sm font-semibold font-display"
                 prop.text title
             ]
-            Html.span [
-                prop.className (sprintf "status-label %s" (if isConfigured then "text-success" else "text-attention"))
-                prop.children [
-                    Html.span [
-                        prop.className (if isConfigured then "status-dot connected" else "status-dot disconnected")
+            match saved with
+            | Some text -> Feedback.saved text
+            | None ->
+                Html.span [
+                    prop.className (sprintf "status-label %s" (if isConfigured then "text-success" else "text-attention"))
+                    prop.children [
+                        Html.span [
+                            prop.className (if isConfigured then "status-dot connected" else "status-dot disconnected")
+                        ]
+                        Html.text (if isConfigured then configuredLabel else "Nicht konfiguriert")
                     ]
-                    Html.text (if isConfigured then configuredLabel else "Nicht konfiguriert")
                 ]
-            ]
         ]
     ]
 
 let private sectionHeader = sectionHeaderLabeled "Verbunden"
+
+/// Rückmeldung unter einem Feld oder Knopf: „✓ …“ in der Erfolgsrolle oder rot (§5).
+let private noteBelow (note: SettingsNote option) =
+    match note with
+    | Some (SettingsNote.Done text) -> Html.div [ Feedback.saved text ]
+    | Some (SettingsNote.Failed text) -> ErrorDisplay.inline' text
+    | None -> Html.none
 
 // ============================================
 // Read-Only Display Helpers
@@ -50,9 +62,10 @@ let private credentialGroup (label: string) (isSet: bool) (input: ReactElement) 
     }
 
 /// Zeile wie `settingRow`, der Wert ist ein Element.
-let private settingElementRow (label: string) (description: string) (value: ReactElement) =
+let private settingElementRow (flashed: bool) (label: string) (description: string) (value: ReactElement) =
     Html.div [
-        prop.className "setting-row"
+        // Nach dem Speichern leuchtet die Zeile kurz.
+        prop.className ("setting-row" + (if flashed then " rounded-lg " + Feedback.flash else ""))
         prop.children [
             Html.div [
                 prop.className "setting-info"
@@ -65,9 +78,10 @@ let private settingElementRow (label: string) (description: string) (value: Reac
         ]
     ]
 
-let private settingRow (label: string) (description: string) (value: string) =
+let private settingFlashRow (flashed: bool) (label: string) (description: string) (value: string) =
     Html.div [
-        prop.className "setting-row"
+        // Nach dem Speichern leuchtet die Zeile kurz.
+        prop.className ("setting-row" + (if flashed then " rounded-lg " + Feedback.flash else ""))
         prop.children [
             Html.div [
                 prop.className "setting-info"
@@ -80,6 +94,51 @@ let private settingRow (label: string) (description: string) (value: string) =
                 prop.className "setting-value"
                 prop.text value
             ]
+        ]
+    ]
+
+let private settingRow = settingFlashRow false
+
+/// Eine Zeile im Auswahlfeld.
+let private selectOption (value: string) (label: string) : Input.SelectOption =
+    { Value = value; Label = label; Disabled = false }
+
+/// Wie `credentialGroup`, mit dem Fehler eines gescheiterten Speicherns unter dem Feld.
+let private credentialGroupWithError (label: string) (isSet: bool) (error: string option) (input: ReactElement) =
+    Input.group {
+        Label = label
+        Required = not isSet
+        Error = error
+        HelpText = if isSet then Some "Gesetzt. Leer lassen, um den Wert zu behalten" else None
+        Children = input
+    }
+
+/// Ein Auswahlfeld, das beim Ändern speichert (§2): darunter „✓ Gespeichert“ oder rot der Fehler. Es zeigt immer
+/// den gespeicherten Wert, nach einer Ablehnung also wieder den alten.
+let private selfSavingField
+    (model: Model)
+    (field: SettingsField)
+    (label: string)
+    (value: string)
+    (onSelect: string -> unit)
+    (options: Input.SelectOption list)
+    =
+    let error = faultAt (Field field) model
+    Html.div [
+        prop.className "space-y-1"
+        prop.children [
+            Input.groupWithError label error (
+                Input.select {
+                    Input.selectDefaults with
+                        Value = value
+                        OnChange = fun v -> if not (System.String.IsNullOrWhiteSpace v) then onSelect v
+                        Options = options
+                        State = (match error with Some message -> Input.Error message | None -> Input.Normal)
+                        ClassName = Some "w-full"
+                })
+            match doneAt (Field field) model with
+            | Some text -> Feedback.saved text
+            | None -> ()
         ]
     ]
 
@@ -101,7 +160,7 @@ let private ynabSettingsCard (model: Model) (dispatch: Msg -> unit) =
     let isEditing = model.EditingSection = Some YnabSection
 
     Card.standard [
-        sectionHeader "YNAB Verbindung" isConfigured
+        sectionHeader "YNAB Verbindung" isConfigured (doneAt (CardHead YnabSection) model)
 
         if isConfigured && not isEditing then
             // READ-ONLY DISPLAY
@@ -147,7 +206,11 @@ let private ynabSettingsCard (model: Model) (dispatch: Msg -> unit) =
                             settingRow "Budget" "Aktives YNAB Budget" budgetName
                             settingRow "Konto" "YNAB Konto für Transaktionen" accountName
                             settingRow "Quick-Add-Konto" "Vorbelegt bei „+ Buchung“ ohne Kontofilter" quickAddAccountName
-                            settingRow "API Token" "Pers\u00f6nlicher Access Token" (secretStatus ynab.HasToken)
+                            settingFlashRow
+                                (model.Flash = Some (SectionRow YnabSection))
+                                "API Token"
+                                "Pers\u00f6nlicher Access Token"
+                                (secretStatus ynab.HasToken)
 
                             Html.div [
                                 prop.className "flex gap-2 pt-4 mt-2 border-t border-border-subtle"
@@ -156,6 +219,11 @@ let private ynabSettingsCard (model: Model) (dispatch: Msg -> unit) =
                                     Button.secondary "Verbindung testen" (fun () -> dispatch TestYnabConnection)
                                 ]
                             ]
+                            if model.YnabBudgets = Loading then
+                                Html.div [ prop.className "pt-3"; prop.children [ Loading.inlineWithText "Verbindung wird getestet..." ] ]
+                            match feedbackAt YnabTestResult model with
+                            | Some note -> Html.div [ prop.className "pt-3"; prop.children [ noteBelow (Some note) ] ]
+                            | None -> ()
                         | None -> ()
                     | _ -> ()
                 ]
@@ -166,8 +234,8 @@ let private ynabSettingsCard (model: Model) (dispatch: Msg -> unit) =
                 prop.className "space-y-4 p-4"
                 prop.children [
                     // Token input with label
-                    credentialGroup "Pers\u00f6nlicher Access Token" (ynabTokenIsSet model) (
-                        Input.password model.YnabTokenInput (UpdateYnabTokenInput >> dispatch) "YNAB Personal Access Token eingeben")
+                    credentialGroupWithError "Pers\u00f6nlicher Access Token" (ynabTokenIsSet model) (faultAt (FormField YnabSection) model) (
+                        Input.password model.YnabTokenInput (UpdateYnabTokenInput >> dispatch) "YNAB-Token eingeben")
 
                     // Save button with validation
                     Form.submitButton
@@ -177,14 +245,15 @@ let private ynabSettingsCard (model: Model) (dispatch: Msg -> unit) =
                         (ynabRequiredFields model)
 
                     // Link to YNAB
+                    // Am Handy 48 px Trefferfläche, Text in voller Kontraststufe (Sweep-Zustand einstellungen-fehler).
                     Html.div [
-                        prop.className "text-xs text-text-muted/70"
+                        prop.className "text-xs text-text-muted"
                         prop.children [
                             Html.text "Token erh\u00e4ltlich unter "
                             Html.a [
                                 prop.href "https://app.youneedabudget.com/settings/developer"
                                 prop.target "_blank"
-                                prop.className "text-accent hover:underline inline-flex items-center gap-1"
+                                prop.className "text-accent hover:underline inline-flex items-center gap-1 min-h-[48px] md:min-h-0"
                                 prop.children [
                                     Html.span [ prop.text "YNAB Entwicklereinstellungen" ]
                                     Icons.externalLink Icons.XS Icons.Accent
@@ -207,6 +276,7 @@ let private ynabSettingsCard (model: Model) (dispatch: Msg -> unit) =
                                 Variant = Button.Secondary
                                 IsDisabled = true
                         }
+                    noteBelow (feedbackAt YnabTestResult model)
 
                     // Budget/Account selection (shown after successful test)
                     match model.YnabBudgets with
@@ -217,42 +287,23 @@ let private ynabSettingsCard (model: Model) (dispatch: Msg -> unit) =
                         Html.div [
                             prop.className "space-y-4 pt-4 border-t border-border-subtle"
                             prop.children [
-                                ErrorDisplay.success $"Verbunden! {budgets.Length} Budget(s) gefunden"
-
                                 // Budget selection
                                 Html.div [
                                     prop.className "grid gap-4 sm:grid-cols-2"
                                     prop.children [
-                                        Input.groupSimple "Standard-Budget" (
-                                            Html.select [
-                                                prop.className "select-field"
-                                                prop.value (
-                                                    match model.Settings with
-                                                    | Success s ->
-                                                        s.Ynab
-                                                        |> Option.bind (fun y -> y.DefaultBudgetId)
-                                                        |> Option.map (fun (YnabBudgetId id) -> id)
-                                                        |> Option.defaultValue ""
-                                                    | _ -> ""
-                                                )
-                                                prop.onChange (fun (value: string) ->
-                                                    if not (System.String.IsNullOrWhiteSpace(value)) then
-                                                        dispatch (SetDefaultBudget (YnabBudgetId value))
-                                                )
-                                                prop.children [
-                                                    Html.option [
-                                                        prop.value ""
-                                                        prop.text "Budget w\u00e4hlen..."
-                                                    ]
-                                                    for bwa in budgets do
-                                                        let (YnabBudgetId id) = bwa.Budget.Id
-                                                        Html.option [
-                                                            prop.key id
-                                                            prop.value id
-                                                            prop.text bwa.Budget.Name
-                                                        ]
-                                                ]
-                                            ])
+                                        selfSavingField model DefaultBudgetField "Standard-Budget" (
+                                            match model.Settings with
+                                            | Success s ->
+                                                s.Ynab
+                                                |> Option.bind (fun y -> y.DefaultBudgetId)
+                                                |> Option.map (fun (YnabBudgetId id) -> id)
+                                                |> Option.defaultValue ""
+                                            | _ -> "")
+                                            (fun value -> dispatch (SetDefaultBudget (YnabBudgetId value)))
+                                            (selectOption "" "Budget w\u00e4hlen..."
+                                             :: [ for bwa in budgets do
+                                                      let (YnabBudgetId id) = bwa.Budget.Id
+                                                      selectOption id bwa.Budget.Name ])
 
                                         // Account selection (based on selected budget)
                                         let selectedBudget =
@@ -267,33 +318,16 @@ let private ynabSettingsCard (model: Model) (dispatch: Msg -> unit) =
 
                                         match selectedBudget with
                                         | Some bwa when not bwa.Accounts.IsEmpty ->
-                                            let accountSelect (label: string) (currentId: YnabAccountId option) (onSelect: YnabAccountId -> unit) =
-                                                Input.groupSimple label (
-                                                    Html.select [
-                                                        prop.className "select-field"
-                                                        prop.value (
-                                                            currentId
-                                                            |> Option.map (fun (YnabAccountId id) -> id.ToString())
-                                                            |> Option.defaultValue ""
-                                                        )
-                                                        prop.onChange (fun (value: string) ->
-                                                            if not (System.String.IsNullOrWhiteSpace(value)) then
-                                                                onSelect (YnabAccountId (System.Guid.Parse value))
-                                                        )
-                                                        prop.children [
-                                                            Html.option [
-                                                                prop.value ""
-                                                                prop.text "Konto wählen..."
-                                                            ]
-                                                            for account in bwa.Accounts do
-                                                                let (YnabAccountId id) = account.Id
-                                                                Html.option [
-                                                                    prop.key (id.ToString())
-                                                                    prop.value (id.ToString())
-                                                                    prop.text (accountOptionLabel account)
-                                                                ]
-                                                        ]
-                                                    ])
+                                            let accountSelect (field: SettingsField) (label: string) (currentId: YnabAccountId option) (onSelect: YnabAccountId -> unit) =
+                                                selfSavingField model field label (
+                                                    currentId
+                                                    |> Option.map (fun (YnabAccountId id) -> id.ToString())
+                                                    |> Option.defaultValue "")
+                                                    (fun value -> onSelect (YnabAccountId (System.Guid.Parse value)))
+                                                    (selectOption "" "Konto wählen..."
+                                                     :: [ for account in bwa.Accounts do
+                                                              let (YnabAccountId id) = account.Id
+                                                              selectOption (id.ToString()) (accountOptionLabel account) ])
 
                                             let currentYnab =
                                                 match model.Settings with
@@ -301,11 +335,13 @@ let private ynabSettingsCard (model: Model) (dispatch: Msg -> unit) =
                                                 | _ -> None
 
                                             accountSelect
+                                                DefaultAccountField
                                                 "Standard-Konto (Bank-Import)"
                                                 (currentYnab |> Option.bind (fun y -> y.DefaultAccountId))
                                                 (SetDefaultAccount >> dispatch)
 
                                             accountSelect
+                                                QuickAddAccountField
                                                 "Quick-Add-Konto (z. B. Bar)"
                                                 (currentYnab |> Option.bind (fun y -> y.QuickAddAccountId))
                                                 (SetQuickAddAccount >> dispatch)
@@ -315,9 +351,7 @@ let private ynabSettingsCard (model: Model) (dispatch: Msg -> unit) =
                             ]
                         ]
 
-                    | Failure error ->
-                        ErrorDisplay.cardCompact error None
-
+                    // Der Grund eines gescheiterten Tests steht unter „Verbindung testen“ (`YnabTestResult`).
                     | _ -> Html.none
 
                     // Cancel button if editing (not for initial setup)
@@ -365,9 +399,13 @@ let private bankConnectionBlock (model: Model) (dispatch: Msg -> unit) =
         prop.children [
             match model.BankStatus with
             | Success status ->
-                settingElementRow "Bankverbindung" (Components.BankConnectionBadge.nextSyncHint status) (Components.BankConnectionBadge.view status)
+                settingElementRow
+                    (model.Flash = Some BankRow)
+                    "Bankverbindung"
+                    (Components.BankConnectionBadge.nextSyncHint status)
+                    (Components.BankConnectionBadge.view status)
             | Failure _ ->
-                settingElementRow "Bankverbindung" Components.BankConnectionBadge.unreadableHint (
+                settingElementRow false "Bankverbindung" Components.BankConnectionBadge.unreadableHint (
                     Html.div [
                         prop.className "flex items-center gap-2"
                         prop.children [
@@ -381,6 +419,11 @@ let private bankConnectionBlock (model: Model) (dispatch: Msg -> unit) =
             match model.BankDisconnect with
             | Failure reason -> ErrorDisplay.cardCompact reason None
             | _ -> ()
+
+            // Verbindungstest und TAN gescheitert: der Grund steht hier, in Lesen und Bearbeiten.
+            match faultAt BankBlock model with
+            | Some reason -> ErrorDisplay.inline' reason
+            | None -> ()
 
             if isTanPending model then
                 tanWaitingBlock model.EditingSection dispatch
@@ -401,9 +444,7 @@ let private autoFetchBlock (model: Model) (dispatch: Msg -> unit) =
                 model.AutoFetchEnabledInput
                 model.AutoFetchSaving
                 (SetAutoFetchEnabled >> dispatch)
-            match autoFetchErrorAt AutoFetchSwitch model with
-            | Some message -> ErrorDisplay.inline' message
-            | None -> ()
+            noteBelow (feedbackAt (Field (AutoFetchField AutoFetchSwitch)) model)
             Input.groupWithError "Alle" (autoFetchErrorAt AutoFetchIntervalField model) (
                 Input.select {
                     Input.selectDefaults with
@@ -422,6 +463,9 @@ let private autoFetchBlock (model: Model) (dispatch: Msg -> unit) =
                         Disabled = autoFetchIntervalLocked model
                         ClassName = Some "w-full"
                 })
+            match doneAt (Field (AutoFetchField AutoFetchIntervalField)) model with
+            | Some text -> Feedback.saved text
+            | None -> ()
         ]
     ]
 
@@ -446,7 +490,7 @@ let private comdirectSettingsCard (model: Model) (dispatch: Msg -> unit) =
 
     Card.standard [
         // Gesetzte Zugangsdaten sind noch keine Bankverbindung, den Stand zeigt das Badge darunter.
-        sectionHeaderLabeled "Eingerichtet" "Comdirect Verbindung" isConfigured
+        sectionHeaderLabeled "Eingerichtet" "Comdirect Verbindung" isConfigured (doneAt (CardHead ComdirectSection) model)
 
         if isConfigured then
             bankConnectionBlock model dispatch
@@ -460,10 +504,12 @@ let private comdirectSettingsCard (model: Model) (dispatch: Msg -> unit) =
                     | Success settings ->
                         match settings.Comdirect with
                         | Some comdirect ->
-                            settingRow "Client-ID" "Comdirect API Client-ID" (secretStatus comdirect.HasClientId)
-                            settingRow "Client-Secret" "Comdirect API Client-Secret" (secretStatus comdirect.HasClientSecret)
-                            settingRow "Benutzername" "Comdirect-Zugangsnummer" (secretStatus comdirect.HasUsername)
-                            settingRow "PIN" "Comdirect-PIN" (secretStatus comdirect.HasPassword)
+                            // Nach dem Speichern leuchten die Zugangsdaten, die das Formular geschrieben hat.
+                            let flashed = model.Flash = Some (SectionRow ComdirectSection)
+                            settingFlashRow flashed "Client-ID" "Comdirect API Client-ID" (secretStatus comdirect.HasClientId)
+                            settingFlashRow flashed "Client-Secret" "Comdirect API Client-Secret" (secretStatus comdirect.HasClientSecret)
+                            settingFlashRow flashed "Benutzername" "Comdirect-Zugangsnummer" (secretStatus comdirect.HasUsername)
+                            settingFlashRow flashed "PIN" "Comdirect-PIN" (secretStatus comdirect.HasPassword)
                             settingRow "Authentifizierung" "OAuth2 + Push-TAN" "\u2014"
 
                             Html.div [
@@ -520,6 +566,12 @@ let private comdirectSettingsCard (model: Model) (dispatch: Msg -> unit) =
                         Input.textSimple model.ComdirectAccountIdInput (UpdateComdirectAccountIdInput >> dispatch) "Deine Comdirect Konto-ID"
                     )
 
+                    // Der Server nennt kein Feld (`ComdirectCredentialsInvalid ("general", …)`), deshalb steht ein
+                    // abgelehntes Speichern über dem Knopf statt unter einem Feld.
+                    match faultAt (FormField ComdirectSection) model with
+                    | Some reason -> ErrorDisplay.inline' reason
+                    | None -> ()
+
                     // Save button with validation feedback
                     Form.submitButton
                         "Zugangsdaten speichern"
@@ -562,16 +614,9 @@ let private comdirectSettingsCard (model: Model) (dispatch: Msg -> unit) =
                                 | Loading ->
                                     Loading.inlineWithText "Verbindung wird getestet..."
                                 | Success _ ->
-                                    // Connection verified successfully
-                                    ErrorDisplay.success "Zugangsdaten erfolgreich verifiziert!"
-                                | Failure error ->
-                                    Html.div [
-                                        prop.className "space-y-3"
-                                        prop.children [
-                                            ErrorDisplay.cardCompact error None
-                                            Button.secondary "Verbindung testen" (fun () -> dispatch TestComdirectConnection)
-                                        ]
-                                    ]
+                                    ErrorDisplay.success "Zugangsdaten geprüft"
+                                // Der Grund steht im Block Bankverbindung über dem Formular.
+                                | Failure _
                                 | NotAsked ->
                                     Button.secondary "Verbindung testen" (fun () -> dispatch TestComdirectConnection)
                         ]
@@ -606,14 +651,18 @@ let private syncSettingsCard (model: Model) (dispatch: Msg -> unit) =
         | _ -> model.SyncDaysInput
 
     Card.standard [
-        sectionHeader "Sync-Einstellungen" true
+        sectionHeader "Sync-Einstellungen" true (doneAt (CardHead SyncSection) model)
 
         if not isEditing then
             // READ-ONLY DISPLAY
             Html.div [
                 prop.className "p-4"
                 prop.children [
-                    settingRow "Transaktionszeitraum" "Wie weit zur\u00fcckliegende Transaktionen synchronisiert werden" (sprintf "%d Tage" daysToFetch)
+                    settingFlashRow
+                        (model.Flash = Some (SectionRow SyncSection))
+                        "Transaktionszeitraum"
+                        "Wie weit zur\u00fcckliegende Transaktionen synchronisiert werden"
+                        (sprintf "%d Tage" daysToFetch)
 
                     Html.div [
                         prop.className "flex gap-2 pt-4 mt-2 border-t border-border-subtle"
@@ -669,6 +718,9 @@ let private syncSettingsCard (model: Model) (dispatch: Msg -> unit) =
                                     Html.span [ prop.text "90 Tage" ]
                                 ]
                             ]
+                            match faultAt (FormField SyncSection) model with
+                            | Some reason -> ErrorDisplay.inline' reason
+                            | None -> ()
                         ]
                     ]
 
@@ -698,6 +750,27 @@ let private syncSettingsCard (model: Model) (dispatch: Msg -> unit) =
 // Lena-Flag Card (ledger-xfjcp, ADR 0056)
 // ============================================
 
+/// Die gespeicherte Farbe wie in Skizze 34: gefülltes ⚑ (`Icons.flagSolid`) in der Flag-Farbe, daneben der Name, den BB für die Farbe nutzt. Die
+/// Farbe steht nur im Symbol, der Text bleibt neutral (ADR 0087 Punkt 8, wie `Badge.lenaMark`).
+let private lenaFlagValue (saved: string option) =
+    match saved with
+    | Some color ->
+        Html.span (
+            Badge.lenaFlagScope saved
+            @ [ prop.custom ("data-testid", "settings-lena-value")
+                prop.className "inline-flex items-center gap-1.5 text-sm text-text-primary whitespace-nowrap"
+                prop.children [
+                    Html.span [
+                        prop.role "img"
+                        prop.ariaLabel "Flag"
+                        prop.className "inline-flex"
+                        prop.children [ Icons.flagSolid Icons.Mark Icons.LenaFlag ]
+                    ]
+                    Html.span [ prop.text (lenaFlagColorLabel color) ]
+                ] ]
+        )
+    | None -> Html.span [ prop.className "setting-value"; prop.text "Nicht gewählt" ]
+
 let private lenaFlagCard (model: Model) (dispatch: Msg -> unit) =
     let isEditing = model.EditingSection = Some LenaSection
     let saved = model.LenaFlag.SavedColor
@@ -708,19 +781,28 @@ let private lenaFlagCard (model: Model) (dispatch: Msg -> unit) =
         | _ -> None
 
     Card.standard [
-        sectionHeader "Kassenbuch: Lena fragen" saved.IsSome
+        sectionHeader "Kassenbuch: Lena fragen" saved.IsSome (doneAt (CardHead LenaSection) model)
 
         if not isEditing then
             Html.div [
                 prop.className "p-4"
                 prop.custom ("data-testid", "settings-lena-card")
                 prop.children [
-                    settingRow
+                    settingElementRow
+                        (model.Flash = Some (SectionRow LenaSection))
                         "Flag-Farbe für Lena"
                         "Die YNAB-Flag-Farbe, die Sie in YNAB Lena genannt haben"
-                        (saved |> Option.map lenaFlagColorLabel |> Option.defaultValue "Nicht gewählt")
+                        (lenaFlagValue saved)
                     match suggestionNote with
                     | Some note -> Html.p [ prop.className "text-xs text-text-muted pt-2"; prop.text note ]
+                    | None -> ()
+                    // Ein Zustand der Karte: die gezeigte Farbe ist nicht der gespeicherte Stand.
+                    match model.LenaFlagLoadError with
+                    | Some reason ->
+                        Html.div [
+                            prop.className "pt-2"
+                            prop.children [ ErrorDisplay.cardCompact reason (Some (fun () -> dispatch LoadLenaFlagSettings)) ]
+                        ]
                     | None -> ()
 
                     Html.div [
@@ -736,8 +818,9 @@ let private lenaFlagCard (model: Model) (dispatch: Msg -> unit) =
                 prop.className "space-y-5 p-4"
                 prop.custom ("data-testid", "settings-lena-form")
                 prop.children [
-                    Input.groupSimple
+                    Input.groupWithError
                         "Flag-Farbe für Lena"
+                        (faultAt (FormField LenaSection) model)
                         (Input.selectSimple
                             model.LenaFlagColorInput
                             (fun value -> dispatch (UpdateLenaFlagColorInput value))

@@ -339,9 +339,12 @@ let select (props: SelectProps) =
     let stateClass = stateToClass props.State
     let extraClass = props.ClassName |> Option.defaultValue ""
     let disabledClass = if props.Disabled then "opacity-50 cursor-not-allowed" else ""
+    // `.select-field` steht ohne Layer in styles.css und schlägt `border-error`; der Fehlerrand braucht eine eigene
+    // Klasse daneben (banking-import-vwhfm, Skizze 34: rot umrandetes Feld).
+    let invalidClass = match props.State with Error _ -> "select-invalid" | _ -> ""
 
     Html.select [
-        prop.className $"select-field {sizeClass} {stateClass} {disabledClass} {extraClass}"
+        prop.className $"select-field {sizeClass} {stateClass} {invalidClass} {disabledClass} {extraClass}"
         prop.value props.Value
         prop.onChange props.OnChange
         prop.disabled props.Disabled

@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-11-20 03:39 -- Task verified and completed: banking-import-vwhfm - "Einstellungen ohne Toast (R3): „✓ Gespeichert“ am Abschnitt oder Feld, Fehler rot unter dem Feld, Bankstatus und Push-TAN im Abschnitt, alle Texte deutsch"
+
+**Type:** Work / Task completion
+**Task:** banking-import-vwhfm - "Einstellungen ohne Toast (R3): „✓ Gespeichert“ am Abschnitt oder Feld, Fehler rot unter dem Feld, Bankstatus und Push-TAN im Abschnitt, alle Texte deutsch"
+**Summary:** Einstellungen ohne Toast: Gespeichert am Abschnitt oder Feld, Fehler rot am Feld, Texte deutsch
+**Duration:** 90m
+**Verification:** PASS (iteration 2: Select-Fehlerrand rot, Lena-Wert mit Flag)
+**Files changed:** 18
+**Tests added:** 44
+**ADRs written:** none
+
+---
+
+## 2026-11-20 03:38 -- Verification failed: budgeting-p3sk0 - Angepinnt ohne Meldung
+
+**Type:** Work / Verification failure
+**Task:** budgeting-p3sk0
+**Iteration:** 1 of 3
+**Reasons:** Build rot nach Merge mit main: SheetLine.Undo (aus budgeting-y1kkr) fehlt an drei Stellen
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-11-20 03:36 -- Batch started: [ledger-pz5wv]
 
 **Type:** Work / Batch start

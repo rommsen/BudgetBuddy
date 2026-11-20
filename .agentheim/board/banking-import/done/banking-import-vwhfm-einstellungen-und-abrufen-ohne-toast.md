@@ -1,7 +1,7 @@
 ---
 id: banking-import-vwhfm
 title: "Einstellungen ohne Toast (R3): „✓ Gespeichert“ am Abschnitt oder Feld, Fehler rot unter dem Feld, Bankstatus und Push-TAN im Abschnitt, alle Texte deutsch"
-status: doing
+status: done
 type: feature
 context: banking-import
 created: 2026-11-19
@@ -186,3 +186,94 @@ Skizze und Screenshots (`…` = `/private/tmp/claude-501/-Users-romansachse-src-
 
 Abhängigkeit: Motion „leuchtet kurz“ und die Erfolgsrolle für „✓ Gespeichert“ aus design-system-ytgnc (DS-Modul vorläufig
 `Feedback`). Die Meldungsleiste braucht diese Task nicht.
+
+## Verifier note (iteration 1)
+REASONS: Kriterium „Seite neben der Skizze verglichen“ nicht erfüllt. Im Bild `einstellungen-fehler-412.png` hat das abgelehnte Auswahlfeld „Quick-Add-Konto“ denselben grauen Rand wie das Feld darüber, die Skizze 34 zeigt einen deutlich roten Rand. Ursache: die Regel `.select-field { border: 1px solid var(--border-strong) }` in `src/Client/styles.css` (um Zeile 911) liegt außerhalb eines Layers und schlägt `border-error` aus `Input.select`; der Fehlerzustand jedes `Input.select` ist dadurch nie rot. Zweitens zeigt der gespeicherte Lena-Wert „Violett“ in Mono ohne ⚑ und ohne Farbe, die Skizze „⚑ Lila“ in der Farbe; das steht nicht unter den Abweichungen der Task.
+SUGGESTED_FIX: Fehlerzustand von `Input.select` sichtbar rot machen (Randfarbe von `.select-field` in einen Layer oder höhere Spezifität für den Fehlerzustand), Sweep-Bild `einstellungen-fehler` neu und ins OUTCOME. Den Lena-Wert nach Skizze mit ⚑ in der Flag-Farbe zeigen (Bezeichnung wie in BB üblich). Gate danach `VERIFY: PASS` (der Sweep `regeln-panel` flackert unter Last, einzeln wiederholen).
+ITERATION_HINT: likely-fixable
+
+
+## Outcome
+
+Die Einstellungen haben keinen Toast mehr (Regel R3, ADR 0098), auf keiner Breite. `grep -rn "ShowToast" src/Client/Components/Settings/` ist leer, `src/Client/State.fs` reicht nichts mehr weiter (`ExternalMsg` hat nur noch `NoOp`).
+
+**Modell** (`src/Client/Components/Settings/Types.fs`)
+- Neu: `SettingsField` (`DefaultBudgetField`, `DefaultAccountField`, `QuickAddAccountField`, `AutoFetchField of AutoFetchControl`), `FeedbackPlace` (`CardHead section`, `FormField section`, `Field field`, `YnabTestResult`, `BankBlock`), `SettingsNote` (`Done`/`Failed` mit fertigem Text, qualifiziert, weil `Failed` sonst mit `SyncSessionStatus` kollidiert), `FlashTarget` (`SectionRow section`, `BankRow`).
+- Im `Model`: `Feedback: (FeedbackPlace * SettingsNote) option` (darin geht `AutoFetchError` auf), `Flash`, `BankFlashPending`, `LenaFlagLoadError`.
+- „Nächste Aktion“ ist die reine Funktion `isNextAction` (alle Eingaben, Speichern, Testen, Auswählen, Bearbeiten, Abbrechen, Bank trennen, `LoadSettings`). Keine Aktion: Antworten, Zeitgeber, `LoadBankStatus`, `LoadLenaFlagSettings`, `AbortBankDisconnect`. `update` nimmt die Rückmeldung vor jeder Aktion weg.
+- „Beim Verlassen“: Das Öffnen der Seite sendet `LoadSettings` (`urlChangedCmd`), das ist eine Aktion. Eine eigene Nachricht für das Verlassen gibt es nicht, weil die Rückmeldung nur auf dieser Seite zu sehen ist.
+- Abfragen: `feedbackAt`, `faultAt`, `doneAt`, `budgetsFoundText` (Einzahl „1 Budget“), `notSavedText`; `autoFetchErrorAt` liest jetzt `Feedback`.
+
+**Ablauf** (`src/Client/Components/Settings/State.fs`), je Zeile der Tabelle:
+- Formular gespeichert (Token, Zugangsdaten, Sync, Lena): `savedForm` setzt `CardHead`, „✓ Gespeichert“, und leuchtet `SectionRow` (`flashDurationMs = 700`, `FlashEnded` über `Debounce.delayed`). Gescheitert: `formFault` mit „Nicht gespeichert: <Grund>“, Abschnitt und Eingaben bleiben.
+- Budget, Konto, Quick-Add-Konto: „✓ Gespeichert“ bzw. „Nicht gespeichert: <ynabErrorText>“ unter dem Feld, `Settings` bleibt beim Fehler unverändert, das Feld zeigt den alten Wert.
+- Automatisch abrufen: „✓ Gespeichert“ unter Schalter bzw. „Alle“ (`autoFetchTrigger`), Fehler wie bisher ohne Vorsatz.
+- YNAB-Test: `YnabTestResult` mit „✓ Verbunden, n Budgets gefunden“ oder rot.
+- Comdirect-Test aktiv, TAN bestätigt, Bank getrennt: kein Text, `BankFlashPending`; das nächste `BankStatusLoaded Ok` lässt `BankRow` leuchten. TAN gestartet: nur der gelbe Hinweis. Test- und TAN-Fehler: `BankBlock`. Trennen gescheitert: nur `BankDisconnect` (`cardCompact`).
+- Einstellungen nicht geladen: kein Toast, die Karte auf der Seite bleibt.
+- Lena-Farbe nicht geladen: `LenaFlagLoadError` „Lena-Farbe nicht geladen: <Grund>“, ein Zustand der Karte bis zum nächsten Laden (Kann-Sammlung ledger Punkt 152 erledigt).
+- `settingsErrorToString` ist deutsch und öffentlich:
+  - „YNAB-Token ungültig: …“
+  - „YNAB-Verbindung gescheitert: …“ (Status 0) bzw. „YNAB antwortet nicht (HTTP n): …“
+  - „Comdirect-Zugangsdaten ungültig: …“ (ohne Feldnamen)
+  - „Verschlüsselung gescheitert: …“
+  - „Datenbankfehler beim Speichern/Lesen: …“
+  - Validierung als Satz allein
+
+**Ansicht** (`src/Client/Components/Settings/View.fs`)
+- `sectionHeaderLabeled` zeigt bei Bedarf `Feedback.saved` statt der Statusanzeige.
+- Zeilen leuchten über `settingFlashRow`/`settingElementRow flashed` (`Feedback.flash`): API Token, die vier Zugangsdaten, Transaktionszeitraum, Flag-Farbe, Bankverbindung.
+- YNAB: Das Ergebnis des Tests steht in Lesen und Bearbeiten unter „Verbindung testen“. Im Lesen-Modus gibt es dazu „Verbindung wird getestet...“. Entfernt sind „Verbunden! n Budget(s) gefunden“ und das `cardCompact` des Fehlers im Formular.
+- Die drei Auswahlfelder sind jetzt `Input.select` in `selfSavingField` (`groupWithError`, Zustand `Error` am Feld, „✓ Gespeichert“ darunter).
+- Token-Fehler unter dem Feld (`credentialGroupWithError`).
+- Zugangsdaten: Fehler über „Zugangsdaten speichern“. Im Formular heißt die Erfolgszeile „Zugangsdaten geprüft“. Ein Testfehler steht nur noch im Block Bankverbindung (`ErrorDisplay.inline'`), auch im Lesen-Modus.
+- Sync: Fehler unter dem Schieberegler. Lena: Fehler unter dem Auswahlfeld, Ladefehler als `cardCompact` mit „Erneut versuchen“.
+- Lena, gespeicherter Wert (`lenaFlagValue`, Iteration 2): gefülltes ⚑ (`Icons.flagSolid Mark LenaFlag`) in der Flag-Farbe über `Badge.lenaFlagScope`, daneben der Name, den BB nutzt („Violett“), `data-testid="settings-lena-value"`. Ohne Farbe bleibt „Nicht gewählt“.
+- Nebenbei für den neuen Sweep-Zustand (Invarianten 2, 4, 10 im YNAB-Formular, vorher nie besucht): Platzhalter „YNAB-Token eingeben“, Link „YNAB Entwicklereinstellungen“ am Handy 48 px, Hinweiszeile `text-text-muted` statt `/70`.
+
+**DS** (`src/Client/DesignSystem/Feedback.fs`, `Input.fs`, `styles.css`)
+- Fehlerrand von `Input.select` (Iteration 2, Verifier-Fund): `.select-field` steht ohne Layer in styles.css und schlug `border-error`, der Fehlerzustand jedes `Input.select` war nie rot. `Input.select` setzt jetzt bei `State = Error` zusätzlich `select-invalid`. `.select-field.select-invalid` (auch mit Fokus) hat den Rand in `--color-error`, mit Fokus einen roten Ring. Das gilt für jedes `Input.select` der App.
+- Neu `Feedback.saved text`: Erfolgsrolle, xs, halbfett (Skizze `.mk-saved`), `data-testid="feedback-saved"`.
+- Im `/styleguide` unter „Feld mit Leuchten und Bestätigung“ gezeigt. `standards/frontend/styleguide.md` §5 (Zeile Feedback) ist ergänzt.
+
+**Server**
+- `src/Server/Validation.fs`: Feldnamen „YNAB-Token“, „Client-ID“, „Client-Secret“, „Benutzername“, „PIN“.
+- `src/Server/Api.fs`: `comdirectNotConfiguredText` = „Comdirect-Zugangsdaten fehlen“. `storedYnabToken getSetting` liefert „kein YNAB-Token gespeichert“; `testYnabConnection` ruft es. Live-Port: einzige Stelle ist `storedYnabToken Persistence.Settings.getSetting` in `testYnabConnection`.
+- `YnabError.Unauthorized "No YNAB token configured"` aus dem YNAB-Client bleibt (anderer Pfad).
+
+**Tests**
+- `src/Tests/SettingsFeedbackTests.fs` (neu, 41 Tests):
+  - je Tabellenzeile Platz, Text, Abschnitt, Eingaben und `NoOp`
+  - Leuchten mit `CmdTiming.expectAfter flashDurationMs`
+  - überholtes `FlashEnded`
+  - Lena-Ladefehler als Zustand
+  - nächste Aktion über das echte `update` (10 Aktionen, 4 Nicht-Aktionen), dazu `isNextAction` für Nachrichten mit `Client.Api`
+  - `settingsErrorToString` je Fall
+- `ValidationTests.fs`: deutsche Feldnamen. `BankConnectionTests.fs`: „Comdirect-Zugangsdaten fehlen“ ohne Login, `storedYnabToken` mit und ohne Token.
+- Umgeschrieben: Toast-Erwartungen in `ClientCommandTests.fs` (Automatisch abrufen: „✓ Gespeichert“ unter „Alle“; `Feedback` statt `AutoFetchError`) und `LedgerLenaFlagClientTests.fs` (Fehler am Auswahlfeld statt Toast).
+- Gegenprobe mit drei Mutanten in `State.fs`, 17 Tests rot, danach wiederhergestellt:
+  - nächste Aktion räumt nicht
+  - Bankzeile leuchtet nie
+  - Feldfehler ohne „Nicht gespeichert:“
+- Sweep (`scripts/layout-states.mjs`), neue Zustände bei 320, 412 und 1280:
+  - `einstellungen-gespeichert`: Lena-Farbe speichern, wartet auf `feedback-saved`.
+  - `einstellungen-fehler`: YNAB testen, Bearbeiten, Quick-Add-Konto wählen, der Server lehnt ab. Regressionstest zum Fehlerrand (Doktrin Punkt 8): der Zustand gilt erst als hergestellt, wenn der Rand des abgelehnten Felds nach dem Übergang die Farbe des Fehlertexts hat (berechnete Farben, keine feste Zahl). Gegenprobe: ohne die Regel `.select-field.select-invalid` meldete der Sweep bei 320, 412 und 1280 „Rand des abgelehnten Felds rgb(106, 108, 134), Fehlerfarbe rgb(253, 79, 117)“; danach wiederhergestellt.
+  - Beide mit allen Invarianten grün. Benannte Ausnahme: Invariante 10 für die DS-Hilfezeile `p "Gesetzt. Leer lassen` von `Input.group` (`text-text-muted/70`, 3,23:1).
+- `[flow:zugangsdaten-speichern]` und `[flow:bank-trennen]` grün, kein neuer Browser-Flow.
+- `./verify.sh` nach Iteration 2 (auf dem Merge c10f3008): `VERIFY: PASS` (dotnet 5318, node 354), `regeln-panel` lief beim ersten Mal grün, keine Wiederholung nötig.
+
+**Vergleich mit der Skizze** (Bilder in `/private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/4b5cf62e-3174-40e3-90f3-4b5312280eb9/scratchpad/result-shots/banking-import-vwhfm/`)
+- `einstellungen-gespeichert-412.png` neben `skizze-shots/34-einstellungen-gespeichert.png`: Karte „Kassenbuch: Lena fragen“ geschlossen mit „Violett“, rechts im Kopf grün halbfett „✓ Gespeichert“ statt „Verbunden“.
+  - Genannte Abweichungen: Karte mit „Bearbeiten“ statt Einzelabschnitt mit „Ändern“, „✓ Gespeichert“ im Kopf der Karte statt neben dem Wert.
+  - Der Wert steht jetzt wie in der Skizze mit gefülltem ⚑ in der Lena-Farbe (Bild neu aufgenommen). Abweichung: der Name heißt „Violett“ (BBs Bezeichnung, Skizze „Lila“) und bleibt in neutraler Schrift; nach ADR 0087 Punkt 8 trägt nur das Symbol die Lena-Farbe (wie `Badge.lenaMark`), die Skizze färbt auch den Text.
+- `einstellungen-fehler-412.png` / `-320.png` (neu aufgenommen) neben derselben Skizze (unterer Teil): Quick-Add-Konto „Konto wählen...“ mit rotem Rand und rotem Text darunter „Nicht gespeichert: Netzwerkfehler: YNAB antwortet nicht“, die Karte bleibt offen.
+  - Unterschiede: Das Feld zeigt den gespeicherten Wert (hier keiner), die Skizze die Wahl „Barkasse“ (Task §2: „zeigt wieder den gespeicherten Wert“).
+  - Der Grund kommt aus `ynabErrorText` („Netzwerkfehler: …“).
+  - Der rote Text hat ein Fehlersymbol (`ErrorDisplay.inline'`).
+- `einstellungen-gespeichert-1280.png` / `einstellungen-fehler-1280.png`: PC 1280 mit „✓ Gespeichert“ bzw. Fehler am Ort, kein Toast.
+- Auf den ganzseitigen Handy-Bildern liegt das feste Sheet „Abrufen“ mitten im Bild. Das ist ein Effekt von `fullPage`, nicht Teil der Seite.
+- [human-eye] Gesamteindruck und Leuchten bleiben für Roman.
+
+**Kann-Sammlung banking-import**
+- Die Hilfezeile von `Input.group` („Gesetzt. Leer lassen, um den Wert zu behalten“, `text-text-muted/70`) hat 3,23:1 Kontrast. Ausnahme im Zustand `einstellungen-fehler` (Invariante 10, 320/412/1280).
+- Der Fehler von „Automatisch abrufen“ steht ohne „Nicht gespeichert:“, die drei anderen Felder mit. Bewusst unverändert aus banking-import-t4raw.

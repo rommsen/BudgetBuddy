@@ -665,6 +665,29 @@ async function mockSettings(page) {
 }
 const openSettings = async (page) => page.locator('[data-testid="auto-fetch-switch"]').waitFor();
 
+/// banking-import-vwhfm: YNAB „Verbindung testen“ liefert ein Budget mit zwei Konten, so stehen im Formular die
+/// Auswahlfelder. Lena-Farbe speichern gelingt, das Quick-Add-Konto lehnt der Server ab.
+async function mockSettingsFeedback(page) {
+  await mockSettings(page);
+  await page.route("**/api/SettingsApi/getLenaFlagSettings", (r) => json(r, { SavedColor: null, SuggestedColor: "purple" }));
+  await page.route("**/api/SettingsApi/saveLenaFlagColor", (r) => json(r, { Ok: null }));
+  await page.route("**/api/SettingsApi/testYnabConnection", (r) =>
+    json(r, {
+      Ok: [
+        {
+          Budget: { Id: W("YnabBudgetId", "fake-budget-id"), Name: "Familie" },
+          Accounts: [
+            { Id: W("YnabAccountId", guid(9101)), Name: "Girokonto", Balance: eur(1234.5), OnBudget: true, Closed: false },
+            { Id: W("YnabAccountId", guid(9102)), Name: "Barkasse", Balance: eur(84.2), OnBudget: true, Closed: false },
+          ],
+          Categories: [],
+        },
+      ],
+    })
+  );
+  await page.route("**/api/YnabApi/setQuickAddAccount", (r) => json(r, { Error: { NetworkError: "YNAB antwortet nicht" } }));
+}
+
 // ============================================================
 // Abrufen (banking-import-d0fey)
 // ============================================================
@@ -2271,6 +2294,61 @@ export const STATES = [
     widths: PAGE_WIDTHS,
     mock: mockSettings,
     open: openSettings,
+  },
+  // banking-import-vwhfm (R3, ADR 0098): Lena-Farbe gespeichert, der Abschnitt ist zu, im Kopf der Karte steht
+  // „✓ Gespeichert“ statt der Statusanzeige, kein Toast, auch am PC.
+  {
+    name: "einstellungen-gespeichert",
+    route: "/settings",
+    widths: [320, 412, 1280],
+    mock: mockSettingsFeedback,
+    open: async (page) => {
+      await openSettings(page);
+      await page.locator('[data-testid="settings-lena-card"]').getByRole("button", { name: "Bearbeiten" }).click();
+      const form = page.locator('[data-testid="settings-lena-form"]');
+      await form.locator("select").selectOption("purple");
+      await form.getByRole("button", { name: "Einstellungen speichern" }).click();
+      await page.locator('[data-testid="settings-lena-card"]').waitFor();
+      await page.locator('[data-testid="feedback-saved"]').getByText("✓ Gespeichert").waitFor();
+      await frames(page);
+    },
+  },
+  // banking-import-vwhfm: das Quick-Add-Konto lehnt der Server ab, rot unter dem Feld „Nicht gespeichert: …“, das Feld
+  // zeigt den gespeicherten Wert, die Karte bleibt offen.
+  {
+    name: "einstellungen-fehler",
+    route: "/settings",
+    widths: [320, 412, 1280],
+    // Die Hilfezeile von `Input.group` („Gesetzt. Leer lassen …“, `text-text-muted/70`) hat 3,23:1; sie gehört dem
+    // DS und steht in der Kann-Sammlung banking-import.
+    exceptions: [320, 412, 1280].map((width) => ({ width, inv: 10, selector: 'p "Gesetzt. Leer lassen' })),
+    mock: mockSettingsFeedback,
+    open: async (page) => {
+      await openSettings(page);
+      await page.getByRole("button", { name: "Verbindung testen" }).first().click();
+      await page.getByText("✓ Verbunden, 1 Budget gefunden").waitFor();
+      await page.getByRole("button", { name: "Bearbeiten" }).first().click();
+      const quickAdd = page.getByText("Quick-Add-Konto (z. B. Bar)", { exact: true }).locator("xpath=..").locator("select");
+      await quickAdd.selectOption(guid(9102));
+      const fault = page.getByText("Nicht gespeichert: Netzwerkfehler: YNAB antwortet nicht");
+      await fault.waitFor();
+      await frames(page);
+      // Regression banking-import-vwhfm (Verifier, Iteration 1): `.select-field` ohne Layer schlug `border-error`, das
+      // abgelehnte Feld blieb grau umrandet. Der Zustand gilt erst als hergestellt, wenn der Rand die Farbe des
+      // Fehlertexts hat (nach dem Übergang der Randfarbe).
+      const error = await fault.evaluate((el) => getComputedStyle(el).color);
+      await quickAdd
+        .evaluate((el, want) => new Promise((done, fail) => {
+          const until = performance.now() + 2000;
+          const check = () => {
+            const got = getComputedStyle(el).borderTopColor;
+            if (got === want) done();
+            else if (performance.now() > until) fail(new Error(`Rand des abgelehnten Felds ${got}, Fehlerfarbe ${want}`));
+            else requestAnimationFrame(check);
+          };
+          check();
+        }), error);
+    },
   },
   // categorization-cgq35, categorization-n3sxw: der Tab Regeln im Kassenbuch, Prioritätspfeile am Handy, lange Namen.
   {

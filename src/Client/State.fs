@@ -702,11 +702,10 @@ let rec updateWith (ports: UpdatePorts) (msg: Msg) (model: Model) : Model * Cmd<
     | SettingsMsg settingsMsg ->
         let settingsModel', settingsCmd, externalMsg = Components.Settings.State.update settingsMsg model.Settings
 
-        // Handle external messages from Settings component
+        // Die Einstellungen melden alles am Ort (Regel R3, ADR 0098), an die Wurzel geht keine Meldung.
         let externalCmd =
             match externalMsg with
             | Components.Settings.Types.NoOp -> Cmd.none
-            | Components.Settings.Types.ShowToast (message, toastType) -> Cmd.ofMsg (ShowToast (message, toastType))
 
         // Sync categories to other components when settings change
         let syncCategoriesCmd =

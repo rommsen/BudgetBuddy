@@ -243,6 +243,18 @@ let saveComdirectCredentialsWith
         return Error (SettingsError.DatabaseError ("save_comdirect_credentials", ex.Message))
 }
 
+/// Der Satz, wenn „Verbindung testen“ bei Comdirect keine Zugangsdaten findet. Die Seite zeigt ihn im Block
+/// Bankverbindung (banking-import-vwhfm).
+let comdirectNotConfiguredText = "Comdirect-Zugangsdaten fehlen"
+
+/// Der gespeicherte YNAB-Token für „Verbindung testen“. Fehlt er, steht der Grund deutsch auf der Seite
+/// (banking-import-vwhfm); der Token selbst geht nie an den Client.
+let storedYnabToken (getSetting: string -> Async<string option>) : Async<Result<string, SettingsError>> = async {
+    match! getSetting "ynab_token" with
+    | Some token -> return Ok token
+    | None -> return Error (SettingsError.YnabTokenInvalid "kein YNAB-Token gespeichert")
+}
+
 /// Verbindungstest (ADR 0071 Punkt 2): bei `Connected` liest er die erste Umsatzseite der
 /// konfigurierten Konto-Id ohne Challenge (Nachtrag 2026-11-01), sonst startet er als Handlung von
 /// Roman eine Push-TAN.
@@ -287,7 +299,7 @@ let testComdirectConnectionWith
             | Ok challenge ->
                 return Ok (TanChallengeStarted challenge.Id)
         | _ ->
-            return Error (SettingsError.ComdirectCredentialsInvalid ("credentials", "Comdirect credentials not configured"))
+            return Error (SettingsError.ComdirectCredentialsInvalid ("credentials", comdirectNotConfiguredText))
 }
 
 /// Speichert die Sync-Einstellungen nach der Validierung (alle Fehler gesammelt). Die Schlüssel liest
@@ -346,12 +358,10 @@ let settingsApi : SettingsApi = {
     saveSyncSettings = saveSyncSettingsWith Persistence.Settings.setSetting
 
     testYnabConnection = fun () -> async {
-        // Get token from settings
-        let! tokenOpt = Persistence.Settings.getSetting "ynab_token"
-        match tokenOpt with
-        | None ->
-            return Error (SettingsError.YnabTokenInvalid "No YNAB token configured")
-        | Some token ->
+        match! storedYnabToken Persistence.Settings.getSetting with
+        | Error error ->
+            return Error error
+        | Ok token ->
             // Get all budgets with details
             match! YnabClient.getBudgets token with
             | Error ynabError ->

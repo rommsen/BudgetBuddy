@@ -124,6 +124,16 @@ let settingsValidationTests =
             }
         ]
 
+        // banking-import-vwhfm: die Texte stehen auf der Seite Einstellungen unter dem Feld, mit deren Beschriftungen.
+        test "die Feldnamen der Ablehnung heißen wie auf der Seite Einstellungen" {
+            Expect.equal (validateYnabToken "") (Error [ "YNAB-Token ist erforderlich"; "YNAB-Token muss zwischen 10 und 500 Zeichen lang sein" ]) "Token"
+            let empty = { ClientId = ""; ClientSecret = ""; Username = ""; Password = ""; AccountId = None }
+            Expect.equal
+                (validateComdirectSettings empty)
+                (Error [ "Client-ID ist erforderlich"; "Client-Secret ist erforderlich"; "Benutzername ist erforderlich"; "PIN ist erforderlich" ])
+                "Comdirect"
+        }
+
         testList "validateComdirectSettings" [
             test "returns Ok for valid settings" {
                 let settings = {

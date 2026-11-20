@@ -31,11 +31,12 @@ let validateRange (fieldName: string) (min: int) (max: int) (value: int) =
 // Settings Validation
 // ============================================
 
+// Die Feldnamen heißen wie die Beschriftungen der Seite Einstellungen, der Text steht dort unter dem Feld.
 let validateYnabToken (token: string) : Result<string, string list> =
     let errors =
         [
-            validateRequired "YNAB token" token
-            validateLength "YNAB token" 10 500 token
+            validateRequired "YNAB-Token" token
+            validateLength "YNAB-Token" 10 500 token
         ]
         |> List.choose id
 
@@ -44,10 +45,10 @@ let validateYnabToken (token: string) : Result<string, string list> =
 let validateComdirectSettings (settings: ComdirectSettings) : Result<ComdirectSettings, string list> =
     let errors =
         [
-            validateRequired "Client ID" settings.ClientId
-            validateRequired "Client Secret" settings.ClientSecret
-            validateRequired "Username" settings.Username
-            validateRequired "Password" settings.Password
+            validateRequired "Client-ID" settings.ClientId
+            validateRequired "Client-Secret" settings.ClientSecret
+            validateRequired "Benutzername" settings.Username
+            validateRequired "PIN" settings.Password
             // AccountId is optional
         ]
         |> List.choose id

@@ -932,6 +932,15 @@ nav a:focus-visible {
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent) 30%, transparent);
   outline: none;
 }
+/* Abgelehnter Wert (`Input.select` mit Zustand `Error`): roter Rand, auch mit Fokus. Ohne Layer wie `.select-field`,
+   sonst schlüge dessen `border` die Tailwind-Klasse `border-error` (banking-import-vwhfm). */
+.select-field.select-invalid,
+.select-field.select-invalid:focus {
+  border-color: var(--color-error);
+}
+.select-field.select-invalid:focus {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-error) 30%, transparent);
+}
 .select-field:disabled {
   opacity: 0.5;
   cursor: not-allowed;

@@ -364,7 +364,10 @@ let lenaSettingsPageTests =
                     (Components.Settings.Types.LenaFlagColorSaved (Some "pink", Error (SettingsError.DatabaseError ("validation", "x"))))
                     before
             Expect.equal after.LenaFlag before.LenaFlag "unverändert"
-            match external with
-            | Components.Settings.Types.ShowToast (_, ToastError) -> ()
-            | other -> failtest $"erwartet Fehler-Toast, war {other}"
+            // banking-import-vwhfm (R3): der Fehler steht rot unter dem Auswahlfeld, kein Toast.
+            Expect.equal
+                (Components.Settings.Types.faultAt (Components.Settings.Types.FormField Components.Settings.Types.LenaSection) after)
+                (Some "Nicht gespeichert: x")
+                "am Auswahlfeld"
+            Expect.equal external Components.Settings.Types.NoOp "kein Toast"
     ]

@@ -481,6 +481,23 @@ let adapterTests =
                 Expect.equal probe.Logins.Value 0 "keine Challenge"
                 Expect.equal (activeConnection ports).Session.Tokens.Access "alt" "Verbindung steht"
 
+        // banking-import-vwhfm: die Seite zeigt den Satz im Block Bankverbindung, er war englisch.
+        testCase "Disconnected ohne Zugangsdaten: deutscher Grund, kein Login" <| fun () ->
+            let probe = Probe(Disconnected)
+            let ports = probe.Build()
+            Expect.equal
+                (testConnectionWith [] ports)
+                (Error (SettingsError.ComdirectCredentialsInvalid ("credentials", "Comdirect-Zugangsdaten fehlen")))
+                "der Grund"
+            Expect.equal probe.Logins.Value 0 "kein Login"
+
+        testCase "YNAB-Verbindung testen ohne gespeicherten Token: deutscher Grund" <| fun () ->
+            Expect.equal
+                (Server.Api.storedYnabToken (settingsFrom []) |> run)
+                (Error (SettingsError.YnabTokenInvalid "kein YNAB-Token gespeichert"))
+                "ohne Token"
+            Expect.equal (Server.Api.storedYnabToken (settingsFrom [ "ynab_token", "t" ]) |> run) (Ok "t") "mit Token"
+
         testCase "Intakt: Disconnected, testComdirectConnection: Challenge wie bisher" <| fun () ->
             let probe = Probe(Disconnected)
             let ports = probe.Build()

@@ -1485,6 +1485,8 @@ let private FeedbackDemo () =
                                 ]
                             ]
                             Feedback.fieldNote "Bahn · 84,20 € verfügbar" (Some undo)
+                            // „✓ Gespeichert“ in der Erfolgsrolle (Einstellungen, banking-import-vwhfm).
+                            Feedback.saved "✓ Gespeichert"
                         ]
                     ]
                 ]

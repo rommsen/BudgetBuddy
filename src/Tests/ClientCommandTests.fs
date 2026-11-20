@@ -195,9 +195,14 @@ let autoFetchSettingsClientTests =
             match saved.Settings with
             | Success settings -> Expect.equal settings.Sync { DaysToFetch = 14; AutoFetchEnabled = true; AutoFetchIntervalMinutes = 480 } "übernommen"
             | other -> failtestf "geladen erwartet: %A" other
-            match external with
-            | Components.Settings.Types.ShowToast (_, ToastSuccess) -> ()
-            | other -> failtestf "Erfolgsmeldung erwartet: %A" other
+            // banking-import-vwhfm (R3): „✓ Gespeichert“ unter dem Auswahlfeld, kein Toast.
+            Expect.equal
+                (Components.Settings.Types.doneAt
+                    (Components.Settings.Types.Field (Components.Settings.Types.AutoFetchField Components.Settings.Types.AutoFetchIntervalField))
+                    saved)
+                (Some "✓ Gespeichert")
+                "unter „Alle“"
+            Expect.equal external Components.Settings.Types.NoOp "kein Toast"
         }
 
         test "eine Ablehnung des Servers steht als Feldfehler am Auswahlfeld, nicht als Toast" {
@@ -219,7 +224,7 @@ let autoFetchSettingsClientTests =
             Expect.isFalse rejected.AutoFetchSaving "wieder bedienbar"
             Expect.equal external Components.Settings.Types.NoOp "kein Toast"
             let retried, _ = update (Components.Settings.Types.SetAutoFetchInterval 360) rejected
-            Expect.isNone retried.AutoFetchError "der nächste Versuch räumt die Meldung"
+            Expect.isNone retried.Feedback "der nächste Versuch räumt die Meldung"
         }
 
         // Review-Fund zu banking-import-t4raw: nach einer Ablehnung blieb der Schalter auf Aus, BB rief aber weiter

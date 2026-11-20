@@ -28,6 +28,39 @@ type AutoFetchControl =
     | AutoFetchSwitch
     | AutoFetchIntervalField
 
+/// Ein Feld, das beim Ändern selbst speichert. „✓ Gespeichert“ und Fehler stehen darunter (banking-import-vwhfm).
+type SettingsField =
+    | DefaultBudgetField
+    | DefaultAccountField
+    | QuickAddAccountField
+    | AutoFetchField of AutoFetchControl
+
+/// Wo eine Rückmeldung der Einstellungen steht (Regel R3, ADR 0098): auf allen Breiten am Ort, nie als Toast.
+type FeedbackPlace =
+    /// „✓ Gespeichert“ im Kopf der Karte statt der Statusanzeige, nach dem Speichern eines Formulars.
+    | CardHead of SettingsSection
+    /// Fehler beim Speichern eines Formulars: unter dem Feld (Comdirect: über „Zugangsdaten speichern“).
+    | FormField of SettingsSection
+    /// Unter einem Feld, das selbst speichert.
+    | Field of SettingsField
+    /// Unter „Verbindung testen“ der Karte YNAB, in Lesen und Bearbeiten.
+    | YnabTestResult
+    /// Im Block Bankverbindung, in Lesen und Bearbeiten.
+    | BankBlock
+
+/// Gelungen (Erfolgsrolle) oder gescheitert (rot); der Text steht fertig darin.
+[<RequireQualifiedAccess>]
+type SettingsNote =
+    | Done of string
+    | Failed of string
+
+/// Was nach einem Speichern kurz leuchtet.
+type FlashTarget =
+    /// Die geänderte Zeile im Lesen-Modus der Karte.
+    | SectionRow of SettingsSection
+    /// Die Zeile „Bankverbindung“ mit der Plakette.
+    | BankRow
+
 /// Settings-specific model state
 type Model = {
     Settings: RemoteData<AppSettingsView>
@@ -48,12 +81,20 @@ type Model = {
     AutoFetchEnabledInput: bool
     AutoFetchIntervalInput: int
     AutoFetchSaving: bool
-    AutoFetchError: (AutoFetchControl * string) option
+
+    /// Die eine Rückmeldung der Seite, bis zur nächsten Aktion (`isNextAction`) oder bis man die Seite verlässt.
+    Feedback: (FeedbackPlace * SettingsNote) option
+    /// Was gerade leuchtet; `FlashEnded` nimmt es ab.
+    Flash: FlashTarget option
+    /// Ein Verbindungstest, TAN oder Trennen gelang: die Zeile Bankverbindung leuchtet, sobald der neue Stand da ist.
+    BankFlashPending: bool
 
     // Lena fragen (ledger-xfjcp, ADR 0056): die Farbe im Auswahlfeld ("" = keine) und der
     // geladene Stand mit Vorschlag.
     LenaFlagColorInput: string
     LenaFlag: LenaFlagSettings
+    /// Die Lena-Farbe ließ sich nicht laden: ein Zustand der Karte, keine Meldung. Bleibt bis zum nächsten Laden.
+    LenaFlagLoadError: string option
 
     // Comdirect connection test state
     ComdirectConnectionValid: RemoteData<unit>
@@ -120,11 +161,90 @@ type Msg =
     // Edit mode toggling
     | StartEditing of SettingsSection
     | CancelEditing
+    | FlashEnded of FlashTarget
 
-/// External message to notify parent of events (like showing toasts)
+/// Nachricht an die Wurzel. Die Einstellungen melden alles am Ort (Regel R3, ADR 0098), deshalb gibt es nur `NoOp`.
 type ExternalMsg =
     | NoOp
-    | ShowToast of string * ToastType
+
+/// Was der Nutzer auf der Seite tut. Jede dieser Nachrichten nimmt die Rückmeldung weg (R3: bis zur nächsten
+/// Aktion). Antworten des Servers, Zeitgeber und das Lesen der Bankverbindung sind keine Aktion. `LoadSettings`
+/// zählt: der Knopf „Einstellungen aktualisieren“ und das Öffnen der Seite senden es, so ist die Rückmeldung nach
+/// dem Verlassen weg.
+let isNextAction (msg: Msg) : bool =
+    match msg with
+    | LoadSettings
+    | UpdateYnabTokenInput _
+    | SaveYnabToken
+    | TestYnabConnection
+    | UpdateComdirectClientIdInput _
+    | UpdateComdirectClientSecretInput _
+    | UpdateComdirectUsernameInput _
+    | UpdateComdirectPasswordInput _
+    | UpdateComdirectAccountIdInput _
+    | SaveComdirectCredentials
+    | UpdateSyncDaysInput _
+    | SaveSyncSettings
+    | SetAutoFetchEnabled _
+    | SetAutoFetchInterval _
+    | UpdateLenaFlagColorInput _
+    | SaveLenaFlagColor
+    | SetDefaultBudget _
+    | SetDefaultAccount _
+    | SetQuickAddAccount _
+    | TestComdirectConnection
+    | ConfirmComdirectTan
+    | RequestBankDisconnect
+    | ConfirmBankDisconnect
+    | StartEditing _
+    | CancelEditing -> true
+    | SettingsLoaded _
+    | YnabTokenSaved _
+    | YnabConnectionTested _
+    | ComdirectCredentialsSaved _
+    | SyncSettingsSaved _
+    | AutoFetchSaved _
+    | LoadLenaFlagSettings
+    | LenaFlagSettingsLoaded _
+    | LenaFlagColorSaved _
+    | DefaultBudgetSet _
+    | DefaultAccountSet _
+    | QuickAddAccountSet _
+    | ComdirectAuthStarted _
+    | ComdirectTanConfirmed _
+    | LoadBankStatus
+    | BankStatusLoaded _
+    | AbortBankDisconnect
+    | BankDisconnectFinished _
+    | FlashEnded _ -> false
+
+/// Die Rückmeldung an diesem Platz.
+let feedbackAt (place: FeedbackPlace) (model: Model) : SettingsNote option =
+    match model.Feedback with
+    | Some (at, note) when at = place -> Some note
+    | _ -> None
+
+/// Der rote Text an diesem Platz.
+let faultAt (place: FeedbackPlace) (model: Model) : string option =
+    match feedbackAt place model with
+    | Some (SettingsNote.Failed text) -> Some text
+    | _ -> None
+
+/// Der Text in der Erfolgsrolle an diesem Platz.
+let doneAt (place: FeedbackPlace) (model: Model) : string option =
+    match feedbackAt place model with
+    | Some (SettingsNote.Done text) -> Some text
+    | _ -> None
+
+/// Die Bestätigung nach dem Speichern, im Kopf der Karte oder unter dem Feld.
+let savedText = "✓ Gespeichert"
+
+/// Das Ergebnis von „Verbindung testen“ bei YNAB.
+let budgetsFoundText (count: int) : string =
+    if count = 1 then "✓ Verbunden, 1 Budget gefunden" else $"✓ Verbunden, {count} Budgets gefunden"
+
+/// Der Satz vor dem Grund, wenn ein Speichern scheitert (Skizze: „Nicht gespeichert: YNAB antwortet nicht“).
+let notSavedText (reason: string) : string = $"Nicht gespeichert: {reason}"
 
 let private loadedSettings (model: Model) =
     match model.Settings with
@@ -147,9 +267,7 @@ let autoFetchIntervalLocked (model: Model) : bool =
 
 /// Die Ablehnung, die an diesem Element steht.
 let autoFetchErrorAt (control: AutoFetchControl) (model: Model) : string option =
-    match model.AutoFetchError with
-    | Some (at, message) when at = control -> Some message
-    | _ -> None
+    faultAt (Field (AutoFetchField control)) model
 
 /// „Speichern“ der Karte Sync-Einstellungen ist gesperrt, solange „Automatisch abrufen“ speichert: beide
 /// schreiben alle drei Werte, das spätere Speichern überschriebe das frühere.
