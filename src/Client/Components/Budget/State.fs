@@ -102,6 +102,24 @@ let moveCmdWith
 let private moveCmd (monthKey: string) (request: MoveRequest) : Cmd<Msg> =
     moveCmdWith (fun month request -> Api.budget.moveMoney month request) monthKey request
 
+// „Rückgängig“ (budgeting-y1kkr, ADR 0099): ein normales Verschieben über `moveMoney`, Auftrag aus `undoRequest` mit der
+// Befehls-Id dieser Absicht. Ein zweiter Versuch nach Status 0 trägt dieselbe Id, es geht nie zweimal zurück.
+let undoCmdWith
+    (call: string -> MoveRequest -> Async<Result<ApplyReport, string>>)
+    (sent: SentMove)
+    : Cmd<Msg> =
+    Cmd.OfAsync.either
+        (fun () ->
+            Retry.command (fun id ->
+                let month, request = undoRequest id sent
+                call month request))
+        ()
+        MoveAnswered
+        (fun ex -> MoveCallLost ex.Message)
+
+let private undoCmd (sent: SentMove) : Cmd<Msg> =
+    undoCmdWith (fun month request -> Api.budget.moveMoney month request) sent
+
 let private retryMoveCmd (applicationId: string) : Cmd<Msg> =
     Cmd.OfAsync.either
         (fun id -> Api.budget.retryFailedTargets id)
@@ -494,6 +512,10 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
         match (if canSend model then confirmTransfer model else model, None) with
         | model', Some (monthKey, request) -> model', moveCmd monthKey request, NoOp
         | model', None -> model', Cmd.none, NoOp
+    | UndoMove ->
+        match (if canSend model then confirmUndo model else model, None) with
+        | model', Some sent -> model', undoCmd sent, NoOp
+        | model', None -> model', Cmd.none, NoOp
     | LoadCategoryEntries -> quiet (withTabData (resetTab EntriesTab model))
     | CategoryEntriesLoaded (generation, result) -> applyCategoryEntries generation result model, Cmd.none, NoOp
     | LoadCategoryHistory -> quiet (withTabData (resetTab HistoryTab model))
@@ -687,6 +709,7 @@ let private routeOf (msg: Msg) (model: Model) : MsgRoute =
     | RetryMove _
     | ConfirmTargets
     | RetryFailed
+    | UndoMove
     | ConfirmTransfer -> MsgRoute.StartsMove
     // Am PC wählt das Feld die erste überzogene Zeile, das verlässt den Inspektor.
     | CoverOverdrawn true

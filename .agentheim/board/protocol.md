@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-20 03:30 -- Task verified and completed: budgeting-y1kkr - "„Rückgängig“ nach einer Verschiebung im Sheet „Geld“: Verschiebung in die Gegenrichtung mit demselben Betrag, für Holen, Abgeben und den Fehlbetrag-Knopf, nur wenn alles geschrieben ist"
+
+**Type:** Work / Task completion
+**Task:** budgeting-y1kkr - "„Rückgängig“ nach einer Verschiebung im Sheet „Geld“: Verschiebung in die Gegenrichtung mit demselben Betrag, für Holen, Abgeben und den Fehlbetrag-Knopf, nur wenn alles geschrieben ist"
+**Summary:** Rückgängig nach einer Verschiebung im Sheet Geld als Verschiebung in die Gegenrichtung
+**Duration:** 45m
+**Verification:** PASS (iteration 1)
+**Files changed:** 10
+**Tests added:** 23
+**ADRs written:** none
+
+---
+
 ## 2026-11-20 03:27 -- Batch started: [ledger-k68sd]
 
 **Type:** Work / Batch start

@@ -1,7 +1,7 @@
 ---
 id: budgeting-y1kkr
 title: "„Rückgängig“ nach einer Verschiebung im Sheet „Geld“: Verschiebung in die Gegenrichtung mit demselben Betrag, für Holen, Abgeben und den Fehlbetrag-Knopf, nur wenn alles geschrieben ist"
-status: doing
+status: done
 type: feature
 context: budgeting
 created: 2026-11-19
@@ -107,3 +107,43 @@ Heute: `.../scratchpad/shots/vf5h6/heute-budget-geld-zuweisen-412.png`.
 
 **Abweichung von der Skizze:** keine im sichtbaren Teil. Den Text nach dem Rückgängig zeigt die Skizze nicht; er folgt dem
 Muster der Erfolgszeile.
+
+
+## Outcome
+
+„Rückgängig“ nach einer Verschiebung im Sheet „Geld“ ist umgesetzt (ADR 0099). Nur Client: kein neuer Ereignistyp, kein neues Feld in `src/Shared`, Server unverändert, keine Fixture-Änderung. `./verify.sh`: `VERIFY: PASS` (dotnet 5297, node 354).
+
+**Modell** (`src/Client/Components/Budget/Types.fs`)
+- `SentMove` {Month; Request}: der gesendete Auftrag mit Monat, Quelle für „Rückgängig“, nicht aus dem Bericht zurückgerechnet.
+- `TabSend` (`ForwardMove of SentMove` | `UndoingMove`) in `Model.TabSend`: was der laufende Aufruf aus dem Tab ist. Gesetzt von `confirmTransfer`, `confirmMissing`, `confirmUndo`; geleert von `applyMoveAnswered` und `applyMoveCallLost`.
+- `SheetLine.Undo: SentMove option`: das Angebot lebt in der Zeile und endet mit ihr (Lebensdauer aus budgeting-gtrgk: `endsSheetLine`, `sheetKey`, Schließen, Seite verlassen; Moduswechsel und Tabwechsel lassen es stehen). Ein Neuladen der App löscht es, weil es nur im Client lebt.
+- Neue Nachricht `UndoMove` (Route `StartsMove` wie `ConfirmTransfer`, also gesperrt per `canSend` und `moveGate`).
+
+**Reine Funktionen** (`src/Client/Components/Budget/Moves.fs`, Abschnitt „Rückgängig“)
+- `undoRequest commandId sent`: Quelle und Ziel vertauscht, Betrag und Monat bleiben, Befehls-Id als Parameter.
+- `undoOffer send report`: nur bei `ForwardMove` und jeder Zeile `Written`; kein Angebot bei Failed, ChangedInYnab, WithdrawnInBb, leerem Bericht, nach dem Rückgängig selbst und ohne Auftrag aus dem Tab (Feld Zugewiesen, Targets anwenden).
+- `undoneLineText` / `undoneLine`: „Rückgängig: 50,00 € zurück von Reise“ (aus Sicht der gewählten Kategorie, Muster von `moveLineText`, das dafür in `perspectiveParts` zerlegt ist); Fehler und Warnung wie bei jeder Verschiebung. Eine Ablehnung des Servers nach dem Rückgängig steht als rote Zeile „Nicht verschoben: …“ (keine Absage im Formular, das schon zurückgesetzt ist).
+- `sheetLineAction`: die Aktion rechts in der Zeile, in Sheet und Panel gleich („Erneut senden“ vor „Rückgängig“).
+- `confirmUndo`: nimmt das Angebot aus der Zeile, die Zeile endet, `MoveInFlight` läuft.
+- `src/Client/Components/Budget/State.fs`: `undoCmdWith` (über `Retry.command`: frische Id je Absicht, derselbe zweite Versuch nach Status 0 trägt dieselbe Id), Zweig `UndoMove`.
+- `src/Client/Components/Budget/MovesView.fs`: `sheetLineView` nutzt `sheetLineAction`; „Rückgängig“ in Akzentfarbe über `Feedback.sheetLine` (vorhandenes `Act`, 48 px Trefferfläche). Kein neuer DS-Baustein.
+
+**Tests**
+- `src/Tests/MoveMoneyClientTests.fs`: „Rückgängig: Auftrag“ (3, je Weg), „Rückgängig: Angebot“ (11: je Ausgang, Fehlbetrag-Knopf, Feld Zugewiesen über `update`, Targets anwenden über `update`, Panel ohne Toast, Leiste ohne Rückgängig), „Rückgängig: Ablauf“ (5: genau ein Auftrag und Doppeltipp, Monat der Verschiebung über `confirmUndo` und den echten `undoCmdWith` mit Fake-Aufruf, Text danach ohne Aktion und „Verfügbar“ leuchtet, Sicht von Holen, Fehler/Ablehnung/Abbruch), „Rückgängig: Lebensdauer“ (2: Aufzählung aller Reihenfolgen bis Tiefe 4 über Rückgängig, Abgeben, Holen, Fehlbetrag, Zuweisen, Pause, Kategorie, Monat, Schließen, Seite verlassen, Moduswechsel, Neu-Lesen, Antworten; prüft Ende, Stehenbleiben, höchstens ein Auftrag je Angebot, neues Angebot nur für die letzte Verschiebung; dazu Moduswechsel einzeln). Bestehende Erwartungen an `SheetLine` um `Undo` ergänzt; `okLine` erwartet nach dem Abgeben jetzt das Angebot, damit prüfen die Lebensdauer-Tests aus gtrgk es mit.
+- `src/Tests/MoveMoneyTests.fs`: „Rückgängig: Rundlauf“ für `planMove`: FsCheck-Eigenschaft (500 Fälle, drei Wege, auch negative Stände) und eine Tabelle: hin und zurück mit demselben Betrag ergibt das alte Soll beider Seiten. Die Domäne ist unverändert, der Test war also sofort grün (dokumentiert die Annahme aus ADR 0099 Punkt 3).
+- Gegenprobe (lokal, wiederhergestellt): Quelle/Ziel nicht vertauscht: 4 rot; Angebot ohne Prüfung der Ausgänge: 6 rot; `confirmUndo` ohne Sperre und ohne Ende der Zeile: 2 rot; Rückgängig des Rückgängig erlaubt: 5 rot.
+- Browser: `[flow:geld-verschieben]` (`scripts/move-money.test.mjs`) endet jetzt mit „Rückgängig“: Zeile „✓ 20,00 € nach Urlaub afd8h Rückgängig“, Klick, „✓ Rückgängig: 20,00 € zurück von Urlaub afd8h“ ohne Aktion, kein Toast; der zweite `moveMoney`-Auftrag hat Quelle und Ziel vertauscht, denselben Betrag, denselben Monat und eine andere `CommandId`; die Zeilen zeigen wieder 80,00 € und -30,00 €. Kein neuer Flow, `FLOWS`-Satz in `scripts/browser-usage.mjs` ergänzt.
+- Sweep (`scripts/layout-states.mjs`): `budget-geld-ergebnis` wartet auf „Rückgängig“ in der Zeile; 320, 390, 412 und 1280 ohne Verletzung (Invariante 2: Knopf 90 × 48 px; Invariante 7: Hauptknopf ohne Scrollen, auch mit Tastatur), ohne neue Ausnahme.
+
+**README_DELTA**: geprüft mit `npm run check:readme-delta -- --bc budgeting` (Exit 0, „Ganz nachlesen: keine Einträge“). Neu: „Rückgängig (Verschiebung)“; ersetzt: „Zeile im Sheet“ (Satz zu grün mit „Rückgängig“).
+
+**Skizzenvergleich** (Bilder in `/private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/4b5cf62e-3174-40e3-90f3-4b5312280eb9/scratchpad/result-shots/budgeting-y1kkr/`)
+- `budget-geld-ergebnis-412.png` neben `/private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/4b5cf62e-3174-40e3-90f3-4b5312280eb9/scratchpad/vf5h6/skizze-shots/31-budget-sheet-geld.png`: ✓ grün, „5,00 € nach Reise“ halbfett links, „Rückgängig“ in Akzentfarbe rechts, darunter „Abgeben“. Unterschiede nur die aus budgeting-gtrgk bekannten (BB hat Feld „Betrag“ und „von/nach“, deshalb ist der Inhalt gescrollt; das Leuchten ist auf dem Bild nicht zu sehen).
+- `budget-geld-rueckgaengig-412.png` (keine Skizzen-Ansicht, Text laut Task nach dem Muster der Erfolgszeile): „✓ Rückgängig: 5,00 € zurück von Reise“ ohne Aktion.
+- `budget-geld-ergebnis-1280.png` und `budget-geld-rueckgaengig-1280.png`: dieselbe Zeile im Panel über „Abgeben“, kein Toast (0 Elemente in `.toast-layer`).
+
+**Echte Namen**: Zeile `data-testid="feedback-sheet-line"`, Knopf `[data-feedback-action]` mit Text „Rückgängig“, Nachricht `UndoMove`.
+
+**Kann-Sammlung budgeting**
+- Nach erfolgreichem „Erneut senden“ (alle Zeilen geschrieben) gibt es kein „Rückgängig“; die Task nennt nur die letzte Verschiebung aus dem Tab. Bei Bedarf nachziehen.
+- Ein Doppeltipp auf „Rückgängig“ zeigt beim zweiten Tipp die gelbe Zeile „Eine Verschiebung läuft noch“ (wie beim Doppeltipp auf Abgeben); der Auftrag geht nur einmal hinaus.

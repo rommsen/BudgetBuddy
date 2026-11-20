@@ -304,6 +304,17 @@ type SheetLineTone =
     | LineWarning
     | LineError
 
+/// Eine Verschiebung aus dem Tab, wie sie gesendet wurde: Monat und Auftrag (budgeting-y1kkr, ADR 0099). Quelle für
+/// „Rückgängig“; der Client rechnet sie nicht aus dem Bericht zurück, der Zu verteilen nur am Vorzeichen erkennt.
+type SentMove = { Month: string; Request: MoveRequest }
+
+/// Was der laufende Aufruf aus dem Tab ist (`Model.TabSend`).
+type TabSend =
+    /// Holen, Abgeben oder der Fehlbetrag-Knopf: ist danach jede Zeile geschrieben, bietet die Zeile „Rückgängig“ an.
+    | ForwardMove of SentMove
+    /// Das Rückgängig selbst. Ein Rückgängig des Rückgängig gibt es nicht.
+    | UndoingMove
+
 /// Die eine Meldung im Sheet „Geld“ über dem Hauptknopf (Platz 2 aus ADR 0098). Sie bleibt bis zur nächsten Aktion im
 /// Sheet, bis zum Kategorie- oder Monatswechsel oder bis das Sheet schließt; der Wechsel zwischen Zuweisen, Holen und
 /// Abgeben beendet sie nicht. Kein ✕, kein Zeitlimit.
@@ -312,6 +323,9 @@ type SheetLine = {
     Text: string
     /// Gruppen-Id einer offenen Verschiebung: rechts steht dann „Erneut senden“.
     Retry: string option
+    /// Die Verschiebung, die „Rückgängig“ zurücknimmt (ADR 0099): rechts steht dann „Rückgängig“. Das Angebot lebt nur
+    /// in der Zeile und endet mit ihr.
+    Undo: SentMove option
 }
 
 /// Ein Lesen, das scheiterte, als Zustand der Seite (Hinweis „nicht neu gelesen“, budgeting-gtrgk). Kein Toast: der
@@ -365,6 +379,8 @@ type Model = {
     AssignQueue: AssignWrite list
     /// Der laufende Aufruf aus dem Tab.
     MoveInFlight: MoveCall
+    /// Was dieser Aufruf ist, solange er läuft: eine Verschiebung mit ihrem Auftrag oder ein Rückgängig.
+    TabSend: TabSend option
     /// Sperrt den Fehlbetrag-Knopf, sonst nichts.
     Freshness: MonthFreshness
     /// "Zuletzt verwendet" im Picker der Gegenseite.
@@ -513,6 +529,8 @@ type Msg =
     /// Kategorie (budgeting-dgrp7): die Gruppen-Id der fehlgeschlagenen oder offenen Rückschreibung.
     | RetryMove of applicationId: string
     | MoveRetried of applicationId: string * Result<ApplyReport, string>
+    /// „Rückgängig“ an der Zeile im Sheet (budgeting-y1kkr, ADR 0099): die Verschiebung der Zeile in die Gegenrichtung.
+    | UndoMove
     /// Tipp auf eine Zeile.
     | SelectCategory of System.Guid
     /// `˄ ˅` im Sheet.
@@ -686,6 +704,7 @@ let init () : Model =
       TabMoney = None
       AssignQueue = []
       MoveInFlight = NoMoveCall
+      TabSend = None
       Freshness = MonthRead
       RecentCounterparts = NotAsked
       OpenRetries = []

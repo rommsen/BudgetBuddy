@@ -95,7 +95,7 @@ export const FLOWS = {
   "durchgehen": "Am Handy über Jetzt durchgehen ein Duplikat verwerfen, ohne Kategorie nach rechts wischen (die Karte bleibt, „Erst Kategorie wählen“ unter dem Knopf), eine Kategorie wählen, per Wisch bestätigen und bei Alles geprüft ankommen.",
   "navigation": "Die drei Orte über Leiste (Handy), Rail (Tablet) und Seitenleiste (PC) erreichen, ein Konto aus der Seitenleiste öffnen und über das Zahnrad in die Einstellungen.",
   "geld-zuweisen": "Am Handy eine Kategorie wählen, einen Betrag zuweisen und zur nächsten springen.",
-  "geld-verschieben": "Am Handy Geld von einer Kategorie an eine andere abgeben.",
+  "geld-verschieben": "Am Handy Geld von einer Kategorie an eine andere abgeben und über „Rückgängig“ in der Zeile zurückholen.",
   "verschiebung-erneut-senden": "Eine gescheiterte Verschiebung über die Zeile im Sheet erneut senden.",
   "kategorie-anpinnen": "Am Handy aus dem Kategorie-Detail eine Kategorie anpinnen, sie auf der Übersicht sehen und im Sheet Angepinnt lösen.",
   "targets-anwenden": "Am Handy über das Feld Targets anwenden der Leiste Monatserster die Vorschau öffnen, eine Zeile abwählen und anwenden.",

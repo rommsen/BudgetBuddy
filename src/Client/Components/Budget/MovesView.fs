@@ -145,7 +145,8 @@ let private RevealedLine (line: SheetLine, content: ReactElement) =
     Html.div [ prop.ref lineRef; prop.children [ content ] ]
 
 /// Die Zeile im Sheet über dem Hauptknopf (Regel R3, ADR 0098, budgeting-gtrgk): Ergebnis, Warnung oder Fehler der
-/// letzten Aktion, rot mit "Erneut senden" bei offenem Bericht. Am PC im Panel genauso.
+/// letzten Aktion, rot mit "Erneut senden" bei offenem Bericht, grün mit "Rückgängig" nach einer Verschiebung, deren
+/// Zeilen alle geschrieben sind (budgeting-y1kkr). Am PC im Panel genauso.
 let sheetLineView (model: Model) (dispatch: Msg -> unit) =
     match model.SheetLine with
     | Some line ->
@@ -155,8 +156,7 @@ let sheetLineView (model: Model) (dispatch: Msg -> unit) =
             | LineWarning -> Feedback.Tone.Warning
             | LineError -> Feedback.Tone.Error
         let act : Feedback.Act option =
-            line.Retry
-            |> Option.map (fun applicationId -> { Label = retryMoveLabel; OnClick = fun () -> dispatch (RetryMove applicationId) })
+            sheetLineAction line |> Option.map (fun (label, msg) -> { Label = label; OnClick = fun () -> dispatch msg })
         RevealedLine (line, Feedback.sheetLine ({ Tone = tone; Action = line.Text; Detail = None; Act = act } : Feedback.Message))
     | None -> Html.none
 

@@ -12,8 +12,8 @@ Catalog of this bounded context's tasks by status.
 <!-- task-counts:start -->
 - **Backlog:** 4
 - **Todo:** 1
-- **Doing:** 2
-- **Done:** 70
+- **Doing:** 1
+- **Done:** 71
 <!-- task-counts:end -->
 
 ### Todo
@@ -24,11 +24,11 @@ Catalog of this bounded context's tasks by status.
 ### Doing
 <!-- doing-list:start -->
 - **budgeting-p3sk0** — "Angepinnt ohne Meldung (R3): Anpinnen und Lösen im Kategorie-Detail ohne Toast, die Kategorie leuchtet auf der Übersicht im Bereich „Angepinnt“ kurz, ein Fehler beim Speichern steht am Ort" (feature) — `doing/budgeting-p3sk0-angepinnt-ohne-meldung.md`
-- **budgeting-y1kkr** — "„Rückgängig“ nach einer Verschiebung im Sheet „Geld“: Verschiebung in die Gegenrichtung mit demselben Betrag, für Holen, Abgeben und den Fehlbetrag-Knopf, nur wenn alles geschrieben ist" (feature) — `doing/budgeting-y1kkr-rueckgaengig-nach-verschiebung.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)
 <!-- done-list:start -->
+- **budgeting-y1kkr** — "„Rückgängig“ nach einer Verschiebung im Sheet „Geld“: Verschiebung in die Gegenrichtung mit demselben Betrag, für Holen, Abgeben und den Fehlbetrag-Knopf, nur wenn alles geschrieben ist" (feature) — `done/budgeting-y1kkr-rueckgaengig-nach-verschiebung.md`
 - **budgeting-gtrgk** — "Budget-Seite und Sheet „Geld“ am Handy ohne Toast (R3): Ergebnis und Fehler in der Zeile über dem Knopf, „Verfügbar“ leuchtet kurz, Hinweis „nicht neu gelesen“ unter „Zu verteilen“ mit „Neu laden“" (feature) — `done/budgeting-gtrgk-budget-und-uebersicht-ohne-toast.md`
 - **budgeting-yarty** — "Budget-Historie: Feld „Zeigen“ statt Chipleiste, Zeilen nach §7.11 aus HistoryList, auch die Historie im Kategorie-Detail" (feature) — `done/budgeting-yarty-budget-historie-zeigen.md`
 - **budgeting-h2brj** — "Wochentag eines Targets als Auswahlfeld statt sieben Knöpfe, ohne Wahl „Wochentag wählen“ in Gelb" (feature) — `done/budgeting-h2brj-wochentag-als-auswahlfeld.md`

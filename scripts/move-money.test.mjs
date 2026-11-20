@@ -83,7 +83,8 @@ async function openPage(width, height, handlers) {
   );
   await page.route("**/api/BudgetApi/moveMoney", (route) => {
     calls.move.push(route.request().postData());
-    const answer = handlers.move(state);
+    const [, sent] = JSON.parse(route.request().postData() ?? "[]");
+    const answer = handlers.move(state, sent);
     return answer === "abort" ? route.abort() : json(route, answer);
   });
   await page.route("**/api/BudgetApi/retryFailedTargets", (route) => {
@@ -130,12 +131,26 @@ after(async () => {
   await stopServer(frontend, frontendPort);
 });
 
-test("[flow:geld-verschieben] Handy: Zeile wählen, Abgeben, Gegenseite suchen, Betrag tippen, abgeben; die Zeilen zeigen die neuen Beträge", async () => {
+/// Die Antwort auf das Rückgängig: 20,00 € von Urlaub zurück nach Lebensmittel (budgeting-y1kkr).
+const undoReport = () => ({
+  ApplicationId: "22222222-2222-2222-2222-222222222222",
+  Month: "2026-11-01",
+  Lines: [
+    { CategoryId: guid(2), CategoryName: "Urlaub afd8h", OldAssigned: eur(-10), NewAssigned: eur(-30), Outcome: "Written" },
+    { CategoryId: guid(1), CategoryName: "Lebensmittel afd8h", OldAssigned: eur(60), NewAssigned: eur(80), Outcome: "Written" },
+  ],
+  ActualToBeBudgeted: null,
+});
+
+test("[flow:geld-verschieben] Handy: Zeile wählen, Abgeben, Gegenseite suchen, Betrag tippen, abgeben, Rückgängig; die Zeilen zeigen erst die neuen, dann wieder die alten Beträge", async () => {
   const handlers = {
-    move: (state) => {
-      state.food -= 20;
-      state.trip += 20;
-      return { Ok: report("Written") };
+    // Relativ wie der Server: die Gegenrichtung bucht denselben Betrag zurück.
+    move: (state, sent) => {
+      const back = sent.Source.CategorySide === guid(2);
+      const delta = (back ? -1 : 1) * Number(sent.Amount.Amount);
+      state.food -= delta;
+      state.trip += delta;
+      return { Ok: back ? undoReport() : report("Written") };
     },
     retry: () => ({ Error: "nicht erwartet" }),
   };
@@ -168,7 +183,7 @@ test("[flow:geld-verschieben] Handy: Zeile wählen, Abgeben, Gegenseite suchen, 
     // kein Toast und keine Meldung in der Leiste.
     const line = page.locator('.bottom-sheet.active [data-testid="feedback-sheet-line"]');
     await line.filter({ hasText: "20,00 € nach Urlaub afd8h" }).waitFor();
-    assert.match(await text(line), /^✓ 20,00 € nach Urlaub afd8h$/, "✓ und Text");
+    assert.match(await text(line), /^✓ 20,00 € nach Urlaub afd8h Rückgängig$/, "✓, Text und Rückgängig (budgeting-y1kkr)");
     assert.equal(await page.locator(".toast-layer > *").count(), 0, "kein Toast im DOM");
     assert.equal(await page.getByTestId("feedback-message").count(), 0, "keine Meldung in der Leiste");
     await visibleRow(page, "Lebensmittel afd8h").locator('[data-testid="budget-available"]', { hasText: "60,00 €" }).waitFor();
@@ -178,6 +193,23 @@ test("[flow:geld-verschieben] Handy: Zeile wählen, Abgeben, Gegenseite suchen, 
     assert.ok(calls.move[0].includes("2026-11-01"), "der Client schickt den gezeigten Monat");
     assert.ok(await page.locator(".bottom-sheet.fixed-height.active").isVisible(), "der Inspektor bleibt offen");
     assert.equal(await page.locator('[data-testid="money-mode"][aria-pressed="true"]').innerText(), "Abgeben", "der Modus bleibt");
+
+    // budgeting-y1kkr, ADR 0099: Rückgängig ist dieselbe Verschiebung in die Gegenrichtung, mit eigener Befehls-Id.
+    await line.locator('[data-feedback-action="true"]', { hasText: "Rückgängig" }).click();
+    await line.filter({ hasText: "Rückgängig: 20,00 € zurück von Urlaub afd8h" }).waitFor();
+    assert.match(await text(line), /^✓ Rückgängig: 20,00 € zurück von Urlaub afd8h$/, "Ergebnis ohne Aktion");
+    assert.equal(await line.locator('[data-feedback-action="true"]').count(), 0, "kein Rückgängig des Rückgängig");
+    assert.equal(await page.locator(".toast-layer > *").count(), 0, "kein Toast im DOM");
+    assert.equal(calls.move.length, 2, "genau ein zweiter Auftrag");
+    const [firstMonth, first] = JSON.parse(calls.move[0]);
+    const [secondMonth, second] = JSON.parse(calls.move[1]);
+    assert.deepEqual(second.Source, first.Target, "Quelle ist das alte Ziel");
+    assert.deepEqual(second.Target, first.Source, "Ziel ist die alte Quelle");
+    assert.deepEqual(second.Amount, first.Amount, "derselbe Betrag");
+    assert.equal(secondMonth, firstMonth, "derselbe Monat");
+    assert.ok(second.CommandId && first.CommandId && second.CommandId !== first.CommandId, "eine andere Befehls-Id");
+    await visibleRow(page, "Lebensmittel afd8h").locator('[data-testid="budget-available"]', { hasText: "80,00 €" }).waitFor();
+    assert.match(await text(visibleRow(page, "Urlaub afd8h")), /-30,00 €/);
   } finally {
     await context.close();
   }

@@ -186,7 +186,7 @@ let private flowTests =
             Expect.isNonEmpty cmd "der Monat wird gelesen"
             Expect.equal
                 (lost.SheetLine, external)
-                (Some { Tone = LineError; Text = pauseCallLostText true "Netz weg"; Retry = None }, NoOp)
+                (Some { Tone = LineError; Text = pauseCallLostText true "Netz weg"; Retry = None; Undo = None }, NoOp)
                 "die rote Zeile verspricht das Neu-Lesen"
         }
         // budgeting-m4v8t: trägt `generationMoved` in `pauseNeedsReread`. Hin und zurück vor der ersten
@@ -231,7 +231,7 @@ let private flowTests =
             let away = onTrip |> step (SetTargetPause PauseTarget) |> step (SelectCategory other)
             let text = "Ob die Pause gespeichert ist, ist unklar: Netz weg. Der Stand wird gleich neu gelesen."
             let lost, _, external = Components.Budget.State.update (TargetPauseCallLost (paused, current, "Netz weg")) away
-            Expect.equal (lost.SheetLine, external) (Some { Tone = LineError; Text = text; Retry = None }, NoOp) "Zeile"
+            Expect.equal (lost.SheetLine, external) (Some { Tone = LineError; Text = text; Retry = None; Undo = None }, NoOp) "Zeile"
             let closed = away |> step CloseInspector
             let lostClosed, _, externalClosed = Components.Budget.State.update (TargetPauseCallLost (paused, current, "Netz weg")) closed
             Expect.equal (lostClosed.SheetLine, externalClosed) (None, ShowToast (text, ToastError)) "Leiste"
@@ -245,7 +245,7 @@ let private flowTests =
             let lost, _, external = Components.Budget.State.update (TargetPauseCallLost (paused, current, "Netz weg.")) elsewhere
             Expect.equal
                 (lost.SheetLine, external)
-                (Some { Tone = LineError; Text = "Ob die Pause gespeichert ist, ist unklar: Netz weg."; Retry = None }, NoOp)
+                (Some { Tone = LineError; Text = "Ob die Pause gespeichert ist, ist unklar: Netz weg."; Retry = None; Undo = None }, NoOp)
                 "Zeile"
             Expect.equal lost.MonthGeneration elsewhere.MonthGeneration "kein Neu-Lesen"
         }
@@ -255,7 +255,7 @@ let private flowTests =
             let rejected, _, external = Components.Budget.State.update (TargetPauseAnswered (paused, current, Error "Ausflug hat kein Target.")) away
             Expect.equal
                 (rejected.SheetLine, external)
-                (Some { Tone = LineError; Text = "Pause nicht gespeichert: Ausflug hat kein Target."; Retry = None }, NoOp)
+                (Some { Tone = LineError; Text = "Pause nicht gespeichert: Ausflug hat kein Target."; Retry = None; Undo = None }, NoOp)
                 "Zeile"
         }
         test "Die Meldung steht im Tab Target und im Tab Geld beim Zuweisen, in den anderen Tabs und Modi als rote Zeile" {
@@ -271,11 +271,11 @@ let private flowTests =
             for name, moved in [ "Tab Historie", running |> step (SelectInspectorTab HistoryTab)
                                  "Tab Geld, Holen", running |> step (SwitchMoneyMode TakeMode) ] do
                 let r, _, _ = Components.Budget.State.update (TargetPauseAnswered (paused, current, Error "nein")) moved
-                Expect.equal r.SheetLine (Some { Tone = LineError; Text = "Pause nicht gespeichert: nein"; Retry = None }) $"{name}: Ablehnung in der Zeile"
+                Expect.equal r.SheetLine (Some { Tone = LineError; Text = "Pause nicht gespeichert: nein"; Retry = None; Undo = None }) $"{name}: Ablehnung in der Zeile"
                 let l, _, _ = Components.Budget.State.update (TargetPauseCallLost (paused, current, "weg")) moved
                 Expect.equal
                     l.SheetLine
-                    (Some { Tone = LineError; Text = "Ob die Pause gespeichert ist, ist unklar: weg. Der Stand wird gleich neu gelesen."; Retry = None })
+                    (Some { Tone = LineError; Text = "Ob die Pause gespeichert ist, ist unklar: weg. Der Stand wird gleich neu gelesen."; Retry = None; Undo = None })
                     $"{name}: Abbruch in der Zeile"
         }
     ]

@@ -908,7 +908,8 @@ export const STATES = [
     },
   },
   // budgeting-gtrgk (Regel R3): nach dem Abgeben steht „✓ 5,00 € nach Reise“ über dem Knopf, der Knopf bleibt ohne
-  // Scrollen erreichbar, auch bei offener Tastatur; im Panel bei 1280 ohne Toast.
+  // Scrollen erreichbar, auch bei offener Tastatur; im Panel bei 1280 ohne Toast. Rechts in der Zeile steht
+  // „Rückgängig“ (budgeting-y1kkr), seine Trefferfläche prüft Invariante 2.
   {
     name: "budget-geld-ergebnis",
     route: "/budget",
@@ -916,6 +917,7 @@ export const STATES = [
     mock: mockBudgetMove("Written"),
     open: async (page, { mobile }) => {
       await giveToTrip(page, mobile, "5,00 € nach Reise");
+      await page.locator('[data-testid="feedback-sheet-line"]:visible [data-feedback-action]', { hasText: "Rückgängig" }).waitFor();
       if ((await page.locator(".toast-layer > *").count()) > 0) throw new Error("Toast neben der Zeile im Sheet");
     },
     primary: (page) => page.locator('[data-testid="transfer-submit"]:visible button'),

@@ -10,6 +10,7 @@ open System.Collections.Generic
 do Environment.SetEnvironmentVariable("USE_MEMORY_DB", "true")
 
 open Expecto
+open FsCheck
 open Shared.Domain
 open Shared.Budgeting
 open Server.Budgeting
@@ -525,6 +526,54 @@ let private flowTests =
             moving.Wait()
             Expect.equal f.Reads 1 "danach liest es einmal"
             Expect.equal f.Attempts.Count 2 "danach läuft es"
+    ]
+
+// budgeting-y1kkr, ADR 0099: „Rückgängig“ ist dieselbe Verschiebung mit vertauschter Quelle und vertauschtem Ziel.
+// Relativ gerechnet ergibt der Rückweg mit demselben Betrag das alte Soll beider Seiten, für jeden Weg des Tabs.
+let private roundTripTests =
+    let applyPlan (month: BudgetMonth) (plan: Domain.MovePlan) : BudgetMonth =
+        let newOf (c: BudgetCategory) =
+            plan.Lines |> List.tryFind (fun l -> l.CategoryId = c.Id) |> Option.map (fun l -> l.NewAssigned)
+        { month with
+            Groups =
+                month.Groups
+                |> List.map (fun g ->
+                    { g with Categories = g.Categories |> List.map (fun c -> match newOf c with Some n -> { c with Assigned = n } | None -> c) }) }
+    let assignedOf (month: BudgetMonth) =
+        month.Groups |> List.collect (fun g -> g.Categories) |> List.map (fun c -> c.Id, c.Assigned)
+    let cases =
+        gen {
+            let! amountCents = Gen.choose (1, 5_000_000)
+            let! aCents = Gen.choose (-5_000_000, 5_000_000)
+            let! bCents = Gen.choose (-5_000_000, 5_000_000)
+            let! way = Gen.elements [ "Kategorie zu Kategorie"; "Kategorie nach Zu verteilen"; "Zu verteilen an Kategorie" ]
+            return amountCents, aCents, bCents, way
+        }
+    testList "Rückgängig: Rundlauf" [
+        testPropertyWithConfig { FsCheckConfig.defaultConfig with maxTest = 500 }
+            "Verschieben und die Gegenrichtung mit demselben Betrag ergeben das alte Soll beider Seiten" <|
+            Prop.forAll (Arb.fromGen cases) (fun (amountCents, aCents, bCents, way) ->
+                let a = budgetCategory "Lebensmittel" (int64 aCents * 10L)
+                let b = budgetCategory "Urlaub" (int64 bCents * 10L)
+                let month = monthWith [ a; b ]
+                let source, target =
+                    match way with
+                    | "Kategorie zu Kategorie" -> CategorySide a.Id, CategorySide b.Id
+                    | "Kategorie nach Zu verteilen" -> CategorySide a.Id, ToBeBudgetedSide
+                    | _ -> ToBeBudgetedSide, CategorySide a.Id
+                let amount = int64 amountCents * 10L
+                let moved = applyPlan month (planOk month (request source target amount))
+                let back = applyPlan moved (planOk moved (request target source amount))
+                assignedOf back = assignedOf month && assignedOf moved <> assignedOf month)
+        test "Tabelle: 50,00 € von Lebensmittel nach Urlaub und zurück" {
+            let a = budgetCategory "Lebensmittel" 100000L
+            let b = budgetCategory "Urlaub" 20000L
+            let month = monthWith [ a; b ]
+            let moved = applyPlan month (planOk month (request (CategorySide a.Id) (CategorySide b.Id) 50000L))
+            Expect.equal (assignedOf moved) [ a.Id, eur 50000L; b.Id, eur 70000L ] "hin"
+            let back = applyPlan moved (planOk moved (request (CategorySide b.Id) (CategorySide a.Id) 50000L))
+            Expect.equal (assignedOf back) [ a.Id, eur 100000L; b.Id, eur 20000L ] "zurück auf das alte Soll"
+        }
     ]
 
 let private originTests =
@@ -1172,7 +1221,7 @@ let private commandTests =
 
 [<Tests>]
 let tests =
-    testList "Verschieben" [ planTests; flowTests; originTests; boundaryTests ]
+    testList "Verschieben" [ planTests; roundTripTests; flowTests; originTests; boundaryTests ]
 
 [<Tests>]
 let assignTests =

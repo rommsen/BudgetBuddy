@@ -328,7 +328,7 @@ let leaveInspector (model: Model) : Model * LeaveOutcome =
 
 /// Eine Meldung mit Ort (`ShowLine`): bleibt das Sheet offen, steht sie über dem Hauptknopf, sonst in der Leiste.
 let lineOf (tone: SheetLineTone) (text: string) : ExternalMsg =
-    ShowLine { Tone = tone; Text = text; Retry = None }
+    ShowLine { Tone = tone; Text = text; Retry = None; Undo = None }
 
 /// Was das Verlassen meldet.
 let leaveLine (outcome: LeaveOutcome) : ExternalMsg =
@@ -369,17 +369,29 @@ let moveSummaryText (report: ApplyReport) : string =
 /// "50,00 € nach Reise" oder "50,00 € von Reise": die Verschiebung aus Sicht der gewählten Kategorie (budgeting-gtrgk,
 /// Skizze ledger-vf5h6). Eine einzelne Zeile hat Zu verteilen auf der anderen Seite. Steht die Kategorie nicht im
 /// Bericht (inzwischen eine andere gewählt), nennt der Text beide Seiten (`moveSummaryText`).
-let moveLineText (perspective: System.Guid option) (report: ApplyReport) : string =
+let private perspectiveParts (perspective: System.Guid option) (report: ApplyReport) : (string * string * string) option =
     let amountOf (l: ApplyLineResult) =
         let amount = abs (l.NewAssigned.Amount - l.OldAssigned.Amount)
         Money.formatAmountText false true amount l.NewAssigned.Currency
     match report.Lines, perspective with
-    | [ source; target ], Some x when x = source.CategoryId -> $"{amountOf source} nach {target.CategoryName}"
-    | [ source; target ], Some x when x = target.CategoryId -> $"{amountOf target} von {source.CategoryName}"
+    | [ source; target ], Some x when x = source.CategoryId -> Some (amountOf source, "nach", target.CategoryName)
+    | [ source; target ], Some x when x = target.CategoryId -> Some (amountOf target, "von", source.CategoryName)
     | [ line ], Some x when x = line.CategoryId && line.NewAssigned.Amount < line.OldAssigned.Amount ->
-        $"{amountOf line} nach {CategoryPicker.toBeBudgetedLabel}"
-    | [ line ], Some x when x = line.CategoryId -> $"{amountOf line} von {CategoryPicker.toBeBudgetedLabel}"
-    | _ -> moveSummaryText report
+        Some (amountOf line, "nach", CategoryPicker.toBeBudgetedLabel)
+    | [ line ], Some x when x = line.CategoryId -> Some (amountOf line, "von", CategoryPicker.toBeBudgetedLabel)
+    | _ -> None
+
+let moveLineText (perspective: System.Guid option) (report: ApplyReport) : string =
+    match perspectiveParts perspective report with
+    | Some (amount, direction, name) -> $"{amount} {direction} {name}"
+    | None -> moveSummaryText report
+
+/// "Rückgängig: 50,00 € zurück von Reise": das Ergebnis des Rückgängig aus Sicht der gewählten Kategorie, nach dem Muster
+/// von `moveLineText` (budgeting-y1kkr). Ohne passende Sicht nennt der Text beide Seiten.
+let undoneLineText (perspective: System.Guid option) (report: ApplyReport) : string =
+    match perspectiveParts perspective report with
+    | Some (amount, direction, name) -> $"Rückgängig: {amount} zurück {direction} {name}"
+    | None -> $"Rückgängig: {moveSummaryText report}"
 
 /// Beschriftung der Aktion an der roten Zeile.
 let retryMoveLabel = "Erneut senden"
@@ -399,7 +411,8 @@ let private failureLine (report: ApplyReport) (reason: string) : ExternalMsg =
     ShowLine
         { Tone = LineError
           Text = $"{failureHeadline report}: {reason}"
-          Retry = Some report.ApplicationId }
+          Retry = Some report.ApplicationId
+          Undo = None }
 
 /// Die Zeile zu einem Bericht, aus Sicht der Kategorie `perspective`: eine fehlgeschlagene Zeile bietet "Erneut
 /// senden" an, eine in YNAB geänderte warnt.
@@ -409,6 +422,61 @@ let moveLine (perspective: System.Guid option) (report: ApplyReport) : ExternalM
     | None when report.Lines |> List.exists (fun l -> l.Outcome = ChangedInYnab) ->
         lineOf LineWarning "In YNAB geändert, nichts überschrieben"
     | None -> lineOf LineOk (moveLineText perspective report)
+
+// ============================================
+// Rückgängig (budgeting-y1kkr, ADR 0099)
+// ============================================
+
+/// Beschriftung der Aktion an der grünen Zeile.
+let undoMoveLabel = "Rückgängig"
+
+/// Der Auftrag des Rückgängig: dieselbe Verschiebung mit vertauschter Quelle und vertauschtem Ziel, demselben Betrag, an
+/// den Monat der ursprünglichen Verschiebung, mit der übergebenen Befehls-Id (eine frische je Absicht, `Retry.command`).
+/// Relativ wie jede Verschiebung (ADR 0069): eine Änderung dazwischen bleibt erhalten.
+let undoRequest (commandId: System.Guid) (sent: SentMove) : string * MoveRequest =
+    sent.Month,
+    { Source = sent.Request.Target
+      Target = sent.Request.Source
+      Amount = sent.Request.Amount
+      CommandId = Some commandId }
+
+/// Bietet die Zeile nach dieser Antwort „Rückgängig“ an? Nur nach Holen, Abgeben oder dem Fehlbetrag-Knopf und nur, wenn
+/// jede Zeile des Berichts geschrieben ist. Bei fehlgeschlagener Zeile gilt „Erneut senden“, bei „In YNAB geändert“ und
+/// „in BB zurückgezogen“ gibt es keins, ebenso nach dem Rückgängig selbst.
+let undoOffer (send: TabSend option) (report: ApplyReport) : SentMove option =
+    match send with
+    | Some (ForwardMove sent) when not report.Lines.IsEmpty && report.Lines |> List.forall (fun l -> l.Outcome = Written) ->
+        Some sent
+    | _ -> None
+
+/// Die Zeile zur Antwort auf das Rückgängig: wie jede Verschiebung, nur heißt der Erfolg "Rückgängig: …" und trägt keine
+/// Aktion.
+let undoneLine (perspective: System.Guid option) (report: ApplyReport) : ExternalMsg =
+    match moveLine perspective report with
+    | ShowLine ({ Tone = LineOk } as line) -> ShowLine { line with Text = undoneLineText perspective report }
+    | other -> other
+
+/// Die Zeile zur Antwort auf einen Auftrag aus dem Tab: nach dem Rückgängig `undoneLine`, sonst `moveLine` mit dem Angebot.
+let private tabMoveLine (send: TabSend option) (perspective: System.Guid option) (report: ApplyReport) : ExternalMsg =
+    match send, moveLine perspective report with
+    | Some UndoingMove, _ -> undoneLine perspective report
+    | _, ShowLine line -> ShowLine { line with Undo = undoOffer send report }
+    | _, other -> other
+
+/// Die Aktion rechts in der Zeile, in Sheet und Panel gleich: „Erneut senden“ bei offenem Bericht, „Rückgängig“ beim
+/// Angebot, sonst keine.
+let sheetLineAction (line: SheetLine) : (string * Msg) option =
+    match line.Retry, line.Undo with
+    | Some applicationId, _ -> Some (retryMoveLabel, RetryMove applicationId)
+    | None, Some _ -> Some (undoMoveLabel, UndoMove)
+    | None, None -> None
+
+/// „Rückgängig“: nimmt das Angebot aus der Zeile, die Zeile endet. Genau ein Auftrag geht hinaus; die Sperre prüft der
+/// Aufrufer (`canSend`). Ohne Angebot geschieht nichts.
+let confirmUndo (model: Model) : Model * SentMove option =
+    match model.SheetLine |> Option.bind (fun line -> line.Undo) with
+    | Some sent -> { model with MoveInFlight = MoveCallRunning; TabSend = Some UndoingMove; SheetLine = None }, Some sent
+    | None -> model, None
 
 /// Zuweisen im Feld zeigt keinen Erfolgstext: die Zahl ist die Antwort, dazu leuchtet "Verfügbar". Ist der Bericht
 /// nicht mehr offen, weil eine neuere Zuweisung wartet, gibt es nichts erneut zu senden.
@@ -534,6 +602,7 @@ let confirmMissing (model: Model) : Model * (string * MoveRequest) option =
             let request = { Source = ToBeBudgetedSide; Target = CategorySide tab.CategoryId; Amount = amount; CommandId = None }
             { model with
                 MoveInFlight = MoveCallRunning
+                TabSend = Some (ForwardMove { Month = month.Month; Request = request })
                 TabMoney = Some { tab with Entry = None; Transfer = { tab.Transfer with Submission = Editing } } },
             Some (month.Month, request)
         | _ -> model, None
@@ -693,6 +762,7 @@ let confirmTransfer (model: Model) : Model * (string * MoveRequest) option =
         | Some request ->
             { model with
                 MoveInFlight = MoveCallRunning
+                TabSend = Some (ForwardMove { Month = month.Month; Request = request })
                 TabMoney = Some { tab with Transfer = { tab.Transfer with Submission = Editing } } },
             Some (month.Month, request)
         | None -> model, None
@@ -704,13 +774,15 @@ let private resetTransfer (model: Model) : Model =
 /// Antwort auf einen Auftrag aus dem Tab. `Error`: nichts geschrieben, die Eingaben bleiben und der Tab
 /// nennt den Grund. Ist er weg (neu betreten, Kategorie weggefallen), nennt die Zeile im Sheet oder die Leiste den Grund.
 /// Mit Bericht ist die Form zurückgesetzt, der Modus bleibt, der Monat wird neu gelesen (`true`).
+/// Nach dem Rückgängig nennt eine Ablehnung die rote Zeile, der Tab hat dazu keine Form.
 let applyMoveAnswered (result: Result<ApplyReport, string>) (model: Model) : Model * ExternalMsg * bool =
-    let finished = { model with MoveInFlight = NoMoveCall }
+    let finished = { model with MoveInFlight = NoMoveCall; TabSend = None }
     match result, model.TabMoney with
     | Ok report, _ ->
         awaitFreshMonth (flashAfterReport report (noteMoveReport report.Month report (resetTransfer (withReport report finished)))),
-        moveLine (perspectiveOf model) report,
+        tabMoveLine model.TabSend (perspectiveOf model) report,
         true
+    | Error message, _ when model.TabSend = Some UndoingMove -> finished, lineOf LineError $"Nicht verschoben: {message}", false
     | Error message, Some _ ->
         let rejection = if model.MoveInFlight = MoveCallRunningAway then RejectedAway message else Rejected message
         withTab (fun tab -> { tab with Transfer = { tab.Transfer with Submission = rejection } }) finished,
@@ -721,7 +793,7 @@ let applyMoveAnswered (result: Result<ApplyReport, string>) (model: Model) : Mod
 /// Der Aufruf brach ab. Weil der Server relativ rechnet, wäre ein zweiter Versuch im Formular
 /// gefährlich: es wird zurückgesetzt, und der Monat wird neu gelesen.
 let applyMoveCallLost (message: string) (model: Model) : Model * ExternalMsg =
-    awaitMonth (resetTransfer { model with MoveInFlight = NoMoveCall }),
+    awaitMonth (resetTransfer { model with MoveInFlight = NoMoveCall; TabSend = None }),
     lineOf LineError $"Ob verschoben wurde, ist unklar: {message}. Der Stand wird gleich neu gelesen."
 
 /// Trägt eine Kategorie des geladenen Monats die Markierung "noch nicht in YNAB" mit dieser Gruppen-Id?
@@ -773,4 +845,5 @@ let applyMoveRetried (applicationId: string) (result: Result<ApplyReport, string
         ShowLine
             { Tone = LineError
               Text = $"Erneut senden gescheitert: {message}"
-              Retry = if stillOpen then Some applicationId else None }
+              Retry = if stillOpen then Some applicationId else None
+              Undo = None }

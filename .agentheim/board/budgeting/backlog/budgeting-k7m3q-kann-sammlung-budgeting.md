@@ -20,3 +20,5 @@ Kann-Sammlung des BC nach der Regel Backlog-Disziplin in CLAUDE.md. Funde ohne G
 ## What
 - Work-Lauf 2026-11-20 (budgeting-gtrgk): bei offener Verschiebung nimmt deren Hinweis im festen Bereich des Sheets bei 320 px fast die ganze Höhe, die Tab-Leiste rückt unter den Rand (vorher schon so).
 - Work-Lauf 2026-11-20 (budgeting-gtrgk): nach einem Fehler stehen „Erneut senden“ am Hinweis der offenen Verschiebung und in der roten Zeile doppelt da.
+- Work-Lauf 2026-11-20 (budgeting-y1kkr): nach erfolgreichem „Erneut senden“ (alle Zeilen geschrieben) gibt es kein „Rückgängig“; die Task nennt nur die letzte Verschiebung aus dem Tab.
+- Work-Lauf 2026-11-20 (budgeting-y1kkr): ein Doppeltipp auf „Rückgängig“ zeigt beim zweiten Tipp gelb „Eine Verschiebung läuft noch“; der Auftrag geht nur einmal hinaus.

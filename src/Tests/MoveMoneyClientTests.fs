@@ -143,7 +143,7 @@ let private fieldTests =
         // budgeting-gtrgk: bleibt das Sheet offen, steht die Warnung in der Zeile, sonst in der Leiste.
         test "Ungültiger Text beim Verlassen: nichts geschrieben, Eingabe verworfen, gelbe Zeile oder Leiste" {
             let invalid = run [ typed "abc" ] onFood
-            let warning = { Tone = LineWarning; Text = "Zugewiesen nicht gespeichert: keine gültige Rechnung"; Retry = None }
+            let warning = { Tone = LineWarning; Text = "Zugewiesen nicht gespeichert: keine gültige Rechnung"; Retry = None; Undo = None }
             for name, msg in
                 [ "Tab", SelectInspectorTab EntriesTab
                   "Kategorie", SelectCategory trip.Id
@@ -933,7 +933,7 @@ let private reviewTests =
             let model, external = update CoverMissing (run [ typed "+5" ] onRent)
             Expect.isNone (tabOf model).Entry "verworfen"
             Expect.isEmpty model.AssignQueue "nicht gespeichert"
-            Expect.equal (model.SheetLine, external) (Some { Tone = LineWarning; Text = coverDroppedEntryText; Retry = None }, NoOp) "in der Zeile gemeldet"
+            Expect.equal (model.SheetLine, external) (Some { Tone = LineWarning; Text = coverDroppedEntryText; Retry = None; Undo = None }, NoOp) "in der Zeile gemeldet"
         }
         test "Ohne Änderung im Feld und ohne gesendeten Auftrag gibt es keine Meldung" {
             Expect.equal (snd (update CoverMissing (run [ typed "+0" ] onRent))) NoOp "nichts verloren"
@@ -1119,7 +1119,8 @@ let private transferTests =
             Expect.isNone (tabOf model).Transfer.Counterpart "Gegenseite"
             Expect.equal (tabOf model).Transfer.Submission Editing "wieder bereit"
             Expect.isTrue reload "neu lesen"
-            Expect.equal external (ShowLine { Tone = LineOk; Text = "20,00 € von Urlaub"; Retry = None }) "aus Sicht von Lebensmittel"
+            let offer = Some { Month = monthKey; Request = { Source = CategorySide trip.Id; Target = CategorySide food.Id; Amount = eur 20m; CommandId = None } }
+            Expect.equal external (ShowLine { Tone = LineOk; Text = "20,00 € von Urlaub"; Retry = None; Undo = offer }) "aus Sicht von Lebensmittel, mit Rückgängig"
             Expect.isTrue model.AvailableFlash.On "Verfügbar leuchtet"
         }
         test "Error: der Grund steht im Tab, die Eingaben bleiben" {
@@ -1134,7 +1135,7 @@ let private transferTests =
             let busy = sending ()
             let model, external = applyMoveCallLost "Timeout" busy
             Expect.isNone (tabOf model).Transfer.AmountInput "zurückgesetzt"
-            Expect.equal external (ShowLine { Tone = LineError; Text = "Ob verschoben wurde, ist unklar: Timeout. Der Stand wird gleich neu gelesen."; Retry = None }) "ehrlich"
+            Expect.equal external (ShowLine { Tone = LineError; Text = "Ob verschoben wurde, ist unklar: Timeout. Der Stand wird gleich neu gelesen."; Retry = None; Undo = None }) "ehrlich"
             Expect.equal model.MonthGeneration (busy.MonthGeneration + 1) "neu lesen"
         }
         test "Solange ein Aufruf läuft, wird der Inspektor nicht verlassen" {
@@ -1149,7 +1150,7 @@ let private transferTests =
             Expect.equal (commands ConfirmTransfer busy) 0 "kein zweiter"
             let tapped = fst (update ConfirmTransfer busy)
             Expect.equal { tapped with SheetLine = None } busy "update tut nichts"
-            Expect.equal tapped.SheetLine (Some { Tone = LineWarning; Text = moveBlockedText; Retry = None }) "die Zeile nennt die Sperre"
+            Expect.equal tapped.SheetLine (Some { Tone = LineWarning; Text = moveBlockedText; Retry = None; Undo = None }) "die Zeile nennt die Sperre"
         }
         test "Während eines Monatswechsels ist der Knopf gesperrt, kein Auftrag geht in den alten Monat" {
             let changing = fst (select "2026-12-01" takeReady)
@@ -1242,7 +1243,7 @@ let private openRetryTests =
             Expect.equal (next.OpenRetries |> List.map (fun r -> r.Headline)) [ "Nicht zugewiesen" ] "Hinweis"
             Expect.equal
                 (next.SheetLine, external)
-                (Some { Tone = LineError; Text = "Nicht zugewiesen: Rate-Limit"; Retry = Some "app-1" }, NoOp)
+                (Some { Tone = LineError; Text = "Nicht zugewiesen: Rate-Limit"; Retry = Some "app-1"; Undo = None }, NoOp)
                 "rote Zeile mit Erneut senden"
         }
         test "Ein fehlgeschlagener Fehlbetrag-Knopf heißt ebenso Nicht zugewiesen" {
@@ -1251,7 +1252,7 @@ let private openRetryTests =
             let failed = report [ "Urlaub", 0m, 30.5m, Failed "Rate-Limit" ]
             let model, external, _ = applyMoveAnswered (Ok failed) sent
             Expect.equal (model.OpenRetries |> List.map (fun r -> r.Headline)) [ "Nicht zugewiesen" ] "Hinweis"
-            Expect.equal external (ShowLine { Tone = LineError; Text = "Nicht zugewiesen: Rate-Limit"; Retry = Some "app-1" }) "Text"
+            Expect.equal external (ShowLine { Tone = LineError; Text = "Nicht zugewiesen: Rate-Limit"; Retry = Some "app-1"; Undo = None }) "Text"
         }
     ]
 
@@ -1283,7 +1284,7 @@ let private pageChangeTests =
         }
         test "Ist der Tab weg, weil die Kategorie wegfiel, nennt die rote Meldung die Absage" {
             let _, external, _ = applyMoveAnswered (Error "abgelehnt") { sending () with TabMoney = None }
-            Expect.equal external (ShowLine { Tone = LineError; Text = "Nicht verschoben: abgelehnt"; Retry = None }) "sichtbar"
+            Expect.equal external (ShowLine { Tone = LineError; Text = "Nicht verschoben: abgelehnt"; Retry = None; Undo = None }) "sichtbar"
         }
     ]
 
@@ -1297,8 +1298,8 @@ let private summaryTests =
         test "Die Zeile nennt die Verschiebung aus Sicht der gewählten Kategorie: nach bei Abgeben, von bei Holen" {
             let r = report [ "Essen", 80m, 30m, Written; "Reise", 0m, 50m, Written ]
             let source, target = r.Lines.[0].CategoryId, r.Lines.[1].CategoryId
-            Expect.equal (moveLine (Some source) r) (ShowLine { Tone = LineOk; Text = "50,00 € nach Reise"; Retry = None }) "Abgeben"
-            Expect.equal (moveLine (Some target) r) (ShowLine { Tone = LineOk; Text = "50,00 € von Essen"; Retry = None }) "Holen"
+            Expect.equal (moveLine (Some source) r) (ShowLine { Tone = LineOk; Text = "50,00 € nach Reise"; Retry = None; Undo = None }) "Abgeben"
+            Expect.equal (moveLine (Some target) r) (ShowLine { Tone = LineOk; Text = "50,00 € von Essen"; Retry = None; Undo = None }) "Holen"
         }
         test "Mit Zu verteilen auf der anderen Seite: von Zu verteilen beim Holen und Fehlbetrag, nach Zu verteilen beim Abgeben" {
             let taken = report [ "Essen", 900m, 912.3m, Written ]
@@ -1315,13 +1316,13 @@ let private summaryTests =
             let r = report [ "Lebensmittel", 80m, 60m, Written; "Urlaub", 0m, 20m, Failed "Rate-Limit" ]
             Expect.equal
                 (moveLine None r)
-                (ShowLine { Tone = LineError; Text = "Nicht vollständig verschoben: Rate-Limit"; Retry = Some "app-1" })
+                (ShowLine { Tone = LineError; Text = "Nicht vollständig verschoben: Rate-Limit"; Retry = Some "app-1"; Undo = None })
                 "rot mit Erneut senden"
         }
         test "Hat YNAB gewonnen, warnt die Zeile gelb statt Erfolg zu melden, ohne Aktion" {
             Expect.equal
                 (moveLine None (report [ "Lebensmittel", 80m, 60m, ChangedInYnab; "Urlaub", 0m, 20m, ChangedInYnab ]))
-                (ShowLine { Tone = LineWarning; Text = "In YNAB geändert, nichts überschrieben"; Retry = None })
+                (ShowLine { Tone = LineWarning; Text = "In YNAB geändert, nichts überschrieben"; Retry = None; Undo = None })
                 "gelb"
         }
     ]
@@ -1404,7 +1405,7 @@ let private retryTests =
             let model, external = applyMoveRetried "app-1" (Ok done') running
             Expect.isEmpty model.OpenRetries "erledigt"
             match external with
-            | ShowLine { Tone = LineOk; Retry = None } -> ()
+            | ShowLine { Tone = LineOk; Retry = None; Undo = None } -> ()
             | other -> failtest $"grüne Zeile erwartet: {other}"
         }
         test "Bleibt eine Zeile fehlgeschlagen, bleibt der Hinweis mit dem neuen Grund" {
@@ -1420,7 +1421,7 @@ let private retryTests =
             let running, _ = startMoveRetry "app-1" afterFailure
             let model, external = applyMoveRetried "app-1" (Error "Timeout") running
             Expect.equal (model.OpenRetries |> List.map (fun r -> r.State)) [ RetryReady ] "sendbar"
-            Expect.equal external (ShowLine { Tone = LineError; Text = "Erneut senden gescheitert: Timeout"; Retry = Some "app-1" }) "sichtbar"
+            Expect.equal external (ShowLine { Tone = LineError; Text = "Erneut senden gescheitert: Timeout"; Retry = Some "app-1"; Undo = None }) "sichtbar"
         }
     ]
 
@@ -1465,7 +1466,12 @@ let private fieldKeyTests =
 // Rückmeldung am Ort ohne Toast (Regel R3, ADR 0098, budgeting-gtrgk)
 // ============================================
 
-let private okLine text = Some { Tone = LineOk; Text = text; Retry = None }
+/// Das Abgeben aus `givingToTrip`, wie gesendet: das Angebot „Rückgängig“ der Zeile (budgeting-y1kkr).
+let private gaveOffer : SentMove =
+    { Month = monthKey; Request = { Source = CategorySide food.Id; Target = CategorySide trip.Id; Amount = eur 5m; CommandId = None } }
+
+/// Die grüne Zeile nach `afterGive`, mit „Rückgängig“.
+let private okLine text = Some { Tone = LineOk; Text = text; Retry = None; Undo = Some gaveOffer }
 
 /// Abgeben von Lebensmittel nach Urlaub, Antwort steht aus.
 let private givingToTrip =
@@ -1493,7 +1499,7 @@ let private sheetLineRouteTests =
             let model, external = update failed givingToTrip
             Expect.equal
                 model.SheetLine
-                (Some { Tone = LineError; Text = "Nicht vollständig verschoben: Rate-Limit"; Retry = Some "app-2" })
+                (Some { Tone = LineError; Text = "Nicht vollständig verschoben: Rate-Limit"; Retry = Some "app-2"; Undo = None })
                 "Zeile"
             Expect.equal external NoOp "kein Toast"
             let _, closed = update failed { givingToTrip with Selected = None }
@@ -1646,10 +1652,284 @@ let private staleHintTests =
         }
     ]
 
+// ============================================
+// Rückgängig nach einer Verschiebung (budgeting-y1kkr, ADR 0099)
+// ============================================
+
+/// Die Antwort auf das Rückgängig von `afterGive`: 5,00 € von Urlaub zurück nach Lebensmittel.
+let private undidGive (outcome: LineOutcome) =
+    answered [ line trip 5m 0m outcome; line food 895m 900m Written ]
+
+/// Das Angebot der Zeile, wenn eine steht.
+let private offerOf (model: Model) : SentMove option =
+    model.SheetLine |> Option.bind (fun l -> l.Undo)
+
+let private undoRequestTests =
+    let a = Guid.NewGuid()
+    let b = Guid.NewGuid()
+    let id = Guid.NewGuid()
+    let sent source target = { Month = "2026-10-01"; Request = { Source = source; Target = target; Amount = eur 50m; CommandId = None } }
+    testList "Rückgängig: Auftrag" [
+        test "Kategorie zu Kategorie: Quelle und Ziel vertauscht, Betrag und Monat bleiben, die Befehls-Id ist die übergebene" {
+            Expect.equal
+                (undoRequest id (sent (CategorySide a) (CategorySide b)))
+                ("2026-10-01", { Source = CategorySide b; Target = CategorySide a; Amount = eur 50m; CommandId = Some id })
+                "Gegenrichtung"
+        }
+        test "Kategorie nach Zu verteilen: zurück aus Zu verteilen in die Kategorie" {
+            Expect.equal
+                (undoRequest id (sent (CategorySide a) ToBeBudgetedSide))
+                ("2026-10-01", { Source = ToBeBudgetedSide; Target = CategorySide a; Amount = eur 50m; CommandId = Some id })
+                "Gegenrichtung"
+        }
+        test "Zu verteilen an Kategorie (Fehlbetrag-Knopf): zurück nach Zu verteilen" {
+            Expect.equal
+                (undoRequest id (sent ToBeBudgetedSide (CategorySide a)))
+                ("2026-10-01", { Source = CategorySide a; Target = ToBeBudgetedSide; Amount = eur 50m; CommandId = Some id })
+                "Gegenrichtung"
+        }
+    ]
+
+let private undoOfferTests =
+    let written = { report [ "Lebensmittel", 900m, 895m, Written; "Urlaub", 0m, 5m, Written ] with ApplicationId = "app-2" }
+    let withSecond outcome = { written with Lines = [ written.Lines.Head; { written.Lines[1] with Outcome = outcome } ] }
+    let forward = Some (ForwardMove gaveOffer)
+    testList "Rückgängig: Angebot" [
+        test "Nach Holen, Abgeben oder Fehlbetrag mit jeder Zeile geschrieben steht das Angebot" {
+            Expect.equal (undoOffer forward written) (Some gaveOffer) "angeboten"
+        }
+        test "Eine fehlgeschlagene Zeile: kein Angebot, es gilt Erneut senden" {
+            Expect.isNone (undoOffer forward (withSecond (Failed "Rate-Limit"))) "Failed"
+        }
+        test "In YNAB geändert: kein Angebot" {
+            Expect.isNone (undoOffer forward (withSecond ChangedInYnab)) "ChangedInYnab"
+        }
+        test "In BB zurückgezogen: kein Angebot" {
+            Expect.isNone (undoOffer forward (withSecond WithdrawnInBb)) "WithdrawnInBb"
+        }
+        test "Ein Bericht ohne Zeilen: kein Angebot" {
+            Expect.isNone (undoOffer forward { written with Lines = [] }) "leer"
+        }
+        test "Nach dem Rückgängig selbst und ohne Auftrag aus dem Tab: kein Angebot" {
+            Expect.isNone (undoOffer (Some UndoingMove) written) "kein Rückgängig des Rückgängig"
+            Expect.isNone (undoOffer None written) "ohne Auftrag"
+        }
+        test "Die Zeile nach Abgeben trägt das Angebot mit dem gesendeten Auftrag" {
+            Expect.equal afterGive.SheetLine (okLine "5,00 € nach Urlaub") "✓ 5,00 € nach Urlaub · Rückgängig"
+            Expect.equal (sheetLineAction afterGive.SheetLine.Value) (Some ("Rückgängig", UndoMove)) "Aktion rechts"
+        }
+        test "Der Fehlbetrag-Knopf merkt sich den Auftrag von Zu verteilen an die Kategorie" {
+            let covered = run [ CoverMissing; answered [ line rent 900m 912.3m Written ] ] onRent
+            Expect.equal
+                (offerOf covered)
+                (Some { Month = monthKey; Request = { Source = ToBeBudgetedSide; Target = CategorySide rent.Id; Amount = eur 12.3m; CommandId = None } })
+                "Fehlbetrag"
+        }
+        test "Das Feld Zugewiesen bietet kein Rückgängig an" {
+            let assigned = run [ typed "+20"; AssignFieldLeft ] onFood
+            Expect.isNonEmpty assigned.AssignQueue "gesendet"
+            let answeredAssign =
+                run [ AssignAnswered (Ok { ApplicationId = "a"; Month = monthKey; Lines = [ line food 900m 920m Written ]; ActualToBeBudgeted = None }) ] assigned
+            Expect.isNone (offerOf answeredAssign) "kein Angebot"
+        }
+        test "Targets anwenden bietet kein Rückgängig an" {
+            let targetLine : TargetLine =
+                { CategoryId = rent.Id; CategoryName = rent.Name; GroupName = "Alltag"; OldAssigned = eur 900m
+                  Underfunded = eur 12.3m; NewAssigned = eur 912.3m; Target = None }
+            let preview : TargetPreview =
+                { Month = monthKey; Lines = [ targetLine ]; Skipped = []; Total = eur 12.3m; ToBeBudgeted = eur 100m; ToBeBudgetedAfter = eur 87.7m; CommandId = None }
+            let applying = run [ ConfirmTargets ] { onRent with Targets = PreviewReady { Shown = preview; Changed = false; Excluded = Set.empty } }
+            let applied =
+                run [ TargetsApplied (Ok (Applied { ApplicationId = "t"; Month = monthKey; Lines = [ line rent 900m 912.3m Written ]; ActualToBeBudgeted = None })) ] applying
+            Expect.isNone (offerOf applied) "kein Angebot"
+            Expect.isNone applied.TabSend "kein Auftrag aus dem Tab"
+        }
+        test "Am PC steht Rückgängig in der Zeile im Panel, ohne Toast; ohne Sheet trägt die Leiste kein Rückgängig" {
+            // Panel und Sheet unterscheidet nur das Rendern: beide zeigen `SheetLine` mit `sheetLineAction`.
+            let model, external = update gaveToTrip givingToTrip
+            Expect.equal external NoOp "kein Toast"
+            Expect.equal (model.SheetLine |> Option.bind sheetLineAction) (Some ("Rückgängig", UndoMove)) "im Panel"
+            let _, closed = update gaveToTrip { givingToTrip with Selected = None }
+            Expect.equal closed (ShowToast ("5,00 € von Lebensmittel nach Urlaub", ToastSuccess)) "Leiste ohne Rückgängig"
+        }
+    ]
+
+let private undoFlowTests =
+    testList "Rückgängig: Ablauf" [
+        test "Rückgängig sendet genau einen Auftrag, die Zeile endet, ein Doppeltipp sendet nicht noch einmal" {
+            let undoing, cmd, _ = Components.Budget.State.update UndoMove afterGive
+            Expect.isNonEmpty cmd "gesendet"
+            Expect.equal undoing.TabSend (Some UndoingMove) "Rückgängig läuft"
+            Expect.isTrue (undoing.SheetLine |> Option.forall (fun l -> l.Undo.IsNone)) "kein Angebot mehr"
+            Expect.equal (commands UndoMove undoing) 0 "der zweite Tipp sendet nicht"
+            Expect.isNone (offerOf (run [ UndoMove ] undoing)) "auch danach kein Angebot"
+        }
+        test "Das Rückgängig geht an den Monat der Verschiebung, auch wenn inzwischen ein anderer Monat gezeigt würde" {
+            let october = { gaveOffer with Month = "2026-10-01" }
+            let shown = { afterGive with SheetLine = afterGive.SheetLine |> Option.map (fun l -> { l with Undo = Some october }) }
+            let _, sent = confirmUndo shown
+            Expect.equal sent (Some october) "der gemerkte Auftrag, nicht der gezeigte Monat"
+            let seen = Collections.Concurrent.ConcurrentQueue<string * MoveRequest>()
+            let call (month: string) (request: MoveRequest) : Async<Result<ApplyReport, string>> =
+                async {
+                    seen.Enqueue((month, request))
+                    return Ok { ApplicationId = "u"; Month = month; Lines = []; ActualToBeBudgeted = None }
+                }
+            let msg, _ = Tests.CmdTiming.firstDispatchedAfter 3000 (Components.Budget.State.undoCmdWith call october)
+            Expect.equal msg (MoveAnswered (Ok { ApplicationId = "u"; Month = "2026-10-01"; Lines = []; ActualToBeBudgeted = None })) "Antwort"
+            let month, request = Seq.exactlyOne seen
+            Expect.equal month "2026-10-01" "Monat der Verschiebung"
+            Expect.equal
+                { request with CommandId = None }
+                { Source = CategorySide trip.Id; Target = CategorySide food.Id; Amount = eur 5m; CommandId = None }
+                "vertauscht, derselbe Betrag"
+            Expect.isSome request.CommandId "mit Befehls-Id"
+        }
+        test "Nach dem Rückgängig steht „✓ Rückgängig: …“ ohne Aktion, Verfügbar leuchtet" {
+            let undoing = run [ UndoMove ] afterGive
+            let model, external = update (undidGive Written) undoing
+            Expect.equal external NoOp "kein Toast"
+            Expect.equal model.SheetLine (Some { Tone = LineOk; Text = "Rückgängig: 5,00 € zurück von Urlaub"; Retry = None; Undo = None }) "ohne Aktion"
+            Expect.isNone (sheetLineAction model.SheetLine.Value) "kein Rückgängig des Rückgängig"
+            Expect.isNone model.TabSend "nichts mehr unterwegs"
+            Expect.isTrue model.AvailableFlash.On "Verfügbar leuchtet"
+        }
+        test "Aus Sicht von Holen: „Rückgängig: … zurück nach …“" {
+            let taking =
+                run [ SwitchMoneyMode TakeMode; TransferAmountChanged "5"; PickCounterpart (CategorySide trip.Id); ConfirmTransfer ] onFood
+            let took = run [ answered [ line trip 0m -5m Written; line food 900m 905m Written ] ] taking
+            Expect.equal (offerOf took |> Option.map (fun o -> o.Request.Source, o.Request.Target)) (Some (CategorySide trip.Id, CategorySide food.Id)) "Angebot"
+            let undone = run [ UndoMove; answered [ line food 905m 900m Written; line trip -5m 0m Written ] ] took
+            Expect.equal (undone.SheetLine |> Option.map (fun l -> l.Text)) (Some "Rückgängig: 5,00 € zurück nach Urlaub") "Text"
+        }
+        test "Scheitert das Rückgängig, steht die rote Zeile wie bei jeder Verschiebung" {
+            let undoing = run [ UndoMove ] afterGive
+            let failed = run [ undidGive (Failed "Rate-Limit") ] undoing
+            Expect.equal
+                failed.SheetLine
+                (Some { Tone = LineError; Text = "Nicht vollständig verschoben: Rate-Limit"; Retry = Some "app-2"; Undo = None })
+                "Erneut senden"
+            let rejected = run [ MoveAnswered (Error Server.Budgeting.Domain.CategoryNotVisibleText) ] undoing
+            Expect.equal
+                (rejected.SheetLine |> Option.map (fun l -> l.Tone, l.Text, l.Undo))
+                (Some (LineError, $"Nicht verschoben: {Server.Budgeting.Domain.CategoryNotVisibleText}", None))
+                "Ablehnung des Servers"
+            Expect.equal (tabOf rejected).Transfer.Submission Editing "keine Absage im Formular"
+            let lost = run [ MoveCallLost "Timeout" ] undoing
+            Expect.equal (lost.SheetLine |> Option.map (fun l -> l.Tone, l.Undo)) (Some (LineError, None)) "Abbruch"
+            Expect.isNone lost.TabSend "nichts mehr unterwegs"
+        }
+    ]
+
+/// Ein Schritt der Aufzählung zur Lebensdauer des Angebots.
+type private UndoStep =
+    /// Beendet das Angebot (nächstes Senden, Kategorie, Monat, Schließen, Seite verlassen).
+    | Ends
+    /// Lässt es stehen (Moduswechsel, Antworten im Hintergrund).
+    | Keeps
+    /// „Rückgängig“.
+    | Undo
+    /// Eine Antwort auf den laufenden Auftrag.
+    | Answer
+
+/// Was die Aufzählung selbst weiß, ohne den Prädikaten des Clients zu glauben.
+type private UndoWalk =
+    { /// Der laufende Auftrag: eine Verschiebung mit ihrem Auftrag oder ein Rückgängig.
+      Pending: SentMove option option
+      /// Wurde für das jetzige Angebot schon Rückgängig gesendet?
+      Used: bool }
+
+let private undoEvents (model: Model) (state: UndoWalk) : (string * Msg list * UndoStep) list =
+    let give = [ SwitchMoneyMode GiveMode; TransferAmountChanged "5"; PickCounterpart (CategorySide trip.Id); ConfirmTransfer ]
+    let take = [ SwitchMoneyMode TakeMode; TransferAmountChanged "5"; PickCounterpart (CategorySide trip.Id); ConfirmTransfer ]
+    [ "Rückgängig", [ UndoMove ], Undo
+      "Abgeben", give, Ends
+      "Holen", take, Ends
+      "Fehlbetrag", [ CoverMissing ], Ends
+      "Zuweisen", [ SwitchMoneyMode AssignMode; typed "+5"; AssignFieldLeft ], Ends
+      "Pause", [ SetTargetPause PauseTarget ], Ends
+      "Kategorie", [ SelectCategory trip.Id ], Ends
+      "Zurück zu Lebensmittel", [ SelectCategory food.Id ], Ends
+      "Monat", [ SelectMonth "2026-10-01" ], Ends
+      "Schließen", [ CloseInspector ], Ends
+      "Seite verlassen", [ PageLeft ], Ends
+      "Modus Zuweisen", [ SwitchMoneyMode AssignMode ], Keeps
+      "Modus Holen", [ SwitchMoneyMode TakeMode ], Keeps
+      "Modus Abgeben", [ SwitchMoneyMode GiveMode ], Keeps
+      "Neu-Lesen", [ Reloaded (model.MonthGeneration, Ok month) ], Keeps
+      match state.Pending with
+      | Some (Some _) -> "Antwort Verschiebung", [ gaveToTrip ], Answer
+      | Some None ->
+          "Antwort Rückgängig", [ undidGive Written ], Answer
+          "Abbruch Rückgängig", [ MoveCallLost "weg" ], Answer
+      | None -> ()
+      match model.AssignQueue with
+      | _ :: _ -> "Zuweisung fertig", [ AssignAnswered (Ok { ApplicationId = "a"; Month = monthKey; Lines = []; ActualToBeBudgeted = None }) ], Keeps
+      | [] -> () ]
+
+/// Der Auftrag eines Wegs, wie der Test ihn kennt.
+let private sentBy (name: string) : SentMove option =
+    let request source target = { Month = monthKey; Request = { Source = source; Target = target; Amount = eur 5m; CommandId = None } }
+    match name with
+    | "Abgeben" -> Some (request (CategorySide food.Id) (CategorySide trip.Id))
+    | "Holen" -> Some (request (CategorySide trip.Id) (CategorySide food.Id))
+    | _ -> None
+
+let private undoLifeTests =
+    testList "Rückgängig: Lebensdauer" [
+        test "Aufzählung der Reihenfolgen: Senden, Kategorie, Monat, Schließen und die Antwort beenden das Angebot, Moduswechsel nicht, nie zweimal zurück" {
+            let visited = Collections.Generic.HashSet<Model * UndoWalk> HashIdentity.Structural
+            let mutable undos = 0
+            let rec go (left: int) (path: string list) (model: Model) (state: UndoWalk) =
+                for name, msgs, step in undoEvents model state do
+                    let shown = String.concat ", " (List.rev (name :: path))
+                    let after, sent =
+                        msgs
+                        |> List.fold
+                            (fun (current, sent) msg ->
+                                let next, cmd, _ = Components.Budget.State.update msg current
+                                next, sent + (if msg = UndoMove && not cmd.IsEmpty then 1 else 0))
+                            (model, 0)
+                    let before = offerOf model
+                    let now = offerOf after
+                    let mutable state' = state
+                    match step with
+                    | Ends -> Expect.isNone now $"endet: {shown}"
+                    | Keeps -> Expect.equal now before $"bleibt: {shown}"
+                    | Undo ->
+                        Expect.isLessThanOrEqual sent 1 $"höchstens ein Auftrag: {shown}"
+                        if sent = 1 then
+                            Expect.isSome before $"nur mit Angebot: {shown}"
+                            Expect.isFalse state.Used $"nie zweimal zurück: {shown}"
+                            Expect.isNone state.Pending $"nichts läuft: {shown}"
+                            undos <- undos + 1
+                            state' <- { Pending = Some None; Used = true }
+                        Expect.isNone now $"das Angebot ist verbraucht: {shown}"
+                    | Answer ->
+                        match state.Pending with
+                        | Some (Some forward) when Components.Budget.State.sheetOpen after ->
+                            Expect.equal now (Some forward) $"neues Angebot für die letzte Verschiebung: {shown}"
+                        | _ -> Expect.isNone now $"kein Angebot: {shown}"
+                        state' <- { Pending = None; Used = false }
+                    match step, sentBy name with
+                    | Ends, Some forward when after.TabSend = Some (ForwardMove forward) ->
+                        state' <- { state' with Pending = Some (Some forward) }
+                    | _ -> ()
+                    if left > 1 && visited.Add((after, state')) then go (left - 1) (name :: path) after state'
+            go 4 [] afterGive { Pending = None; Used = false }
+            Expect.isGreaterThan undos 10 "die Aufzählung erreicht Rückgängig"
+        }
+        test "Der Wechsel zwischen Zuweisen, Holen und Abgeben lässt das Angebot stehen" {
+            let switched = run [ SwitchMoneyMode AssignMode; SwitchMoneyMode TakeMode; SwitchMoneyMode GiveMode ] afterGive
+            Expect.equal (offerOf switched) (Some gaveOffer) "steht"
+        }
+    ]
+
 [<Tests>]
 let tests =
     testList
         "Tab Geld, Client"
         [ fieldTests; leaveTests; queueTests; busyTests; unclearTests; settledTests; reviewTests; activeTests; missingTests; modeTests; transferTests; pickerTests
           keyTests; fieldKeyTests; openRetryTests; pageChangeTests; summaryTests; reloadTests; retryTests
-          sheetLineRouteTests; sheetLineLifeTests; availableFlashTests; staleHintTests ]
+          sheetLineRouteTests; sheetLineLifeTests; availableFlashTests; staleHintTests
+          undoRequestTests; undoOfferTests; undoFlowTests; undoLifeTests ]
