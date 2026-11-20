@@ -5,6 +5,18 @@ Newest entries on top.
 
 ---
 
+## 2026-11-20 23:01 -- Review-Lauf: 555fa096..8200b83b
+
+**Type:** Review / Review-Lauf
+**Bereich:** ledger-pz5wv (Endansicht ohne Rückgängig), 512a1cf0 (Sweep 412/1440), infrastructure-x7p2e (Expecto-Laufzeit)
+**Agents:** review-tests, review-frontend, review-design
+**Funde:** behoben 17, verworfen 1, Rückfrage 0, Ticket 0, Kann-Sammlung 3 (ledger 164 bis 166)
+**Commits:** 265c361c, cb9729f5, 0f1c3dee, 6c4765bb
+**Verworfen:** Rückfrage zur roten Zeile ohne Erneut in der Endansicht: ein Fehler erreicht die Endansicht praktisch nicht, nach jedem gescheiterten Befehl steht wieder eine Karte mit Erneut; Kommentar statt Frage.
+**Verifikation:** VERIFY: PASS (dotnet 5495 grün, node 357 grün, dotnet build, npm run build, guard:classes, guard:tokens grün)
+
+---
+
 ## 2026-11-20 23:00 -- Modeling / Captured: budgeting-nyx75 - "Kategorie-Gruppe in BB deaktivieren: die Gruppe verschwindet samt ihren Kategorien aus Budget-Liste und Pickern, in YNAB bleibt sie"
 
 **Type:** Modeling / Capture
