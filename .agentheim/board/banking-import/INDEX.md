@@ -11,19 +11,19 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 4
-- **Todo:** 2
-- **Doing:** 0
+- **Todo:** 1
+- **Doing:** 1
 - **Done:** 10
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
 - **banking-import-ns4re** — "Abrufen ohne Toast (R3): Meldungen im Sheet, solange es offen ist; Ergebnis und Fehler nach geschlossenem Sheet in der Meldungsleiste" (feature) — `todo/banking-import-ns4re-abrufen-ohne-toast.md`
-- **banking-import-vwhfm** — "Einstellungen ohne Toast (R3): „✓ Gespeichert“ am Abschnitt oder Feld, Fehler rot unter dem Feld, Bankstatus und Push-TAN im Abschnitt, alle Texte deutsch" (feature) — `todo/banking-import-vwhfm-einstellungen-und-abrufen-ohne-toast.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **banking-import-vwhfm** — "Einstellungen ohne Toast (R3): „✓ Gespeichert“ am Abschnitt oder Feld, Fehler rot unter dem Feld, Bankstatus und Push-TAN im Abschnitt, alle Texte deutsch" (feature) — `doing/banking-import-vwhfm-einstellungen-und-abrufen-ohne-toast.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)

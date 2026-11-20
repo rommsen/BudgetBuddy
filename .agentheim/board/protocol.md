@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-20 02:19 -- Batch started: [banking-import-vwhfm]
+
+**Type:** Work / Batch start
+**Tasks:** banking-import-vwhfm - "Einstellungen ohne Toast (R3): „✓ Gespeichert“ am Abschnitt oder Feld, Fehler rot unter dem Feld, Bankstatus und Push-TAN im Abschnitt, alle Texte deutsch"
+**Parallel:** yes (neben gwr9j und gtrgk; sx9v5 nach gtrgk, gleicher BC)
+
+---
+
 ## 2026-11-20 02:19 -- Task verified and completed: categorization-t6j00 - "Regeln ohne Toast (R3): gelöschte Regel als gestrichelte Zeile am Platz mit Rückgängig, gespeicherte Regel leuchtet kurz, Fehler an der Regel oder als Hinweis der Seite"
 
 **Type:** Work / Task completion
