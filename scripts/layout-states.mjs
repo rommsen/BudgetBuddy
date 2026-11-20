@@ -12,7 +12,7 @@
 // `height` (Höhe des Viewports), `checks` (nur diese Invarianten). Die Fixtures tragen lange Namen und große
 // Beträge (Invariante 4).
 
-import { HANDY_WIDTHS, PAGE_WIDTHS, PANEL_WIDTHS, TABLE_WIDTHS, settle } from "./layout-invariants.mjs";
+import { HANDY_WIDTH, PC_WIDTH, settle } from "./layout-invariants.mjs";
 import { mockCapture } from "./ledger-capture-fixture.mjs";
 import { buildAccountsFixture, buildBalancesFixture, buildCategoriesFixture, buildEntryFixture, CATEGORY_IDS, fixtureGuid, mockFilterBarApi, mockRunningMirror } from "./ledger-filter-bar.mjs";
 
@@ -964,7 +964,7 @@ export const STATES = [
   {
     name: "budget",
     route: "/budget",
-    widths: PAGE_WIDTHS,
+    widths: [HANDY_WIDTH, PC_WIDTH],
     mock: mockBudget,
     open: openBudget,
   },
@@ -972,7 +972,7 @@ export const STATES = [
   {
     name: "budget-geld-zuweisen",
     route: "/budget",
-    widths: HANDY_WIDTHS,
+    widths: [HANDY_WIDTH],
     mock: mockBudget,
     open: async (page, { mobile }) => {
       await openInspector(page, mobile, "Essen");
@@ -980,10 +980,6 @@ export const STATES = [
       await page.locator('[data-testid="assign-field"] input:visible').waitFor();
     },
     primary: (page) => page.locator('.bottom-sheet.active [data-testid="assign-missing"] button'),
-    // Die einzige Ausnahme im Sweep: bei 320 px messen die sechs Schritte 44,7 × 48 px. Sechs Spalten passen
-    // dort nicht auf 48 px, zwei Zeilen schieben den Knopf aus dem 500-px-Sheet (budgeting-c5w2n). Steht in der
-    // Kann-Sammlung budgeting (infrastructure-nx14s).
-    exceptions: [{ width: 320, inv: 2, selector: 'button[data-testid="assign-step"]' }],
     keyboard: {
       focus: (page) => page.locator('.bottom-sheet.active [data-testid="assign-field"] input'),
       reach: (page) => page.locator('.bottom-sheet.active [data-testid="assign-field"] input, .bottom-sheet.active [data-testid="assign-available-after"]'),
@@ -993,7 +989,7 @@ export const STATES = [
   {
     name: "budget-geld-abgeben",
     route: "/budget",
-    widths: [...HANDY_WIDTHS, 1280],
+    widths: [HANDY_WIDTH, PC_WIDTH],
     mock: mockBudget,
     open: async (page, { mobile }) => {
       await openInspector(page, mobile, "Essen");
@@ -1012,7 +1008,7 @@ export const STATES = [
   {
     name: "budget-geld-ergebnis",
     route: "/budget",
-    widths: [...HANDY_WIDTHS, 1280],
+    widths: [HANDY_WIDTH, PC_WIDTH],
     mock: mockBudgetMove("Written"),
     open: async (page, { mobile }) => {
       await giveToTrip(page, mobile, "5,00 € nach Reise");
@@ -1029,7 +1025,7 @@ export const STATES = [
   {
     name: "budget-geld-fehler",
     route: "/budget",
-    widths: HANDY_WIDTHS,
+    widths: [HANDY_WIDTH],
     mock: mockBudgetMove({ Failed: "YNAB hat zu viele Anfragen gemeldet (429), später erneut senden" }),
     open: async (page, { mobile }) => {
       await giveToTrip(page, mobile, "Nicht vollständig verschoben");
@@ -1042,7 +1038,7 @@ export const STATES = [
   {
     name: "budget-nicht-neu-gelesen",
     route: "/budget",
-    widths: [...HANDY_WIDTHS, 1280],
+    widths: [HANDY_WIDTH, PC_WIDTH],
     mock: mockBudgetRereadFails,
     open: async (page) => {
       await openBudget(page);
@@ -1058,7 +1054,7 @@ export const STATES = [
   {
     name: "budget-picker",
     route: "/budget",
-    widths: [...HANDY_WIDTHS, 1280],
+    widths: [HANDY_WIDTH, PC_WIDTH],
     height: 800,
     mock: mockBudget,
     open: async (page, { mobile }) => {
@@ -1083,7 +1079,7 @@ export const STATES = [
     // design-system-gcpws, Abweichung (a) vom Prototyp (G11): das Panel nimmt 30 % des Fensters; neben ihm steht die
     // Budget-Tabelle (rund 640 px Liste, Schwelle `@min-[40rem]`) erst ab rund 1340 px, bei 1024 und 1280 px die Zeilen
     // wie am Handy. Bei 1280 px ragte die Tabelle sonst 40 px unter das Panel. Nachsehen in budgeting-wnkgj.
-    widths: [...HANDY_WIDTHS, ...PANEL_WIDTHS],
+    widths: [HANDY_WIDTH, PC_WIDTH],
     mock: mockBudget,
     open: async (page, { mobile, width }) => {
       await openInspector(page, mobile, "Essen", "Buchungen");
@@ -1098,7 +1094,7 @@ export const STATES = [
   {
     name: "budget-historie-tab",
     route: "/budget",
-    widths: [...HANDY_WIDTHS, 1440],
+    widths: [HANDY_WIDTH, PC_WIDTH],
     mock: mockBudget,
     open: async (page, { mobile }) => {
       await openInspector(page, mobile, LONG_CATEGORY, "Historie");
@@ -1110,7 +1106,7 @@ export const STATES = [
   {
     name: "budget-historie-erster-balken",
     route: "/budget",
-    widths: HANDY_WIDTHS,
+    widths: [HANDY_WIDTH],
     mock: mockBudget,
     open: async (page, { mobile }) => {
       await openInspector(page, mobile, LONG_CATEGORY, "Historie");
@@ -1123,7 +1119,7 @@ export const STATES = [
   {
     name: "budget-grosse-schrift",
     route: "/budget",
-    widths: [1440],
+    widths: [PC_WIDTH],
     mock: mockBudget,
     open: async (page) => {
       await openBudget(page);
@@ -1135,7 +1131,7 @@ export const STATES = [
   {
     name: "budget-target",
     route: "/budget",
-    widths: [...HANDY_WIDTHS, 1440],
+    widths: [HANDY_WIDTH, PC_WIDTH],
     mock: mockBudget,
     open: async (page, { mobile }) => {
       await openInspector(page, mobile, "Essen", "Target");
@@ -1151,11 +1147,11 @@ export const STATES = [
   {
     name: "budget-target-anlegen",
     route: "/budget",
-    widths: [...HANDY_WIDTHS, 1440],
+    widths: [HANDY_WIDTH, PC_WIDTH],
     // Invariante 10 (ledger-dn4vy): „Verfügbar“ 0,00 € in `text-muted` hat auf seiner Fläche 4,44:1. Kann-Sammlung
     // budgeting. Auf den Text des Treffers verengt, ein anderer Betrag in der Spalte fällt weiter auf.
     exceptions: [
-      { width: 1440, inv: 10, selector: '[data-testid="budget-available"] span "0,00 €"' },
+      { width: PC_WIDTH, inv: 10, selector: '[data-testid="budget-available"] span "0,00 €"' },
     ],
     mock: mockBudget,
     open: async (page, { mobile }) => {
@@ -1173,7 +1169,7 @@ export const STATES = [
   {
     name: "budget-target-wochentag-auswahl",
     route: "/budget",
-    widths: [412, 1440],
+    widths: [HANDY_WIDTH, PC_WIDTH],
     mock: mockBudget,
     open: async (page, { mobile }) => {
       const scope = await openInspector(page, mobile, "Essen", "Target");
@@ -1186,7 +1182,7 @@ export const STATES = [
   {
     name: "budget-target-warnung",
     route: "/budget",
-    widths: HANDY_WIDTHS,
+    widths: [HANDY_WIDTH],
     mock: mockBudget,
     open: async (page, { mobile }) => {
       const scope = await openInspector(page, mobile, "Essen", "Target");
@@ -1200,7 +1196,7 @@ export const STATES = [
   {
     name: "budget-targets-anwenden",
     route: "/budget",
-    widths: [...HANDY_WIDTHS, 1440],
+    widths: [HANDY_WIDTH, PC_WIDTH],
     mock: mockBudget,
     open: async (page) => {
       await openBudget(page);
@@ -1215,7 +1211,7 @@ export const STATES = [
   {
     name: "budget-targets-stand-geaendert",
     route: "/budget",
-    widths: [...HANDY_WIDTHS, 1440],
+    widths: [HANDY_WIDTH, PC_WIDTH],
     mock: mockTargetsAnswer({ PreviewChanged: targetsPreview }),
     open: openTargetsAndApply("targets-changed"),
   },
@@ -1224,7 +1220,7 @@ export const STATES = [
   {
     name: "budget-targets-bericht",
     route: "/budget",
-    widths: [...HANDY_WIDTHS, 1440],
+    widths: [HANDY_WIDTH, PC_WIDTH],
     mock: mockTargetsAnswer({ Applied: targetsReport }),
     open: async (page) => {
       await openTargetsAndApply("targets-differs")(page);
@@ -1235,16 +1231,11 @@ export const STATES = [
   {
     name: "budget-historie",
     route: "/budget/history",
-    widths: PAGE_WIDTHS,
+    widths: [HANDY_WIDTH, PC_WIDTH],
     // Invariante 10 (ledger-dn4vy): der rote Satz „1 von 2 fehlgeschlagen“ hat 4,46:1 auf seiner Fläche. Kann-Sammlung
     // budgeting.
     exceptions: [
-      { width: 768, inv: 10, selector: '[data-testid="general-history-partly-failed"] span' },
-      { width: 900, inv: 10, selector: '[data-testid="general-history-partly-failed"] span' },
-      { width: 1024, inv: 10, selector: '[data-testid="general-history-partly-failed"] span' },
-      { width: 1280, inv: 10, selector: '[data-testid="general-history-partly-failed"] span' },
-      { width: 1440, inv: 10, selector: '[data-testid="general-history-partly-failed"] span' },
-      { width: 1920, inv: 10, selector: '[data-testid="general-history-partly-failed"] span' },
+      { width: PC_WIDTH, inv: 10, selector: '[data-testid="general-history-partly-failed"] span' },
     ],
     mock: mockBudget,
     open: async (page) => {
@@ -1256,7 +1247,7 @@ export const STATES = [
   {
     name: "budget-historie-zeigen",
     route: "/budget/history",
-    widths: [412, 1440],
+    widths: [HANDY_WIDTH, PC_WIDTH],
     mock: mockBudget,
     open: async (page) => {
       await page.locator('[data-testid="general-history-rows"] [data-testid="history-row"]').first().waitFor();
@@ -1268,7 +1259,7 @@ export const STATES = [
   {
     name: "targets-pruefen",
     route: "/budget/target-check",
-    widths: PAGE_WIDTHS,
+    widths: [HANDY_WIDTH, PC_WIDTH],
     mock: mockTargetCheck,
     open: async (page) => page.locator('[data-testid="target-check-row"]').first().waitFor(),
   },
@@ -1276,7 +1267,7 @@ export const STATES = [
   {
     name: "targets-pruefen-anpassen",
     route: "/budget/target-check",
-    widths: [...HANDY_WIDTHS, ...PANEL_WIDTHS],
+    widths: [HANDY_WIDTH, PC_WIDTH],
     mock: mockTargetCheck,
     open: async (page) => {
       const row = page.locator('[data-testid="target-check-row"]').filter({ hasText: "Essen" });
@@ -1289,7 +1280,7 @@ export const STATES = [
   {
     name: "targets-pruefen-uebernommen",
     route: "/budget/target-check",
-    widths: [412, 1280],
+    widths: [HANDY_WIDTH, PC_WIDTH],
     mock: mockTargetCheckTake("written"),
     open: async (page) => {
       await takeEssen(page);
@@ -1301,7 +1292,7 @@ export const STATES = [
   {
     name: "targets-pruefen-nicht-neu-gelesen",
     route: "/budget/target-check",
-    widths: [412, 1280],
+    widths: [HANDY_WIDTH, PC_WIDTH],
     mock: mockTargetCheckTake("abort"),
     open: async (page) => {
       await takeEssen(page);
@@ -1315,7 +1306,7 @@ export const STATES = [
   {
     name: "kategorien",
     route: "/budget/categories",
-    widths: PAGE_WIDTHS,
+    widths: [HANDY_WIDTH, PC_WIDTH],
     mock: mockCategoryAdmin,
     open: async (page) => page.locator('[data-testid="categories-row"]').first().waitFor(),
   },
@@ -1323,7 +1314,7 @@ export const STATES = [
   {
     name: "kategorien-deaktiviert",
     route: "/budget/categories",
-    widths: PAGE_WIDTHS,
+    widths: [HANDY_WIDTH, PC_WIDTH],
     mock: mockCategoryAdmin,
     open: async (page) => {
       await page.locator('[data-testid="categories-inactive-toggle"]').click();
@@ -1334,7 +1325,7 @@ export const STATES = [
   {
     name: "kategorien-bearbeiten",
     route: "/budget/categories",
-    widths: [...HANDY_WIDTHS, ...PANEL_WIDTHS],
+    widths: [HANDY_WIDTH, PC_WIDTH],
     mock: mockCategoryAdmin,
     open: async (page) => {
       await page.locator('[data-testid="categories-row"]').filter({ hasText: "Essen" }).click();
@@ -1345,7 +1336,7 @@ export const STATES = [
   {
     name: "kategorien-gruppe-auswahl",
     route: "/budget/categories",
-    widths: [...HANDY_WIDTHS, 1024, 1440],
+    widths: [HANDY_WIDTH, PC_WIDTH],
     mock: mockCategoryAdmin,
     open: async (page) => {
       await page.locator('[data-testid="categories-row"]').filter({ hasText: "Essen" }).click();
@@ -1358,7 +1349,7 @@ export const STATES = [
   {
     name: "kategorien-nicht-neu-geladen",
     route: "/budget/categories",
-    widths: [412, 1280],
+    widths: [HANDY_WIDTH, PC_WIDTH],
     mock: mockCategoryAdminReloadFails,
     open: async (page) => {
       await page.locator('[data-testid="categories-row"]').filter({ hasText: "Essen" }).click();
@@ -1375,7 +1366,7 @@ export const STATES = [
   {
     name: "kategorien-fehler-reihenfolge",
     route: "/budget/categories",
-    widths: [412, 1280],
+    widths: [HANDY_WIDTH, PC_WIDTH],
     mock: mockCategoryAdminOrderFails,
     open: async (page) => {
       await page.getByRole("button", { name: "Essen nach unten" }).click();
@@ -1389,7 +1380,7 @@ export const STATES = [
   {
     name: "kassenbuch",
     route: "/ledger",
-    widths: [...new Set([...PAGE_WIDTHS, ...TABLE_WIDTHS])].sort((a, b) => a - b),
+    widths: [HANDY_WIDTH, PC_WIDTH],
     mock: mockLedger,
     open: openLedger,
   },
@@ -1399,7 +1390,7 @@ export const STATES = [
   {
     name: "kassenbuch-alle-konten",
     route: "/ledger",
-    widths: TABLE_WIDTHS,
+    widths: [HANDY_WIDTH, PC_WIDTH],
     mock: mockLedger,
     open: openAllAccounts,
   },
@@ -1408,7 +1399,7 @@ export const STATES = [
   {
     name: "kassenbuch-grosse-schrift",
     route: "/ledger",
-    widths: [1440],
+    widths: [PC_WIDTH],
     mock: mockLedger,
     open: async (page) => {
       await openLedger(page);
@@ -1422,7 +1413,7 @@ export const STATES = [
   {
     name: "kassenbuch-filter-kategorie",
     route: "/ledger",
-    widths: HANDY_WIDTHS,
+    widths: [HANDY_WIDTH],
     mock: mockLedger,
     open: async (page) => {
       await openLedger(page);
@@ -1444,7 +1435,7 @@ export const STATES = [
   {
     name: "kassenbuch-filter-zeitraum",
     route: "/ledger",
-    widths: HANDY_WIDTHS,
+    widths: [HANDY_WIDTH],
     mock: mockLedger,
     open: async (page) => {
       await openLedger(page);
@@ -1456,7 +1447,7 @@ export const STATES = [
   {
     name: "kassenbuch-filter-betrag",
     route: "/ledger",
-    widths: HANDY_WIDTHS,
+    widths: [HANDY_WIDTH],
     mock: mockLedger,
     open: async (page) => {
       await openLedger(page);
@@ -1480,10 +1471,10 @@ export const STATES = [
   {
     name: "kassenbuch-filter-sheet",
     route: "/ledger",
-    widths: [320, 390, 412, 768],
+    widths: [HANDY_WIDTH],
     // Hinter dem Sheet steht der Chip „Ausgaben“; sein „×“ ist 24 px breit (ChipBar), Kann-Sammlung ledger
     // (ledger-k4n2s, Punkt 1), wie bei `kassenbuch-filter-gesetzt`.
-    exceptions: [320, 390, 412].map((width) => ({
+    exceptions: [HANDY_WIDTH].map((width) => ({
       width,
       inv: 2,
       selector: '[data-testid="ledger-active-filters"] button "Ausgaben entfernen"',
@@ -1501,9 +1492,9 @@ export const STATES = [
   {
     name: "kassenbuch-filter-gesetzt",
     route: "/ledger",
-    widths: [320, 390, 412, 768],
+    widths: [HANDY_WIDTH],
     // Das „×“ eines Chips ist 24 px breit (ChipBar), Kann-Sammlung ledger (ledger-k4n2s, Punkt 1).
-    exceptions: [320, 390, 412].flatMap((width) =>
+    exceptions: [HANDY_WIDTH].flatMap((width) =>
       ["Zu prüfen", "Lena", "Ohne Kategorie"].map((name) => ({
         width,
         inv: 2,
@@ -1528,17 +1519,17 @@ export const STATES = [
   {
     name: "kassenbuch-ausgegraut",
     route: "/ledger",
-    widths: [1280],
+    widths: [PC_WIDTH],
     mock: mockLedger,
     open: (page) => openFilteredOut(page, { mobile: false }),
   },
   {
     name: "kassenbuch-ausgegraut-handy",
     route: "/ledger",
-    widths: [412],
+    widths: [HANDY_WIDTH],
     // Mit aktivem Filter: das Chip-„×“ (24 px) ist zu klein. Kann-Sammlung ledger
     // (ledger-k4n2s, Punkt 1).
-    exceptions: [{ width: 412, inv: 2, selector: '[data-testid="ledger-active-filters"] button "Kategorie: Lebensmittel entfernen"' }],
+    exceptions: [{ width: HANDY_WIDTH, inv: 2, selector: '[data-testid="ledger-active-filters"] button "Kategorie: Lebensmittel entfernen"' }],
     mock: mockLedger,
     open: (page) => openFilteredOut(page, { mobile: true }),
   },
@@ -1547,7 +1538,7 @@ export const STATES = [
   {
     name: "kassenbuch-detail",
     route: "/ledger",
-    widths: [...HANDY_WIDTHS, 412, ...PANEL_WIDTHS],
+    widths: [HANDY_WIDTH, PC_WIDTH],
     mock: async (page) => {
       await mockLedger(page);
       await page.route("**/api/LedgerApi/getEntryHistory", (r) => json(r, DETAIL_HISTORY));
@@ -1576,7 +1567,7 @@ export const STATES = [
   {
     name: "kassenbuch-detail-memo",
     route: "/ledger",
-    widths: [...HANDY_WIDTHS, 412, 1280],
+    widths: [HANDY_WIDTH, PC_WIDTH],
     mock: mockLedger,
     open: async (page, { mobile }) => {
       let scope;
@@ -1613,7 +1604,7 @@ export const STATES = [
   {
     name: "kassenbuch-aufteilen",
     route: "/ledger",
-    widths: HANDY_WIDTHS,
+    widths: [HANDY_WIDTH],
     mock: mockLedger,
     open: async (page) => {
       const sheet = await openLedgerDetail(page, "Bauhaus");
@@ -1634,7 +1625,7 @@ export const STATES = [
   {
     name: "kassenbuch-aufteilen-ungueltig",
     route: "/ledger",
-    widths: HANDY_WIDTHS,
+    widths: [HANDY_WIDTH],
     mock: mockLedger,
     open: async (page) => {
       const sheet = await openLedgerDetail(page, "Bauhaus");
@@ -1661,7 +1652,7 @@ export const STATES = [
   {
     name: "kassenbuch-aufteilen-speicherfehler",
     route: "/ledger",
-    widths: HANDY_WIDTHS,
+    widths: [HANDY_WIDTH],
     mock: async (page) => {
       await mockLedger(page);
       await page.route("**/api/LedgerApi/setEntrySplits", (r) => json(r, { Error: "YNAB nicht erreichbar" }));
@@ -1688,7 +1679,7 @@ export const STATES = [
   {
     name: "kassenbuch-betrag",
     route: "/ledger",
-    widths: HANDY_WIDTHS,
+    widths: [HANDY_WIDTH],
     mock: mockLedger,
     open: async (page) => {
       const sheet = await openLedgerDetail(page, "Bauhaus");
@@ -1711,7 +1702,7 @@ export const STATES = [
   {
     name: "kassenbuch-betrag-feldfehler",
     route: "/ledger",
-    widths: HANDY_WIDTHS,
+    widths: [HANDY_WIDTH],
     mock: async (page) => {
       await mockLedger(page);
       await page.route("**/api/LedgerApi/setEntryAmount", (r) => json(r, { Error: "YNAB nicht erreichbar" }));
@@ -1749,7 +1740,7 @@ export const STATES = [
   {
     name: "kassenbuch-betrag-eingabefehler",
     route: "/ledger",
-    widths: HANDY_WIDTHS,
+    widths: [HANDY_WIDTH],
     mock: mockLedger,
     open: async (page) => {
       const sheet = await openLedgerDetail(page, "Bauhaus");
@@ -1800,7 +1791,7 @@ export const STATES = [
   {
     name: "kassenbuch-betrag-dialog",
     route: "/ledger",
-    widths: [1440],
+    widths: [PC_WIDTH],
     mock: mockLedger,
     open: async (page) => {
       const row = page.locator("table tbody tr", { hasText: "Bauhaus" }).first();
@@ -1817,7 +1808,7 @@ export const STATES = [
   {
     name: "kassenbuch-aufteilen-panel",
     route: "/ledger",
-    widths: [1440],
+    widths: [PC_WIDTH],
     mock: mockLedger,
     open: async (page) => {
       const row = page.locator("table tbody tr", { hasText: "Bauhaus" }).first();
@@ -1834,7 +1825,7 @@ export const STATES = [
   {
     name: "kassenbuch-payee-auswahl",
     route: "/ledger",
-    widths: [412],
+    widths: [HANDY_WIDTH],
     mock: async (page) => {
       await mockLedger(page);
       await page.route("**/api/LedgerApi/getLedgerPayeeSuggestions", (r) =>
@@ -1852,7 +1843,7 @@ export const STATES = [
   {
     name: "kassenbuch-payee-auswahl-pc",
     route: "/ledger",
-    widths: [1280, 1440],
+    widths: [PC_WIDTH],
     mock: async (page) => {
       await mockLedger(page);
       await page.route("**/api/LedgerApi/getLedgerPayeeSuggestions", (r) =>
@@ -1872,7 +1863,7 @@ export const STATES = [
   {
     name: "kassenbuch-detail-ohne-payee",
     route: "/ledger",
-    widths: [412, 1440],
+    widths: [HANDY_WIDTH, PC_WIDTH],
     mock: (page) => mockLedger(page, { withoutPayee: true }),
     open: async (page) => {
       const width = page.viewportSize().width;
@@ -1892,7 +1883,7 @@ export const STATES = [
   {
     name: "kassenbuch-erfassen",
     route: "/ledger",
-    widths: HANDY_WIDTHS,
+    widths: [HANDY_WIDTH],
     mock: async (page) => {
       await mockApp(page);
       await mockCapture(page, { catchAll: false });
@@ -1933,7 +1924,7 @@ export const STATES = [
   {
     name: "kassenbuch-erfassen-memo-unter-datum",
     route: "/ledger",
-    widths: [412],
+    widths: [HANDY_WIDTH],
     mock: async (page) => {
       await mockApp(page);
       await mockCapture(page, { catchAll: false });
@@ -1963,7 +1954,7 @@ export const STATES = [
   {
     name: "kassenbuch-erfassen-kategorie",
     route: "/ledger",
-    widths: [412],
+    widths: [HANDY_WIDTH],
     mock: async (page) => {
       await mockApp(page);
       await mockCapture(page, { catchAll: false });
@@ -1981,7 +1972,7 @@ export const STATES = [
   {
     name: "kassenbuch-erfassen-konto",
     route: "/ledger",
-    widths: [412],
+    widths: [HANDY_WIDTH],
     mock: async (page) => {
       await mockApp(page);
       await mockCapture(page, { catchAll: false });
@@ -2002,7 +1993,7 @@ export const STATES = [
   {
     name: "kassenbuch-erfassen-feldfehler",
     route: "/ledger",
-    widths: HANDY_WIDTHS,
+    widths: [HANDY_WIDTH],
     mock: async (page) => {
       await mockApp(page);
       await mockCapture(page, { catchAll: false });
@@ -2048,7 +2039,7 @@ export const STATES = [
   {
     name: "kassenbuch-erfassen-konten-laden",
     route: "/ledger",
-    widths: HANDY_WIDTHS,
+    widths: [HANDY_WIDTH],
     // Seit ledger-ea70s ersetzt die Konto-Auswahl den Inhalt des Sheets; der Schleier der zweiten Ebene, der die
     // Ausnahme für Invariante 5 brauchte, ist weg.
     mock: async (page) => {
@@ -2069,7 +2060,7 @@ export const STATES = [
   {
     name: "kassenbuch-erfassen-panel",
     route: "/ledger",
-    widths: PANEL_WIDTHS,
+    widths: [PC_WIDTH],
     mock: async (page) => {
       await mockApp(page);
       await mockCapture(page, { catchAll: false });
@@ -2083,13 +2074,13 @@ export const STATES = [
     // Das DS-Panel (`Detail.panel`, unverändert, gilt auch für das Buchungs-Detail) überlappt nach dem Scrollen ans
     // Ende den haftenden Tabellenkopf um 4 px und die feste Tastatur-Leiste um 9 px. Erster Zustand mit dem Panel am
     // PC; Kann-Sammlung ledger (ledger-at63w).
-    exceptions: PANEL_WIDTHS.map((width) => ({ width, inv: 6, selector: '[data-testid="ledger-detail-panel"] und div' })),
+    exceptions: [PC_WIDTH].map((width) => ({ width, inv: 6, selector: '[data-testid="ledger-detail-panel"] und div' })),
   },
   // ledger-ea70s: die Kategorie-Auswahl im Buchungs-Detail ersetzt am Handy den Inhalt des Sheets (§7.15).
   {
     name: "kassenbuch-detail-kategorie",
     route: "/ledger",
-    widths: [412],
+    widths: [HANDY_WIDTH],
     mock: mockLedger,
     open: async (page) => {
       const sheet = await openLedgerDetail(page, "Bauhaus");
@@ -2106,7 +2097,7 @@ export const STATES = [
   {
     name: "kassenbuch-kategorie-rueckgaengig",
     route: "/ledger",
-    widths: [...HANDY_WIDTHS, 1280],
+    widths: [HANDY_WIDTH, PC_WIDTH],
     mock: mockLedger,
     open: async (page, { mobile }) => {
       if (mobile) {
@@ -2135,7 +2126,7 @@ export const STATES = [
   {
     name: "kassenbuch-aufgeteilt-rueckgaengig",
     route: "/ledger",
-    widths: [...HANDY_WIDTHS, 1280],
+    widths: [HANDY_WIDTH, PC_WIDTH],
     mock: async (page) => {
       await mockLedger(page);
       await page.route("**/api/LedgerApi/setEntrySplits", (r) =>
@@ -2180,7 +2171,7 @@ export const STATES = [
   {
     name: "kassenbuch-kategorie-fehler-feld",
     route: "/ledger",
-    widths: [...HANDY_WIDTHS, 1280],
+    widths: [HANDY_WIDTH, PC_WIDTH],
     mock: async (page) => {
       await mockLedger(page);
       await page.route("**/api/LedgerApi/setEntryCategory", (r) => json(r, { Error: "YNAB nicht erreichbar" }));
@@ -2212,7 +2203,7 @@ export const STATES = [
   {
     name: "kassenbuch-memo-rueckgaengig",
     route: "/ledger",
-    widths: [...HANDY_WIDTHS, 1280],
+    widths: [HANDY_WIDTH, PC_WIDTH],
     mock: async (page) => {
       await mockLedger(page);
       await page.route("**/api/LedgerApi/setEntryMemo", (r) =>
@@ -2237,7 +2228,7 @@ export const STATES = [
   {
     name: "kassenbuch-betrag-rueckgaengig",
     route: "/ledger",
-    widths: [...HANDY_WIDTHS, 1280],
+    widths: [HANDY_WIDTH, PC_WIDTH],
     mock: async (page) => {
       await mockLedger(page);
       await page.route("**/api/LedgerApi/setEntryAmount", (r) =>
@@ -2263,7 +2254,7 @@ export const STATES = [
   {
     name: "kassenbuch-lena-gewechselt",
     route: "/ledger",
-    widths: [...HANDY_WIDTHS, 1280],
+    widths: [HANDY_WIDTH, PC_WIDTH],
     mock: async (page) => {
       await mockLedger(page);
       await page.route("**/api/LedgerApi/setLenaFlag", (r) =>
@@ -2292,7 +2283,7 @@ export const STATES = [
   {
     name: "kassenbuch-lena-fremdes-flag",
     route: "/ledger",
-    widths: [...HANDY_WIDTHS, 1280],
+    widths: [HANDY_WIDTH, PC_WIDTH],
     mock: async (page) => {
       await mockLedger(page);
       await page.route("**/api/LedgerApi/setLenaFlag", (r) =>
@@ -2317,7 +2308,7 @@ export const STATES = [
   {
     name: "kassenbuch-leiste-geprueft",
     route: "/ledger",
-    widths: [320, 390, 412, 900],
+    widths: [HANDY_WIDTH],
     mock: async (page) => {
       await mockLedger(page);
       await mockReviewMark(page);
@@ -2355,7 +2346,7 @@ export const STATES = [
   {
     name: "kassenbuch-geloescht-zeile",
     route: "/ledger",
-    widths: [...HANDY_WIDTHS, 412, 1280],
+    widths: [HANDY_WIDTH, PC_WIDTH],
     mock: async (page) => {
       const hiddenPayees = new Set();
       await mockLedger(page, { hiddenPayees });
@@ -2386,7 +2377,7 @@ export const STATES = [
   {
     name: "kassenbuch-leiste-3-geprueft",
     route: "/ledger",
-    widths: [...HANDY_WIDTHS, 412],
+    widths: [HANDY_WIDTH],
     mock: async (page) => {
       await mockLedger(page);
       await mockReviewMark(page);
@@ -2410,7 +2401,7 @@ export const STATES = [
   {
     name: "kassenbuch-leiste-spiegel-fehler",
     route: "/ledger",
-    widths: [...HANDY_WIDTHS, 412],
+    widths: [HANDY_WIDTH],
     mock: async (page) => {
       await mockLedger(page);
       await page.route("**/api/LedgerApi/mirrorYnabBudget", (r) => json(r, { Error: "YNAB antwortet nicht" }));
@@ -2429,7 +2420,7 @@ export const STATES = [
   {
     name: "kassenbuch-leiste-angelegt",
     route: "/ledger",
-    widths: [412],
+    widths: [HANDY_WIDTH],
     mock: async (page) => {
       await mockApp(page);
       await mockCapture(page, { catchAll: false });
@@ -2452,7 +2443,7 @@ export const STATES = [
   {
     name: "kassenbuch-auswahl-meldung",
     route: "/ledger",
-    widths: [412],
+    widths: [HANDY_WIDTH],
     mock: async (page) => {
       await mockLedger(page);
       await mockReviewMark(page);
@@ -2473,7 +2464,7 @@ export const STATES = [
   {
     name: "kassenbuch-regel-angebot",
     route: "/ledger",
-    widths: HANDY_WIDTHS,
+    widths: [HANDY_WIDTH],
     mock: mockLedger,
     open: async (page) => {
       const sheet = await openLedgerDetail(page, "Bauhaus");
@@ -2489,7 +2480,7 @@ export const STATES = [
   {
     name: "kassenbuch-regel-formular",
     route: "/ledger",
-    widths: HANDY_WIDTHS,
+    widths: [HANDY_WIDTH],
     mock: mockLedger,
     open: async (page) => {
       const sheet = await openLedgerDetail(page, "Bauhaus");
@@ -2502,10 +2493,10 @@ export const STATES = [
   {
     name: "kassenbuch-regel-panel",
     route: "/ledger",
-    widths: [1440],
+    widths: [PC_WIDTH],
     // Schon vor ledger-hg5m5 bei jedem offenen Detail-Panel: nach dem Scrollen ragt die haftende Filterleiste 4 px
     // unter den Kopf des Panels (Kann-Sammlung ledger).
-    exceptions: [{ width: 1440, inv: 6, selector: '[data-testid="ledger-detail-panel"] und div' }],
+    exceptions: [{ width: PC_WIDTH, inv: 6, selector: '[data-testid="ledger-detail-panel"] und div' }],
     mock: mockLedger,
     open: async (page) => {
       const row = page.locator("table tbody tr", { hasText: "Bauhaus" }).first();
@@ -2521,7 +2512,7 @@ export const STATES = [
   {
     name: "kassenbuch-auswahl-popover",
     route: "/ledger",
-    widths: [1440],
+    widths: [PC_WIDTH],
     mock: mockLedger,
     open: async (page) => {
       await openLedger(page);
@@ -2537,7 +2528,7 @@ export const STATES = [
   {
     name: "kassenbuch-auswahl-pc",
     route: "/ledger",
-    widths: PANEL_WIDTHS,
+    widths: [PC_WIDTH],
     mock: mockLedger,
     open: async (page) => {
       await openLedger(page);
@@ -2553,7 +2544,7 @@ export const STATES = [
   {
     name: "kassenbuch-sortieren",
     route: "/ledger",
-    widths: HANDY_WIDTHS,
+    widths: [HANDY_WIDTH],
     mock: mockLedger,
     open: async (page) => {
       await openLedger(page);
@@ -2567,7 +2558,7 @@ export const STATES = [
   {
     name: "kassenbuch-viele-konten",
     route: "/ledger",
-    widths: [1024, 1440],
+    widths: [PC_WIDTH],
     mock: (page) => mockLedger(page, { accounts: 30 }),
     open: openLedger,
   },
@@ -2576,7 +2567,7 @@ export const STATES = [
   {
     name: "kassenbuch-viele-konten-auswahl",
     route: "/ledger",
-    widths: [1024, 1440],
+    widths: [PC_WIDTH],
     mock: (page) => mockLedger(page, { accounts: 30 }),
     open: async (page) => {
       await openLedger(page);
@@ -2590,7 +2581,7 @@ export const STATES = [
   {
     name: "kassenbuch-gefiltert",
     route: "/ledger",
-    widths: [1024],
+    widths: [PC_WIDTH],
     mock: mockLedger,
     open: async (page) => {
       await openLedger(page);
@@ -2608,7 +2599,7 @@ export const STATES = [
   {
     name: "kassenbuch-spiegel-laeuft",
     route: "/ledger",
-    widths: [...HANDY_WIDTHS, 412, 1024, 1440],
+    widths: [HANDY_WIDTH, PC_WIDTH],
     mock: async (page) => {
       await mockLedger(page);
       await mockRunningMirror(page);
@@ -2623,7 +2614,7 @@ export const STATES = [
   {
     name: "kassenbuch-nach-spiegel",
     route: "/ledger",
-    widths: [1024],
+    widths: [PC_WIDTH],
     mock: async (page) => {
       await mockLedger(page);
       page.sweepMirror = await mockRunningMirror(page);
@@ -2640,7 +2631,7 @@ export const STATES = [
   {
     name: "kassenbuch-kontostaende-veraltet",
     route: "/ledger",
-    widths: [412, 1280],
+    widths: [HANDY_WIDTH, PC_WIDTH],
     mock: async (page) => {
       await mockLedger(page);
       let balanceCalls = 0;
@@ -2662,7 +2653,7 @@ export const STATES = [
   {
     name: "kassenbuch-auswahl-handy",
     route: "/ledger",
-    widths: HANDY_WIDTHS,
+    widths: [HANDY_WIDTH],
     mock: async (page) => {
       await mockLedger(page);
       await page.route("**/api/SettingsApi/getLenaFlagSettings", (r) => json(r, { SavedColor: null, SuggestedColor: null }));
@@ -2673,7 +2664,7 @@ export const STATES = [
   {
     name: "einstellungen",
     route: "/settings",
-    widths: PAGE_WIDTHS,
+    widths: [HANDY_WIDTH, PC_WIDTH],
     mock: mockSettings,
     open: openSettings,
   },
@@ -2682,7 +2673,7 @@ export const STATES = [
   {
     name: "einstellungen-gespeichert",
     route: "/settings",
-    widths: [320, 412, 1280],
+    widths: [HANDY_WIDTH, PC_WIDTH],
     mock: mockSettingsFeedback,
     open: async (page) => {
       await openSettings(page);
@@ -2703,10 +2694,10 @@ export const STATES = [
   {
     name: "einstellungen-fehler",
     route: "/settings",
-    widths: [320, 412, 1280],
+    widths: [HANDY_WIDTH, PC_WIDTH],
     // Die Hilfezeile von `Input.group` („Gesetzt. Leer lassen …“, `text-text-muted/70`) hat 3,23:1; sie gehört dem
     // DS und steht in der Kann-Sammlung banking-import.
-    exceptions: [320, 412, 1280].map((width) => ({ width, inv: 10, selector: 'p "Gesetzt. Leer lassen' })),
+    exceptions: [HANDY_WIDTH, PC_WIDTH].map((width) => ({ width, inv: 10, selector: 'p "Gesetzt. Leer lassen' })),
     mock: mockSettingsFeedback,
     open: async (page) => {
       await openSettings(page);
@@ -2739,7 +2730,7 @@ export const STATES = [
   {
     name: "regeln",
     route: "/ledger/rules",
-    widths: PAGE_WIDTHS,
+    widths: [HANDY_WIDTH, PC_WIDTH],
     mock: mockRules,
     open: openRules,
   },
@@ -2748,7 +2739,7 @@ export const STATES = [
   {
     name: "regeln-panel",
     route: "/ledger/rules",
-    widths: PANEL_WIDTHS,
+    widths: [PC_WIDTH],
     mock: mockRules,
     open: async (page) => {
       await openRule(page, "Regel eins");
@@ -2762,7 +2753,7 @@ export const STATES = [
   {
     name: "regeln-sheet-picker",
     route: "/ledger/rules",
-    widths: HANDY_WIDTHS,
+    widths: [HANDY_WIDTH],
     mock: mockRules,
     open: async (page) => {
       await openRule(page, "Regel eins");
@@ -2777,7 +2768,7 @@ export const STATES = [
   {
     name: "regeln-geloescht",
     route: "/ledger/rules",
-    widths: [...HANDY_WIDTHS, 412, 1024, 1440],
+    widths: [HANDY_WIDTH, PC_WIDTH],
     mock: async (page) => {
       await mockRules(page);
       await page.route("**/api/RulesApi/deleteRule", (r) => json(r, { Ok: null }));
@@ -2792,7 +2783,7 @@ export const STATES = [
   {
     name: "regeln-geloescht-fehler",
     route: "/ledger/rules",
-    widths: [320, 412],
+    widths: [HANDY_WIDTH],
     mock: async (page) => {
       await mockRules(page);
       await page.route("**/api/RulesApi/deleteRule", (r) => json(r, { Ok: null }));
@@ -2812,7 +2803,7 @@ export const STATES = [
   {
     name: "uebersicht",
     route: "/",
-    widths: PAGE_WIDTHS,
+    widths: [HANDY_WIDTH, PC_WIDTH],
     mock: mockOverview,
     open: openOverview,
     // design-system-k6kfw, Verifier iteration 1: die Karte „Monat“ hat eine feste Höhe, beim Laden rutschen Konten
@@ -2822,29 +2813,18 @@ export const STATES = [
       body: { Ok: budgetMonth(CURRENT) },
       loaded: (page) => page.locator('[data-testid="overview-month"]'),
     },
-    // Rest-Sprung nach Vorgabe (§7.4): „Zu tun“ steht unter 1024 px über dem Monat und wächst mit seinem Inhalt. Der
-    // Platzhalter hat die Form des Ziels (großer erster Eintrag mit Knopf und eine Zeile), bei 320 und 390 px bricht
-    // der Satz des ersten Eintrags aber auf zwei Zeilen um, die Konten rutschen um diese Zeile. Kann-Sammlung ledger.
-    // Die Leer-Karte „Angepinnt“ (budgeting-w9yt4) steht zwischen Monat und Konten und rutscht aus demselben Grund mit.
-    exceptions: [
-      { width: 320, inv: 9, selector: '[data-testid="overview-account"]' },
-      { width: 390, inv: 9, selector: '[data-testid="overview-account"]' },
-      { width: 320, inv: 9, selector: '[data-testid="overview-pins-empty"]' },
-      { width: 390, inv: 9, selector: '[data-testid="overview-pins-empty"]' },
-    ],
+    // „Zu tun“ steht unter 1024 px über dem Monat und wächst mit seinem Inhalt (§7.4). Bei 412 px bricht der Satz des
+    // ersten Eintrags nicht um, die Konten bleiben stehen; die Ausnahmen für 320 und 390 px fielen mit diesen Breiten.
   },
   // ledger-s1weh: „Zu tun“ mit allen Arten von Einträgen, ein langer Payee in „Buchung nicht in YNAB“, der Zähler an der
   // Übersicht in Rail und Seitenleiste und „+ Buchung“ ruhig über der Leiste.
   {
     name: "uebersicht-zu-tun",
     route: "/",
-    widths: [320, 412, 900, 1280],
+    widths: [HANDY_WIDTH, PC_WIDTH],
     // Invariante 10 (ledger-dn4vy): der Leertext „Buchungen erscheinen hier …“ steht in `text-muted/70` (3,23:1).
     // Kann-Sammlung der Übersicht.
-    exceptions: [
-      { width: 900, inv: 10, selector: '[data-testid="overview-page"] p "Buchungen erscheinen hier' },
-      { width: 1280, inv: 10, selector: '[data-testid="overview-page"] p "Buchungen erscheinen hier' },
-    ],
+    exceptions: [{ width: PC_WIDTH, inv: 10, selector: '[data-testid="overview-page"] p "Buchungen erscheinen hier' }],
     mock: async (page) => {
       await mockOverview(page);
       await page.route("**/api/LedgerApi/getLedgerEntriesPage", (r) =>
@@ -2870,7 +2850,7 @@ export const STATES = [
   {
     name: "durchgehen-karte",
     route: "/review",
-    widths: [320, 412, 1280],
+    widths: [HANDY_WIDTH, PC_WIDTH],
     mock: (page) => mockReview(page, [REVIEW_QUEUE.plain]),
     open: reviewOpen("review-card"),
     primary: reviewPrimary("Passt, weiter"),
@@ -2882,7 +2862,7 @@ export const STATES = [
   {
     name: "durchgehen-karte-lena",
     route: "/review",
-    widths: [320, 412],
+    widths: [HANDY_WIDTH],
     mock: (page) => mockReview(page, [REVIEW_QUEUE.lena]),
     open: async (page) => page.getByRole("button", { name: "Rückfrage zurücknehmen", exact: true }).first().waitFor(),
     primary: reviewPrimary("Passt, weiter"),
@@ -2891,7 +2871,7 @@ export const STATES = [
   {
     name: "durchgehen-amazon",
     route: "/review",
-    widths: [320, 412, 1280],
+    widths: [HANDY_WIDTH, PC_WIDTH],
     mock: (page) => mockReview(page, [REVIEW_QUEUE.amazon]),
     open: async (page) => page.locator('[data-testid="review-suggestions"]').first().waitFor(),
     primary: reviewPrimary("Passt, weiter"),
@@ -2904,7 +2884,7 @@ export const STATES = [
   {
     name: "durchgehen-amazon-niedrig",
     route: "/review",
-    widths: [412],
+    widths: [HANDY_WIDTH],
     height: 600,
     mock: (page) => mockReview(page, [REVIEW_QUEUE.amazon]),
     open: async (page) => page.locator('[data-testid="review-suggestions"]').first().waitFor(),
@@ -2918,7 +2898,7 @@ export const STATES = [
   {
     name: "durchgehen-memo-kurz",
     route: "/review",
-    widths: [320, 412],
+    widths: [HANDY_WIDTH],
     mock: (page) => mockReview(page, [REVIEW_QUEUE.memoShort]),
     open: async (page) => {
       const memo = await reviewMemoText(page);
@@ -2930,7 +2910,7 @@ export const STATES = [
   {
     name: "durchgehen-memo-mittel",
     route: "/review",
-    widths: [412],
+    widths: [HANDY_WIDTH],
     mock: (page) => mockReview(page, [REVIEW_QUEUE.memoMedium]),
     open: async (page) => {
       const memo = await reviewMemoText(page);
@@ -2943,7 +2923,7 @@ export const STATES = [
   {
     name: "durchgehen-memo-lang",
     route: "/review",
-    widths: [320, 412, 1280],
+    widths: [HANDY_WIDTH, PC_WIDTH],
     mock: (page) => mockReview(page, [REVIEW_QUEUE.memoLong]),
     open: async (page, { mobile }) => {
       const memo = await reviewMemoText(page);
@@ -2977,7 +2957,7 @@ export const STATES = [
   {
     name: "durchgehen-duplikat",
     route: "/review",
-    widths: [320, 412, 1280],
+    widths: [HANDY_WIDTH, PC_WIDTH],
     mock: (page) => mockReview(page, [REVIEW_QUEUE.held]),
     open: reviewOpen("review-duplicate-card"),
     primary: reviewPrimary("Ist doppelt, verwerfen"),
@@ -2988,7 +2968,7 @@ export const STATES = [
   {
     name: "durchgehen-letzte-aktion",
     route: "/review",
-    widths: [320, 412, 1280],
+    widths: [HANDY_WIDTH, PC_WIDTH],
     mock: (page) => mockReview(page, [REVIEW_QUEUE.plain, REVIEW_QUEUE.memoShort]),
     open: async (page) => {
       await reviewPrimary("Passt, weiter")(page).click();
@@ -3003,7 +2983,7 @@ export const STATES = [
   {
     name: "durchgehen-kategorie-feld",
     route: "/review",
-    widths: [320, 412, 1280],
+    widths: [HANDY_WIDTH, PC_WIDTH],
     mock: async (page) => {
       await mockReview(page, [REVIEW_QUEUE.amazon]);
       // „Bahn“ mit Verfügbarem (im gemeinsamen Fixture ohne), damit die Zeile am Feld den Betrag zeigt.
@@ -3032,7 +3012,7 @@ export const STATES = [
   {
     name: "durchgehen-fehler",
     route: "/review",
-    widths: [412],
+    widths: [HANDY_WIDTH],
     mock: (page) => mockReview(page, [REVIEW_QUEUE.memoShort], { failReviewMark: "YNAB antwortet nicht (503)" }),
     open: async (page) => {
       await reviewPrimary("Passt, weiter")(page).click();
@@ -3044,7 +3024,7 @@ export const STATES = [
   {
     name: "durchgehen-ende",
     route: "/review",
-    widths: [320, 412, 1280],
+    widths: [HANDY_WIDTH, PC_WIDTH],
     mock: (page) => mockReview(page, []),
     open: reviewOpen("review-end"),
     primary: reviewPrimary("Zur Übersicht"),
@@ -3053,7 +3033,7 @@ export const STATES = [
   {
     name: "durchgehen-regel",
     route: "/review",
-    widths: [412, 1280],
+    widths: [HANDY_WIDTH, PC_WIDTH],
     mock: (page) => mockReview(page, [REVIEW_QUEUE.plain]),
     open: async (page) => {
       // Erst wenn die Vorschläge stehen, steht die Zeile still; sonst rutscht sie unter dem Klick weg.
@@ -3070,7 +3050,7 @@ export const STATES = [
   {
     name: "durchgehen-details-payee",
     route: "/review",
-    widths: [412, 1280],
+    widths: [HANDY_WIDTH, PC_WIDTH],
     mock: (page) => mockReview(page, [REVIEW_QUEUE.plain]),
     open: async (page) => {
       await openReviewDetails(page);
@@ -3083,7 +3063,7 @@ export const STATES = [
   {
     name: "durchgehen-details-memo",
     route: "/review",
-    widths: [412, 1280],
+    widths: [HANDY_WIDTH, PC_WIDTH],
     mock: (page) => mockReview(page, [REVIEW_QUEUE.memo]),
     open: async (page) => {
       await openReviewDetails(page);
@@ -3103,7 +3083,7 @@ export const STATES = [
   {
     name: "durchgehen-details-payee-karte",
     route: "/review",
-    widths: [1280],
+    widths: [PC_WIDTH],
     mock: (page) => mockReview(page, [REVIEW_QUEUE.plain]),
     open: async (page) => {
       await openReviewDetails(page);
@@ -3115,7 +3095,7 @@ export const STATES = [
   {
     name: "durchgehen-details-regel",
     route: "/review",
-    widths: [412],
+    widths: [HANDY_WIDTH],
     mock: (page) => mockReview(page, [REVIEW_QUEUE.plain]),
     open: async (page) => {
       await openReviewDetails(page);
@@ -3129,7 +3109,7 @@ export const STATES = [
   {
     name: "uebersicht-erfassen",
     route: "/",
-    widths: [412, 1280],
+    widths: [HANDY_WIDTH, PC_WIDTH],
     mock: async (page) => {
       await mockOverview(page);
       await mockCapture(page, { catchAll: false });
@@ -3158,7 +3138,7 @@ export const STATES = [
   {
     name: "uebersicht-grosse-schrift",
     route: "/",
-    widths: [390, 1280],
+    widths: [HANDY_WIDTH, PC_WIDTH],
     mock: mockOverview,
     open: async (page) => {
       await openOverview(page);
@@ -3172,15 +3152,15 @@ export const STATES = [
     // Wie `uebersicht`: bei 390 px bricht der Satz des ersten Eintrags um (§7.4, „Zu tun“ wächst mit seinem Inhalt).
     // Die Leer-Karte „Angepinnt“ (budgeting-w9yt4) rutscht aus demselben Grund mit.
     exceptions: [
-      { width: 390, inv: 9, selector: '[data-testid="overview-account"]' },
-      { width: 390, inv: 9, selector: '[data-testid="overview-pins-empty"]' },
+      { width: HANDY_WIDTH, inv: 9, selector: '[data-testid="overview-account"]' },
+      { width: HANDY_WIDTH, inv: 9, selector: '[data-testid="overview-pins-empty"]' },
     ],
   },
   // Gegenstück zu `uebersicht`: der Monat ohne Kategorie im Minus. Die Karte ist gleich hoch mit oder ohne „Im Minus“.
   {
     name: "uebersicht-ohne-minus",
     route: "/",
-    widths: [390, 900, 1280],
+    widths: [HANDY_WIDTH, PC_WIDTH],
     mock: mockOverview,
     open: openOverview,
     deferred: {
@@ -3191,12 +3171,9 @@ export const STATES = [
     // Ohne „Im Minus“ steht in „Zu tun“ nur ein Eintrag, die Liste ist eine Zeile kürzer als der Platzhalter (§7.4,
     // „Zu tun“ wächst mit seinem Inhalt). Unter 1024 px rutschen Konten und neueste Buchungen nach oben. Kann-Sammlung ledger.
     exceptions: [
-      { width: 390, inv: 9, selector: '[data-testid="overview-account"]' },
-      { width: 900, inv: 9, selector: '[data-testid="overview-account"]' },
-      { width: 900, inv: 9, selector: '[data-testid="overview-recent"]' },
+      { width: HANDY_WIDTH, inv: 9, selector: '[data-testid="overview-account"]' },
       // Die Leer-Karte „Angepinnt“ (budgeting-w9yt4) steht über beiden und rutscht aus demselben Grund mit.
-      { width: 390, inv: 9, selector: '[data-testid="overview-pins-empty"]' },
-      { width: 900, inv: 9, selector: '[data-testid="overview-pins-empty"]' },
+      { width: HANDY_WIDTH, inv: 9, selector: '[data-testid="overview-pins-empty"]' },
     ],
   },
   // budgeting-w9yt4: drei angepinnte Kategorien, eine im Minus mit „fehlt“, eine mit langem Namen. Der Platzhalter hat
@@ -3204,7 +3181,7 @@ export const STATES = [
   {
     name: "uebersicht-angepinnt",
     route: "/",
-    widths: [320, 412, 900, 1280],
+    widths: [HANDY_WIDTH, PC_WIDTH],
     mock: async (page) => {
       await mockOverview(page);
       await page.route("**/api/BudgetApi/getPinnedCategories", (r) => json(r, { Ok: [guid(1), guid(2), guid(3)] }));
@@ -3216,7 +3193,6 @@ export const STATES = [
       loaded: (page) => page.locator('[data-testid="overview-pinned"]').first(),
     },
     // Wie `uebersicht`: bei 320 px bricht der Satz des ersten Eintrags in „Zu tun“ um (§7.4), die Konten rutschen mit.
-    exceptions: [{ width: 320, inv: 9, selector: '[data-testid="overview-account"]' }],
   },
   // design-system-gkded: auf der Übersicht steht eine Meldung ohne Ort in der Leiste, „+ Buchung“ rund und ruhig daneben
   // (§7.14, „Zu tun“ hat Einträge). Bei 1280 px ist der Dialog „Angepinnt“ offen und der Toast liegt über ihm (Regression
@@ -3226,7 +3202,7 @@ export const STATES = [
   {
     name: "uebersicht-meldung",
     route: "/",
-    widths: [390, 412, 1280],
+    widths: [HANDY_WIDTH, PC_WIDTH],
     mock: async (page) => {
       await mockFetch({ TanRequired: syncSession("AwaitingTan") })(page);
       await page.route("**/api/BudgetApi/getPinnedCategories", (r) => json(r, { Ok: [guid(1), guid(2), guid(3)] }));
@@ -3258,7 +3234,7 @@ export const STATES = [
   {
     name: "uebersicht-angepinnt-fehler",
     route: "/",
-    widths: [320, 412, 1280],
+    widths: [HANDY_WIDTH, PC_WIDTH],
     mock: async (page) => {
       await mockOverview(page);
       await page.route("**/api/BudgetApi/getPinnedCategories", (r) => json(r, { Ok: [guid(1), guid(2), guid(3)] }));
@@ -3280,7 +3256,7 @@ export const STATES = [
   {
     name: "uebersicht-angepinnt-sheet",
     route: "/",
-    widths: [412, 1280],
+    widths: [HANDY_WIDTH, PC_WIDTH],
     mock: async (page) => {
       await mockOverview(page);
       await page.route("**/api/BudgetApi/getPinnedCategories", (r) => json(r, { Ok: [guid(1), guid(2), guid(3)] }));
@@ -3298,7 +3274,7 @@ export const STATES = [
   {
     name: "uebersicht-monat-fehler",
     route: "/",
-    widths: [390, 900, 1280],
+    widths: [HANDY_WIDTH, PC_WIDTH],
     mock: mockOverview,
     open: openOverview,
     deferred: {
@@ -3309,12 +3285,9 @@ export const STATES = [
     // Ohne Monat zeigt „Zu tun“ die kleine Fehlerkarte statt der Liste, kürzer als der Platzhalter (§7.4, „Zu tun“
     // wächst mit seinem Inhalt). Unter 1024 px rutschen Konten und neueste Buchungen nach oben. Kann-Sammlung ledger.
     exceptions: [
-      { width: 390, inv: 9, selector: '[data-testid="overview-account"]' },
-      { width: 900, inv: 9, selector: '[data-testid="overview-account"]' },
-      { width: 900, inv: 9, selector: '[data-testid="overview-recent"]' },
+      { width: HANDY_WIDTH, inv: 9, selector: '[data-testid="overview-account"]' },
       // Die Leer-Karte „Angepinnt“ (budgeting-w9yt4) steht über beiden und rutscht aus demselben Grund mit.
-      { width: 390, inv: 9, selector: '[data-testid="overview-pins-empty"]' },
-      { width: 900, inv: 9, selector: '[data-testid="overview-pins-empty"]' },
+      { width: HANDY_WIDTH, inv: 9, selector: '[data-testid="overview-pins-empty"]' },
     ],
   },
   // banking-import-d0fey: das Sheet „Abrufen“ (Prototyp Version 17, Sheet `import`) am Handy als Sheet, am PC als
@@ -3322,7 +3295,7 @@ export const STATES = [
   {
     name: "abrufen-tan",
     route: "/",
-    widths: [320, 412, 1280],
+    widths: [HANDY_WIDTH, PC_WIDTH],
     mock: mockFetch({ TanRequired: syncSession("AwaitingTan") }),
     open: openFetch("fetch-tan"),
     primary: (page) => fetchLayer(page).getByRole("button", { name: "Ich habe bestätigt" }),
@@ -3330,7 +3303,7 @@ export const STATES = [
   {
     name: "abrufen-fertig",
     route: "/",
-    widths: [320, 412, 1280],
+    widths: [HANDY_WIDTH, PC_WIDTH],
     mock: mockFetch({ Fetched: syncSession("Completed", FETCH_RESULT) }),
     open: openFetch("fetch-done"),
     primary: (page) => fetchLayer(page).getByRole("button", { name: "Jetzt durchgehen" }),
@@ -3344,7 +3317,7 @@ export const STATES = [
     return {
       name: "abrufen-fertig-leiste",
       route: "/",
-      widths: [320, 412, 1280],
+      widths: [HANDY_WIDTH, PC_WIDTH],
       mock: async (page) => {
         await mockOverview(page);
         const answered = new Promise((resolve) => releases.set(page, resolve));
@@ -3373,7 +3346,7 @@ export const STATES = [
   {
     name: "kassenbuch-wartend",
     route: "/ledger",
-    widths: [320, 412, 1280],
+    widths: [HANDY_WIDTH, PC_WIDTH],
     mock: (page) => mockLedger(page, { held: true }),
     open: async (page) => page.getByText(HELD_PAYEE, { exact: true }).locator("visible=true").first().waitFor(),
   },
@@ -3384,7 +3357,7 @@ export const STATES = [
   {
     name: "styleguide-rueckmeldung",
     route: "/styleguide",
-    widths: [320, 390, 412],
+    widths: [HANDY_WIDTH],
     mock: mockApp,
     open: async (page) => {
       await page.getByTestId("styleguide-feedback").waitFor();
@@ -3398,7 +3371,7 @@ export const STATES = [
     },
     // Der Hinweistext der Galerie (`note` in Components/Styleguide/View.fs, `text-text-muted/80`) hat 3,99:1, in
     // jedem Abschnitt der Galerie, nicht nur in diesem. Kann-Sammlung design-system.
-    exceptions: [320, 390, 412].map((width) => ({ width, inv: 10, selector: 'p "Am Handy (unter 1024 px) kein Toast.' })),
+    exceptions: [HANDY_WIDTH].map((width) => ({ width, inv: 10, selector: 'p "Am Handy (unter 1024 px) kein Toast.' })),
   },
 ];
 

@@ -57,14 +57,10 @@ export const INPUT_FONT_MIN = 16;
 export const TEXT_CONTRAST_MIN = 4.5;
 /// `md` aus `Breakpoints`: darunter gilt das Handy-Layout.
 export const MOBILE_BELOW = 768;
-/// Breiten für Seiten (Invariante 1).
-// 412 (Romans Handy), 900 (Rail) und 1280 (Seitenleiste) seit design-system-k6kfw.
-export const PAGE_WIDTHS = [320, 390, 412, 768, 900, 1024, 1280, 1440, 1920];
-export const HANDY_WIDTHS = [320, 390];
-/// Breiten für Listen mit Panel (design-system-gcpws, §7.6): das Panel nimmt 30 % des Fensters, 380 bis 520 px.
-export const PANEL_WIDTHS = [1024, 1280, 1440, 1920];
-/// Breiten für die Spaltenköpfe des Kassenbuchs (Invariante 8).
-export const TABLE_WIDTHS = [800, 1024, 1280, 1440];
+/// Die zwei Breiten des Sweeps: Romans Handy (Galaxy S25 Ultra) und sein PC-Fenster. Roman hat am 20.11. die übrigen
+/// Breiten (320, 390, 768, 900, 1024, 1280, 1920) gestrichen, sie betreffen in BB niemanden.
+export const HANDY_WIDTH = 412;
+export const PC_WIDTH = 1440;
 
 /// Höhe des Viewports je Breite: Handy hochkant, sonst ein übliches Querformat.
 export const heightFor = (width) => (width < MOBILE_BELOW ? 844 : width < 1024 ? 1024 : 900);
