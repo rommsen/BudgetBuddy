@@ -5,6 +5,18 @@ Newest entries on top.
 
 ---
 
+## 2026-11-20 07:39 -- Review-Lauf: 624bf480..8ac5411b
+
+**Type:** Review / Review-Lauf
+**Bereich:** 18 Tasks aus ledger-vf5h6 (Rückmeldung ohne Toast, Wischen, Memo, Rückgängig nach Verschiebung)
+**Agents:** review-backend, review-frontend, review-design, review-tests
+**Funde:** behoben 31, verworfen 7, Rückfrage 0 (offene Punkte in der Prüfliste), Ticket 0, Kann-Sammlung 13
+**Commits:** 3d1f6915, 9f51904e, 390e49ec, a27ff562, 639ebe97, 26dc663e, 79fb7b52, 8ac5411b (README)
+**Verworfen:** Wort „geladen“ statt „gelesen“ (Skizze 32 sagt „gelesen“); Regel-Karten auf overflow-clip (machte regeln-panel unruhig, statt dessen flashInside); Flow geld-verschieben kürzen und Leucht-Prüfung im Pin-Flow (Kriterien der Tasks); FeedbackDesignTests-Farbtabelle (gilt als Regel); ledger-capture Toast-Prüfung (prüft den Behälter, nicht tautologisch); Esc im Memo-Flow (in .NET und [tastatur] abgedeckt)
+**Verifikation:** VERIFY: PASS (dotnet 5479 grün, node 357 grün, dotnet build, npm run build, guard:classes, guard:tokens grün)
+
+---
+
 ## 2026-11-20 06:36 -- Task verified and completed: ledger-enjex - "Kassenbuch am Handy ohne Toast (R3), Teil 3 Detail II: Memo, Betrag und Payee mit Rückgängig am Feld, Lena-Knopf wechselt ohne Text, Erneut senden ohne Meldung; Schlussprüfung kein Toast im Kassenbuch am Handy"
 
 **Type:** Work / Task completion
