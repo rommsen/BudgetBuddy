@@ -1785,6 +1785,22 @@ let private undoFlowTests =
                 "vertauscht, derselbe Betrag"
             Expect.isSome request.CommandId "mit Befehls-Id"
         }
+        // Das Rückgängig ist eine eigene Absicht: mit der Id der Hinverschiebung hielte der Server es für deren
+        // Wiederholung und schriebe nichts.
+        test "Das Rückgängig trägt eine neue Befehls-Id, nicht die der Hinverschiebung" {
+            let forwardId = Guid.NewGuid()
+            let forward = { gaveOffer with Request = { gaveOffer.Request with CommandId = Some forwardId } }
+            let seen = Collections.Concurrent.ConcurrentQueue<MoveRequest>()
+            let call (month: string) (request: MoveRequest) : Async<Result<ApplyReport, string>> =
+                async {
+                    seen.Enqueue request
+                    return Ok { ApplicationId = "u"; Month = month; Lines = []; ActualToBeBudgeted = None }
+                }
+            Tests.CmdTiming.firstDispatchedAfter 3000 (Components.Budget.State.undoCmdWith call forward) |> ignore
+            let request = Seq.exactlyOne seen
+            Expect.isSome request.CommandId "mit Befehls-Id"
+            Expect.notEqual request.CommandId (Some forwardId) "eine neue Id"
+        }
         test "Nach dem Rückgängig steht „✓ Rückgängig: …“ ohne Aktion, Verfügbar leuchtet" {
             let undoing = run [ UndoMove ] afterGive
             let model, external = update (undidGive Written) undoing

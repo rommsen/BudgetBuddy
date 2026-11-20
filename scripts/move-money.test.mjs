@@ -242,6 +242,8 @@ test("[flow:verschiebung-erneut-senden] Fehlgeschlagener PATCH: der Hinweis steh
     }
     await line.locator('[data-feedback-action="true"]', { hasText: "Erneut senden" }).click();
     await line.filter({ hasText: "20,00 € nach Urlaub afd8h" }).waitFor();
+    // Nach dem gelungenen Erneut senden ist der Hinweis der offenen Verschiebung weg.
+    await page.locator('[data-testid="move-retry"]').waitFor({ state: "detached" });
     assert.deepEqual(calls.retry, [["11111111-1111-1111-1111-111111111111"]]);
   } finally {
     await context.close();
