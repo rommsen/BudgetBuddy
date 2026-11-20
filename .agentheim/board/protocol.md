@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-11-20 23:37 -- Modeling / Refined: ledger-cyd1t - Aufteilen auf der Karte
+
+**Type:** Modeling / Refine
+**BC:** ledger
+**Status after:** backlog
+**Summary:** Roman: Textlink unter dem Feld Kategorie im Stil von Regel anlegen, Mechanismus über das Detail wiederverwendet statt eigenem Ort über der Karte. Skizze Version 4, Freigabe offen.
+
+---
+
 ## 2026-11-20 23:18 -- Modeling / Promoted: budgeting-m5pqn - "Budget-Monat aus BB: YNAB-Stand je Monat festhalten, getBudgetMonth liest nur die Datenbank, Verfügbar und Zu verteilen leitet BB aus Soll, Kassenbuch und Stand ab"
 
 **Type:** Modeling / Promote
