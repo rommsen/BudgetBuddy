@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-21 14:29 -- Review-Lauf: 08690c84..5f5fb048 [budgeting-ffjk9] [infrastructure-q8f3n]
+
+**Type:** Review / Review-Lauf
+**Bereich:** 08690c84..5f5fb048 (budgeting-ffjk9, infrastructure-q8f3n)
+**Agents:** review-backend, review-frontend, review-design, review-tests
+**Funde:** behoben 19, verworfen 3, Rückfrage 1 (entschieden: Datum im Hinweis, wenn nicht heute), Ticket 0, Kann-Sammlung 5
+**Commits:** aaf6ee25, d8ed4fcb, e3805be3, 25f4dea0, b4d879d1, d95ff0cd, ba49ee9e
+**Behoben (Auswahl):** späte Antwort des Nachziehens nahm Pause und Target zurück; Übersicht übernahm eine überholte Antwort; Retry blieb bei fremdem Monat auf „läuft“; Rahmen nach YNAB-Fehler (außer „Monat nicht offen“) nicht mehr nachgelesen; Bool-Flags Stale und SyncOvertaken als DU; fehlende Tests für Reloaded, Target-Übernahme, kein Toast, Schlangen-Zweig der Aufzählung; BankImport-Historie in der DB-Gruppe
+**Verworfen:** Hinweistext „…, Abgleich gescheitert“ (Wortlaut F4 von Roman entschieden); `startYnabSync` mit einem Parameter (nur Lesbarkeit, kein Nutzen); doppelte Plan-Prüfungen in AC14 (eigene Aussage strenger, harmlos)
+**Verifikation:** VERIFY: PASS (dotnet 5618 grün, node 358 grün, dotnet build, npm run build, guard:classes, guard:tokens grün)
+
+---
+
 ## 2026-11-21 13:43 -- Work session ended
 
 **Type:** Work / Session end

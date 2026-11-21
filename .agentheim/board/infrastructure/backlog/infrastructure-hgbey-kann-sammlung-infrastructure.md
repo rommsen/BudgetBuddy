@@ -137,3 +137,4 @@ Den Tonwert von `text-secondary` oder die betroffenen Flächen so anpassen, dass
 - `BankImportTests.fs` „Automatisch abrufen: der jüngste Abruf aus der Historie“ schreibt `sync_sessions` in der gemeinsamen DB außerhalb der Gruppe (heute kein Flake, laut ADR 0100 gehört es in die Gruppe).
 - AC14 in `LedgerPageTests.fs` schreibt weiter 1000 Buchungen in die gemeinsame DB (ADR 0100 Punkt 3). Eine eigene DB bräuchte eine injizierbare Verbindung für `appendAndApply` und `getLedgerEntriesPage`.
 - Der Workaround aus 118819ea in `targets-pruefen-nicht-neu-gelesen` (zwei Frames, dann nach oben scrollen) ist mit `scroll-behavior: auto` im Sweep vielleicht entbehrlich.
+- Review-Lauf 2026-11-21: bei drei parallelen Gates fiel einmal `[tastatur] PC: beim Öffnen steht der Fokus im Suchfeld …` (`scripts/category-picker.test.mjs`) mit Timeout nach 31 s; die Datei allein 2 von 2 grün. Kein Flake aus q8f3n, beobachten.
