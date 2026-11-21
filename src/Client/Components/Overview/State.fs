@@ -70,12 +70,13 @@ let private reloading (rd: RemoteData<'a>) : RemoteData<'a> =
 let beginPins (model: Model) : Model =
     { model with Pins = reloading model.Pins; PinsRead = model.PinsRead + 1 }
 
-/// Der reine Teil von `Entered`: welche Stränge laden. Neueste Buchungen, Buchungen nicht in YNAB und Pins bekommen
-/// eine neue Anfrage-Nummer.
+/// Der reine Teil von `Entered`: welche Stränge laden. Monat, neueste Buchungen, Buchungen nicht in YNAB und Pins
+/// bekommen eine neue Anfrage-Nummer.
 let beginEnter (today: System.DateTime) (model: Model) : Model =
     { model with
         Today = today
         Month = reloading model.Month
+        MonthRequest = model.MonthRequest + 1
         Recent = reloading model.Recent
         RecentRequest = model.RecentRequest + 1
         NotInYnab = reloading model.NotInYnab
@@ -106,15 +107,17 @@ let applyAnswer (msg: Msg) (model: Model) : Model =
     | RecentLoaded (request, _) when request <> model.RecentRequest -> model
     | NotInYnabLoaded (request, _) when request <> model.NotInYnabRequest -> model
     | PinsLoaded (read, _) when read <> model.PinsRead || model.PinsSaving.IsSome -> model
-    | MonthLoaded (Ok month) -> { model with Month = Success month }
-    | MonthLoaded (Error message) -> { model with Month = RemoteData.lateFailure message model.Month }
+    | MonthLoaded (request, _) when request <> model.MonthRequest -> model
+    | MonthSynced (request, _, _) when request <> model.MonthRequest -> model
+    | MonthLoaded (_, Ok month) -> { model with Month = Success month }
+    | MonthLoaded (_, Error message) -> { model with Month = RemoteData.lateFailure message model.Month }
     // Das Nachziehen (budgeting-ffjk9) tauscht still, nur für den gezeigten Monat. Ein Fehlschlag lässt den Stand
     // stehen; die Übersicht zeigt dazu keinen Hinweis.
-    | MonthSynced (monthKey, Ok (Shared.Budgeting.MonthChanged month)) ->
+    | MonthSynced (_, monthKey, Ok (Shared.Budgeting.MonthChanged month)) ->
         let shown = match model.Month with Success (m: Shared.Budgeting.BudgetMonth) -> Some m.Month | _ -> None
         if shown = Some monthKey && month.Month = monthKey then { model with Month = Success month } else model
-    | MonthSynced (_, Ok Shared.Budgeting.MonthUnchanged)
-    | MonthSynced (_, Error _) -> model
+    | MonthSynced (_, _, Ok Shared.Budgeting.MonthUnchanged)
+    | MonthSynced (_, _, Error _) -> model
     | RecentLoaded (_, Ok page) ->
         { model with
             Recent = Success page.Entries
@@ -300,25 +303,27 @@ let private enterCmd (entered: Model) : Cmd<Msg> =
         Cmd.OfAsync.either
             (Retry.reading Api.budget.getBudgetMonth)
             (monthKey entered.Today)
-            MonthLoaded
-            (fun ex -> MonthLoaded (Error ex.Message))
+            (fun result -> MonthLoaded (entered.MonthRequest, result))
+            (fun ex -> MonthLoaded (entered.MonthRequest, Error ex.Message))
         recentCmd entered.RecentRequest
         todoSourcesCmd entered.NotInYnabRequest
         loadAccountsCmd ()
         pinsCmd entered.PinsRead
     ]
 
-/// Das stille Nachziehen nach dem Lesen des Monats (budgeting-ffjk9), wie auf der Budget-Seite.
-let private syncCmd (monthKey: string) : Cmd<Msg> =
+/// Das stille Nachziehen nach dem Lesen des Monats (budgeting-ffjk9), wie auf der Budget-Seite, unter der Nummer
+/// der Anfrage, deren Lesen es startet.
+let private syncCmd (request: int) (monthKey: string) : Cmd<Msg> =
     Cmd.OfAsync.either
         (fun key -> Retry.reading Api.budget.syncBudgetMonth key)
         monthKey
-        (fun result -> MonthSynced (monthKey, result))
-        (fun ex -> MonthSynced (monthKey, Error ex.Message))
+        (fun result -> MonthSynced (request, monthKey, result))
+        (fun ex -> MonthSynced (request, monthKey, Error ex.Message))
 
 let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
     match msg with
-    | MonthLoaded (Ok month) -> applyAnswer msg model, syncCmd month.Month
+    // Nur das Lesen der jüngsten Anfrage zieht nach; ein überholtes bleibt ohne Wirkung.
+    | MonthLoaded (request, Ok month) when request = model.MonthRequest -> applyAnswer msg model, syncCmd request month.Month
     | ReloadRequested ->
         let reloading = beginReload model
         reloading, enterCmd reloading

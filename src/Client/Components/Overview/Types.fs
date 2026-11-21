@@ -37,6 +37,9 @@ type Model = {
     RecentRequest: int
     /// Dasselbe für die Buchungen nicht in YNAB.
     NotInYnabRequest: int
+    /// Dasselbe für den Monat: Betreten und „Erneut laden“ zählen hoch, das Lesen und sein Nachziehen tragen die
+    /// Nummer. Sonst überschriebe die Antwort eines älteren Nachziehens einen neuer gelesenen Monat.
+    MonthRequest: int
     /// Wie lange der letzte abgeschlossene Import her ist, etwa „vor 2 Std.“. `None` ohne bekannten Import.
     ImportStand: string option
     /// Die Lena-Farbe aus den Einstellungen (ADR 0056) für die Marke in „Zu tun“.
@@ -83,6 +86,7 @@ let init : Model =
       NotInYnab = NotAsked
       RecentRequest = 0
       NotInYnabRequest = 0
+      MonthRequest = 0
       ImportStand = None
       LenaFlagColor = None
       Accounts = NotAsked
@@ -109,9 +113,11 @@ type Msg =
     /// Die Zahl an der Übersicht in Rail und Seitenleiste braucht die zu prüfenden Buchungen: beim Start der App auf
     /// einer anderen Seite und nach einem Import (ledger-s1weh).
     | CountsNeeded
-    | MonthLoaded of Result<BudgetMonth, string>
-    /// Antwort des stillen Nachziehens des Monats mit YNAB (budgeting-ffjk9), mit dem Monat beim Start.
-    | MonthSynced of month: string * Result<BudgetMonthSync, string>
+    /// Der gelesene Monat, mit der Nummer der Anfrage.
+    | MonthLoaded of request: int * Result<BudgetMonth, string>
+    /// Antwort des stillen Nachziehens des Monats mit YNAB (budgeting-ffjk9), mit der Nummer der Anfrage, deren
+    /// Lesen es gestartet hat, und dem Monat beim Start.
+    | MonthSynced of request: int * month: string * Result<BudgetMonthSync, string>
     /// Die neuesten Buchungen samt den Zählern „zu prüfen“ und „Lena“ über alle Konten, mit der Nummer der Anfrage.
     | RecentLoaded of request: int * Result<LedgerEntryPage, string>
     /// Die Buchungen nicht in YNAB, mit der Nummer der Anfrage.

@@ -243,7 +243,7 @@ let transitionTests =
             let loading = { rootModel Overview with Overview = Components.Overview.State.beginEnter (DateTime(2026, 11, 7)) Components.Overview.Types.init }
             Expect.isFalse (State.isPageReady loading) "lädt"
             let answered =
-                [ MonthLoaded (Ok november); RecentLoaded (loading.Overview.RecentRequest, Ok { Entries = []; TotalCount = 0; TotalAmount = eur 0m; DeletedCount = 0; NeedsReviewCount = 0; AskLenaCount = 0; WithoutCategoryCount = 0 }); AccountsLoaded (Error "x"); BalancesLoaded (Ok []); NotInYnabLoaded (loading.Overview.NotInYnabRequest, Ok [])
+                [ MonthLoaded (loading.Overview.MonthRequest, Ok november); RecentLoaded (loading.Overview.RecentRequest, Ok { Entries = []; TotalCount = 0; TotalAmount = eur 0m; DeletedCount = 0; NeedsReviewCount = 0; AskLenaCount = 0; WithoutCategoryCount = 0 }); AccountsLoaded (Error "x"); BalancesLoaded (Ok []); NotInYnabLoaded (loading.Overview.NotInYnabRequest, Ok [])
                   PinsLoaded (loading.Overview.PinsRead, Ok []) ]
                 |> List.fold (fun m msg -> Components.Overview.State.applyAnswer msg m) loading.Overview
             Expect.isTrue (State.isPageReady { loading with Overview = answered }) "fertig, auch mit Fehler"
@@ -271,24 +271,61 @@ let transitionTests =
             Expect.equal again.Balances Loading "noch nicht geladen"
 
         testCase "Ein spätes Scheitern ersetzt einen geladenen Monat nicht" <| fun () ->
-            let loaded = Components.Overview.State.applyAnswer (MonthLoaded (Ok november)) Components.Overview.Types.init
-            let late = Components.Overview.State.applyAnswer (MonthLoaded (Error "weg")) loaded
+            let loaded = Components.Overview.State.applyAnswer (MonthLoaded (0, Ok november)) Components.Overview.Types.init
+            let late = Components.Overview.State.applyAnswer (MonthLoaded (0, Error "weg")) loaded
             Expect.equal late.Month (Success november) "bleibt"
 
         // budgeting-ffjk9: nach dem sofortigen Lesen zieht die Übersicht den Monat still mit YNAB nach.
         testCase "Nach dem gelesenen Monat startet das Nachziehen, ein gescheitertes Lesen startet nichts" <| fun () ->
-            let _, started = Components.Overview.State.update (MonthLoaded (Ok november)) Components.Overview.Types.init
+            let _, started = Components.Overview.State.update (MonthLoaded (0, Ok november)) Components.Overview.Types.init
             Expect.equal (List.length started) 1 "ein Aufruf syncBudgetMonth"
-            let _, none = Components.Overview.State.update (MonthLoaded (Error "weg")) Components.Overview.Types.init
+            let _, none = Components.Overview.State.update (MonthLoaded (0, Error "weg")) Components.Overview.Types.init
             Expect.isEmpty none "kein Aufruf"
 
         testCase "Das Nachziehen tauscht den gezeigten Monat still, eine Antwort für einen anderen Monat oder ein Fehlschlag ändert nichts" <| fun () ->
-            let loaded = Components.Overview.State.applyAnswer (MonthLoaded (Ok november)) Components.Overview.Types.init
+            let loaded = Components.Overview.State.applyAnswer (MonthLoaded (0, Ok november)) Components.Overview.Types.init
             let changed = { november with ToBeBudgeted = eur 80m }
-            let swapped = Components.Overview.State.applyAnswer (MonthSynced ("2026-11-01", Ok (MonthChanged changed))) loaded
+            let swapped = Components.Overview.State.applyAnswer (MonthSynced (0, "2026-11-01", Ok (MonthChanged changed))) loaded
             Expect.equal swapped.Month (Success changed) "getauscht, ohne Laden"
             let other = { changed with Month = "2026-12-01" }
-            Expect.equal (Components.Overview.State.applyAnswer (MonthSynced ("2026-12-01", Ok (MonthChanged other))) loaded) loaded "anderer Monat"
-            Expect.equal (Components.Overview.State.applyAnswer (MonthSynced ("2026-11-01", Error "weg")) loaded) loaded "Fehlschlag"
-            Expect.equal (Components.Overview.State.applyAnswer (MonthSynced ("2026-11-01", Ok MonthUnchanged)) loaded) loaded "unverändert"
+            Expect.equal (Components.Overview.State.applyAnswer (MonthSynced (0, "2026-12-01", Ok (MonthChanged other))) loaded) loaded "anderer Monat"
+            Expect.equal (Components.Overview.State.applyAnswer (MonthSynced (0, "2026-11-01", Error "weg")) loaded) loaded "Fehlschlag"
+            Expect.equal (Components.Overview.State.applyAnswer (MonthSynced (0, "2026-11-01", Ok MonthUnchanged)) loaded) loaded "unverändert"
+
+        // Review-Fund zu budgeting-ffjk9: die Antwort des Nachziehens war nur an den Monat gebunden. Nach zweimal
+        // Betreten oder „Erneut laden“ liefen zwei Aufrufe; kam die Antwort des ersten nach dem neuer gelesenen Monat,
+        // überschrieb sie ihn mit älterem Stand. Aufzählung: Sync 1 trifft an jeder Stelle hinter Lesen 1 ein, Sync 2
+        // ändert den Monat oder nicht. Orakel: am Ende steht, was das zweite Lesen und sein Nachziehen ergeben.
+        testCase "Eine überholte Antwort des Nachziehens überschreibt den neuer gelesenen Monat nicht, in jeder Reihenfolge" <| fun () ->
+            let read1 = november
+            let synced1 = { november with ToBeBudgeted = eur 100m }
+            let read2 = { november with ToBeBudgeted = eur 90m }
+            let synced2Changed = { november with ToBeBudgeted = eur 85m }
+            // Ein Schritt durch das echte `update`; das Neuladen nur über den reinen Teil, sein Cmd fasst den Proxy an.
+            let step (model: Model) (msg: Msg) : Model =
+                match msg with
+                | ReloadRequested -> Components.Overview.State.beginReload model
+                | other -> fst (Components.Overview.State.update other model)
+            let entered = Components.Overview.State.beginEnter (DateTime(2026, 11, 7)) Components.Overview.Types.init
+            let first = entered.MonthRequest
+            let second = first + 1
+            for sync2, expected in [ Ok (MonthChanged synced2Changed), synced2Changed; Ok MonthUnchanged, read2 ] do
+                let tail = [ ReloadRequested; MonthLoaded (second, Ok read2); MonthSynced (second, "2026-11-01", sync2) ]
+                for position in 0 .. tail.Length do
+                    let stale = MonthSynced (first, "2026-11-01", Ok (MonthChanged synced1))
+                    let messages = MonthLoaded (first, Ok read1) :: List.insertAt position stale tail
+                    let final = messages |> List.fold step entered
+                    Expect.equal final.Month (Success expected) $"Sync 1 an Stelle {position}, Sync 2 %A{sync2}"
+
+        testCase "Die Antwort des Nachziehens zur jüngsten Anfrage tauscht den Monat, ein überholtes Lesen zieht nicht nach" <| fun () ->
+            let entered = Components.Overview.State.beginEnter (DateTime(2026, 11, 7)) Components.Overview.Types.init
+            let loaded, started = Components.Overview.State.update (MonthLoaded (entered.MonthRequest, Ok november)) entered
+            Expect.equal (List.length started) 1 "Nachziehen gestartet"
+            let changed = { november with ToBeBudgeted = eur 80m }
+            let swapped, _ = Components.Overview.State.update (MonthSynced (entered.MonthRequest, "2026-11-01", Ok (MonthChanged changed))) loaded
+            Expect.equal swapped.Month (Success changed) "aktuelle Antwort übernommen"
+            let again = Components.Overview.State.beginReload swapped
+            let late, none = Components.Overview.State.update (MonthLoaded (entered.MonthRequest, Ok november)) again
+            Expect.equal late.Month (Success changed) "überholtes Lesen ohne Wirkung"
+            Expect.isEmpty none "kein zweites Nachziehen"
     ]
