@@ -13,9 +13,9 @@ Zuletzt aktualisiert: 2026-11-21 nachmittags, nach Work- und Review-Lauf 08690c8
   Review-Lauf mit allen vier Agents, 19 Funde behoben in aaf6ee25..ba49ee9e, darunter: eine späte Antwort des
   Nachziehens nahm eine frisch gesetzte Pause oder ein Target zurück, die Übersicht übernahm eine überholte Antwort.
   Entschieden (Roman): der Hinweis „YNAB-Stand von …“ nennt „gestern“ oder das Datum, wenn der Stand nicht von heute
-  ist (Nachtrag ADR 0101 Punkt 8). Gate auf ba49ee9e: VERIFY: PASS (dotnet 5618, node 358). Nicht gepusht, nicht
-  deployt. **Deploy von m5pqn, yx51n und ffjk9 jetzt möglich, nur auf Romans Anweisung** (`git push deploy`).
-  Offen für Roman: [human-eye] ledger-cyd1t (Aufteilen auf der Karte) und budgeting-nyx75 (Kategorie-Gruppe
+  ist (Nachtrag ADR 0101 Punkt 8). Gate auf ba49ee9e: VERIFY: PASS (dotnet 5618, node 358). **Deployt** auf Romans
+  Anweisung (2026-11-21, 90afc686): alles vom 21.11., also sbbh8, cyd1t, nyx75, m5pqn, yx51n, ffjk9 und q8f3n samt
+  Review-Fixes. Prüfpunkte und Fragen in der BB Prüfliste (Gruppen 20 bis 22). Offen für Roman: [human-eye] ledger-cyd1t (Aufteilen auf der Karte) und budgeting-nyx75 (Kategorie-Gruppe
   deaktivieren) am Gerät; banking-import-y7m4r (FinTS-Sonde); Produktfragen in der Kann-Sammlung budgeting („Neu laden“
   außer Sicht in Targets prüfen, zwei Hinweise übereinander). Vorgeschlagen: `/architecture-review budgeting` und
   `/architecture-review ledger` (je 20 erledigte Tasks seit dem letzten Bestandsreview).
