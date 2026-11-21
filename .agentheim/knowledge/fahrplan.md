@@ -3,7 +3,22 @@
 Stand 2026-11-07. Grundlage: ADR 0086, `vision.md` Abschnitt „What success looks like“.
 
 ## Stand
-Zuletzt aktualisiert: 2026-11-21 vormittags, nach Work- und Review-Lauf 215238f8..HEAD.
+Zuletzt aktualisiert: 2026-11-21 nachmittags, nach Work- und Review-Lauf 08690c84..HEAD.
+
+- **2026-11-21 nachmittags:** Zweiter Work-Lauf (Romans Auftrag „1 und 4“), beide Verifier PASS in Iteration 1:
+  budgeting-ffjk9 (Nachziehen beim Öffnen: Budget-Seite und Übersicht zeigen sofort BBs Stand und gleichen danach still
+  mit YNAB ab, 4bb80256) und infrastructure-q8f3n (Gate ohne Flakes, 27d1fc7b: BankImport-Listen schrieben außerhalb der
+  DB-Gruppe ins Kassenbuch, AC14 prüft den Zugriffsplan statt einer Wanduhr, Design-System-Export verlor seinen
+  Modal-Klick an den Geisterklick-Schutz, Layout-Sweep maß mitten im weichen Scrollen; fünf PASS, zwei unter Last).
+  Review-Lauf mit allen vier Agents, 19 Funde behoben in aaf6ee25..ba49ee9e, darunter: eine späte Antwort des
+  Nachziehens nahm eine frisch gesetzte Pause oder ein Target zurück, die Übersicht übernahm eine überholte Antwort.
+  Entschieden (Roman): der Hinweis „YNAB-Stand von …“ nennt „gestern“ oder das Datum, wenn der Stand nicht von heute
+  ist (Nachtrag ADR 0101 Punkt 8). Gate auf ba49ee9e: VERIFY: PASS (dotnet 5618, node 358). Nicht gepusht, nicht
+  deployt. **Deploy von m5pqn, yx51n und ffjk9 jetzt möglich, nur auf Romans Anweisung** (`git push deploy`).
+  Offen für Roman: [human-eye] ledger-cyd1t (Aufteilen auf der Karte) und budgeting-nyx75 (Kategorie-Gruppe
+  deaktivieren) am Gerät; banking-import-y7m4r (FinTS-Sonde); Produktfragen in der Kann-Sammlung budgeting („Neu laden“
+  außer Sicht in Targets prüfen, zwei Hinweise übereinander). Vorgeschlagen: `/architecture-review budgeting` und
+  `/architecture-review ledger` (je 20 erledigte Tasks seit dem letzten Bestandsreview).
 
 - **2026-11-21:** Work-Lauf über Nacht (Roman offline), alle Verifier PASS: ledger-sbbh8 (Durchgehen neueste zuerst; die
   Entscheidung „älteste zuerst“ vom 2026-11-11 ist damit am 2026-11-20 geändert), ledger-cyd1t (Aufteilen auf der Karte,
@@ -13,10 +28,7 @@ Zuletzt aktualisiert: 2026-11-21 vormittags, nach Work- und Review-Lauf 215238f8
   Teil 2). Review-Lauf mit allen vier Agents, Funde behoben in 9bcdb44e..f4b8838c (darunter: Wisch und Abflug im
   Durchgehen beachteten die Sperre von „Später“ nicht), dazu der Gate-Flake `targets-pruefen-nicht-neu-gelesen`
   behoben (118819ea). Gate auf 118819ea: VERIFY: PASS (dotnet 5583, node 358). Nicht gepusht, nicht deployt.
-  **Deploy erst zusammen mit budgeting-ffjk9** (Nachziehen beim Öffnen, jetzt baubar, Backlog): ohne es sieht die
-  Budget-Seite neue Einnahmen in „Zu verteilen“, Zuweisungen in YNAB und neue Kategorien erst nach dem nächsten Befehl
-  auf dem Monat. Offen für Roman: [human-eye] cyd1t und nyx75 am Gerät, ffjk9 verfeinern und promoten, banking-import-y7m4r
-  (FinTS-Sonde). Restliche Gate-Flakes in der Kann-Sammlung infrastructure.
+  Deploy zusammen mit budgeting-ffjk9 (seit dem Nachmittag erledigt, siehe oben).
 
 - **2026-11-20 abends:** Romans Prüfliste zu ledger-vf5h6 (Gruppen 14 bis 19) durch, ein Fund: „Letzte rückgängig“
   in der Endansicht des Durchgehens gestrichen (4be9c698, deployt). Gate schneller: Layout-Sweep nur noch bei 412 und
