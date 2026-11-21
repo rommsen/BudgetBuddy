@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-21 02:10 -- Batch started: [budgeting-yx51n, budgeting-nyx75]
+
+**Type:** Work / Batch start
+**Tasks:** budgeting-yx51n - "Budget-Rahmen aus BB: Monatsfenster und Kategorie-Platzierung als YNAB-Stand, der Rahmen der Budget-Seite liest ohne YNAB-Aufruf", budgeting-nyx75 - "Kategorie-Gruppe in BB deaktivieren: die Gruppe verschwindet samt ihren Kategorien aus Budget-Liste und Pickern, in YNAB bleibt sie"
+**Parallel:** yes (2 workers — zweite Welle auf m5pqn; beide ergänzen initializeBudgetingSchema, Merge nacheinander in der Reihenfolge der Verifier-PASS; banking-import-y7m4r (Spike) vom Builder ausgenommen)
+
+---
+
 ## 2026-11-21 01:59 -- Task verified and completed: budgeting-m5pqn - "Budget-Monat aus BB: YNAB-Stand je Monat festhalten, getBudgetMonth liest nur die Datenbank, Verfügbar und Zu verteilen leitet BB aus Soll, Kassenbuch und Stand ab"
 
 **Type:** Work / Task completion

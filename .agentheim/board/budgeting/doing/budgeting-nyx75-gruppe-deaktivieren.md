@@ -1,7 +1,7 @@
 ---
 id: budgeting-nyx75
 title: "Kategorie-Gruppe in BB deaktivieren: die Gruppe verschwindet samt ihren Kategorien aus Budget-Liste und Pickern, in YNAB bleibt sie"
-status: todo
+status: doing
 type: feature
 context: budgeting
 created: 2026-11-20

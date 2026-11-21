@@ -1,7 +1,7 @@
 ---
 id: budgeting-yx51n
 title: "Budget-Rahmen aus BB: Monatsfenster und Kategorie-Platzierung als YNAB-Stand, der Rahmen der Budget-Seite liest ohne YNAB-Aufruf"
-status: todo
+status: doing
 type: feature
 context: budgeting
 created: 2026-11-20
