@@ -3,7 +3,20 @@
 Stand 2026-11-07. Grundlage: ADR 0086, `vision.md` Abschnitt „What success looks like“.
 
 ## Stand
-Zuletzt aktualisiert: 2026-11-20 abends, nach Work- und Review-Lauf für infrastructure-x7p2e.
+Zuletzt aktualisiert: 2026-11-21 vormittags, nach Work- und Review-Lauf 215238f8..HEAD.
+
+- **2026-11-21:** Work-Lauf über Nacht (Roman offline), alle Verifier PASS: ledger-sbbh8 (Durchgehen neueste zuerst; die
+  Entscheidung „älteste zuerst“ vom 2026-11-11 ist damit am 2026-11-20 geändert), ledger-cyd1t (Aufteilen auf der Karte,
+  Skizze Version 4), budgeting-m5pqn (Budget-Monat aus BB, ADR 0101 Teil 1, PASS in Iteration 3: zweimal veraltete
+  README-Sätze, dabei fiel der Hinweis „Abweichung Kassenbuch/YNAB“ aus, jetzt Vergleich mit `ActivityInYnab`),
+  budgeting-nyx75 (Kategorie-Gruppe deaktivieren, Skizze Version 4), budgeting-yx51n (Budget-Rahmen aus BB, ADR 0101
+  Teil 2). Review-Lauf mit allen vier Agents, Funde behoben in 9bcdb44e..f4b8838c (darunter: Wisch und Abflug im
+  Durchgehen beachteten die Sperre von „Später“ nicht), dazu der Gate-Flake `targets-pruefen-nicht-neu-gelesen`
+  behoben (118819ea). Gate auf 118819ea: VERIFY: PASS (dotnet 5583, node 358). Nicht gepusht, nicht deployt.
+  **Deploy erst zusammen mit budgeting-ffjk9** (Nachziehen beim Öffnen, jetzt baubar, Backlog): ohne es sieht die
+  Budget-Seite neue Einnahmen in „Zu verteilen“, Zuweisungen in YNAB und neue Kategorien erst nach dem nächsten Befehl
+  auf dem Monat. Offen für Roman: [human-eye] cyd1t und nyx75 am Gerät, ffjk9 verfeinern und promoten, banking-import-y7m4r
+  (FinTS-Sonde). Restliche Gate-Flakes in der Kann-Sammlung infrastructure.
 
 - **2026-11-20 abends:** Romans Prüfliste zu ledger-vf5h6 (Gruppen 14 bis 19) durch, ein Fund: „Letzte rückgängig“
   in der Endansicht des Durchgehens gestrichen (4be9c698, deployt). Gate schneller: Layout-Sweep nur noch bei 412 und

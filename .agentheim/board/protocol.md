@@ -5,10 +5,22 @@ Newest entries on top.
 
 ---
 
+## 2026-11-21 11:18 -- Review-Lauf: 215238f8..7a2bfa6d
+
+**Type:** Review / Review-Lauf
+**Bereich:** ledger-sbbh8, ledger-cyd1t, budgeting-m5pqn, budgeting-nyx75, budgeting-yx51n
+**Agents:** review-backend, review-frontend, review-design, review-tests
+**Funde:** behoben 26, verworfen 2, Rückfrage 0, Ticket 0, Kann-Sammlung 2
+**Commits:** 9bcdb44e, 4b0f1458, 5117059b, 169f24e0, dea8cc80, f4b8838c, 118819ea (Gate-Flake targets-pruefen-nicht-neu-gelesen)
+**Verworfen:** Aktivieren einer Gruppe ohne YNAB-Port (Token ist immer da, kein Nutzen); Leuchten des Gruppenkopfs auch nach Umbenennen (laut Kommentar gewollt)
+**Verifikation:** VERIFY: PASS (dotnet 5583 grün, node 358 grün) auf 118819ea
+
+---
+
 ## 2026-11-21 03:33 -- Work session ended
 
 **Type:** Work / Session end
-**Duration:** 4h05m
+**Duration:** 3h45m
 **Completed:** 5 (first-try PASS: 4, re-dispatched: 1, skipped: 0)
 **Bounced:** 0
 **Failed:** 0
