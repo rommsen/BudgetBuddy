@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-21 03:15 -- Task verified and completed: budgeting-nyx75 - "Kategorie-Gruppe in BB deaktivieren: die Gruppe verschwindet samt ihren Kategorien aus Budget-Liste und Pickern, in YNAB bleibt sie"
+
+**Type:** Work / Task completion
+**Task:** budgeting-nyx75 - "Kategorie-Gruppe in BB deaktivieren: die Gruppe verschwindet samt ihren Kategorien aus Budget-Liste und Pickern, in YNAB bleibt sie"
+**Summary:** Kategorie-Gruppe in BB deaktivieren, in YNAB bleibt sie
+**Duration:** 1h35m
+**Verification:** PASS (iteration 1)
+**Files changed:** 31
+**Tests added:** 36
+**ADRs written:** none
+
+---
+
 ## 2026-11-21 02:10 -- Batch started: [budgeting-yx51n, budgeting-nyx75]
 
 **Type:** Work / Batch start

@@ -127,6 +127,7 @@
     <Compile Include="CategoryLayoutFixture.fs" />
     <Compile Include="CategoryAdminTests.fs" />
     <Compile Include="CategoryLayoutTests.fs" />
+    <Compile Include="CategoryGroupLayoutTests.fs" />
     <Compile Include="PinnedCategoriesTests.fs" />
     <Compile Include="RemotingPipelineTests.fs" />
     <Compile Include="RemotingEndpointNegativeTests.fs" />

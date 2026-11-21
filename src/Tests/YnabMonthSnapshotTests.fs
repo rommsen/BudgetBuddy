@@ -20,6 +20,7 @@ let private category (id: Guid) (name: string) (assigned: decimal) (activity: de
     { Id = id
       Name = name
       GroupName = "Alltag"
+      GroupId = None
       Assigned = eur assigned
       Activity = eur activity
       Available = eur available

@@ -257,7 +257,7 @@ let private takeoverTests =
                 { Month = "2026-11-01"
                   ToBeBudgeted = eur 0m
                   Categories =
-                    [ { Id = k; Name = "x"; GroupName = "g"; Assigned = eur 0m; Activity = eur 0m; Available = eur 0m
+                    [ { Id = k; Name = "x"; GroupName = "g"; GroupId = None; Assigned = eur 0m; Activity = eur 0m; Available = eur 0m
                         Target = target; Hidden = true; Deleted = false; Internal = false } ] }
             let waiting skip from target = awaitingTakeover skip from (monthWith target)
             Expect.equal (waiting Set.empty "2026-11-01" (Some fifty)) (Set.ofList [ k ]) "Goal ohne Führung, auch ausgeblendet"
@@ -537,7 +537,7 @@ let private takeoverFlowTests =
                 { Month = monthKey
                   ToBeBudgeted = eur 0m
                   Categories =
-                    [ { Id = k; Name = "Urlaub"; GroupName = "Rücklagen"; Assigned = eur 0m; Activity = eur 0m; Available = eur 0m
+                    [ { Id = k; Name = "Urlaub"; GroupName = "Rücklagen"; GroupId = None; Assigned = eur 0m; Activity = eur 0m; Available = eur 0m
                         Target = Some fifty; Hidden = false; Deleted = false; Internal = false } ] }
             let probe = GoalsProbe [ { Id = k; Name = "Urlaub"; Target = Some fifty } ]
             let port : CommandHandlers.YnabPort =
@@ -565,7 +565,7 @@ let private takeoverFlowTests =
                 { Month = monthKey
                   ToBeBudgeted = eur 0m
                   Categories =
-                    [ { Id = k; Name = "Urlaub"; GroupName = "Rücklagen"; Assigned = eur 0m; Activity = eur 0m; Available = eur 0m
+                    [ { Id = k; Name = "Urlaub"; GroupName = "Rücklagen"; GroupId = None; Assigned = eur 0m; Activity = eur 0m; Available = eur 0m
                         Target = Some fifty; Hidden = false; Deleted = false; Internal = false } ] }
             let port : CommandHandlers.YnabPort =
                 { FetchMonth = fun _ -> async { return Ok raw }
@@ -641,7 +641,7 @@ let private takeoverFlowTests =
                 { Month = current
                   ToBeBudgeted = eur 0m
                   Categories =
-                    [ { Id = k; Name = "Urlaub"; GroupName = "Rücklagen"; Assigned = eur 0m; Activity = eur 0m; Available = eur 0m
+                    [ { Id = k; Name = "Urlaub"; GroupName = "Rücklagen"; GroupId = None; Assigned = eur 0m; Activity = eur 0m; Available = eur 0m
                         Target = Some fifty; Hidden = false; Deleted = false; Internal = false } ] }
             let probe = GoalsProbe [ { Id = k; Name = "Urlaub"; Target = None } ]
             let port : CommandHandlers.YnabPort =
@@ -663,7 +663,7 @@ let private takeoverFlowTests =
                 { Month = "2026-10-01"
                   ToBeBudgeted = eur 0m
                   Categories =
-                    [ { Id = k; Name = "Urlaub"; GroupName = "Rücklagen"; Assigned = eur 0m; Activity = eur 0m; Available = eur 0m
+                    [ { Id = k; Name = "Urlaub"; GroupName = "Rücklagen"; GroupId = None; Assigned = eur 0m; Activity = eur 0m; Available = eur 0m
                         Target = Some fifty; Hidden = false; Deleted = false; Internal = false } ] }
             let probe = GoalsProbe [ { Id = k; Name = "Urlaub"; Target = Some fifty } ]
             let port : CommandHandlers.YnabPort =
@@ -684,7 +684,7 @@ let private takeoverFlowTests =
                 { Month = monthKey
                   ToBeBudgeted = eur 100m
                   Categories =
-                    [ { Id = k; Name = "Urlaub"; GroupName = "Rücklagen"; Assigned = eur 0m; Activity = eur 0m; Available = eur 0m
+                    [ { Id = k; Name = "Urlaub"; GroupName = "Rücklagen"; GroupId = None; Assigned = eur 0m; Activity = eur 0m; Available = eur 0m
                         Target = Some fifty; Hidden = false; Deleted = false; Internal = false } ] }
             let patches = ResizeArray<Guid>()
             let port : CommandHandlers.YnabPort =
@@ -750,7 +750,7 @@ let private takeoverFlowTests =
                                     { Month = monthKey
                                       ToBeBudgeted = eur 0m
                                       Categories =
-                                        [ { Id = k; Name = "Urlaub"; GroupName = "Rücklagen"; Assigned = eur 0m; Activity = eur 0m
+                                        [ { Id = k; Name = "Urlaub"; GroupName = "Rücklagen"; GroupId = None; Assigned = eur 0m; Activity = eur 0m
                                             Available = eur 0m; Target = Some { fifty with Goal = eur 99m }
                                             Hidden = false; Deleted = false; Internal = false } ] }
                         }

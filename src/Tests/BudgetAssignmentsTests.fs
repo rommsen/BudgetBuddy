@@ -27,6 +27,7 @@ let private raw (categories: (Guid * int64) list) : YnabMonth =
             { Id = id
               Name = "K"
               GroupName = "G"
+              GroupId = None
               Assigned = eur assigned
               Activity = eur 0L
               Available = eur assigned

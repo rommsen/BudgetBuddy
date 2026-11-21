@@ -1,7 +1,7 @@
 ---
 id: budgeting-nyx75
 title: "Kategorie-Gruppe in BB deaktivieren: die Gruppe verschwindet samt ihren Kategorien aus Budget-Liste und Pickern, in YNAB bleibt sie"
-status: doing
+status: done
 type: feature
 context: budgeting
 created: 2026-11-20
@@ -141,3 +141,54 @@ Version 4, von Roman am 2026-11-20 freigegeben)
   `BotApi.fs` `getCategories`), Zeile in der Kann-Sammlung budgeting, kein Ticket.
 - Heutige Seite für die Skizze: `npm run screenshot:route` auf `/budget/categories`, Layout-Zustände `kategorien` und
   `kategorien-deaktiviert`.
+
+## Outcome
+
+Kategoriegruppe in BB deaktivieren ist gebaut (Nachtrag ADR 0088 vom 2026-11-20). `./verify.sh` endet mit `VERIFY: PASS` (dotnet 5570 grün, node 358 grün). Die ersten beiden Läufe waren nur durch bekannte oder lastbedingte Flakes rot (Layout-Zustand `targets-pruefen-nicht-neu-gelesen @ 412 px`, Zeitgrenze des Kassenbuch-Tests AC14 mit 1000 Buchungen, einmal `[flow:design-system-export]` mit Timeout unter Last, allein grün), der dritte Lauf war grün. Das README-Delta ist mit `npm run check:readme-delta -- --bc budgeting` geprüft (Exit 0, „Ganz nachlesen: keine Einträge“).
+
+**Zustand und Regeln (rein, `src/Shared/Budgeting.fs`)**
+- `CategoryLayout` hat `DeactivatedGroups: Set<Guid>`, neuer Typ `CategoryGroupActiveSave`, `ManagedCategoryGroup` hat das Pflichtfeld `Active`.
+- `effectiveDeactivated layout placements` (wirksam deaktiviert: eigenes Flag oder Gruppe deaktiviert, nach YNABs heutiger Zuordnung), `monthPlacements` (Gruppe und Kategorie aus einem gelesenen Monat), `groupDeactivationCheck` (reiht die Sätze aus `deactivationCheck` je Kategorie in der übergebenen Reihenfolge). `pickerCategories` nimmt jetzt das wirksame Set statt des Layouts.
+- `YnabMonthCategory` hat `GroupId: Guid option`. Entscheidung zum Lesepfad (Task-Text älter als budgeting-m5pqn): der Monats-Decoder liest `category_group_id`, und der YNAB-Stand speichert sie in der neuen Spalte `ynab_month_snapshot_categories.group_id` (`ALTER TABLE` mit Abfangen von „duplicate column name“, in `createYnabMonthSnapshotSchemaOn`, nicht in `initializeBudgetingSchema`). So liest die Budget-Seite die Zuordnung aus dem Stand ohne YNAB-Aufruf (ADR 0101 Punkt 1), Targets anwenden aus dem ohnehin gelesenen Monat. Ein Stand von vor der Spalte liest sich ohne Gruppe, bis das nächste Beobachten ihn ersetzt (höchstens bis zum nächsten Befehl auf dem Monat oder zur Übernahme). `YnabMonth` wird sonst nirgends serialisiert gespeichert.
+- `arrangeGroups` setzt `Active` der Gruppe aus `DeactivatedGroups`, die Kategorien behalten ihren eigenen Zustand (nicht das wirksame Set): nur so kann der Client nach „Aktivieren“ die vorher einzeln deaktivierten Kategorien wieder einzeln zeigen. Auf der Seite wirkt das wie das wirksame Set, weil eine deaktivierte Gruppe nur als ein Eintrag erscheint.
+
+**Server**
+- `src/Server/Budgeting/Persistence.fs`: Tabelle `budget_category_group_layout` (`group_id`, `deactivated`, `updated_at`), angelegt in `createCategoryLayoutSchemaOn` (läuft in `initializeBudgetingSchema`, `initializeBudgetingSchema` selbst ist unverändert, Rücksicht auf budgeting-yx51n), `setCategoryGroupActiveOn`, `loadCategoryLayoutOn` liest beide Tabellen.
+- `src/Server/Budgeting/Categories.fs`: `setCategoryGroupActiveWith` (Aktivieren ohne Prüfung und ohne YNAB; Deaktivieren: `FetchGroups`, unbekannte Gruppe „Gruppe nicht gefunden.“ ohne Monat, genau ein `FetchMonth`, BBs Soll künftiger Monate für alle Kategorien der Gruppe in einer Abfrage über das neue `futureAssignedForOn`, geprüft wird jede nicht gelöschte Kategorie der Gruppe laut Monat, auch ausgeblendete und einzeln deaktivierte, in BBs Reihenfolge; „Künftige Monate nicht lesbar, Gruppe nicht deaktiviert.“). `saveCategory` bekommt `loadLayout` und prüft gegen die Liste mit BBs Gruppenzustand; ist der Zustand nicht lesbar, wird nichts geschrieben. `pickerOptionsWith` nutzt das wirksame Set.
+- `QueryHandlers.deactivatedForPage` und `CommandHandlers.deactivatedForTargets` lesen das wirksame Set aus dem Monat (`preparedMonth` gibt dafür den rohen Monat mit zurück).
+- `src/Server/Validation.fs`: `validateCategorySave` lehnt Anlegen in und Verschieben in eine deaktivierte Gruppe ab („Gruppe Wohnen ist in BB deaktiviert.“, eine Kategorie, die schon darin steht, bleibt unberührt); `validateCategoryGroupActiveSave` („Keine Gruppe angegeben.“).
+- `src/Shared/Api.fs` und `src/Server/Api.fs`: Endpoint `CategoryApi.setCategoryGroupActive`.
+
+**Client** (`Components/Budget/Categories.fs`, `CategoriesView.fs`)
+- Am Gruppenkopf „Bearbeiten“ (Name „Gruppe Wohnen bearbeiten“, `EditGroup`), Formular „Gruppe bearbeiten“ mit Schalter „Aktiv“ (`Input.switchRow`, `GroupActiveSwitchText`). Schalter und Name zugleich: erst `setCategoryGroupActive`, dann der Name nach YNAB. Ablehnung am Schalter (`ErrorDisplay.inline'`, `FailedCall = SavingGroupActive`), nie als Toast.
+- Abschnitt „Deaktiviert (n)“ über `inactiveEntries`: Gruppen (YNABs Folge) als ein Eintrag mit „Gruppe · n Kategorien“ bzw. „Gruppe · keine Kategorien“ (`inactiveGroupDetail`) und „Aktivieren“ („Gruppe Wohnen aktivieren“), dann die einzeln deaktivierten Kategorien aktiver Gruppen; n zählt die Einträge.
+- Nach dem Deaktivieren: Abschnitt aufgeklappt, Eintrag leuchtet, rollt ins Bild, trägt `DeactivatedNotice`. Nach dem Aktivieren: Gruppe wieder an ihrer Stelle, Kopf leuchtet und rollt ins Bild. Scheitert es: „Nicht aktiviert: …“ rot am Eintrag.
+- Gruppenauswahl und Vorbelegung von „+ Kategorie“ nur mit aktiven Gruppen (`activeGroups`), ↑↓ am PC übergehen deaktivierte Gruppen.
+
+**Tests**
+- Neu `src/Tests/CategoryGroupLayoutTests.fs` (25 Tests): wirksam deaktiviert (eigene Flags und Gruppe, Hinein- und Herausschieben, Gruppe ohne Placements), `groupDeactivationCheck` (ohne Geld, leer, positiv, negativ, künftig, Reihenfolge), `applyDeactivation` mit wirksamem Set; Handler mit In-Memory-SQLite und zählendem Port (Deaktivieren und Aktivieren überleben einen neuen Lese-Durchgang, genau ein `FetchMonth`, Aktivieren ruft YNAB nicht, Aktivieren lässt eine einzeln deaktivierte Kategorie deaktiviert und die Reihenfolge stehen, ausgeblendete und einzeln deaktivierte Kategorie mit Geld lehnt ab, künftige Zuweisung über echte Übernahme, leere Gruppe, unbekannte Gruppe ohne `FetchMonth`, Soll nicht lesbar, Kategorie-Spiegel überschreibt nichts); `getCategories`-Optionen; Budget-Seite einmal beobachtet und einmal aus dem gespeicherten Stand (prüft auch die neue Spalte); Monats-Decoder; Targets Vorschau und Anwenden; Validierung (Anlegen und Verschieben ohne YNAB-Schreiben, Zustand nicht lesbar, leere Guid); Endpoint über `categoryApiWith` (Berliner Monat am Monatswechsel, übergebene Datenbank, `saveCategory` liest den Zustand von dort).
+- Gegenproben von Hand: `deactivatedForPage`, `deactivatedForTargets` und `pickerOptionsWith` auf `layout.Deactivated` zurückgestellt: Seiten-, Picker- und Targets-Test werden rot (Mutantenliste genau diese drei), danach wiederhergestellt.
+- `src/Tests/CategoryAdminClientTests.fs`: Sperre beim Speichern über alle Folgen bis Länge 3 jetzt auch mit Gruppen-Schalter allein und mit Schalter und Name zugleich (Orakel erweitert um `SavingGroupActive`); 10 neue Fälle (Titel und Schalter nur für bestehende Gruppe, Deaktivieren, Ablehnung am Schalter, Schalter und Name, Aktivieren samt Fehler am Eintrag, einzeln deaktivierte bleibt nach Aktivieren der Gruppe einzeln, Abschnitt Deaktiviert mit Gruppen vor Kategorien und Zählung, Gruppenauswahl und Vorbelegung, Tasten, Angepinnt Block und Sheet ohne Kategorien deaktivierter Gruppen).
+- `RemotingEndpointNegativeTests.fs`: Zeile `CategoryApi.setCategoryGroupActive` (leere Gruppe an der Grenze, ohne Einrichtung). `StructureGuardTests.apiWirings`: Verdrahtung von `setCategoryGroupActiveWith` (Datenbank, Berliner Monat, Uhr) und `saveCategory` mit BBs Zustand, je mit Gegenbeweis. Das wirksame Set in Picker, Seite und Targets ist auf Verhaltensebene belegt (Gegenproben oben); die Live-Verdrahtung des Pickers (`pickerOptionsWith … loadCategoryLayout`) stand schon im Wächter.
+- Fixtures: `Active` je Gruppe in `scripts/layout-states.mjs` (keine weitere Fixture in `scripts/*.test.mjs` liefert `ManagedCategoryGroup`). Neue Layout-Zustände `kategorien-gruppe-deaktiviert` (Abschnitt aufgeklappt, eine Gruppe mit langem Namen und eine einzelne Kategorie) und `kategorien-gruppe-bearbeiten` (Formular mit Schalter), Handy und PC, ohne Verletzung.
+- In 13 Testdateien `GroupId = None` an `YnabMonthCategory` nachgezogen (reine Feldergänzung).
+
+**Vergleich mit der Skizze (Version 4, Abschnitt 2)** [human-eye, bleibt offen für Roman am Gerät], BB mit Mock-Daten:
+- `/private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/2f547bf2-b03c-403f-becf-43160bc54c80/scratchpad/nyx75/bb-nyx75-handy-F-liste.png`
+- `/private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/2f547bf2-b03c-403f-becf-43160bc54c80/scratchpad/nyx75/bb-nyx75-handy-G-abgelehnt.png`
+- `/private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/2f547bf2-b03c-403f-becf-43160bc54c80/scratchpad/nyx75/bb-nyx75-handy-H-nach-deaktivieren.png`
+- `/private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/2f547bf2-b03c-403f-becf-43160bc54c80/scratchpad/nyx75/bb-nyx75-pc-F-liste.png`
+- `/private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/2f547bf2-b03c-403f-becf-43160bc54c80/scratchpad/nyx75/bb-nyx75-pc-G-abgelehnt.png`
+- `/private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/2f547bf2-b03c-403f-becf-43160bc54c80/scratchpad/nyx75/bb-nyx75-pc-H-nach-deaktivieren.png`
+(Skript dazu: `/private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/2f547bf2-b03c-403f-becf-43160bc54c80/scratchpad/nyx75/shots.mjs`)
+
+Abweichungen:
+- Der Gruppenname am Kopf steht in Versalien klein (`ListRoles.groupHeader`, BB heute), die Skizze zeigt ihn normal geschrieben und fett. BB gilt, weil die Skizze den Kopf nur um „Bearbeiten“ ändert.
+- Die Ablehnung am Schalter trägt das Fehler-Icon von `ErrorDisplay.inline'` (Task schreibt den Baustein vor), die Skizze zeigt nur roten Text.
+- Am Handy ist „Aktivieren“ 48 px hoch (Trefferfläche nach Styleguide), in der Skizze flacher; am PC wie in der Skizze.
+
+Kann-Sammlung budgeting (Zeilen):
+- Kassenbuch-Filter (`CategoryMultiSelect`) und Bob (`BotApi.getCategories`) bieten Kategorien einer deaktivierten Gruppe weiter an, wie bei einzeln deaktivierten (bekannte Lücke aus budgeting-sn2sn).
+- Ein YNAB-Stand von vor der Spalte `group_id` kennt die Gruppe nicht: bis zum nächsten Beobachten des Monats zeigt die Budget-Seite die Kategorien einer frisch deaktivierten Gruppe noch (kein Geld wird unsichtbar, nur eine Zeile zu viel).
+- Der Styleguide zeigt `Button.quietTextFor` weiter mit „Umbenennen“ als Beispieltext.
+- Der Satz unter „Was hier nicht passiert“ im README (Kategorien anlegen oder umbenennen bleibt in YNAB) ist seit budgeting-pscgb überholt.

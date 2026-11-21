@@ -734,8 +734,12 @@ let validateCategoryGroupName (name: string) : Result<string, string list> =
     elif name.Trim().Length > Shared.Budgeting.CategoryGroupNameMaxLength then Error [ GroupNameTooLongText ]
     else Ok (name.Trim())
 
-/// Kategorie anlegen oder bearbeiten gegen die Liste aus YNAB. Sammelt alle Gründe: leerer Name, unbekannte
-/// Kategorie, unbekannte Gruppe, Name schon in derselben Gruppe. Ok trägt, was nach YNAB geht.
+/// Die Meldung, wenn eine Kategorie in eine in BB deaktivierte Gruppe soll (budgeting-nyx75).
+let categoryGroupDeactivatedText (groupName: string) : string = $"Gruppe {groupName} ist in BB deaktiviert."
+
+/// Kategorie anlegen oder bearbeiten gegen die Liste aus YNAB mit BBs Zustand der Gruppen. Sammelt alle Gründe: leerer
+/// Name, unbekannte Kategorie, unbekannte Gruppe, Name schon in derselben Gruppe, Anlegen in oder Verschieben in eine
+/// in BB deaktivierte Gruppe (budgeting-nyx75). Ok trägt, was nach YNAB geht.
 let validateCategorySave
     (groups: Shared.Budgeting.ManagedCategoryGroup list)
     (save: Shared.Budgeting.CategorySave)
@@ -758,7 +762,14 @@ let validateCategorySave
               let taken =
                   group.Categories
                   |> List.exists (fun c -> Some c.Id <> save.CategoryId && not (String.IsNullOrWhiteSpace name) && sameName c.Name name)
-              if taken then $"In der Gruppe {group.Name} gibt es schon eine Kategorie {name}." ]
+              if taken then $"In der Gruppe {group.Name} gibt es schon eine Kategorie {name}."
+              // budgeting-nyx75: in eine in BB deaktivierte Gruppe legt BB nichts an und verschiebt nichts dorthin.
+              // Eine Kategorie, die schon darin steht, bleibt unberührt.
+              let alreadyThere =
+                  match current with
+                  | Some (Some (g, _)) -> g.Id = group.Id
+                  | _ -> false
+              if not group.Active && not alreadyThere then categoryGroupDeactivatedText group.Name ]
     match errors, current with
     | [], None -> Ok (CreateCategoryIn (save.GroupId, name))
     | [], Some (Some (group, category)) ->
@@ -790,6 +801,14 @@ let validateCategoryGroupSave
     | [], None -> Ok (CreateGroup name)
     | [], Some (Some group) -> if group.Name = name then Ok (GroupUnchanged group.Id) else Ok (RenameGroup (group.Id, name))
     | _ -> Error errors
+
+/// Die Meldung, wenn Aktivieren oder Deaktivieren keine Gruppe nennt (budgeting-nyx75).
+[<Literal>]
+let GroupActiveGroupMissingText = "Keine Gruppe angegeben."
+
+/// Gruppe aktivieren oder deaktivieren an der Grenze (budgeting-nyx75): die Gruppe muss genannt sein.
+let validateCategoryGroupActiveSave (save: Shared.Budgeting.CategoryGroupActiveSave) : Result<unit, string list> =
+    if save.GroupId = Guid.Empty then Error [ GroupActiveGroupMissingText ] else Ok ()
 
 /// Die Meldung, wenn die Reihenfolge keine Gruppe nennt.
 [<Literal>]

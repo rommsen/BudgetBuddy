@@ -355,10 +355,12 @@ const takeEssen = async (page) => {
 
 // budgeting-pscgb: die Seite Kategorien mit langen Namen von Gruppe und Kategorie.
 // budgeting-sn2sn: je Kategorie `Active`, zwei deaktivierte (eine mit langem Namen) für den Abschnitt "Deaktiviert".
+// budgeting-nyx75: je Gruppe `Active` (Pflichtfeld in `ManagedCategoryGroup`).
 const categoryGroups = [
   {
     Id: guid(901),
     Name: "Alltag",
+    Active: true,
     Categories: [
       { Id: guid(1), Name: "Essen", Active: true },
       { Id: guid(2), Name: LONG_CATEGORY, Active: true },
@@ -368,17 +370,45 @@ const categoryGroups = [
   {
     Id: guid(902),
     Name: "Eine Gruppe mit einem langen Namen bis an die Grenze",
+    Active: true,
     Categories: [
       { Id: guid(3), Name: "Kinderkram", Active: true },
       { Id: guid(5), Name: `Alter Kredit ${LONG_CATEGORY}`, Active: false },
     ],
   },
-  { Id: guid(903), Name: "Leer", Categories: [] },
+  { Id: guid(903), Name: "Leer", Active: true, Categories: [] },
+];
+
+// budgeting-nyx75: eine deaktivierte Gruppe mit langem Namen (ein Eintrag im Abschnitt "Deaktiviert") und eine einzeln
+// deaktivierte Kategorie einer aktiven Gruppe.
+const categoryGroupsWithInactiveGroup = [
+  {
+    Id: guid(901),
+    Name: "Alltag",
+    Active: true,
+    Categories: [
+      { Id: guid(1), Name: "Essen", Active: true },
+      { Id: guid(4), Name: "Fitnessstudio", Active: false },
+    ],
+  },
+  {
+    Id: guid(902),
+    Name: "Eine Gruppe mit einem langen Namen bis an die Grenze",
+    Active: false,
+    Categories: [
+      { Id: guid(3), Name: "Kinderkram", Active: true },
+      { Id: guid(5), Name: "Spielzeug", Active: true },
+    ],
+  },
 ];
 
 async function mockCategoryAdmin(page) {
   await mockBudget(page);
   await page.route("**/api/CategoryApi/getCategoryGroups", (r) => json(r, { Ok: categoryGroups }));
+}
+async function mockCategoryAdminInactiveGroup(page) {
+  await mockBudget(page);
+  await page.route("**/api/CategoryApi/getCategoryGroups", (r) => json(r, { Ok: categoryGroupsWithInactiveGroup }));
 }
 
 // budgeting-sx9v5: Speichern gelingt, das stille Neuladen danach scheitert; die Reihenfolge wird abgelehnt.
@@ -1347,6 +1377,29 @@ export const STATES = [
     open: async (page) => {
       await page.locator('[data-testid="categories-inactive-toggle"]').click();
       await page.locator('[data-testid="categories-inactive-row"]').first().waitFor();
+    },
+  },
+  // budgeting-nyx75: eine deaktivierte Gruppe als ein Eintrag (langer Name) vor einer einzeln deaktivierten Kategorie,
+  // der Abschnitt aufgeklappt.
+  {
+    name: "kategorien-gruppe-deaktiviert",
+    route: "/budget/categories",
+    widths: [HANDY_WIDTH, PC_WIDTH],
+    mock: mockCategoryAdminInactiveGroup,
+    open: async (page) => {
+      await page.locator('[data-testid="categories-inactive-toggle"]').click();
+      await page.locator('[data-testid="categories-inactive-group"]').first().waitFor();
+    },
+  },
+  // budgeting-nyx75: „Bearbeiten“ am Gruppenkopf öffnet „Gruppe bearbeiten“ mit dem Schalter „Aktiv“.
+  {
+    name: "kategorien-gruppe-bearbeiten",
+    route: "/budget/categories",
+    widths: [HANDY_WIDTH, PC_WIDTH],
+    mock: mockCategoryAdmin,
+    open: async (page) => {
+      await page.locator('[data-testid="categories-edit-group"]').first().click();
+      await page.locator('[data-testid="categories-group-active"]:visible').first().waitFor();
     },
   },
   // budgeting-pscgb: Tipp auf eine Kategorie öffnet das Formular, am PC als Panel rechts, am Handy im Sheet.

@@ -1,6 +1,7 @@
 /// Die Seite Kategorien `#/budget/categories` (budgeting-pscgb, Form nach Prototyp Version 17): Kopf mit Zurück und
-/// Titel, ein Satz Erklärung, je Gruppe ein Abschnitt mit "Umbenennen" und einer Karte mit den Kategorien, darunter
-/// "+ Kategorie" und "+ Gruppe", darunter der eingeklappte Abschnitt "Deaktiviert (n)" (budgeting-sn2sn). Jede
+/// Titel, ein Satz Erklärung, je aktiver Gruppe ein Abschnitt mit "Bearbeiten" (budgeting-nyx75) und einer Karte mit
+/// den Kategorien, darunter "+ Kategorie" und "+ Gruppe", darunter der eingeklappte Abschnitt "Deaktiviert (n)" mit
+/// deaktivierten Gruppen und Kategorien (budgeting-sn2sn, budgeting-nyx75). Jede
 /// Kategorie hat Pfeile hoch und runter für BBs Reihenfolge. Das Formular steht am Handy im Sheet, ab 1024 px als
 /// Panel rechts (§7.6).
 module Components.Budget.CategoriesView
@@ -57,29 +58,34 @@ let private header (dispatch: Msg -> unit) =
 
 let private groupSection (model: Model) (group: ManagedCategoryGroup) (dispatch: Msg -> unit) =
     let headLit = model.Mark = Some (GroupLit group.Id) && model.MarkLit
+    let head =
+        Html.div [
+            prop.custom ("data-testid", "categories-group-head")
+            prop.custom ("data-flash", headLit)
+            prop.className ("-mx-1 flex items-center justify-between gap-3 min-w-0 rounded-md px-1 " + (if headLit then Feedback.flash else ""))
+            prop.children [
+                Html.h2 (Truncate.textProps ListRoles.groupHeader group.Name)
+                Html.div [
+                    prop.className "shrink-0"
+                    prop.children [
+                        Button.quietTextFor
+                            "categories-edit-group"
+                            $"Gruppe {group.Name} bearbeiten"
+                            "Bearbeiten"
+                            (fun () -> dispatch (EditGroup group.Id))
+                    ]
+                ]
+            ]
+        ]
     Html.section [
         prop.key (string group.Id)
         prop.custom ("data-testid", "categories-group")
         prop.className "flex flex-col gap-2"
         prop.children [
-            Html.div [
-                prop.custom ("data-testid", "categories-group-head")
-                prop.custom ("data-flash", headLit)
-                prop.className ("-mx-1 flex items-center justify-between gap-3 min-w-0 rounded-md px-1 " + (if headLit then Feedback.flash else ""))
-                prop.children [
-                    Html.h2 (Truncate.textProps ListRoles.groupHeader group.Name)
-                    Html.div [
-                        prop.className "shrink-0"
-                        prop.children [
-                            Button.quietTextFor
-                                "categories-rename-group"
-                                $"Gruppe {group.Name} umbenennen"
-                                "Umbenennen"
-                                (fun () -> dispatch (RenameGroup group.Id))
-                        ]
-                    ]
-                ]
-            ]
+            // Umbenannt oder wieder aktiv: der Kopf leuchtet kurz; nach dem Aktivieren rollt er ins Bild (budgeting-nyx75).
+            match model.Mark with
+            | Some (GroupLit id) when id = group.Id -> Revealed $"{group.Id}-{model.MarkCount}" head
+            | _ -> head
             // Scheiterte die Reihenfolge, steht der Grund rot unter dem Kopf, bis zur nächsten Aktion.
             match model.Mark with
             | Some (OrderFailed (groupId, message)) when groupId = group.Id ->
@@ -141,10 +147,11 @@ let private addButtons (dispatch: Msg -> unit) =
         ]
     ]
 
-/// Der Abschnitt "Deaktiviert (n)": eingeklappt eine Zeile mit Chevron, aufgeklappt eine Karte mit Name (gedämpft),
-/// Gruppe und "Aktivieren" je Kategorie. Ohne deaktivierte Kategorie fehlt er.
+/// Der Abschnitt "Deaktiviert (n)": eingeklappt eine Zeile mit Chevron, aufgeklappt eine Karte mit je Eintrag Name
+/// (gedämpft), darunter klein die Gruppe oder bei einer deaktivierten Gruppe "Gruppe · n Kategorien" (budgeting-nyx75),
+/// und "Aktivieren". Gruppen stehen vor den einzelnen Kategorien. Ohne Eintrag fehlt er.
 let private inactiveSection (model: Model) (groups: ManagedCategoryGroup list) (isOpen: bool) (dispatch: Msg -> unit) =
-    let inactive = inactiveCategories groups
+    let inactive = inactiveEntries groups
     if inactive.IsEmpty then
         Html.none
     else
@@ -163,18 +170,26 @@ let private inactiveSection (model: Model) (groups: ManagedCategoryGroup list) (
                     prop.className cardClass
                     prop.hidden (not isOpen)
                     prop.children [
-                        for group, category in inactive do
+                        for entry in inactive do
+                          let id, name, detail, label, testId, reactivate =
+                              match entry with
+                              | InactiveGroup group ->
+                                  group.Id, group.Name, inactiveGroupDetail group, $"Gruppe {group.Name} aktivieren",
+                                  "categories-inactive-group", ReactivateGroup group.Id
+                              | InactiveCategory (group, category) ->
+                                  category.Id, category.Name, group.Name, $"{category.Name} aktivieren",
+                                  "categories-inactive-row", Reactivate category.Id
                           let row =
                             Html.div [
-                                prop.key (string category.Id)
-                                prop.custom ("data-testid", "categories-inactive-row")
+                                prop.key (string id)
+                                prop.custom ("data-testid", testId)
                                 prop.className "flex items-center justify-between gap-3 px-4 py-2.5 min-h-[56px] border-b border-border-subtle last:border-b-0"
                                 prop.children [
                                     Html.div [
                                         prop.className "flex flex-col min-w-0"
                                         prop.children [
-                                            Truncate.text $"block {ListRoles.primarySize} {FontWeights.medium} {Colors.textMuted}" category.Name
-                                            Truncate.text $"block {ListRoles.secondary}" group.Name
+                                            Truncate.text $"block {ListRoles.primarySize} {FontWeights.medium} {Colors.textMuted}" name
+                                            Truncate.text $"block {ListRoles.secondary}" detail
                                         ]
                                     ]
                                     Button.view
@@ -182,20 +197,20 @@ let private inactiveSection (model: Model) (groups: ManagedCategoryGroup list) (
                                             Text = "Aktivieren"
                                             Variant = Button.Secondary
                                             Size = Button.Small
-                                            AriaLabel = Some $"{category.Name} aktivieren"
+                                            AriaLabel = Some label
                                             ClassName = Some "shrink-0"
-                                            OnClick = fun () -> dispatch (Reactivate category.Id) }
+                                            OnClick = fun () -> dispatch reactivate }
                                 ]
                             ]
                           // Deaktiviert: die Zeile leuchtet, darunter der Satz zu YNAB; Aktivieren abgelehnt: rot darunter.
                           let below (content: ReactElement) =
                               Html.div [ prop.className "px-4 pb-2.5 -mt-1"; prop.children [ content ] ]
                           match model.Mark with
-                          | Some (Deactivated id) when id = category.Id ->
+                          | Some (Deactivated markedId) when markedId = id ->
                               markedRow
-                                  (string category.Id)
+                                  (string id)
                                   model.MarkLit
-                                  (Revealed $"{category.Id}-{model.MarkCount}" row)
+                                  (Revealed $"{id}-{model.MarkCount}" row)
                                   (below (
                                       Html.p [
                                           prop.custom ("data-testid", "categories-deactivated-note")
@@ -203,9 +218,9 @@ let private inactiveSection (model: Model) (groups: ManagedCategoryGroup list) (
                                           prop.text DeactivatedNotice
                                       ]
                                   ))
-                          | Some (ReactivateFailed (id, message)) when id = category.Id ->
+                          | Some (ReactivateFailed (failed, message)) when failed = id ->
                               markedRow
-                                  (string category.Id)
+                                  (string id)
                                   false
                                   (Html.div [ prop.children [ row ] ])
                                   (below (Html.div [ prop.custom ("data-testid", "categories-reactivate-error"); prop.children [ ErrorDisplay.inline' message ] ]))
@@ -229,7 +244,8 @@ let private groupChoice (groups: ManagedCategoryGroup list) (editor: CategoryEdi
                 prop.className cardClass
                 prop.children [
                     PickerParts.ShortChoiceFor "categories-group-choice" (Some groupFieldSelector) [
-                        for group in groups ->
+                        // Eine in BB deaktivierte Gruppe steht nicht zur Wahl (budgeting-nyx75).
+                        for group in activeGroups groups ->
                             React.keyedFragment (
                                 group.Id,
                                 [ PickerParts.shortChoiceRow
@@ -285,7 +301,11 @@ let private formBody (model: Model) (groups: ManagedCategoryGroup list) (form: F
         prop.children [
             // Ein Fehler des Servers steht am Feld (Regel R3, `.claude/rules/task-ui-vorgaben.md`): Name und Gruppe am
             // Feld Name, das Deaktivieren am Schalter Aktiv.
-            let nameError = if form.FailedCall = Some SavingActive then None else form.Error
+            let nameError =
+                match form.FailedCall with
+                | Some SavingActive
+                | Some SavingGroupActive -> None
+                | _ -> form.Error
             Input.groupWithError
                 "Name"
                 nameError
@@ -334,7 +354,21 @@ let private formBody (model: Model) (groups: ManagedCategoryGroup list) (form: F
                     | _ -> ()
             // Auch Gruppennamen gehen nach YNAB (Entscheidung Roman im Review-Lauf nach budgeting-t7dka, Abweichung
             // von Prototyp Version 17).
-            | EditingGroup _ -> Html.p [ prop.className ListRoles.muted; prop.text "Der Name wird nach YNAB übertragen." ]
+            | EditingGroup editor ->
+                Html.p [ prop.className ListRoles.muted; prop.text "Der Name wird nach YNAB übertragen." ]
+                // Gruppe deaktivieren (budgeting-nyx75): Schalter wie bei der Kategorie, die Ablehnung steht am Schalter.
+                if editor.GroupId.IsSome then
+                    Input.switchRow
+                        "categories-group-active"
+                        "Aktiv"
+                        GroupActiveSwitchText
+                        editor.Active
+                        form.IsSaving
+                        (fun active -> dispatch (ActiveToggled active))
+                    match form.FailedCall, form.Error with
+                    | Some SavingGroupActive, Some message ->
+                        Html.div [ prop.custom ("data-testid", "categories-form-error"); prop.children [ ErrorDisplay.inline' message ] ]
+                    | _ -> ()
         ]
     ]
 
@@ -456,7 +490,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
                 match model.Groups with
                 | Failure message -> ErrorDisplay.card message (Some (fun () -> dispatch RetryLoad))
                 | Success groups ->
-                    for group in groups do
+                    for group in activeGroups groups do
                         groupSection model group dispatch
                     addButtons dispatch
                     inactiveSection model groups model.InactiveOpen dispatch

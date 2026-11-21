@@ -1905,7 +1905,9 @@ let categoryApiWith
         fun save ->
             match Validation.validateCategoryName save.Name with
             | Error errors -> refused errors
-            | Ok _ -> withPort (fun port -> Server.Budgeting.Categories.saveCategory port save)
+            | Ok _ ->
+                withPort (fun port ->
+                    Server.Budgeting.Categories.saveCategory (fun () -> Budgeting.Persistence.loadCategoryLayoutWith connect) port save)
       saveCategoryGroup =
         fun save ->
             match Validation.validateCategoryGroupName save.Name with
@@ -1920,7 +1922,14 @@ let categoryApiWith
                 match! Server.Budgeting.Categories.setCategoryOrderWith connect (utcNow ()) save with
                 | Ok () -> return Ok ()
                 | Error e -> return Error (ynabErrorText e)
-            } }
+            }
+      setCategoryGroupActive =
+        fun save ->
+            match Validation.validateCategoryGroupActiveSave save with
+            | Error errors -> refused errors
+            | Ok () ->
+                withPort (fun port ->
+                    Server.Budgeting.Categories.setCategoryGroupActiveWith connect port (currentMonth ()) (utcNow ()) save) }
 
 /// Die Seite Kategorien der laufenden App.
 let categoryApi (berlinZone: TimeZoneInfo) : CategoryApi =

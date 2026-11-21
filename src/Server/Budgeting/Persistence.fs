@@ -108,6 +108,29 @@ let createCategoryLayoutSchemaOn (conn: SqliteConnection) : unit =
            )"""
     )
     |> ignore
+    // Deaktivierte Kategoriegruppen (budgeting-nyx75, Nachtrag ADR 0088 vom 2026-11-20): eigener Zustand je Gruppe,
+    // nicht als Flag an jeder Kategorie. Der Kategorie-Spiegel berührt die Tabelle nie.
+    conn.Execute(
+        """CREATE TABLE IF NOT EXISTS budget_category_group_layout (
+               group_id    TEXT    NOT NULL PRIMARY KEY,
+               deactivated INTEGER NOT NULL DEFAULT 0,
+               updated_at  TEXT    NOT NULL
+           )"""
+    )
+    |> ignore
+
+/// Deaktiviert (`active = false`) oder aktiviert die Kategoriegruppe in BB (budgeting-nyx75). Der eigene Zustand ihrer
+/// Kategorien und BBs Reihenfolge bleiben unberührt, Aktivieren bringt so den Stand davor zurück.
+let setCategoryGroupActiveOn (conn: SqliteConnection) (groupId: Guid) (active: bool) (at: DateTime) : unit =
+    conn.Execute(
+        """INSERT INTO budget_category_group_layout (group_id, deactivated, updated_at)
+           VALUES (@group_id, @deactivated, @at)
+           ON CONFLICT(group_id) DO UPDATE SET deactivated = excluded.deactivated, updated_at = excluded.updated_at""",
+        {| group_id = string groupId
+           deactivated = (if active then 0 else 1)
+           at = at.ToString("o", CultureInfo.InvariantCulture) |}
+    )
+    |> ignore
 
 /// Eine gemerkte Stelle: Gruppe, Kategorie, Position.
 [<CLIMutable>]
@@ -152,7 +175,7 @@ let saveCategoryOrderOn (conn: SqliteConnection) (groupId: Guid) (categoryIds: G
         |> ignore)
     tx.Commit()
 
-/// Liest BBs Zustand der Kategorien: die deaktivierten und je Gruppe die gemerkte Reihenfolge.
+/// Liest BBs Zustand der Kategorien: die deaktivierten Kategorien und Gruppen und je Gruppe die gemerkte Reihenfolge.
 let loadCategoryLayoutOn (conn: SqliteConnection) : CategoryLayout =
     let deactivated =
         conn.Query<string>("SELECT category_id FROM budget_category_layout WHERE deactivated = 1")
@@ -167,7 +190,11 @@ let loadCategoryLayoutOn (conn: SqliteConnection) : CategoryLayout =
         |> Seq.groupBy (fun row -> Guid.Parse row.group_id)
         |> Seq.map (fun (groupId, rows) -> groupId, rows |> Seq.map (fun row -> Guid.Parse row.category_id) |> List.ofSeq)
         |> Map.ofSeq
-    { Deactivated = deactivated; Orders = orders }
+    let deactivatedGroups =
+        conn.Query<string>("SELECT group_id FROM budget_category_group_layout WHERE deactivated = 1")
+        |> Seq.map Guid.Parse
+        |> Set.ofSeq
+    { Deactivated = deactivated; DeactivatedGroups = deactivatedGroups; Orders = orders }
 
 /// Die Meldung, wenn BBs Zustand der Kategorien nicht lesbar ist.
 [<Literal>]
@@ -245,6 +272,7 @@ let createYnabMonthSnapshotSchemaOn (conn: SqliteConnection) : unit =
                category_id TEXT    NOT NULL,
                name        TEXT    NOT NULL,
                group_name  TEXT    NOT NULL,
+               group_id    TEXT,
                assigned    INTEGER NOT NULL,
                activity    INTEGER NOT NULL,
                available   INTEGER NOT NULL,
@@ -256,6 +284,12 @@ let createYnabMonthSnapshotSchemaOn (conn: SqliteConnection) : unit =
            )"""
     )
     |> ignore
+    // budgeting-nyx75: die Gruppe je Kategorie für eine in BB deaktivierte Gruppe. Ein Stand von vor der Spalte liest
+    // sich ohne Gruppe, bis das nächste Beobachten ihn ersetzt. SQLite kennt kein "ADD COLUMN IF NOT EXISTS".
+    try
+        conn.Execute("ALTER TABLE ynab_month_snapshot_categories ADD COLUMN group_id TEXT") |> ignore
+    with :? SqliteException as ex when ex.Message.Contains("duplicate column name") ->
+        ()
 
 /// Legt `events` (ADR 0083) an und überführt die früheren Budget-Tabellen nach `events` (budgeting-hyn77). Entfernt
 /// `category_month_activity` (budgeting-k5q2w: die Ausgaben der Periode kommen aus dem Kassenbuch) und
@@ -407,12 +441,13 @@ let internal writeYnabMonthSnapshotOn (conn: SqliteConnection) (tx: SqliteTransa
     for c in snapshot.Raw.Categories do
         conn.Execute(
             """INSERT INTO ynab_month_snapshot_categories
-                   (month, category_id, name, group_name, assigned, activity, available, goal, hidden, deleted, is_internal)
-               VALUES (@month, @id, @name, @groupName, @assigned, @activity, @available, @goal, @hidden, @deleted, @isInternal)""",
+                   (month, category_id, name, group_name, group_id, assigned, activity, available, goal, hidden, deleted, is_internal)
+               VALUES (@month, @id, @name, @groupName, @groupId, @assigned, @activity, @available, @goal, @hidden, @deleted, @isInternal)""",
             {| month = month
                id = string c.Id
                name = c.Name
                groupName = c.GroupName
+               groupId = c.GroupId |> Option.map string |> Option.toObj
                assigned = toMilliunits c.Assigned
                activity = toMilliunits c.Activity
                available = toMilliunits c.Available
@@ -432,6 +467,7 @@ type private SnapshotCategoryRow = {
     category_id: string
     name: string
     group_name: string
+    group_id: string option
     assigned: int64
     activity: int64
     available: int64
@@ -454,7 +490,7 @@ let internal loadYnabMonthSnapshotOn (conn: SqliteConnection) (month: string) : 
     | head :: _ ->
         let rows =
             conn.Query<SnapshotCategoryRow>(
-                """SELECT category_id, name, group_name, assigned, activity, available, goal, hidden, deleted, is_internal
+                """SELECT category_id, name, group_name, group_id, assigned, activity, available, goal, hidden, deleted, is_internal
                    FROM ynab_month_snapshot_categories WHERE month = @month ORDER BY rowid""",
                 {| month = month |}
             )
@@ -472,6 +508,7 @@ let internal loadYnabMonthSnapshotOn (conn: SqliteConnection) (month: string) : 
                 { Id = Guid.Parse r.category_id
                   Name = r.name
                   GroupName = r.group_name
+                  GroupId = r.group_id |> Option.map Guid.Parse
                   Assigned = euroOfMilliunits r.assigned
                   Activity = euroOfMilliunits r.activity
                   Available = euroOfMilliunits r.available

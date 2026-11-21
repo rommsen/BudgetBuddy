@@ -29,6 +29,7 @@ let private ynabCategory (id: Guid) (name: string) : YnabMonthCategory =
     { Id = id
       Name = name
       GroupName = "Alltag"
+      GroupId = None
       Assigned = eur 0m
       Activity = eur 0m
       Available = eur 0m

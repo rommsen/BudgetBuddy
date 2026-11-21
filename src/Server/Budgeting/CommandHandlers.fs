@@ -443,7 +443,7 @@ let private preparedMonth
     (port: YnabPort)
     (now: DateTime)
     (monthKey: string)
-    : Async<Result<BudgetMonth * Set<Guid> * MonthFold, YnabError>> =
+    : Async<Result<BudgetMonth * Set<Guid> * MonthFold * YnabMonth, YnabError>> =
     async {
         match! observeUnguarded connect port.FetchMonth now monthKey with
         | Error (FetchFailed e) -> return Error e
@@ -467,20 +467,21 @@ let private preparedMonth
                     | Error e -> return Error e
                     | Ok activity ->
                         let month = toBudgetMonthWith (Some observed.Fold.Categories) activity targets paused observed.Raw
-                        return Ok (month, paused, observed.Fold)
+                        return Ok (month, paused, observed.Fold, observed.Raw)
     }
 
 // ============================================
 // Vorschau
 // ============================================
 
-/// Die in BB deaktivierten Kategorien für Targets anwenden (budgeting-t7dka, ADR 0088 Punkt 2). Anders als die
-/// Budget-Seite (`deactivatedForPage`) ohne bestes Bemühen: ein leeres Set wiese deaktivierten Kategorien Geld zu,
-/// deshalb hält ein Lesefehler Vorschau und Anwenden auf.
-let private deactivatedForTargets (connect: unit -> SqliteConnection) : Async<Result<Set<Guid>, YnabError>> =
+/// Die in BB wirksam deaktivierten Kategorien für Targets anwenden (budgeting-t7dka, ADR 0088 Punkt 2): selbst
+/// deaktivierte und die einer deaktivierten Gruppe nach YNABs Zuordnung im gelesenen Monat `raw` (`effectiveDeactivated`,
+/// budgeting-nyx75). Anders als die Budget-Seite (`deactivatedForPage`) ohne bestes Bemühen: ein leeres Set wiese
+/// deaktivierten Kategorien Geld zu, deshalb hält ein Lesefehler Vorschau und Anwenden auf.
+let private deactivatedForTargets (connect: unit -> SqliteConnection) (raw: YnabMonth) : Async<Result<Set<Guid>, YnabError>> =
     async {
         match! Budgeting.Persistence.loadCategoryLayoutWith connect with
-        | Ok layout -> return Ok layout.Deactivated
+        | Ok layout -> return Ok (effectiveDeactivated layout (monthPlacements raw))
         | Error message -> return Error (YnabError.LocalReadFailed message)
     }
 
@@ -494,9 +495,13 @@ let private planOf (month: BudgetMonth) : Result<TargetPreview, YnabError> =
 /// Schritt von Vorschau und Anwenden, damit beide dieselben Zeilen ergeben (`chosenLinesIfCurrent`). Bleibt eine
 /// deaktivierte Kategorie wegen Aktivität oder Verfügbarem stehen, ist sie markiert und `targetApplicationLines`
 /// lässt sie weg. Ein Lesefehler des Zustands hält an (`deactivatedForTargets`).
-let private planWithoutDeactivated (connect: unit -> SqliteConnection) (month: BudgetMonth) : Async<Result<TargetPreview, YnabError>> =
+let private planWithoutDeactivated
+    (connect: unit -> SqliteConnection)
+    (raw: YnabMonth)
+    (month: BudgetMonth)
+    : Async<Result<TargetPreview, YnabError>> =
     async {
-        match! deactivatedForTargets connect with
+        match! deactivatedForTargets connect raw with
         | Error e -> return Error e
         | Ok deactivated -> return month |> applyDeactivation deactivated |> planOf
     }
@@ -534,7 +539,7 @@ let previewWithLedger
                         | Ok activity ->
                             return!
                                 toBudgetMonthWith (Some fold.Categories) (Some activity) targets paused raw
-                                |> planWithoutDeactivated connect
+                                |> planWithoutDeactivated connect raw
     })
 
 /// `previewWithLedger` mit dem Kassenbuch der Anwendung (`liveLedgerActivityPort`).
@@ -786,9 +791,10 @@ let applyWithLedger
     MonthGuard.exclusive monthKey (onceFor connect shown.CommandId answer (async {
         match! preparedMonth (Some ledger) connect (loadPausedCategoriesWith connect) port now monthKey with
         | Error e -> return Error e
-        | Ok (month, _, fold) ->
-            // In BB deaktivierte Kategorien bekommen kein Geld über Targets (budgeting-t7dka).
-            match! planWithoutDeactivated connect month with
+        | Ok (month, _, fold, raw) ->
+            // In BB deaktivierte Kategorien bekommen kein Geld über Targets (budgeting-t7dka), auch nicht die einer
+            // deaktivierten Gruppe (budgeting-nyx75).
+            match! planWithoutDeactivated connect raw month with
             | Error e -> return Error e
             | Ok fresh ->
                 match chosenLinesIfCurrent shown fresh with
@@ -912,7 +918,7 @@ let moveMoneyWith
     MonthGuard.exclusive monthKey (onceFor connect request.CommandId answer (async {
         match! preparedMonth None connect (loadPausedCategoriesWith connect) port now monthKey with
         | Error e -> return Error e
-        | Ok (month, _, fold) ->
+        | Ok (month, _, fold, _) ->
             match planMove month request with
             | Error message -> return Ok (Error message)
             | Ok plan -> return! recordAndSend connect port now monthKey request.CommandId answer fold plan
@@ -937,7 +943,7 @@ let assignMoneyWith
     MonthGuard.exclusive monthKey (onceFor connect request.CommandId answer (async {
         match! preparedMonth None connect (loadPausedCategoriesWith connect) port now monthKey with
         | Error e -> return Error e
-        | Ok (month, _, fold) ->
+        | Ok (month, _, fold, _) ->
             match planAssign month request with
             | Error message -> return Ok (Error message)
             | Ok None ->
@@ -988,7 +994,7 @@ let setTargetPauseWith
         MonthGuard.exclusive monthKey (onceFor connect request.CommandId answer (async {
             match! preparedMonth None connect loadPaused port now monthKey with
             | Error e -> return Error e
-            | Ok (month, pausedInBbRaw, _) ->
+            | Ok (month, pausedInBbRaw, _, _) ->
                 match planPause month pausedInBbRaw request with
                 | Error message -> return Ok (Error message)
                 | Ok plan ->

@@ -115,6 +115,8 @@ module Decoders =
                GroupName =
                    get.Optional.Field "category_group_name" Decode.string
                    |> Option.defaultValue ""
+               // Die Gruppe, über die eine in BB deaktivierte Gruppe wirkt (budgeting-nyx75).
+               GroupId = get.Optional.Field "category_group_id" Decode.guid
                Assigned = get.Required.Field "budgeted" Decode.int64 |> milliunitsMoney
                Activity = get.Required.Field "activity" Decode.int64 |> milliunitsMoney
                Available = get.Required.Field "balance" Decode.int64 |> milliunitsMoney
@@ -2639,7 +2641,7 @@ let interpretCategoryGroupsResponse (budgetId: string) (status: int) (bodyText: 
                 |> Option.defaultValue []
                 |> List.filter fst
                 |> List.map snd
-            shown, ({ Id = get.Required.Field "id" Decode.guid; Name = name; Categories = categories } : Shared.Budgeting.ManagedCategoryGroup))
+            shown, ({ Id = get.Required.Field "id" Decode.guid; Name = name; Active = true; Categories = categories } : Shared.Budgeting.ManagedCategoryGroup))
     match status with
     | 200 ->
         match Decode.fromString (Decode.field "data" (Decode.field "category_groups" (Decode.list group))) bodyText with

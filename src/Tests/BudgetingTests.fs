@@ -53,6 +53,7 @@ let private category groupName name hidden deleted internal' : YnabMonthCategory
     { Id = Guid.NewGuid()
       Name = name
       GroupName = groupName
+      GroupId = None
       Assigned = eur 1000L
       Activity = eur -500L
       Available = eur 500L

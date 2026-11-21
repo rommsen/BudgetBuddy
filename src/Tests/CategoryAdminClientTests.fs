@@ -15,10 +15,14 @@ let private drogerie = Guid.Parse "22222222-0000-0000-0000-000000000002"
 let private tiere = Guid.Parse "11111111-0000-0000-0000-000000000009"
 
 let private groups : ManagedCategoryGroup list =
-    [ { Id = alltag; Name = "Alltag"; Categories = [ { Id = drogerie; Name = "Drogerie"; Active = true } ] }
-      { Id = kinder; Name = "Kinder"; Categories = [] } ]
+    [ { Id = alltag; Name = "Alltag"; Active = true; Categories = [ { Id = drogerie; Name = "Drogerie"; Active = true } ] }
+      { Id = kinder; Name = "Kinder"; Active = true; Categories = [] } ]
 
 let private loaded : Model = { init () with Groups = Success groups }
+
+/// Die einzeln deaktivierten Kategorien im Abschnitt Deaktiviert, mit ihrer Gruppe.
+let private inactiveCategories (groups: ManagedCategoryGroup list) : (ManagedCategoryGroup * ManagedCategory) list =
+    inactiveEntries groups |> List.choose (function InactiveCategory (g, c) -> Some (g, c) | InactiveGroup _ -> None)
 
 let private step (model: Model) (msg: Msg) = update msg model
 let private model' (m, _, _) = m
@@ -46,14 +50,18 @@ let tests =
             let forms =
                 [ run loaded [ NewCategory; NameChanged "Haustier" ]
                   run loaded [ EditCategory drogerie; NameChanged "Bad" ]
-                  run loaded [ RenameGroup kinder; NameChanged "Familie" ]
+                  run loaded [ EditGroup kinder; NameChanged "Familie" ]
                   run loaded [ NewCategory; GroupChosen NewGroupChoice; NameChanged "Tiere" ]
                   // budgeting-sn2sn: Deaktivieren aus dem Formular sperrt ebenso.
-                  run loaded [ EditCategory drogerie; ActiveToggled false ] ]
+                  run loaded [ EditCategory drogerie; ActiveToggled false ]
+                  // budgeting-nyx75: Gruppe deaktivieren, allein und zusammen mit einem neuen Namen.
+                  run loaded [ EditGroup kinder; ActiveToggled false ]
+                  run loaded [ EditGroup kinder; ActiveToggled false; NameChanged "Familie" ] ]
             let answers =
                 [ CategorySaved (Ok drogerie); CategorySaved (Error "x")
                   GroupSaved ("Tiere", Ok tiere); GroupSaved ("Tiere", Error "x")
-                  ActiveSaved (Ok ()); ActiveSaved (Error "x") ]
+                  ActiveSaved (Ok ()); ActiveSaved (Error "x")
+                  GroupActiveSaved (Ok ()); GroupActiveSaved (Error "x") ]
             let inputs =
                 [ Save; CloseForm; NameChanged "X"; GroupChosen (string kinder); GroupChosen NewGroupChoice; ActiveToggled true; ActiveToggled false ]
             // Welcher Aufruf geht beim Speichern hinaus, und kehrt eine neue Gruppe ins Kategorie-Formular zurück?
@@ -61,11 +69,13 @@ let tests =
                 match editor with
                 | EditingCategory { CategoryId = Some _; Active = a; WasActive = w } when a <> w -> SavingActive
                 | EditingCategory _ -> SavingCategory
+                | EditingGroup { GroupId = Some _; Active = a; WasActive = w } when a <> w -> SavingGroupActive
                 | EditingGroup _ -> SavingGroup
             let fieldsDiffer (editor: Editor) =
                 match editor with
                 | EditingCategory { CategoryId = Some id; Name = name; GroupId = groupId } ->
                     groups |> List.exists (fun g -> g.Categories |> List.exists (fun c -> c.Id = id && (c.Name <> name.Trim() || Some g.Id <> groupId)))
+                | EditingGroup { GroupId = Some id; Name = name } -> groups |> List.exists (fun g -> g.Id = id && g.Name <> name.Trim())
                 | _ -> true
             for start in forms do
                 for msgs in sequences (Save :: answers @ inputs) 3 do
@@ -99,9 +109,16 @@ let tests =
                             else
                                 isOpen <- false
                                 awaiting <- None
+                        | GroupActiveSaved (Ok ()), Some SavingGroupActive ->
+                            if fieldsDiffer sentEditor.Value then
+                                awaiting <- Some SavingGroup
+                            else
+                                isOpen <- false
+                                awaiting <- None
                         | CategorySaved (Error _), Some SavingCategory
                         | GroupSaved (_, Error _), Some SavingGroup
-                        | ActiveSaved (Error _), Some SavingActive -> awaiting <- None
+                        | ActiveSaved (Error _), Some SavingActive
+                        | GroupActiveSaved (Error _), Some SavingGroupActive -> awaiting <- None
                         | _ -> ()
                         let next, cmd, _ = update msg model
                         model <- next
@@ -124,7 +141,7 @@ let tests =
             Expect.equal failed.Form.Value.Error (Some "In der Gruppe Alltag gibt es schon eine Kategorie Drogerie.") "Meldung im Formular"
             Expect.isFalse failed.Form.Value.IsSaving "wieder bedienbar"
             Expect.isNone (model' (update (NameChanged "Bad") failed)).Form.Value.Error "Eingabe nimmt die Meldung weg"
-            let groupFailed = run loaded [ RenameGroup kinder; NameChanged "Alltag"; Save; GroupSaved ("Alltag", Error "Eine Gruppe Alltag gibt es schon.") ]
+            let groupFailed = run loaded [ EditGroup kinder; NameChanged "Alltag"; Save; GroupSaved ("Alltag", Error "Eine Gruppe Alltag gibt es schon.") ]
             Expect.equal groupFailed.Form.Value.Error (Some "Eine Gruppe Alltag gibt es schon.") "auch im Gruppen-Formular"
             Expect.equal groupFailed.Groups loaded.Groups "Liste unverändert"
 
@@ -239,6 +256,7 @@ let tests =
                         Success
                             [ { Id = alltag
                                 Name = "Alltag"
+                                Active = true
                                 Categories =
                                   [ { Id = a; Name = "A"; Active = true }
                                     { Id = off; Name = "Aus"; Active = false }
@@ -269,7 +287,7 @@ let tests =
 
         testCase "Aktivieren im Abschnitt Deaktiviert: sofort zurück in der Karte, an BB, Rückmeldung wie im Prototyp" <| fun () ->
             let withOff =
-                { init () with Groups = Success [ { Id = alltag; Name = "Alltag"; Categories = [ { Id = drogerie; Name = "Drogerie"; Active = false } ] } ] }
+                { init () with Groups = Success [ { Id = alltag; Name = "Alltag"; Active = true; Categories = [ { Id = drogerie; Name = "Drogerie"; Active = false } ] } ] }
             let opened = model' (update ToggleInactive withOff)
             Expect.isTrue opened.InactiveOpen "aufgeklappt"
             let active, cmd, _ = update (Reactivate drogerie) opened
@@ -306,7 +324,7 @@ let tests =
         testCase "ein Neuladen von vor dem Pfeil oder dem Aktivieren ersetzt die neue Liste nicht" <| fun () ->
             let a, b = Guid.NewGuid(), Guid.NewGuid()
             let before =
-                [ { Id = alltag; Name = "Alltag"; Categories = [ { Id = a; Name = "A"; Active = true }; { Id = b; Name = "B"; Active = false } ] } ]
+                [ { Id = alltag; Name = "Alltag"; Active = true; Categories = [ { Id = a; Name = "A"; Active = true }; { Id = b; Name = "B"; Active = false } ] } ]
             // Generation 1: ein stilles Neuladen läuft noch.
             let start = { init () with Groups = Success before; Generation = 1 }
             let ids (m: Model) = match m.Groups with Success [ g ] -> g.Categories |> List.map (fun c -> c.Id, c.Active) | _ -> []
@@ -322,7 +340,7 @@ let tests =
         // Doktrin Punkt 20: alle Folgen aus Pfeilen, Antworten und einem Neuladen von vorher gegen ein eigenes Orakel.
         testCase "Pfeile in einer Gruppe: ein Aufruf zur Zeit, danach die zuletzt gewünschte Reihenfolge, in jeder Reihenfolge" <| fun () ->
             let a, b, c = Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid()
-            let before = [ { Id = alltag; Name = "Alltag"; Categories = [ for id, n in [ a, "A"; b, "B"; c, "C" ] -> { Id = id; Name = n; Active = true } ] } ]
+            let before = [ { Id = alltag; Name = "Alltag"; Active = true; Categories = [ for id, n in [ a, "A"; b, "B"; c, "C" ] -> { Id = id; Name = n; Active = true } ] } ]
             // Generation 1: ein stilles Neuladen von vor den Pfeilen läuft noch.
             let start = { init () with Groups = Success before; Generation = 1 }
             let ids (m: Model) = match m.Groups with Success [ g ] -> g.Categories |> List.map (fun x -> x.Id) | _ -> []
@@ -368,7 +386,7 @@ let tests =
         testCase "die Pfeile der ersten Zeile nach oben und der letzten nach unten haben keine Wirkung" <| fun () ->
             let a, b, off = Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid()
             let group =
-                { Id = alltag; Name = "Alltag"; Categories = [ { Id = a; Name = "A"; Active = true }; { Id = b; Name = "B"; Active = true }; { Id = off; Name = "Aus"; Active = false } ] }
+                { Id = alltag; Name = "Alltag"; Active = true; Categories = [ { Id = a; Name = "A"; Active = true }; { Id = b; Name = "B"; Active = true }; { Id = off; Name = "Aus"; Active = false } ] }
             Expect.equal [ canMove StepUp a group; canMove StepDown a group ] [ false; true ] "erste Zeile"
             Expect.equal [ canMove StepUp b group; canMove StepDown b group ] [ true; false ] "letzte Zeile, die deaktivierte zählt nicht"
     ]
@@ -378,7 +396,7 @@ let tests =
 let placeTests =
     testList "Kategorien verwalten: Rückmeldung am Ort" [
         testCase "Gruppe umbenannt: das Formular schließt, der Kopf der Gruppe leuchtet, kein Toast" <| fun () ->
-            let renamed, cmd, external = update (GroupSaved ("Familie", Ok kinder)) (run loaded [ RenameGroup kinder; NameChanged "Familie"; Save ])
+            let renamed, cmd, external = update (GroupSaved ("Familie", Ok kinder)) (run loaded [ EditGroup kinder; NameChanged "Familie"; Save ])
             Expect.isNone renamed.Form "zu"
             Expect.isNonEmpty cmd "Neuladen und Zeitgeber"
             Expect.equal external NoOp "kein Toast"
@@ -388,7 +406,7 @@ let placeTests =
             let lit = model' (update (CategorySaved (Ok drogerie)) (run loaded [ EditCategory drogerie; NameChanged "Bad"; Save ]))
             for msg in [ ToggleInactive; Reloaded (lit.Generation, Ok groups); Loaded (lit.Generation - 1, Ok []); MarkFlashEnded 0 ] do
                 Expect.equal (model' (update msg lit)).Mark lit.Mark $"{msg} lässt sie stehen"
-            for msg in [ NewCategory; EditCategory drogerie; NewGroup; RenameGroup kinder; MoveCategory (drogerie, StepUp); Reactivate drogerie; Leave; Entered; RereadList ] do
+            for msg in [ NewCategory; EditCategory drogerie; NewGroup; EditGroup kinder; MoveCategory (drogerie, StepUp); Reactivate drogerie; Leave; Entered; RereadList ] do
                 Expect.isNone (model' (update msg lit)).Mark $"{msg} beendet sie"
             let inForm = run loaded [ NewCategory; NameChanged "Haustier"; GroupChosen NewGroupChoice; NameChanged "Tiere"; Save ]
             let back = model' (update (GroupSaved ("Tiere", Ok tiere)) inForm)
@@ -423,7 +441,7 @@ let placeTests =
         testCase "Ein Fehler im Formular steht am Feld des abgelehnten Aufrufs: Name und Gruppe am Namen, Deaktivieren am Schalter" <| fun () ->
             let nameFailed = model' (update (CategorySaved (Error "doppelt")) (run loaded [ EditCategory drogerie; NameChanged "Bad"; Save ]))
             Expect.equal (nameFailed.Form.Value.Error, nameFailed.Form.Value.FailedCall) (Some "doppelt", Some SavingCategory) "am Namen"
-            let groupFailed = model' (update (GroupSaved ("Kinder", Error "doppelt")) (run loaded [ RenameGroup kinder; Save ]))
+            let groupFailed = model' (update (GroupSaved ("Kinder", Error "doppelt")) (run loaded [ EditGroup kinder; Save ]))
             Expect.equal groupFailed.Form.Value.FailedCall (Some SavingGroup) "Gruppe am Namen"
             let activeFailed = model' (update (ActiveSaved (Error "Rest 24,50 €")) (run loaded [ EditCategory drogerie; ActiveToggled false; Save ]))
             Expect.equal (activeFailed.Form.Value.Error, activeFailed.Form.Value.FailedCall) (Some "Rest 24,50 €", Some SavingActive) "am Schalter"
@@ -431,7 +449,7 @@ let placeTests =
 
         testCase "Während gespeichert wird, öffnet kein anderes Formular: die Antwort bleibt bei ihrem" <| fun () ->
             let saving = run loaded [ EditCategory drogerie; NameChanged "Bad"; Save ]
-            for msg in [ NewCategory; EditCategory drogerie; NewGroup; RenameGroup kinder ] do
+            for msg in [ NewCategory; EditCategory drogerie; NewGroup; EditGroup kinder ] do
                 Expect.equal (model' (update msg saving)).Form saving.Form $"{msg} ändert nichts"
             let failed, _, external = update (CategorySaved (Error "doppelt")) (run saving [ EditCategory drogerie ])
             Expect.equal external NoOp "kein Toast"
@@ -450,8 +468,8 @@ let keyTests =
         { init () with
             Groups =
                 Success
-                    [ { Id = alltag; Name = "Alltag"; Categories = [ { Id = drogerie; Name = "Drogerie"; Active = true }; { Id = alt; Name = "Alt"; Active = false } ] }
-                      { Id = wohnen; Name = "Wohnen"; Categories = [ { Id = miete; Name = "Miete"; Active = true }; { Id = strom; Name = "Strom"; Active = true } ] } ] }
+                    [ { Id = alltag; Name = "Alltag"; Active = true; Categories = [ { Id = drogerie; Name = "Drogerie"; Active = true }; { Id = alt; Name = "Alt"; Active = false } ] }
+                      { Id = wohnen; Name = "Wohnen"; Active = true; Categories = [ { Id = miete; Name = "Miete"; Active = true }; { Id = strom; Name = "Strom"; Active = true } ] } ] }
     let editing id = run three [ EditCategory id ]
     let key k model = categoryKeyAction model Client.DesignSystem.ListKeys.Elsewhere false false false k
     testList "Kategorien: Tasten am PC" [
@@ -479,7 +497,7 @@ let keyTests =
                   "Aktiv geändert", run three [ EditCategory miete; ActiveToggled false ]
                   "Neue Kategorie", run three [ NewCategory ]
                   "Neue Gruppe", run three [ NewGroup ]
-                  "Gruppe umbenennen", run three [ RenameGroup wohnen ]
+                  "Gruppe umbenennen", run three [ EditGroup wohnen ]
                   "Speichern läuft", saving ] do
                 for k in [ "ArrowDown"; "ArrowUp" ] do
                     Expect.equal (key k model) None $"{name} {k}"
@@ -537,7 +555,7 @@ let groupChoiceTests =
             let isOpen (m: Model) = m.Form |> Option.exists (fun f -> f.GroupChoiceOpen)
             Expect.isTrue (isOpen (run loaded [ EditCategory drogerie; OpenGroupChoice ])) "Kategorie bearbeiten"
             Expect.isTrue (isOpen (run loaded [ NewCategory; OpenGroupChoice ])) "Neue Kategorie"
-            Expect.isFalse (isOpen (run loaded [ RenameGroup kinder; OpenGroupChoice ])) "Gruppen-Formular hat keine Gruppe"
+            Expect.isFalse (isOpen (run loaded [ EditGroup kinder; OpenGroupChoice ])) "Gruppen-Formular hat keine Gruppe"
             Expect.isFalse (isOpen (run loaded [ OpenGroupChoice ])) "ohne Formular"
             Expect.isFalse (isOpen (run loaded [ EditCategory drogerie; NameChanged "Bad"; Save; OpenGroupChoice ])) "Speichern läuft"
 
@@ -565,8 +583,160 @@ let groupChoiceTests =
             let mixed =
                 { Id = alltag
                   Name = "Alltag"
+                  Active = true
                   Categories =
                     [ { Id = drogerie; Name = "Drogerie"; Active = true }
                       { Id = Guid.Parse "22222222-0000-0000-0000-000000000009"; Name = "Alt"; Active = false } ] }
             Expect.equal (groupChoiceDetail mixed) "1 Kategorie" "die deaktivierte zählt nicht"
+    ]
+
+// budgeting-nyx75 (Nachtrag ADR 0088 vom 2026-11-20): Gruppe deaktivieren über den Schalter „Aktiv“ im Formular
+// „Gruppe bearbeiten“, eine deaktivierte Gruppe als ein Eintrag im Abschnitt Deaktiviert.
+let private wohnen = Guid.Parse "11111111-0000-0000-0000-000000000004"
+let private miete = Guid.Parse "22222222-0000-0000-0000-000000000011"
+let private strom = Guid.Parse "22222222-0000-0000-0000-000000000012"
+let private zeitschrift = Guid.Parse "22222222-0000-0000-0000-000000000013"
+let private archiv = Guid.Parse "11111111-0000-0000-0000-000000000005"
+
+/// Alltag aktiv mit Drogerie und der einzeln deaktivierten Zeitschrift, Wohnen aktiv mit Miete und Strom.
+let private withWohnen : Model =
+    { init () with
+        Groups =
+            Success
+                [ { Id = alltag
+                    Name = "Alltag"
+                    Active = true
+                    Categories = [ { Id = drogerie; Name = "Drogerie"; Active = true }; { Id = zeitschrift; Name = "Zeitschrift"; Active = false } ] }
+                  { Id = wohnen
+                    Name = "Wohnen"
+                    Active = true
+                    Categories = [ { Id = miete; Name = "Miete"; Active = true }; { Id = strom; Name = "Strom"; Active = true } ] } ] }
+
+let private groupActive (model: Model) (id: Guid) =
+    match model.Groups with
+    | Success gs -> (gs |> List.find (fun g -> g.Id = id)).Active
+    | _ -> failtest "Liste erwartet"
+
+[<Tests>]
+let groupDeactivationTests =
+    testList "Kategorien verwalten: Gruppe deaktivieren" [
+        testCase "„Bearbeiten“ öffnet „Gruppe bearbeiten“ mit Schalter, eine neue Gruppe hat keinen" <| fun () ->
+            let editing = run withWohnen [ EditGroup wohnen ]
+            Expect.equal (formTitle editing.Form.Value.Editor) "Gruppe bearbeiten" "Titel"
+            match (run withWohnen [ NewGroup; ActiveToggled false ]).Form.Value.Editor with
+            | EditingGroup editor -> Expect.isTrue editor.Active "eine neue Gruppe bleibt aktiv"
+            | other -> failtestf "Gruppen-Formular erwartet, bekam %A" other
+
+        testCase "Deaktivieren: an BB, Formular zu, Eintrag im aufgeklappten Bereich leuchtet mit dem Satz zu YNAB, kein Toast" <| fun () ->
+            let saving, cmd, _ = update Save (run withWohnen [ EditGroup wohnen; ActiveToggled false ])
+            Expect.isNonEmpty cmd "an BB"
+            Expect.equal saving.Form.Value.Saving (Some SavingGroupActive) "wartet auf das Deaktivieren"
+            let done', reload, toast = update (GroupActiveSaved (Ok ())) saving
+            Expect.isNone done'.Form "zu"
+            Expect.isNonEmpty reload "lädt still neu"
+            Expect.equal toast NoOp "kein Toast"
+            Expect.equal (done'.Mark, done'.MarkLit, done'.InactiveOpen) (Some (Deactivated wohnen), true, true) "leuchtet im aufgeklappten Bereich"
+            Expect.isFalse (groupActive done' wohnen) "Wohnen deaktiviert"
+
+        testCase "abgelehntes Deaktivieren: die Meldung steht am Schalter, nichts ändert sich" <| fun () ->
+            let saving = run withWohnen [ EditGroup wohnen; ActiveToggled false; Save ]
+            let message = "Miete hat noch 24,50 €. Erst verschieben, dann deaktivieren."
+            let failed, cmd, external = update (GroupActiveSaved (Error message)) saving
+            Expect.isEmpty cmd "kein weiterer Aufruf"
+            Expect.equal external NoOp "kein Toast"
+            Expect.equal (failed.Form.Value.Error, failed.Form.Value.FailedCall) (Some message, Some SavingGroupActive) "am Schalter"
+            Expect.isFalse failed.Form.Value.IsSaving "wieder bedienbar"
+            Expect.equal failed.Groups withWohnen.Groups "Liste unverändert"
+
+        testCase "Schalter und Name zugleich: erst der Schalter an BB, dann der Name nach YNAB, am Ende im Bereich Deaktiviert" <| fun () ->
+            let saving = run withWohnen [ EditGroup wohnen; ActiveToggled false; NameChanged "Haus"; Save ]
+            Expect.equal saving.Form.Value.Saving (Some SavingGroupActive) "zuerst der Schalter"
+            let between, cmd, external = update (GroupActiveSaved (Ok ())) saving
+            Expect.isNonEmpty cmd "jetzt der Name"
+            Expect.equal external NoOp "kein Toast"
+            Expect.equal between.Form.Value.Saving (Some SavingGroup) "wartet auf YNAB"
+            let after, _, toast = update (GroupSaved ("Haus", Ok wohnen)) between
+            Expect.equal toast NoOp "kein Toast"
+            Expect.isNone after.Form "zu"
+            Expect.equal (after.Mark, after.InactiveOpen) (Some (Deactivated wohnen), true) "im Bereich Deaktiviert mit dem Satz"
+
+        testCase "Aktivieren aus dem Bereich Deaktiviert: sofort zurück, an BB, der Kopf leuchtet; ein Fehler steht rot am Eintrag" <| fun () ->
+            let off = run withWohnen [ EditGroup wohnen; ActiveToggled false; Save; GroupActiveSaved (Ok ()) ]
+            let active, cmd, _ = update (ReactivateGroup wohnen) off
+            Expect.isNonEmpty cmd "an BB"
+            Expect.isTrue (groupActive active wohnen) "wieder aktiv"
+            let back, reload, toast = update (GroupReactivated (wohnen, Ok ())) active
+            Expect.isNonEmpty reload "lädt still neu"
+            Expect.equal toast NoOp "kein Toast"
+            Expect.equal (back.Mark, back.MarkLit) (Some (GroupLit wohnen), true) "der Kopf leuchtet"
+            let failed, _, failedToast = update (GroupReactivated (wohnen, Error "weg")) active
+            Expect.equal failedToast NoOp "kein Toast"
+            Expect.equal failed.Mark (Some (ReactivateFailed (wohnen, "Nicht aktiviert: weg"))) "rot am Eintrag"
+            Expect.isFalse (groupActive failed wohnen) "wieder deaktiviert"
+            Expect.isTrue failed.InactiveOpen "aufgeklappt"
+            let _, ignoredCmd, _ = update (ReactivateGroup wohnen) withWohnen
+            Expect.isEmpty ignoredCmd "eine aktive Gruppe wird nicht aktiviert"
+
+        testCase "Aktivieren der Gruppe lässt die einzeln deaktivierte Kategorie im Bereich Deaktiviert" <| fun () ->
+            let withAlltagOff = run withWohnen [ EditGroup alltag; ActiveToggled false; Save; GroupActiveSaved (Ok ()) ]
+            Expect.equal (match withAlltagOff.Groups with Success gs -> inactiveCategories gs | _ -> []) [] "deaktiviert: Zeitschrift nicht einzeln"
+            let back = run withAlltagOff [ ReactivateGroup alltag ]
+            Expect.equal
+                (match back.Groups with Success gs -> inactiveCategories gs |> List.map (fun (_, c) -> c.Id) | _ -> [])
+                [ zeitschrift ]
+                "Zeitschrift steht wieder einzeln da"
+
+        testCase "Abschnitt Deaktiviert: Gruppe als ein Eintrag ohne ihre Kategorien, Gruppen vor Kategorien, n zählt Einträge" <| fun () ->
+            let gs =
+                [ { Id = alltag; Name = "Alltag"; Active = true; Categories = [ { Id = zeitschrift; Name = "Zeitschrift"; Active = false } ] }
+                  { Id = wohnen; Name = "Wohnen"; Active = false; Categories = [ { Id = miete; Name = "Miete"; Active = true }; { Id = strom; Name = "Strom"; Active = false } ] }
+                  { Id = archiv; Name = "Archiv 2024"; Active = false; Categories = [] } ]
+            let entries = inactiveEntries gs
+            let shape =
+                entries
+                |> List.map (function
+                    | InactiveGroup g -> "Gruppe " + g.Name
+                    | InactiveCategory (g, c) -> c.Name + " in " + g.Name)
+            Expect.equal shape [ "Gruppe Wohnen"; "Gruppe Archiv 2024"; "Zeitschrift in Alltag" ] "Gruppen in YNABs Folge vor der Kategorie, Strom nicht einzeln"
+            Expect.equal entries.Length 3 "n zählt die Einträge"
+            Expect.equal (inactiveGroupDetail gs.[1]) "Gruppe · 2 Kategorien" "mit Kategorien"
+            Expect.equal (inactiveGroupDetail gs.[2]) "Gruppe · keine Kategorien" "ohne Kategorien"
+            Expect.equal (inactiveGroupDetail { gs.[1] with Categories = [ gs.[1].Categories.Head ] }) "Gruppe · 1 Kategorie" "eine"
+
+        testCase "die Gruppenauswahl und die Vorbelegung einer neuen Kategorie lassen eine deaktivierte Gruppe weg" <| fun () ->
+            let gs =
+                [ { Id = wohnen; Name = "Wohnen"; Active = false; Categories = [] }
+                  { Id = alltag; Name = "Alltag"; Active = true; Categories = [] } ]
+            Expect.equal (activeGroups gs |> List.map (fun g -> g.Id)) [ alltag ] "nur Alltag zur Wahl"
+            match (run { init () with Groups = Success gs } [ NewCategory ]).Form.Value.Editor with
+            | EditingCategory editor -> Expect.equal editor.GroupId (Some alltag) "vorbelegt mit der ersten aktiven"
+            | other -> failtestf "Kategorie-Formular erwartet, bekam %A" other
+
+        testCase "Tasten ↑↓ übergehen die Kategorien einer deaktivierten Gruppe" <| fun () ->
+            let off = run withWohnen [ EditGroup wohnen; ActiveToggled false; Save; GroupActiveSaved (Ok ()) ]
+            let key k model = categoryKeyAction model Client.DesignSystem.ListKeys.Elsewhere false false false k
+            Expect.equal (key "ArrowUp" off) (Some (EditCategory drogerie)) "die letzte aktive ist Drogerie"
+
+        testCase "Angepinnt (Block und Sheet) ohne Kategorien einer deaktivierten Gruppe" <| fun () ->
+            let category id name activity : BudgetCategory =
+                { Id = id; Name = name; Assigned = { Amount = 0m; Currency = "EUR" }; Activity = { Amount = activity; Currency = "EUR" }
+                  Available = { Amount = 0m; Currency = "EUR" }; Underfunded = None; Target = None; Pause = None; OpenWriteBack = None
+                  TargetInYnab = None; Deactivated = None; ActivityInYnab = None }
+            let month : BudgetMonth =
+                { Month = "2026-11-01"; ToBeBudgeted = { Amount = 0m; Currency = "EUR" }; CopiedAt = None
+                  Groups =
+                    [ { Name = "Alltag"; Categories = [ category drogerie "Drogerie" 0m ] }
+                      { Name = "Wohnen"; Categories = [ category miete "Miete" 0m; category strom "Strom" -30m ] } ] }
+            // Wie der Server die Seite liest: das wirksame Set aus BBs Zustand und YNABs Zuordnung.
+            let layout = { emptyCategoryLayout with DeactivatedGroups = Set.ofList [ wohnen ] }
+            let shown = applyDeactivation (effectiveDeactivated layout [ alltag, drogerie; wohnen, miete; wohnen, strom ]) month
+            let pins = [ miete; strom; drogerie ]
+            Expect.equal
+                (Components.Overview.Types.visiblePins pins shown |> List.map (fun c -> c.Id))
+                [ drogerie ]
+                "Block: nur Drogerie, auch Strom mit Aktivität nicht"
+            Expect.equal
+                (Components.Overview.Types.pinSheetRows None "" shown |> List.map (fun c -> c.Id))
+                [ drogerie ]
+                "Sheet: nur Drogerie"
     ]

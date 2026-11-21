@@ -89,6 +89,9 @@ type YnabMonthCategory = {
     Id: Guid
     Name: string
     GroupName: string
+    /// Die Gruppe aus YNAB (`category_group_id`, budgeting-nyx75): über sie gilt eine in BB deaktivierte Gruppe
+    /// (`effectiveDeactivated`). `None` in einem YNAB-Stand von vor dem Feld, bis das nächste Beobachten ihn ersetzt.
+    GroupId: Guid option
     /// Zugewiesen (YNAB `budgeted`).
     Assigned: Money
     /// Aktivität (YNAB `activity`).
@@ -1761,8 +1764,10 @@ type ManagedCategory = { Id: Guid; Name: string; Active: bool }
 
 /// Eine Gruppe auf der Seite Kategorien mit ihren Kategorien in BBs Reihenfolge (budgeting-sn2sn, ADR 0088
 /// Punkt 3). YNAB bleibt die Quelle der Liste und der Namen (ADR 0088 Punkt 1). Ausgeblendete, gelöschte und
-/// interne Gruppen und Kategorien fehlen, deaktivierte stehen mit `Active = false` darin.
-type ManagedCategoryGroup = { Id: Guid; Name: string; Categories: ManagedCategory list }
+/// interne Gruppen und Kategorien fehlen, deaktivierte stehen mit `Active = false` darin. `Active` der Gruppe ist BBs
+/// eigener Zustand (budgeting-nyx75, Nachtrag ADR 0088 vom 2026-11-20); die Kategorien einer deaktivierten Gruppe
+/// tragen weiter ihren eigenen Zustand, damit Aktivieren den Stand davor zurückbringt.
+type ManagedCategoryGroup = { Id: Guid; Name: string; Active: bool; Categories: ManagedCategory list }
 
 /// Kategorie anlegen oder bearbeiten. `CategoryId = None` legt an, sonst gehen nur die geänderten Felder
 /// (Name, Gruppe) nach YNAB.
@@ -1790,12 +1795,31 @@ type OrderStep =
     | StepUp
     | StepDown
 
-/// BBs eigener Zustand der Kategorien: welche deaktiviert sind und je Gruppe (Id aus YNAB) die gemerkte
-/// Reihenfolge.
-type CategoryLayout = { Deactivated: Set<Guid>; Orders: Map<Guid, Guid list> }
+/// Kategoriegruppe in BB aktivieren oder deaktivieren (budgeting-nyx75, Nachtrag ADR 0088 vom 2026-11-20). Zustand,
+/// kein Ereignis (ADR 0083); nach YNAB geht nichts.
+type CategoryGroupActiveSave = { GroupId: Guid; Active: bool }
+
+/// BBs eigener Zustand der Kategorien: welche Kategorien und welche Gruppen (budgeting-nyx75) deaktiviert sind und je
+/// Gruppe (Id aus YNAB) die gemerkte Reihenfolge.
+type CategoryLayout = { Deactivated: Set<Guid>; DeactivatedGroups: Set<Guid>; Orders: Map<Guid, Guid list> }
 
 /// Nichts deaktiviert, keine Reihenfolge gemerkt: alles wie in YNAB.
-let emptyCategoryLayout : CategoryLayout = { Deactivated = Set.empty; Orders = Map.empty }
+let emptyCategoryLayout : CategoryLayout = { Deactivated = Set.empty; DeactivatedGroups = Set.empty; Orders = Map.empty }
+
+/// Wirksam deaktiviert (budgeting-nyx75, Nachtrag ADR 0088 vom 2026-11-20 Punkt 2): die selbst deaktivierten
+/// Kategorien und alle, die heute in einer deaktivierten Gruppe stehen. `placements` sind Gruppe und Kategorie, wie
+/// YNAB sie heute zuordnet; eine Kategorie, die in eine deaktivierte Gruppe kommt, ist damit ohne Zutun deaktiviert,
+/// eine, die sie verlässt, gilt wieder nach ihrem eigenen Zustand. Jede Nutzung des Deaktivierens liest dieses Set.
+let effectiveDeactivated (layout: CategoryLayout) (placements: (Guid * Guid) list) : Set<Guid> =
+    placements
+    |> List.filter (fun (groupId, _) -> layout.DeactivatedGroups.Contains groupId)
+    |> List.map snd
+    |> Set.ofList
+    |> Set.union layout.Deactivated
+
+/// Gruppe und Kategorie aus einem gelesenen Monat, für `effectiveDeactivated`. Ohne bekannte Gruppe fehlt die Kategorie.
+let monthPlacements (month: YnabMonth) : (Guid * Guid) list =
+    month.Categories |> List.choose (fun c -> c.GroupId |> Option.map (fun groupId -> groupId, c.Id))
 
 /// BBs Reihenfolge einer Gruppe: zuerst die gemerkten Ids, die heute in der Gruppe stehen, danach die übrigen der
 /// Gruppe in YNABs Folge. So steht eine neue Kategorie aus YNAB und eine aus einer anderen Gruppe am Ende, und eine
@@ -1825,10 +1849,12 @@ let moveWithin (step: OrderStep) (id: Guid) (order: Guid list) : Guid list =
                 elif i = other then id
                 else x)
 
-/// Die Gruppen der Seite Kategorien in BBs Reihenfolge, jede Kategorie mit ihrem Zustand `Active`.
+/// Die Gruppen der Seite Kategorien in BBs Reihenfolge, jede Gruppe und jede Kategorie mit ihrem eigenen Zustand
+/// `Active` (budgeting-nyx75). Die Seite zeigt eine deaktivierte Gruppe als einen Eintrag, ihre Kategorien nicht einzeln.
 let arrangeGroups (layout: CategoryLayout) (groups: ManagedCategoryGroup list) : ManagedCategoryGroup list =
     groups
     |> List.map (fun group ->
+        let group = { group with Active = not (layout.DeactivatedGroups.Contains group.Id) }
         let byId = group.Categories |> List.map (fun c -> c.Id, c) |> Map.ofList
         let stored = layout.Orders |> Map.tryFind group.Id |> Option.defaultValue []
         let ordered = orderWithin stored (group.Categories |> List.map (fun c -> c.Id))
@@ -1848,17 +1874,18 @@ let flatCategoryOrder (layout: CategoryLayout) (placements: (Guid * Guid) list) 
         let stored = layout.Orders |> Map.tryFind groupId |> Option.defaultValue []
         orderWithin stored current)
 
-/// Die Optionen der Kategorie-Picker: ohne deaktivierte Kategorien, in BBs Reihenfolge (`order` aus
+/// Die Optionen der Kategorie-Picker: ohne wirksam deaktivierte Kategorien (`deactivated` aus
+/// `effectiveDeactivated`, budgeting-nyx75), in BBs Reihenfolge (`order` aus
 /// `flatCategoryOrder`). Eine Kategorie ohne Rang behält ihre Stelle hinter den gereihten, die Gruppen bleiben
 /// beisammen, weil `order` Gruppe für Gruppe läuft. In YNAB ausgeblendete bleiben drin, der Picker zeigt sie unter
 /// "Versteckt".
-let pickerCategories (layout: CategoryLayout) (order: Guid list) (categories: YnabCategory list) : YnabCategory list =
+let pickerCategories (deactivated: Set<Guid>) (order: Guid list) (categories: YnabCategory list) : YnabCategory list =
     let ranks = order |> List.mapi (fun index id -> id, index) |> Map.ofList
     let idOf (c: YnabCategory) =
         let (YnabCategoryId id) = c.Id
         id
     categories
-    |> List.filter (fun c -> not (layout.Deactivated.Contains (idOf c)))
+    |> List.filter (fun c -> not (deactivated.Contains (idOf c)))
     |> List.sortBy (fun c -> ranks |> Map.tryFind (idOf c) |> Option.defaultValue Int32.MaxValue)
 
 /// Darf die Kategorie deaktiviert werden (ADR 0088 Punkt 2)? Nur ohne Verfügbares im laufenden Monat und ohne
@@ -1882,9 +1909,25 @@ let deactivationCheck (name: string) (available: Money) (futureAssigned: (string
     | [] -> Ok ()
     | reasons -> Error (String.concat " " reasons)
 
+/// Darf die Gruppe deaktiviert werden (budgeting-nyx75, Nachtrag ADR 0088 vom 2026-11-20 Punkt 4)? Geprüft wird jede
+/// Kategorie der Gruppe in BBs Reihenfolge (Name, Verfügbar im laufenden Monat, Zugewiesen künftiger Monate) mit
+/// `deactivationCheck`; die Meldung reiht alle Gründe aller Kategorien. Eine leere Gruppe ist erlaubt.
+let groupDeactivationCheck (categories: (string * Money * (string * Money) list) list) : Result<unit, string> =
+    let reasons =
+        categories
+        |> List.choose (fun (name, available, future) ->
+            match deactivationCheck name available future with
+            | Ok () -> None
+            | Error reason -> Some reason)
+    match reasons with
+    | [] -> Ok ()
+    | reasons -> Error (String.concat " " reasons)
+
 /// Die Budget-Liste eines Monats mit BBs Deaktivieren (ADR 0088 Punkt 2): eine deaktivierte Kategorie ohne
 /// Aktivität und ohne Verfügbares fehlt. Hat sie im Monat eines davon, bleibt sie mit `Deactivated = Some true`,
 /// damit kein Geld unsichtbar wird. Eine Gruppe ohne Kategorie fällt weg.
+/// `deactivated` ist das wirksame Set (`effectiveDeactivated`, budgeting-nyx75): eine deaktivierte Gruppe fehlt so ganz
+/// oder steht nur mit ihren Kategorien mit Geld da.
 let applyDeactivation (deactivated: Set<Guid>) (month: BudgetMonth) : BudgetMonth =
     let shown (c: BudgetCategory) =
         if not (deactivated.Contains c.Id) then Some c

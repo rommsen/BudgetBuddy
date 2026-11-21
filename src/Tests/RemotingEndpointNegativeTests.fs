@@ -605,6 +605,14 @@ let private rows : Row list = [
               Expect.stringContains message Server.Validation.OrderGroupMissingText "Gruppe"
               Expect.stringContains message Server.Validation.OrderCategoryInvalidText "doppelt"
           | Ok () -> failtest "Reihenfolge hätte abgelehnt werden müssen" }
+    // ---------------- CategoryApi (budgeting-nyx75) ----------------
+    { Endpoint = "CategoryApi.setCategoryGroupActive"; Case = "leere Gruppe an der Grenze und ohne Einrichtung: Fehler statt Ausnahme, nichts gespeichert"
+      Run = fun () ->
+          match liveCategoryApi.setCategoryGroupActive { GroupId = Guid.Empty; Active = false } |> run with
+          | Error message -> Expect.stringContains message Server.Validation.GroupActiveGroupMissingText "leere Gruppe"
+          | Ok () -> failtest "leere Gruppe hätte abgelehnt werden müssen"
+          let unconfigured = unconfiguredCategoryApi ()
+          unconfigured.setCategoryGroupActive { GroupId = Guid.NewGuid(); Active = false } |> run |> expectError "deaktivieren" }
 ]
 
 /// Endpoints aus der Reflection, als "Interface.methode".

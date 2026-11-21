@@ -61,6 +61,7 @@ let private ynabCategory (name: string) : YnabMonthCategory =
     { Id = Guid.NewGuid()
       Name = name
       GroupName = "Alltag"
+      GroupId = None
       Assigned = eur 0m
       Activity = eur 0m
       Available = eur 0m

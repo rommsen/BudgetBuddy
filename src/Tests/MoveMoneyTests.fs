@@ -153,6 +153,7 @@ type private FakeYnab(categories: (Guid * string * int64) list) =
                                         { Id = id
                                           Name = name
                                           GroupName = "Alltag"
+                                          GroupId = None
                                           Assigned = eur assigned[id]
                                           Activity = eur 0L
                                           Available = eur assigned[id]

@@ -617,4 +617,9 @@ type CategoryApi = {
 
     /// BBs Reihenfolge einer Gruppe merken (budgeting-sn2sn, ADR 0088 Punkt 3), nur in BB, kein YNAB.
     setCategoryOrder: Shared.Budgeting.CategoryOrderSave -> Async<Result<unit, string>>
+
+    /// Kategoriegruppe in BB aktivieren oder deaktivieren (budgeting-nyx75, Nachtrag ADR 0088 vom 2026-11-20), nur in
+    /// BB. Deaktivieren lehnt BB mit allen Gründen ab, wenn eine Kategorie der Gruppe im laufenden Monat Verfügbares
+    /// oder in einem künftigen Monat Zugewiesenes hat. Aktivieren prüft nichts.
+    setCategoryGroupActive: Shared.Budgeting.CategoryGroupActiveSave -> Async<Result<unit, string>>
 }

@@ -41,13 +41,14 @@ let withTargetInYnab
         { c with TargetInYnab = Server.Budgeting.TargetRules.targetYnabState c.Target inYnab (openWrites |> Map.tryFind c.Id) }
     { month with Groups = month.Groups |> List.map (fun g -> { g with Categories = g.Categories |> List.map withState }) }
 
-/// Die in BB deaktivierten Kategorien für das Lesen eines Monats (budgeting-sn2sn). Ist BBs Zustand nicht lesbar,
-/// gilt keine als deaktiviert: die Liste zeigt dann eine zu viel, aber kein Geld wird unsichtbar. Der Grund steht
-/// im Server-Log.
-let private deactivatedForPage (connect: unit -> Microsoft.Data.Sqlite.SqliteConnection) : Async<Set<Guid>> =
+/// Die in BB wirksam deaktivierten Kategorien für das Lesen eines Monats (budgeting-sn2sn): selbst deaktivierte und
+/// die einer deaktivierten Gruppe nach YNABs Zuordnung im Stand `raw` (`effectiveDeactivated`, budgeting-nyx75). Ist
+/// BBs Zustand nicht lesbar, gilt keine als deaktiviert: die Liste zeigt dann eine zu viel, aber kein Geld wird
+/// unsichtbar. Der Grund steht im Server-Log.
+let private deactivatedForPage (connect: unit -> Microsoft.Data.Sqlite.SqliteConnection) (raw: YnabMonth) : Async<Set<Guid>> =
     async {
         match! Budgeting.Persistence.loadCategoryLayoutWith connect with
-        | Ok layout -> return layout.Deactivated
+        | Ok layout -> return effectiveDeactivated layout (monthPlacements raw)
         | Error _ -> return Set.empty
     }
 
@@ -111,7 +112,7 @@ let private pageMonthOf
             let! activity = monthActivityForPage ledger raw
             // Nach bestem Bemühen: ist der Stand gegenüber YNAB nicht lesbar, fehlt nur der Hinweis (Grund im Log).
             let! openWrites = Budgeting.Persistence.loadOpenTargetWritesWith connect
-            let! deactivated = deactivatedForPage connect
+            let! deactivated = deactivatedForPage connect raw
             // Erst deaktivieren (budgeting-sn2sn), dann den Stand gegenüber YNAB eintragen: beide ändern nur ihr
             // eigenes Feld, die Folge ändert nichts am Ergebnis; so bekommt eine weggelassene Kategorie keinen Stand.
             let month =

@@ -84,16 +84,29 @@ let private checkedWrite
                             return Ok id
     }
 
-/// Kategorie anlegen (`POST`) oder bearbeiten (`PATCH` nur mit den geänderten Feldern).
-let saveCategory (port: CategoryPort) (save: CategorySave) : Async<Result<Guid, YnabError>> =
-    checkedWrite
-        port
-        (validateCategoryName save.Name)
-        (fun current -> validateCategorySave current save)
-        (function
-         | CreateCategoryIn (groupId, name) -> Send (port.CreateCategory groupId name)
-         | PatchCategory (categoryId, name, groupId) -> Send (port.UpdateCategory categoryId { Name = name; GroupId = groupId })
-         | CategoryUnchanged id -> Keep id)
+/// Kategorie anlegen (`POST`) oder bearbeiten (`PATCH` nur mit den geänderten Feldern). Die Liste aus YNAB trägt
+/// BBs Zustand der Gruppen (`arrangeGroups`), damit `validateCategorySave` Anlegen in und Verschieben in eine in BB
+/// deaktivierte Gruppe ablehnt (budgeting-nyx75). Ist BBs Zustand nicht lesbar, wird nichts geschrieben: sonst ginge
+/// eine Kategorie in eine deaktivierte Gruppe.
+let saveCategory
+    (loadLayout: unit -> Async<Result<CategoryLayout, string>>)
+    (port: CategoryPort)
+    (save: CategorySave)
+    : Async<Result<Guid, YnabError>> =
+    async {
+        match! loadLayout () with
+        | Error message -> return Error (YnabError.LocalReadFailed message)
+        | Ok layout ->
+            return!
+                checkedWrite
+                    port
+                    (validateCategoryName save.Name)
+                    (fun current -> validateCategorySave (arrangeGroups layout current) save)
+                    (function
+                     | CreateCategoryIn (groupId, name) -> Send (port.CreateCategory groupId name)
+                     | PatchCategory (categoryId, name, groupId) -> Send (port.UpdateCategory categoryId { Name = name; GroupId = groupId })
+                     | CategoryUnchanged id -> Keep id)
+    }
 
 /// Gruppe anlegen (`POST`) oder umbenennen (`PATCH`).
 let saveCategoryGroup (port: CategoryPort) (save: CategoryGroupSave) : Async<Result<Guid, YnabError>> =
@@ -110,20 +123,38 @@ let saveCategoryGroup (port: CategoryPort) (save: CategoryGroupSave) : Async<Res
 // Deaktivieren und eigene Reihenfolge (budgeting-sn2sn, ADR 0088 Punkte 2 und 3)
 // ============================================
 
-/// Was BB in künftigen Monaten zugewiesen hat: je übernommenem Monat nach `currentMonth` das Soll der Kategorie aus
-/// BBs Faltung (ADR 0084), nur Beträge ungleich 0. Liest nur die Datenbank, alle Monate in einer Abfrage, kein YNAB.
-let futureAssignedOn (conn: SqliteConnection) (currentMonth: string) (categoryId: Guid) : Result<(string * Money) list, string> =
+/// Was BB in künftigen Monaten zugewiesen hat, für mehrere Kategorien zugleich (budgeting-nyx75: eine Gruppe ohne
+/// N+1): je Kategorie und übernommenem Monat nach `currentMonth` das Soll aus BBs Faltung (ADR 0084), nur Beträge
+/// ungleich 0. Liest nur die Datenbank, alle Monate in einer Abfrage, kein YNAB. Jede genannte Kategorie steht im
+/// Ergebnis, ohne Zuweisung mit leerer Liste.
+let futureAssignedForOn
+    (conn: SqliteConnection)
+    (currentMonth: string)
+    (categoryIds: Guid list)
+    : Result<Map<Guid, (string * Money) list>, string> =
     match Budgeting.Persistence.queryTakenOverMonths conn with
     | Error message -> Error message
     | Ok months ->
         let future = months |> Seq.filter (fun m -> m > currentMonth) |> Seq.sort |> Seq.toList
         Budgeting.Persistence.loadMonthsEventsOn conn future
         |> Result.map (fun eventsByMonth ->
-            future
-            |> List.choose (fun month ->
-                let events = eventsByMonth |> Map.tryFind month |> Option.defaultValue []
-                let assigned = (Assignments.stateOf (Assignments.foldMonth events) categoryId).Assigned
-                if assigned = 0L then None else Some (month, euroOfMilliunits assigned)))
+            let folds =
+                future
+                |> List.map (fun month ->
+                    month, Assignments.foldMonth (eventsByMonth |> Map.tryFind month |> Option.defaultValue []))
+            categoryIds
+            |> List.map (fun categoryId ->
+                categoryId,
+                folds
+                |> List.choose (fun (month, fold) ->
+                    let assigned = (Assignments.stateOf fold categoryId).Assigned
+                    if assigned = 0L then None else Some (month, euroOfMilliunits assigned)))
+            |> Map.ofList)
+
+/// `futureAssignedForOn` für eine Kategorie.
+let futureAssignedOn (conn: SqliteConnection) (currentMonth: string) (categoryId: Guid) : Result<(string * Money) list, string> =
+    futureAssignedForOn conn currentMonth [ categoryId ]
+    |> Result.map (fun byCategory -> byCategory |> Map.tryFind categoryId |> Option.defaultValue [])
 
 /// Die Meldung, wenn BB das Zugewiesen künftiger Monate nicht lesen kann.
 [<Literal>]
@@ -182,6 +213,78 @@ let setCategoryActiveWith
                     | Ok () -> return write ()
     }
 
+/// Die Meldung, wenn BB das Zugewiesen künftiger Monate für eine Gruppe nicht lesen kann.
+[<Literal>]
+let GroupFutureAssignedUnreadableText = "Künftige Monate nicht lesbar, Gruppe nicht deaktiviert."
+
+/// Die Meldung, wenn die Gruppe nicht in YNABs Liste steht (auch die interne und „Credit Card Payments“).
+[<Literal>]
+let GroupNotFoundText = "Gruppe nicht gefunden."
+
+/// Die Kategorien der Gruppe für die Prüfung beim Deaktivieren in BBs Reihenfolge: jede nicht gelöschte Kategorie, die
+/// YNAB im Monat der Gruppe zuordnet, auch einzeln deaktivierte und in YNAB ausgeblendete. Die sichtbaren stehen in
+/// YNABs Folge der Liste, ausgeblendete dahinter; darauf wirkt BBs gemerkte Reihenfolge (`orderWithin`).
+let private groupMembers (layout: CategoryLayout) (group: ManagedCategoryGroup) (month: YnabMonth) : YnabMonthCategory list =
+    let members = month.Categories |> List.filter (fun c -> c.GroupId = Some group.Id && not c.Deleted)
+    let byId = members |> List.map (fun c -> c.Id, c) |> Map.ofList
+    let listed = group.Categories |> List.map (fun c -> c.Id) |> List.filter byId.ContainsKey
+    let known = Set.ofList listed
+    let current = listed @ (members |> List.map (fun c -> c.Id) |> List.filter (known.Contains >> not))
+    let stored = layout.Orders |> Map.tryFind group.Id |> Option.defaultValue []
+    orderWithin stored current |> List.map (fun id -> byId.[id])
+
+/// Aktiviert oder deaktiviert eine Kategoriegruppe in BB (budgeting-nyx75, Nachtrag ADR 0088 vom 2026-11-20).
+/// Aktivieren prüft nichts und ruft YNAB nicht auf; der eigene Zustand der Kategorien und BBs Reihenfolge bleiben, so
+/// kommt der Stand davor zurück. Deaktivieren liest zuerst YNABs Gruppen (unbekannte Gruppe: `GroupNotFoundText`,
+/// ohne Monat), dann genau einen Monat (`currentMonth`, Berliner Kalender) und BBs Soll der künftigen Monate für alle
+/// Kategorien der Gruppe in einer Abfrage. Hält eine davon Geld, lehnt BB mit allen Gründen ab
+/// (`groupDeactivationCheck`) und schreibt nichts. Nach YNAB geht nichts. `now` stempelt den Zustand (UTC).
+let setCategoryGroupActiveWith
+    (connect: unit -> SqliteConnection)
+    (port: CategoryPort)
+    (currentMonth: string)
+    (now: DateTime)
+    (save: CategoryGroupActiveSave)
+    : Async<Result<unit, YnabError>> =
+    let write () =
+        writeLayout connect "Gruppe aktiv oder deaktiviert festhalten" (fun conn ->
+            Budgeting.Persistence.setCategoryGroupActiveOn conn save.GroupId save.Active now)
+    async {
+        if save.Active then
+            return write ()
+        else
+            match! port.FetchGroups () with
+            | Error e -> return Error e
+            | Ok groups ->
+                match groups |> List.tryFind (fun g -> g.Id = save.GroupId) with
+                | None -> return Error (RefusedByBb GroupNotFoundText)
+                | Some group ->
+                    match! port.FetchMonth currentMonth with
+                    | Error e -> return Error e
+                    | Ok month ->
+                        match! Budgeting.Persistence.loadCategoryLayoutWith connect with
+                        | Error message -> return Error (YnabError.LocalReadFailed message)
+                        | Ok layout ->
+                            let members = groupMembers layout group month
+                            let future =
+                                try
+                                    use conn = connect ()
+                                    futureAssignedForOn conn currentMonth (members |> List.map (fun c -> c.Id))
+                                with ex ->
+                                    Error ex.Message
+                            match future with
+                            | Error message ->
+                                eprintfn "Künftige Monate für Gruppe deaktivieren lesen gescheitert: %s" message
+                                return Error (YnabError.LocalReadFailed GroupFutureAssignedUnreadableText)
+                            | Ok future ->
+                                let checks =
+                                    members
+                                    |> List.map (fun c -> c.Name, c.Available, future |> Map.tryFind c.Id |> Option.defaultValue [])
+                                match groupDeactivationCheck checks with
+                                | Error reason -> return Error (RefusedByBb reason)
+                                | Ok () -> return write ()
+    }
+
 /// Merkt BBs Reihenfolge einer Gruppe (ADR 0088 Punkt 3). Kein YNAB: die API kann nicht sortieren. Eine Id, die
 /// heute nicht in der Gruppe steht, schadet nicht, beim Lesen fällt sie weg (`orderWithin`).
 let setCategoryOrderWith
@@ -221,7 +324,8 @@ let bbCategoryOrderWith
     }
 
 /// Die Optionen der Kategorie-Picker (Endpunkt `getCategories`): Ready to Assign mit dem echten Monatswert, ohne
-/// YNAB-Interna (`categoriesForPicker`), ohne in BB deaktivierte Kategorien und in BBs Reihenfolge.
+/// YNAB-Interna (`categoriesForPicker`), ohne in BB wirksam deaktivierte Kategorien (auch die Kategorien einer
+/// deaktivierten Gruppe, `effectiveDeactivated`, budgeting-nyx75) und in BBs Reihenfolge.
 let pickerOptionsWith
     (fetchPlaced: unit -> Async<YnabResult<YnabCategory list * (Guid * Guid) list>>)
     (readyToAssign: unit -> Async<Money option>)
@@ -236,7 +340,7 @@ let pickerOptionsWith
             return
                 Ok (
                     categoriesForPicker toBeBudgeted categories
-                    |> pickerCategories layout (flatCategoryOrder layout placements)
+                    |> pickerCategories (effectiveDeactivated layout placements) (flatCategoryOrder layout placements)
                 )
     }
 

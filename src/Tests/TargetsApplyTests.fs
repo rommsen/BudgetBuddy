@@ -272,6 +272,7 @@ type private FakeYnab(initial: (Guid * string * int64 * int64 * bool) list, tbb0
                                         { Id = id
                                           Name = name
                                           GroupName = "Alltag"
+                                          GroupId = None
                                           Assigned = eur assigned[id]
                                           Activity = eur 0L
                                           Available = eur assigned[id]

@@ -718,6 +718,7 @@ let private retryPort (month: string) (categories: (Guid * decimal) list) (sent:
         { Id = id
           Name = "K"
           GroupName = "G"
+          GroupId = None
           Assigned = { Amount = assigned; Currency = "EUR" }
           Activity = { Amount = 0m; Currency = "EUR" }
           Available = { Amount = assigned; Currency = "EUR" }

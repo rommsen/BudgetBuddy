@@ -143,15 +143,18 @@ let orderTests =
         testCase "die Seite bekommt die Gruppen in BBs Reihenfolge mit Aktiv" <| fun () ->
             let layout =
                 { Deactivated = Set.ofList [ drogerie ]
+                  DeactivatedGroups = Set.empty
                   Orders = Map.ofList [ alltag, [ drogerie; lebensmittel ] ] }
             let groups : ManagedCategoryGroup list =
                 [ { Id = alltag
                     Name = "Alltag"
+                    Active = true
                     Categories = [ { Id = lebensmittel; Name = "Lebensmittel"; Active = true }; { Id = drogerie; Name = "Drogerie"; Active = true } ] } ]
             Expect.equal
                 (arrangeGroups layout groups)
                 [ { Id = alltag
                     Name = "Alltag"
+                    Active = true
                     Categories = [ { Id = drogerie; Name = "Drogerie"; Active = false }; { Id = lebensmittel; Name = "Lebensmittel"; Active = true } ] } ]
                 "Drogerie oben und deaktiviert"
     ]
@@ -163,14 +166,16 @@ let orderTests =
 let private ynabGroups : ManagedCategoryGroup list =
     [ { Id = alltag
         Name = "Alltag"
+        Active = true
         Categories =
           [ { Id = lebensmittel; Name = "Lebensmittel"; Active = true }
             { Id = drogerie; Name = "Drogerie"; Active = true }
             { Id = apotheke; Name = "Apotheke"; Active = true } ] }
-      { Id = freizeit; Name = "Freizeit"; Categories = [ { Id = restaurant; Name = "Restaurant"; Active = true } ] } ]
+      { Id = freizeit; Name = "Freizeit"; Active = true; Categories = [ { Id = restaurant; Name = "Restaurant"; Active = true } ] } ]
 
 let private rawCategory (id: Guid) (name: string) (group: string) (assigned: decimal) (activity: decimal) (available: decimal) : YnabMonthCategory =
-    { Id = id; Name = name; GroupName = group; Assigned = eur assigned; Activity = eur activity; Available = eur available
+    let groupId = match group with "Alltag" -> Some alltag | "Freizeit" -> Some freizeit | _ -> None
+    { Id = id; Name = name; GroupName = group; GroupId = groupId; Assigned = eur assigned; Activity = eur activity; Available = eur available
       Target = None; Hidden = false; Deleted = false; Internal = false }
 
 let private rawMonth (month: string) (categories: YnabMonthCategory list) : YnabMonth =

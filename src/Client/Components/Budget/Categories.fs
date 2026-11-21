@@ -6,7 +6,9 @@
 /// Die Gruppe wählt man über ein Feld mit Pfeil, das eine kurze Auswahl der Gruppen öffnet (G13, design-system-gcpws,
 /// Prototyp `cegroup`): am PC als Dialog, am Handy ersetzt sie den Inhalt des Sheets.
 /// Deaktivieren (Schalter "Aktiv" im Formular, "Aktivieren" im Abschnitt Deaktiviert) und die Pfeile für BBs
-/// Reihenfolge je Gruppe gehen nur an BB, nicht nach YNAB (budgeting-sn2sn, ADR 0088 Punkte 2 und 3).
+/// Reihenfolge je Gruppe gehen nur an BB, nicht nach YNAB (budgeting-sn2sn, ADR 0088 Punkte 2 und 3). Ebenso eine
+/// ganze Gruppe (budgeting-nyx75, Nachtrag ADR 0088 vom 2026-11-20): Schalter "Aktiv" im Formular "Gruppe bearbeiten",
+/// eine deaktivierte Gruppe steht als ein Eintrag im Abschnitt Deaktiviert.
 module Components.Budget.Categories
 
 open System
@@ -22,8 +24,9 @@ let NewGroupChoice = "neue-gruppe"
 /// `Active` ist der Schalter "Aktiv", `WasActive` der Zustand beim Öffnen (eine neue Kategorie ist aktiv).
 type CategoryEditor = { CategoryId: Guid option; Name: string; GroupId: Guid option; Active: bool; WasActive: bool }
 
-/// Das Gruppen-Formular. `ReturnTo` ist das Kategorie-Formular, aus dem "Neue Gruppe" kam.
-type GroupEditor = { GroupId: Guid option; Name: string; ReturnTo: CategoryEditor option }
+/// Das Gruppen-Formular. `ReturnTo` ist das Kategorie-Formular, aus dem "Neue Gruppe" kam. `Active` ist der Schalter
+/// "Aktiv" einer bestehenden Gruppe, `WasActive` der Zustand beim Öffnen (budgeting-nyx75).
+type GroupEditor = { GroupId: Guid option; Name: string; ReturnTo: CategoryEditor option; Active: bool; WasActive: bool }
 
 type Editor =
     | EditingCategory of CategoryEditor
@@ -34,6 +37,8 @@ type SaveCall =
     | SavingCategory
     | SavingGroup
     | SavingActive
+    /// Gruppe aktivieren oder deaktivieren aus dem Gruppen-Formular (budgeting-nyx75).
+    | SavingGroupActive
 
 /// Das offene Formular. `Saving`: der Aufruf läuft, Speichern und Schließen sind gesperrt. `Error`: die Meldung
 /// des Servers, sie bleibt im Formular am Feld (`FailedCall`), bis etwas geändert wird. `Deactivated`: Deaktivieren
@@ -58,13 +63,14 @@ type OrderCall = { Next: Guid list option }
 type Mark =
     /// Die Zeile der Kategorie leuchtet kurz (angelegt, gespeichert, wieder aktiv) und wird ins Bild gerollt.
     | CategoryLit of Guid
-    /// Deaktiviert: die Zeile im Bereich Deaktiviert leuchtet, darunter der Satz zu YNAB.
+    /// Deaktiviert: der Eintrag (Kategorie oder Gruppe, budgeting-nyx75) im Bereich Deaktiviert leuchtet, darunter der
+    /// Satz zu YNAB.
     | Deactivated of Guid
-    /// Der Kopf der Gruppe leuchtet (umbenannt).
+    /// Der Kopf der Gruppe leuchtet (umbenannt, wieder aktiv).
     | GroupLit of Guid
     /// Das Feld Gruppe im Kategorie-Formular leuchtet (neue Gruppe aus „Neue Gruppe“ angelegt).
     | GroupFieldLit
-    /// Rot an der Zeile im Bereich Deaktiviert (Aktivieren abgelehnt).
+    /// Rot am Eintrag im Bereich Deaktiviert (Aktivieren einer Kategorie oder Gruppe abgelehnt).
     | ReactivateFailed of Guid * string
     /// Rot unter dem Kopf der Gruppe (Reihenfolge abgelehnt).
     | OrderFailed of Guid * string
@@ -104,8 +110,8 @@ type Msg =
     | EditCategory of Guid
     /// "+ Gruppe".
     | NewGroup
-    /// "Umbenennen" an einer Gruppe.
-    | RenameGroup of Guid
+    /// "Bearbeiten" am Kopf einer Gruppe: öffnet "Gruppe bearbeiten" mit Name und Schalter "Aktiv" (budgeting-nyx75).
+    | EditGroup of Guid
     | NameChanged of string
     /// Das Feld Gruppe öffnet die Auswahl der Gruppen (G13).
     | OpenGroupChoice
@@ -120,7 +126,7 @@ type Msg =
     | GroupSaved of name: string * Result<Guid, string>
     /// "Zurück": zur Budget-Seite.
     | Leave
-    /// Der Schalter "Aktiv" im Formular.
+    /// Der Schalter "Aktiv" im Kategorie- oder Gruppen-Formular.
     | ActiveToggled of bool
     /// Antwort auf Deaktivieren oder Aktivieren aus dem Formular.
     | ActiveSaved of Result<unit, string>
@@ -132,6 +138,11 @@ type Msg =
     /// "Aktivieren" im Abschnitt Deaktiviert.
     | Reactivate of Guid
     | Reactivated of categoryId: Guid * Result<unit, string>
+    /// Antwort auf Deaktivieren oder Aktivieren einer Gruppe aus dem Formular (budgeting-nyx75).
+    | GroupActiveSaved of Result<unit, string>
+    /// "Aktivieren" an einer Gruppe im Abschnitt Deaktiviert.
+    | ReactivateGroup of Guid
+    | GroupReactivated of groupId: Guid * Result<unit, string>
     /// „Neu laden“ am Hinweis „Liste nicht neu geladen“.
     | RereadList
     /// Das Leuchten endet, mit seiner Zählung.
@@ -173,6 +184,9 @@ let private saveGroupCmd (save: CategoryGroupSave) : Cmd<Msg> =
 let private setActiveCmd (save: CategoryActiveSave) (answer: Result<unit, string> -> Msg) : Cmd<Msg> =
     Cmd.OfAsync.either (fun s -> Api.categories.setCategoryActive s) save answer (fun ex -> answer (Error ex.Message))
 
+let private setGroupActiveCmd (save: CategoryGroupActiveSave) (answer: Result<unit, string> -> Msg) : Cmd<Msg> =
+    Cmd.OfAsync.either (fun s -> Api.categories.setCategoryGroupActive s) save answer (fun ex -> answer (Error ex.Message))
+
 let private saveOrderCmd (save: CategoryOrderSave) : Cmd<Msg> =
     Cmd.OfAsync.either
         (fun s -> Api.categories.setCategoryOrder s)
@@ -205,6 +219,16 @@ let ListStaleText = "Liste nicht neu geladen, sie kann veraltet sein."
 /// die Klasse ab. Mit `prefers-reduced-motion` steht der Ring so lange ohne Bewegung.
 let markFlashMs = 900
 
+/// Der Satz unter dem Schalter "Aktiv" im Gruppen-Formular (Skizze Version 4, Abschnitt 2, budgeting-nyx75).
+[<Literal>]
+let GroupActiveSwitchText =
+    "Deaktiviert verschwindet sie samt ihren Kategorien aus Auswahl und Budget. Buchungen und Historie bleiben. Nur in BB, YNAB bleibt unverändert."
+
+/// Die Gruppen, die oben auf der Seite stehen und in der Auswahl der Gruppe: die aktiven, in YNABs Folge
+/// (budgeting-nyx75).
+let activeGroups (groups: ManagedCategoryGroup list) : ManagedCategoryGroup list =
+    groups |> List.filter (fun g -> g.Active)
+
 /// Die Kategorien einer Gruppe, die auf der Seite in ihrer Karte stehen: die aktiven, in BBs Reihenfolge.
 let activeCategories (group: ManagedCategoryGroup) : ManagedCategory list =
     group.Categories |> List.filter (fun c -> c.Active)
@@ -214,9 +238,25 @@ let activeCategories (group: ManagedCategoryGroup) : ManagedCategory list =
 let groupChoiceDetail (group: ManagedCategoryGroup) : string =
     categoryCountText (activeCategories group).Length
 
-/// Der Abschnitt Deaktiviert: jede deaktivierte Kategorie mit ihrer Gruppe, Gruppe für Gruppe.
-let inactiveCategories (groups: ManagedCategoryGroup list) : (ManagedCategoryGroup * ManagedCategory) list =
-    groups |> List.collect (fun g -> g.Categories |> List.filter (fun c -> not c.Active) |> List.map (fun c -> g, c))
+/// Ein Eintrag im Abschnitt Deaktiviert (budgeting-nyx75): eine deaktivierte Gruppe als ein Eintrag (ihre Kategorien
+/// nicht einzeln) oder eine einzeln deaktivierte Kategorie einer aktiven Gruppe.
+type InactiveEntry =
+    | InactiveGroup of ManagedCategoryGroup
+    | InactiveCategory of ManagedCategoryGroup * ManagedCategory
+
+/// Der Abschnitt Deaktiviert: zuerst die deaktivierten Gruppen in YNABs Folge, dann jede einzeln deaktivierte Kategorie
+/// einer aktiven Gruppe mit ihrer Gruppe, Gruppe für Gruppe. Die Zahl im Kopf zählt diese Einträge.
+let inactiveEntries (groups: ManagedCategoryGroup list) : InactiveEntry list =
+    (groups |> List.filter (fun g -> not g.Active) |> List.map InactiveGroup)
+    @ (activeGroups groups
+       |> List.collect (fun g -> g.Categories |> List.filter (fun c -> not c.Active) |> List.map (fun c -> InactiveCategory (g, c))))
+
+/// Die zweite Zeile einer deaktivierten Gruppe im Abschnitt Deaktiviert (Skizze): "Gruppe · 3 Kategorien", ohne
+/// Kategorien "Gruppe · keine Kategorien". Gezählt werden alle ihre Kategorien, sie verschwinden alle mit ihr.
+let inactiveGroupDetail (group: ManagedCategoryGroup) : string =
+    match group.Categories.Length with
+    | 0 -> "Gruppe · keine Kategorien"
+    | count -> $"Gruppe · {categoryCountText count}"
 
 /// Am PC verschiebt Alt+↑ und Alt+↓ die Kategorie, deren Zeile den Fokus hat.
 let moveKey (key: string) (altKey: bool) : OrderStep option =
@@ -244,9 +284,9 @@ let canMove (step: OrderStep) (categoryId: Guid) (group: ManagedCategoryGroup) :
 let categoryListTraits : Client.DesignSystem.ListKeys.Traits =
     { MultiSelect = false; Tabs = false; Search = false; TypeToSearch = false }
 
-/// Die aktiven Kategorien in der Reihenfolge der Seite, Gruppe für Gruppe.
+/// Die aktiven Kategorien in der Reihenfolge der Seite, Gruppe für Gruppe, ohne deaktivierte Gruppen.
 let private shownOrder (groups: ManagedCategoryGroup list) : Guid list =
-    groups |> List.collect (fun g -> activeCategories g |> List.map (fun c -> c.Id))
+    activeGroups groups |> List.collect (fun g -> activeCategories g |> List.map (fun c -> c.Id))
 
 /// Das Formular einer Kategorie im Stand der Liste, wie "Bearbeiten" es öffnet.
 let private categoryEditorOf (group: ManagedCategoryGroup) (category: ManagedCategory) : CategoryEditor =
@@ -326,13 +366,21 @@ let private withActive (categoryId: Guid) (active: bool) (model: Model) : Model 
         { model with Groups = Success (groups |> List.map (fun g -> { g with Categories = g.Categories |> List.map set })) }
     | _ -> model
 
+/// Setzt `Active` einer Gruppe in der Liste, bis das stille Neuladen den Stand bringt. Ihre Kategorien behalten ihren
+/// eigenen Zustand (budgeting-nyx75).
+let private withGroupActive (groupId: Guid) (active: bool) (model: Model) : Model =
+    match model.Groups with
+    | Success groups ->
+        { model with Groups = Success (groups |> List.map (fun g -> if g.Id = groupId then { g with Active = active } else g)) }
+    | _ -> model
+
 /// Der Titel des Formulars wie im Prototyp.
 let formTitle (editor: Editor) : string =
     match editor with
     | EditingCategory { CategoryId = None } -> "Neue Kategorie"
     | EditingCategory _ -> "Kategorie bearbeiten"
     | EditingGroup { GroupId = None } -> "Neue Gruppe"
-    | EditingGroup _ -> "Gruppe umbenennen"
+    | EditingGroup _ -> "Gruppe bearbeiten"
 
 /// Die Beschriftung des Hauptknopfs: "Anlegen" für eine neue Kategorie, sonst "Speichern" (Prototyp).
 let saveLabel (editor: Editor) : string =
@@ -358,11 +406,22 @@ let private fieldsChanged (groups: ManagedCategoryGroup list) (editor: CategoryE
         | Some (groupId, name) -> Some groupId <> editor.GroupId || name <> editor.Name.Trim()
         | None -> true
 
+/// Hat das Gruppen-Formular den Namen gegenüber der Liste geändert? Eine neue Gruppe gilt als geändert.
+let private groupNameChanged (groups: ManagedCategoryGroup list) (editor: GroupEditor) : bool =
+    match editor.GroupId with
+    | None -> true
+    | Some id ->
+        match groups |> List.tryFind (fun g -> g.Id = id) with
+        | Some group -> group.Name <> editor.Name.Trim()
+        | None -> true
+
 /// Der Auftrag aus dem Formular, `None` ohne Gruppe. Ändert sich der Schalter "Aktiv" einer bestehenden
-/// Kategorie, geht zuerst das an BB; Name und Gruppe folgen nach der Antwort (`ActiveSaved`). So bleibt bei einer
-/// Ablehnung alles unverändert.
+/// Kategorie oder Gruppe (budgeting-nyx75), geht zuerst das an BB; Name und Gruppe folgen nach der Antwort
+/// (`ActiveSaved`, `GroupActiveSaved`). So bleibt bei einer Ablehnung alles unverändert.
 let private request (editor: Editor) : (SaveCall * Cmd<Msg>) option =
     match editor with
+    | EditingGroup ({ GroupId = Some id } as g) when g.Active <> g.WasActive ->
+        Some (SavingGroupActive, setGroupActiveCmd { GroupId = id; Active = g.Active } GroupActiveSaved)
     | EditingCategory ({ CategoryId = Some id; GroupId = Some _ } as e) when e.Active <> e.WasActive ->
         Some (SavingActive, setActiveCmd { CategoryId = id; Active = e.Active } ActiveSaved)
     | EditingCategory { CategoryId = id; Name = name; GroupId = Some groupId } ->
@@ -392,7 +451,7 @@ let private withGroup (id: Guid) (name: string) (model: Model) : Model =
     match model.Groups with
     | Success groups when groups |> List.exists (fun g -> g.Id = id) ->
         { model with Groups = Success (groups |> List.map (fun g -> if g.Id = id then { g with Name = name } else g)) }
-    | Success groups -> { model with Groups = Success (groups @ [ { Id = id; Name = name; Categories = [] } ]) }
+    | Success groups -> { model with Groups = Success (groups @ [ { Id = id; Name = name; Active = true; Categories = [] } ]) }
     | _ -> model
 
 /// Die neue oder geänderte Kategorie gleich in der Liste (Name, Gruppe), bis das stille Neuladen sie bringt: so steht
@@ -437,7 +496,7 @@ let endsMark (msg: Msg) : bool =
     | NewCategory
     | EditCategory _
     | NewGroup
-    | RenameGroup _
+    | EditGroup _
     | NameChanged _
     | GroupChosen _
     | Save
@@ -445,7 +504,8 @@ let endsMark (msg: Msg) : bool =
     | Leave
     | ActiveToggled _
     | MoveCategory _
-    | Reactivate _ -> true
+    | Reactivate _
+    | ReactivateGroup _ -> true
     | _ -> false
 
 /// Speichert das offene Formular gerade? Dann öffnet kein anderes: die Antwort gehört ihm.
@@ -483,9 +543,10 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
         | _ -> model, Cmd.none, NoOp
     | MarkFlashEnded count ->
         if count = model.MarkCount then { model with MarkLit = false }, Cmd.none, NoOp else model, Cmd.none, NoOp
-    | NewCategory | EditCategory _ | NewGroup | RenameGroup _ when saving model -> model, Cmd.none, NoOp
+    | NewCategory | EditCategory _ | NewGroup | EditGroup _ when saving model -> model, Cmd.none, NoOp
     | NewCategory ->
-        let first = groupsOf model |> List.tryHead |> Option.map (fun g -> g.Id)
+        // In eine deaktivierte Gruppe legt BB nichts an (budgeting-nyx75): vorbelegt ist die erste aktive.
+        let first = activeGroups (groupsOf model) |> List.tryHead |> Option.map (fun g -> g.Id)
         { model with Form = opened (EditingCategory { CategoryId = None; Name = ""; GroupId = first; Active = true; WasActive = true }) },
         Cmd.none,
         NoOp
@@ -496,10 +557,17 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
         match found with
         | Some (group, category) -> { model with Form = opened (EditingCategory (categoryEditorOf group category)) }, Cmd.none, NoOp
         | None -> model, Cmd.none, NoOp
-    | NewGroup -> { model with Form = opened (EditingGroup { GroupId = None; Name = ""; ReturnTo = None }) }, Cmd.none, NoOp
-    | RenameGroup id ->
+    | NewGroup ->
+        { model with Form = opened (EditingGroup { GroupId = None; Name = ""; ReturnTo = None; Active = true; WasActive = true }) },
+        Cmd.none,
+        NoOp
+    | EditGroup id ->
         match groupsOf model |> List.tryFind (fun g -> g.Id = id) with
-        | Some group -> { model with Form = opened (EditingGroup { GroupId = Some id; Name = group.Name; ReturnTo = None }) }, Cmd.none, NoOp
+        | Some group ->
+            { model with
+                Form = opened (EditingGroup { GroupId = Some id; Name = group.Name; ReturnTo = None; Active = group.Active; WasActive = group.Active }) },
+            Cmd.none,
+            NoOp
         | None -> model, Cmd.none, NoOp
     | NameChanged name ->
         let named =
@@ -517,7 +585,7 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
     | GroupChosen NewGroupChoice ->
         let toGroupForm =
             function
-            | EditingCategory editor -> EditingGroup { GroupId = None; Name = ""; ReturnTo = Some editor }
+            | EditingCategory editor -> EditingGroup { GroupId = None; Name = ""; ReturnTo = Some editor; Active = true; WasActive = true }
             | other -> other
         withChoiceClosed (withEditor toGroupForm model), Cmd.none, NoOp
     | GroupChosen value ->
@@ -578,8 +646,12 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
             let reloaded, cmd = reload lit
             reloaded, Cmd.batch [ cmd; flashCmd ], NoOp
         | Ok id, Some _ ->
-            // Der Kopf der Gruppe leuchtet kurz.
-            let lit, flashCmd = marked (GroupLit id) (withGroup id name { model with Form = None })
+            // Der Kopf der Gruppe leuchtet kurz. Nach dem Deaktivieren mit neuem Namen (budgeting-nyx75) steht die Gruppe
+            // im Bereich Deaktiviert (aufgeklappt) mit dem Satz zu YNAB.
+            let deactivated = model.Form |> Option.exists (fun f -> f.Deactivated)
+            let named = withGroup id name { model with Form = None }
+            let mark, placed = if deactivated then Deactivated id, { named with InactiveOpen = true } else GroupLit id, named
+            let lit, flashCmd = marked mark placed
             let reloaded, cmd = reload lit
             reloaded, Cmd.batch [ cmd; flashCmd ], NoOp
         | Ok id, None ->
@@ -592,6 +664,7 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
         let toggled =
             function
             | EditingCategory editor when editor.CategoryId.IsSome -> EditingCategory { editor with Active = active }
+            | EditingGroup editor when editor.GroupId.IsSome -> EditingGroup { editor with Active = active }
             | other -> other
         withEditor toggled model, Cmd.none, NoOp
     | ActiveSaved result ->
@@ -677,6 +750,56 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
         // Zurück in den Bereich Deaktiviert, rot an ihrer Zeile.
         let back = { withActive categoryId false model with InactiveOpen = true }
         let failed, _ = marked (ReactivateFailed (categoryId, $"Nicht aktiviert: {message}")) back
+        let reloaded, cmd = reload failed
+        reloaded, cmd, NoOp
+    | GroupActiveSaved result ->
+        match model.Form with
+        | Some ({ Editor = EditingGroup editor; Saving = Some SavingGroupActive } as form) ->
+            match result, editor.GroupId with
+            | Ok (), Some id ->
+                let settled = { editor with WasActive = editor.Active }
+                let changed = withGroupActive id editor.Active model
+                if groupNameChanged (groupsOf model) settled then
+                    // Der Schalter ging zuerst an BB, der Name geht danach nach YNAB.
+                    let form' = { form with Editor = EditingGroup settled; Deactivated = not editor.Active; Saving = Some SavingGroup }
+                    { changed with Form = Some form' }, saveGroupCmd { GroupId = Some id; Name = settled.Name }, NoOp
+                else
+                    // Deaktiviert: der Eintrag steht im Bereich Deaktiviert (aufgeklappt) mit dem Satz zu YNAB; aktiviert:
+                    // die Gruppe wieder an ihrer Stelle, der Kopf leuchtet kurz.
+                    let closed = { changed with Form = None; InactiveOpen = changed.InactiveOpen || not editor.Active }
+                    let lit, flashCmd = marked (if editor.Active then GroupLit id else Deactivated id) closed
+                    let reloaded, cmd = reload lit
+                    reloaded, Cmd.batch [ cmd; flashCmd ], NoOp
+            | Ok (), None ->
+                let reloaded, cmd = reload { model with Form = None }
+                reloaded, cmd, NoOp
+            // Die Ablehnung steht am Schalter, nie als Toast.
+            | Error message, _ -> failedIn SavingGroupActive message model, Cmd.none, NoOp
+        | _ ->
+            match result with
+            // Ohne eigenes Formular (etwa nach "Zurück"): BB hat geändert, die Liste holt den Stand.
+            | Ok () ->
+                let reloaded, cmd = reload model
+                reloaded, cmd, NoOp
+            | Error message -> model, Cmd.none, ShowToast ($"Nicht gespeichert: {message}", ToastError)
+    | ReactivateGroup groupId ->
+        let known = groupsOf model |> List.exists (fun g -> g.Id = groupId && not g.Active)
+        if known then
+            bumped (withGroupActive groupId true model),
+            setGroupActiveCmd { GroupId = groupId; Active = true } (fun result -> GroupReactivated (groupId, result)),
+            NoOp
+        else
+            model, Cmd.none, NoOp
+    | GroupReactivated (groupId, Ok ()) ->
+        // Die Gruppe steht wieder an ihrer Stelle, ihr Kopf leuchtet kurz; einzeln deaktivierte Kategorien bleiben im
+        // Bereich Deaktiviert.
+        let lit, flashCmd = marked (GroupLit groupId) model
+        let reloaded, cmd = reload lit
+        reloaded, Cmd.batch [ cmd; flashCmd ], NoOp
+    | GroupReactivated (groupId, Error message) ->
+        // Zurück in den Bereich Deaktiviert, rot am Eintrag.
+        let back = { withGroupActive groupId false model with InactiveOpen = true }
+        let failed, _ = marked (ReactivateFailed (groupId, $"Nicht aktiviert: {message}")) back
         let reloaded, cmd = reload failed
         reloaded, cmd, NoOp
 

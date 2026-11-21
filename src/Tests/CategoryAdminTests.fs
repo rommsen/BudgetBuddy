@@ -21,10 +21,14 @@ let private kinderkram = Guid.Parse "22222222-0000-0000-0000-000000000003"
 let private groupsFixture : ManagedCategoryGroup list =
     [ { Id = alltag
         Name = "Alltag"
+        Active = true
         Categories = [ { Id = lebensmittel; Name = "Lebensmittel"; Active = true }; { Id = drogerie; Name = "Drogerie"; Active = true } ] }
-      { Id = kinder; Name = "Kinder"; Categories = [ { Id = kinderkram; Name = "Kinderkram"; Active = true } ] } ]
+      { Id = kinder; Name = "Kinder"; Active = true; Categories = [ { Id = kinderkram; Name = "Kinderkram"; Active = true } ] } ]
 
 let private run (a: Async<'T>) = Async.RunSynchronously a
+
+/// BBs Zustand ohne deaktivierte Gruppe oder Kategorie (budgeting-nyx75): alles wie in YNAB.
+let private noLayout () = async { return Ok emptyCategoryLayout }
 
 /// Ein Fake-Port, der jeden Aufruf mitschreibt. `answer` liefert die Antwort jedes Schreibens.
 type private Probe(answer: unit -> YnabResult<Guid>, ?fetched: YnabResult<ManagedCategoryGroup list>) =
@@ -118,7 +122,7 @@ let decoderTests =
                       group (Guid.NewGuid()) "Credit Card Payments" "" [ category (Guid.NewGuid()) "Visa" "" ] ]
                 $"""{{"data":{{"category_groups":[{String.Join(",", groups)}]}}}}"""
             let expected : ManagedCategoryGroup list =
-                [ { Id = alltag; Name = "Alltag"; Categories = [ { Id = lebensmittel; Name = "Lebensmittel"; Active = true } ] } ]
+                [ { Id = alltag; Name = "Alltag"; Active = true; Categories = [ { Id = lebensmittel; Name = "Lebensmittel"; Active = true } ] } ]
             Expect.equal (Server.YnabClient.interpretCategoryGroupsResponse "bud" 200 body) (Ok expected) "nur das Sichtbare"
 
         testCase "Fehler beim Lesen kommen als YNAB-Fehler" <| fun () ->
@@ -180,14 +184,14 @@ let handlerTests =
     testList "Kategorien verwalten: Befehl nach YNAB" [
         testCase "Kategorie anlegen schickt POST mit Name und Gruppe und stößt danach den Spiegel an" <| fun () ->
             let probe = okProbe ()
-            let result = saveCategory probe.Port { CategoryId = None; Name = "Haustier"; GroupId = kinder } |> run
+            let result = saveCategory noLayout probe.Port { CategoryId = None; Name = "Haustier"; GroupId = kinder } |> run
             Expect.equal result (Ok newId) "Id der neuen Kategorie"
             Expect.equal probe.Calls [ "fetch"; $"create-category {kinder} Haustier"; "mirror" ] "Aufrufe in Reihenfolge"
 
         testCase "Umbenennen und Gruppe wechseln schicken PATCH nur mit den geänderten Feldern" <| fun () ->
             let patched name group =
                 let probe = okProbe ()
-                saveCategory probe.Port { CategoryId = Some drogerie; Name = name; GroupId = group } |> run |> ignore
+                saveCategory noLayout probe.Port { CategoryId = Some drogerie; Name = name; GroupId = group } |> run |> ignore
                 probe.Calls
             Expect.equal (patched "Bad" alltag) [ "fetch"; $"patch-category {drogerie} Some(Bad) "; "mirror" ] "nur Name"
             Expect.equal (patched "Drogerie" kinder) [ "fetch"; $"patch-category {drogerie}  Some({kinder})"; "mirror" ] "nur Gruppe"
@@ -209,23 +213,23 @@ let handlerTests =
                 | Error (RefusedByBb message) -> Expect.stringContains message expected "konkrete Meldung"
                 | other -> failtestf "Ablehnung erwartet, bekam %A" other
                 Expect.equal probe.Calls (List.replicate fetches "fetch") "kein Schreiben, kein Spiegel"
-            refused (fun p -> saveCategory p { CategoryId = None; Name = " "; GroupId = alltag }) CategoryNameMissingText 0
+            refused (fun p -> saveCategory noLayout p { CategoryId = None; Name = " "; GroupId = alltag }) CategoryNameMissingText 0
             refused (fun p -> saveCategoryGroup p { GroupId = None; Name = String('x', 51) }) GroupNameTooLongText 0
-            refused (fun p -> saveCategory p { CategoryId = None; Name = "Drogerie"; GroupId = alltag }) "schon eine Kategorie Drogerie" 1
-            refused (fun p -> saveCategory p { CategoryId = None; Name = "Neu"; GroupId = Guid.NewGuid() }) UnknownGroupText 1
-            refused (fun p -> saveCategory p { CategoryId = Some (Guid.NewGuid()); Name = "Neu"; GroupId = alltag }) UnknownCategoryText 1
+            refused (fun p -> saveCategory noLayout p { CategoryId = None; Name = "Drogerie"; GroupId = alltag }) "schon eine Kategorie Drogerie" 1
+            refused (fun p -> saveCategory noLayout p { CategoryId = None; Name = "Neu"; GroupId = Guid.NewGuid() }) UnknownGroupText 1
+            refused (fun p -> saveCategory noLayout p { CategoryId = Some (Guid.NewGuid()); Name = "Neu"; GroupId = alltag }) UnknownCategoryText 1
             refused (fun p -> saveCategoryGroup p { GroupId = Some (Guid.NewGuid()); Name = "Neu" }) UnknownGroupText 1
 
         testCase "YNAB antwortet mit Fehler: Meldung an den Aufrufer, kein Spiegel-Lauf" <| fun () ->
             for error in [ YnabError.InvalidResponse "Kategorie ungültig (HTTP 400)"; YnabError.RateLimitExceeded 60; YnabError.NetworkError "YNAB nicht erreichbar" ] do
                 let probe = Probe(fun () -> Error error)
-                Expect.equal (saveCategory probe.Port { CategoryId = None; Name = "Haustier"; GroupId = kinder } |> run) (Error error) "Fehler durchgereicht"
+                Expect.equal (saveCategory noLayout probe.Port { CategoryId = None; Name = "Haustier"; GroupId = kinder } |> run) (Error error) "Fehler durchgereicht"
                 Expect.equal (saveCategoryGroup probe.Port { GroupId = Some kinder; Name = "Familie" } |> run) (Error error) "Fehler bei Gruppe"
                 Expect.equal (probe.Count "mirror") 0 "kein Spiegel, die Liste bleibt"
 
         testCase "die Liste nicht lesbar: nichts geschrieben" <| fun () ->
             let probe = Probe((fun () -> Ok newId), Error (RateLimitExceeded 60))
-            Expect.equal (saveCategory probe.Port { CategoryId = None; Name = "Haustier"; GroupId = kinder } |> run) (Error (RateLimitExceeded 60)) "Fehler"
+            Expect.equal (saveCategory noLayout probe.Port { CategoryId = None; Name = "Haustier"; GroupId = kinder } |> run) (Error (RateLimitExceeded 60)) "Fehler"
             Expect.equal probe.Calls [ "fetch" ] "nur gelesen"
 
         testCase "der Spiegel nach dem Schreiben scheitert nie und schreibt die gelesenen Kategorien" <| fun () ->

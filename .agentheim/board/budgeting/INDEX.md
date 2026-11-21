@@ -12,8 +12,8 @@ Catalog of this bounded context's tasks by status.
 <!-- task-counts:start -->
 - **Backlog:** 6
 - **Todo:** 0
-- **Doing:** 2
-- **Done:** 74
+- **Doing:** 1
+- **Done:** 75
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,12 +22,12 @@ Catalog of this bounded context's tasks by status.
 
 ### Doing
 <!-- doing-list:start -->
-- **budgeting-nyx75** — "Kategorie-Gruppe in BB deaktivieren: die Gruppe verschwindet samt ihren Kategorien aus Budget-Liste und Pickern, in YNAB bleibt sie" (feature) — `doing/budgeting-nyx75-gruppe-deaktivieren.md`
 - **budgeting-yx51n** — "Budget-Rahmen aus BB: Monatsfenster und Kategorie-Platzierung als YNAB-Stand, der Rahmen der Budget-Seite liest ohne YNAB-Aufruf" (feature) — `doing/budgeting-yx51n-budget-rahmen-aus-bb.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)
 <!-- done-list:start -->
+- **budgeting-nyx75** — "Kategorie-Gruppe in BB deaktivieren: die Gruppe verschwindet samt ihren Kategorien aus Budget-Liste und Pickern, in YNAB bleibt sie" (feature) — `done/budgeting-nyx75-gruppe-deaktivieren.md`
 - **budgeting-m5pqn** — "Budget-Monat aus BB: YNAB-Stand je Monat festhalten, getBudgetMonth liest nur die Datenbank, Verfügbar und Zu verteilen leitet BB aus Soll, Kassenbuch und Stand ab" (feature) — `done/budgeting-m5pqn-budget-seite-sofort-aus-bb.md`
 - **budgeting-sx9v5** — "Targets und Kategorien verwalten am Handy ohne Toast (R3): Ergebnis am Target im Sheet und in der Zeile der Prüfung, Kategorien verwalten mit leuchtender Zeile und Fehler am Feld, Hinweis „nicht neu gelesen“ auf der Seite" (feature) — `done/budgeting-sx9v5-targets-und-kategorien-ohne-toast.md`
 - **budgeting-p3sk0** — "Angepinnt ohne Meldung (R3): Anpinnen und Lösen im Kategorie-Detail ohne Toast, die Kategorie leuchtet auf der Übersicht im Bereich „Angepinnt“ kurz, ein Fehler beim Speichern steht am Ort" (feature) — `done/budgeting-p3sk0-angepinnt-ohne-meldung.md`

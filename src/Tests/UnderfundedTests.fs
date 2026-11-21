@@ -377,7 +377,7 @@ let private rawMonth (id: Guid) (assigned: decimal) (activity: decimal) (availab
     { Month = november
       ToBeBudgeted = eur 0m
       Categories =
-        [ { Id = id; Name = "Zeile"; GroupName = "Alltag"; Assigned = eur assigned; Activity = eur activity
+        [ { Id = id; Name = "Zeile"; GroupName = "Alltag"; GroupId = None; Assigned = eur assigned; Activity = eur activity
             Available = eur available; Target = None; Hidden = false; Deleted = false; Internal = false } ] }
 
 let private rowIn (month: BudgetMonth) : BudgetCategory =
@@ -466,6 +466,7 @@ let private annualMonth (categoryId: Guid) (monthKey: string) (assigned: decimal
         [ { Id = categoryId
             Name = "Jährlich"
             GroupName = "Alltag"
+            GroupId = None
             Assigned = eur assigned
             Activity = eur activity
             Available = eur available

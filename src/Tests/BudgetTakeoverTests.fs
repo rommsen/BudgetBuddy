@@ -107,6 +107,7 @@ type private FakeYnab(months: string list, sim: Sim) =
                                 [ { Id = category
                                     Name = "Lebensmittel"
                                     GroupName = "Alltag"
+                                    GroupId = None
                                     Assigned = eur 50000L
                                     Activity = eur 0L
                                     Available = eur 50000L
