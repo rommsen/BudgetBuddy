@@ -3225,7 +3225,11 @@ let ledgerPagingTests =
                 (plan |> List.exists (fun line -> line.Contains "CORRELATED"))
                 $"keine korrelierte Unterabfrage (Plan: {planText})"
 
-        testCase "AC14: 1000 Buchungen, drei mit der gesuchten Split-Kategorie, liefern TotalCount = 3 in angemessener Zeit" <| fun () ->
+        // Bis infrastructure-q8f3n prüfte der Fall eine Wanduhr-Grenze von 2 s über Seeding und Abfrage. Gemessen wurde
+        // fast nur das Schreiben der 1000 Ereignisse, und unter der Last paralleler Gate-Läufe kippte sie (3,7 s). Ob die
+        // Abfrage skaliert, sagt ihr Zugriffsplan: über den Konto-Index, die Split-Kategorie per SEARCH auf der
+        // Indextabelle, nichts wird ganz gelesen, keine Unterabfrage je Zeile.
+        testCase "AC14: 1000 Buchungen, drei mit der gesuchten Split-Kategorie, liefern TotalCount = 3 über Indizes ohne Tabellen-Scan" <| fun () ->
             let hitCategory = catId 43
             let hitIndices = set [ 100; 500; 900 ]
 
@@ -3258,8 +3262,6 @@ let ledgerPagingTests =
                   Actor = YnabMirror
                   Body = EntryObservedInYnab payload }
 
-            let sw = System.Diagnostics.Stopwatch.StartNew()
-
             [ for i in 0 .. 999 -> makeEvent i ]
             |> appendAndApply
             |> Async.RunSynchronously
@@ -3268,14 +3270,22 @@ let ledgerPagingTests =
             let query = { baseQuery (Some rawAF) with CategoryIds = [ catGuid 43 ] }
             let page = Ledger.QueryHandlers.getLedgerEntriesPage query |> Async.RunSynchronously
 
-            sw.Stop()
-
             Expect.equal page.TotalCount 3 "genau die drei Buchungen mit der gesuchten Split-Kategorie, unter 1000 auf demselben Konto"
-            // "Etwa zwei Sekunden" (Task-Vorgabe): großzügige Grenze für eine
-            // CI-Maschine; eine Überschreitung soll die Anzahl in einer späteren
-            // Iteration senken, nicht den Test flackern lassen.
-            Expect.isLessThan sw.Elapsed.TotalSeconds 2.0
-                $"Seeding plus Abfrage über 1000 Buchungen blieb unter 2s (tatsächlich: {sw.Elapsed.TotalSeconds:F2}s)"
+
+            let plan = explainEntryFilterPlan (Some pageTestAccountAF) { noFilter with CategoryIds = [ catGuid 43 ] }
+            let planText = String.concat " | " plan
+            Expect.isTrue
+                (plan |> List.exists (fun line -> line.StartsWith "SEARCH ledger_entries USING INDEX"))
+                $"die Buchungen kommen über einen Index, nicht aus der ganzen Tabelle (Plan: {planText})"
+            Expect.isTrue
+                (plan |> List.exists (fun line -> line.StartsWith "SEARCH ledger_entry_split_categories"))
+                $"die Split-Kategorie wird in der Indextabelle gesucht (Plan: {planText})"
+            Expect.isFalse
+                (plan |> List.exists (fun line -> line.StartsWith "SCAN"))
+                $"keine Tabelle wird ganz gelesen (Plan: {planText})"
+            Expect.isFalse
+                (plan |> List.exists (fun line -> line.Contains "CORRELATED"))
+                $"keine Unterabfrage je Zeile (Plan: {planText})"
 
         // ============================================
         // Payee-Vorschläge falten wie der Payee-Filter (ledger-h4qtx, ADR 0037)

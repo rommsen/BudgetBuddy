@@ -17,11 +17,11 @@
 #
 # Parallelität: Expecto läuft in-memory, build und dist/ liegen je Worktree, das
 # braucht kein Lock. Nur Schritt 6 ist serialisiert, über ein Lock im gemeinsamen
-# git-Verzeichnis (für alle Worktrees derselbe Pfad). Grund: unter der Last
-# zweier gleichzeitiger Läufe startet `vite preview` in export-design-system.mjs
-# nicht innerhalb der fest eingestellten 5 Sekunden, der Test lädt dann zu früh
-# und scheitert mit ERR_CONNECTION_REFUSED. Ein Lock eines nicht mehr laufenden
-# Prozesses wird übernommen (scripts/verify-lib.sh).
+# git-Verzeichnis (für alle Worktrees derselbe Pfad). Anlass war `vite preview` in
+# export-design-system.mjs, das unter der Last zweier Läufe nicht in festen
+# 5 Sekunden startete (ERR_CONNECTION_REFUSED). Seit infrastructure-r5k2w wartet
+# das Skript auf den Port (höchstens 60 s); das Lock blieb. Ein Lock eines nicht
+# mehr laufenden Prozesses wird übernommen (scripts/verify-lib.sh).
 #
 # Kein set -e: Exit-Codes werden je Schritt geprüft.
 

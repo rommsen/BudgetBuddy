@@ -131,3 +131,9 @@ Den Tonwert von `text-secondary` oder die betroffenen Flächen so anpassen, dass
 - Verifier infrastructure-x7p2e: DB-Testdateien ohne Markierung (TargetCheckQueryTests, UnderfundedTests außerhalb von „Server-Log“, CategoryLayoutTests, BudgetTakeoverTests, EventStoreTests) laufen jetzt gleichzeitig mit Listen der Gruppe, die über alle Zeilen lesen. Flaken dort, ist das die wahrscheinliche Ursache; dann in die Gruppe aufnehmen.
 - Verifier infrastructure-x7p2e: In „Mechanisch geprüft von“ in `.claude/rules/test-doctrine.md` fehlt `src/Tests/TestSequencingGuardTests.fs`.
 - Work-Lauf 2026-11-21: Gate-Flakes, seit 2026-11-21 eigenes Ticket infrastructure-q8f3n.
+
+## Aus infrastructure-q8f3n (2026-11-21, Gate ohne Flakes)
+- Ein Laufzeit-Wächter, der Schreibzugriffe auf die gemeinsame DB aus Listen außerhalb von `TestGroups.InMemoryDb` meldet. Heute fängt das nur ein roter Replay-Test.
+- `BankImportTests.fs` „Automatisch abrufen: der jüngste Abruf aus der Historie“ schreibt `sync_sessions` in der gemeinsamen DB außerhalb der Gruppe (heute kein Flake, laut ADR 0100 gehört es in die Gruppe).
+- AC14 in `LedgerPageTests.fs` schreibt weiter 1000 Buchungen in die gemeinsame DB (ADR 0100 Punkt 3). Eine eigene DB bräuchte eine injizierbare Verbindung für `appendAndApply` und `getLedgerEntriesPage`.
+- Der Workaround aus 118819ea in `targets-pruefen-nicht-neu-gelesen` (zwei Frames, dann nach oben scrollen) ist mit `scroll-behavior: auto` im Sweep vielleicht entbehrlich.

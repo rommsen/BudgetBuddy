@@ -629,24 +629,6 @@ async function extractPreviews(baseUrl) {
       await writePreview(card.id, card.group, name, subtitle, html);
     }
 
-    // BottomSheet, Kategorienauswahl: teilen sich `.overlay`/`.bottom-sheet`, daher
-    // nacheinander öffnen/einsammeln/schließen (sonst erfasst querySelector das
-    // falsche, noch offene Sheet).
-    await extractPortalCard(
-      page,
-      BOTTOMSHEET_CARD,
-      ".bottom-sheet.active",
-      [".overlay.active", ".bottom-sheet.active"],
-      ".bottom-sheet.active .sheet-close"
-    );
-    await extractPortalCard(
-      page,
-      CATEGORY_PICKER_CARD,
-      ".bottom-sheet.active",
-      [".overlay.active", ".bottom-sheet.active"],
-      ".bottom-sheet.active .sheet-close"
-    );
-
     // Modal: eigener Fixed-Wrapper (Modal.fs: `.fixed.inset-0.z-50.overflow-hidden`),
     // schließt über den "Abbrechen"-Button im Demo-Footer. Selektor auf den
     // Fixed-Wrapper eingeschränkt: der statische Button-Sektion hat weiter oben in
@@ -657,6 +639,28 @@ async function extractPreviews(baseUrl) {
       ".fixed.inset-0.z-50.overflow-hidden",
       [".fixed.inset-0.z-50.overflow-hidden"],
       '.fixed.inset-0.z-50.overflow-hidden button:has-text("Abbrechen")'
+    );
+
+    // BottomSheet, Kategorienauswahl: teilen sich `.overlay`/`.bottom-sheet`, daher
+    // nacheinander öffnen/einsammeln/schließen (sonst erfasst querySelector das
+    // falsche, noch offene Sheet).
+    await extractPortalCard(
+      page,
+      BOTTOMSHEET_CARD,
+      ".bottom-sheet.active",
+      [".overlay.active", ".bottom-sheet.active"],
+      ".bottom-sheet.active .sheet-close"
+    );
+    // Die Kategorienauswahl kommt zuletzt: ihr Schließen legt `Viewport.swallowNextClick 350` an (CategoryPicker.fs,
+    // Geisterklick am Handy, ADR 0005), der nächste Klick binnen 350 ms auf der ganzen Seite wird verschluckt. Stand
+    // das Modal dahinter, ging sein Öffnen-Klick je nach Tempo verloren und `waitForSelector` lief nach 30 s ab
+    // (Gate-Flake, infrastructure-q8f3n). Nach ihr folgt kein Klick mehr.
+    await extractPortalCard(
+      page,
+      CATEGORY_PICKER_CARD,
+      ".bottom-sheet.active",
+      [".overlay.active", ".bottom-sheet.active"],
+      ".bottom-sheet.active .sheet-close"
     );
   } finally {
     await browser.close();

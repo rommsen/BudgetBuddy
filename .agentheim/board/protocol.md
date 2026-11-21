@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-21 13:42 -- Task verified and completed: infrastructure-q8f3n - "Gate ohne Flakes: Ledger-Replay mit fremden Perf-Buchungen, AC14-Zeittest, Design-System-Export und regeln-panel werden deterministisch"
+
+**Type:** Work / Task completion
+**Task:** infrastructure-q8f3n - "Gate ohne Flakes: Ledger-Replay mit fremden Perf-Buchungen, AC14-Zeittest, Design-System-Export und regeln-panel werden deterministisch"
+**Summary:** Gate ohne Flakes: BankImport-Listen in der DB-Gruppe, AC14 prüft den Zugriffsplan statt einer Wanduhr, Design-System-Export und Layout-Sweep deterministisch
+**Duration:** 1h40m
+**Verification:** PASS (iteration 1)
+**Files changed:** 5
+**Tests added:** 0
+**ADRs written:** none
+
+---
+
 ## 2026-11-21 13:11 -- Task verified and completed: budgeting-ffjk9 - "Nachziehen beim Öffnen: Budget-Seite und Übersicht zeigen sofort BBs Stand und gleichen danach still mit YNAB ab (syncBudgetMonth, Frische 60 s und 5 min, spätere Monate veraltet)"
 
 **Type:** Work / Task completion

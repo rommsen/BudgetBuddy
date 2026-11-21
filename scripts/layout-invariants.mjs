@@ -834,6 +834,11 @@ export async function runState(browser, baseUrl, state, width, { inject = null, 
       });
     }
     await page.goto(`${baseUrl}/#${state.route}`, { waitUntil: "load" });
+    // Das Dokument scrollt in der App weich (`scroll-behavior: smooth` am html, styles.css). Dieses Scrollen ist keine
+    // Web-Animation, `settle` sieht es nicht: unter Last maß der Sweep die Lage mitten im Scrollen (Gate-Flakes
+    // regeln-panel und targets-pruefen-nicht-neu-gelesen, infrastructure-q8f3n). Ohne Animation steht nach jedem Scrollen
+    // gleich das Ende da; ob und wohin die App scrollt, bleibt ihre Sache. Bewegung prüft der Sweep ohnehin nicht.
+    await page.addStyleTag({ content: "html { scroll-behavior: auto !important; }" });
     await state.open(page, { width, mobile });
     if (inject) await page.addStyleTag({ content: inject });
     if (prepare) await prepare(page);

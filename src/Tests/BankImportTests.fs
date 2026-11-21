@@ -280,7 +280,11 @@ let private startedSessionId (probe: Probe) = (Seq.exactlyOne probe.Sessions.Sta
 
 [<Tests>]
 let startSyncTests =
-    testList "startSync: der Server entscheidet über die TAN" [
+    // Geteilt: die In-Memory-DB. Der Abruf bucht über `pushComdirectImports` ins echte Kassenbuch. Bis
+    // infrastructure-q8f3n lief diese Liste parallel zur Gruppe, und die Replay-Tests (Log gegen Zustand über alle
+    // Buchungen) sahen zwischen ihren beiden Lesezugriffen neue Buchungen dieser Liste.
+    testSequencedGroup TestGroups.InMemoryDb
+    <| testList "startSync: der Server entscheidet über die TAN" [
 
         testCase "aktive Verbindung: der Abruf bucht ohne Challenge, die Sitzung ist mit ihren Zahlen beendet" <| fun () ->
             let probe = Probe(connected)
@@ -570,7 +574,11 @@ let startSyncTests =
 
 [<Tests>]
 let confirmTanTests =
-    testList "confirmTan: nach der TAN derselbe Abruf" [
+    // Geteilt: die In-Memory-DB. Der Abruf bucht über `pushComdirectImports` ins echte Kassenbuch. Bis
+    // infrastructure-q8f3n lief diese Liste parallel zur Gruppe, und die Replay-Tests (Log gegen Zustand über alle
+    // Buchungen) sahen zwischen ihren beiden Lesezugriffen neue Buchungen dieser Liste.
+    testSequencedGroup TestGroups.InMemoryDb
+    <| testList "confirmTan: nach der TAN derselbe Abruf" [
 
         testCase "bestätigte TAN: der Abruf bucht, die beendete Sitzung kommt zurück" <| fun () ->
             let probe = Probe(pendingChallenge)
@@ -658,7 +666,11 @@ let private storedProbe () =
 /// den Wert.
 [<Tests>]
 let startSyncAfterRestartTests =
-    testList "startSync nach dem Neustart: ein gespeicherter Wert kostet keine TAN" [
+    // Geteilt: die In-Memory-DB. Der Abruf bucht über `pushComdirectImports` ins echte Kassenbuch. Bis
+    // infrastructure-q8f3n lief diese Liste parallel zur Gruppe, und die Replay-Tests (Log gegen Zustand über alle
+    // Buchungen) sahen zwischen ihren beiden Lesezugriffen neue Buchungen dieser Liste.
+    testSequencedGroup TestGroups.InMemoryDb
+    <| testList "startSync nach dem Neustart: ein gespeicherter Wert kostet keine TAN" [
 
         testCase "Klick vor der Wiederaufnahme: Abruf ohne Challenge, der Wert bleibt" <| fun () ->
             let probe = storedProbe ()
@@ -764,7 +776,11 @@ let startSyncAfterRestartTests =
 /// gestorbene Verbindung lesen.
 [<Tests>]
 let retryLaterSyncTests =
-    testList "startSync nach RetryLater: die Verbindung lebt, es gibt keine Challenge" [
+    // Geteilt: die In-Memory-DB. Der Abruf bucht über `pushComdirectImports` ins echte Kassenbuch. Bis
+    // infrastructure-q8f3n lief diese Liste parallel zur Gruppe, und die Replay-Tests (Log gegen Zustand über alle
+    // Buchungen) sahen zwischen ihren beiden Lesezugriffen neue Buchungen dieser Liste.
+    testSequencedGroup TestGroups.InMemoryDb
+    <| testList "startSync nach RetryLater: die Verbindung lebt, es gibt keine Challenge" [
 
         testCase "RetryLater beim Klick: der Abruf läuft mit dem alten Token, der Wert bleibt" <| fun () ->
             let probe = storedProbe ()
@@ -815,7 +831,11 @@ let retryLaterSyncTests =
 /// Die Sync-Wege aus banking-import-cyg94 behandeln den Wert wie `startChallengeWith`.
 [<Tests>]
 let storedValueOnSyncPathsTests =
-    testList "Gespeicherter Wert auf den Sync-Wegen: Challenge und Abbruch" [
+    // Geteilt: die In-Memory-DB. Der Abruf bucht über `pushComdirectImports` ins echte Kassenbuch. Bis
+    // infrastructure-q8f3n lief diese Liste parallel zur Gruppe, und die Replay-Tests (Log gegen Zustand über alle
+    // Buchungen) sahen zwischen ihren beiden Lesezugriffen neue Buchungen dieser Liste.
+    testSequencedGroup TestGroups.InMemoryDb
+    <| testList "Gespeicherter Wert auf den Sync-Wegen: Challenge und Abbruch" [
 
         testCase "neue Challenge über den Bank-Port: der Wert der abgelösten Verbindung ist weg" <| fun () ->
             let probe = Probe(connected)
@@ -876,7 +896,11 @@ let private disconnectBank (ports: ImportPorts) (probe: Probe) : SyncResult<unit
 
 [<Tests>]
 let disconnectBankTests =
-    testList "Bank trennen: die Sync-Sitzung" [
+    // Geteilt: die In-Memory-DB. Der Abruf bucht über `pushComdirectImports` ins echte Kassenbuch. Bis
+    // infrastructure-q8f3n lief diese Liste parallel zur Gruppe, und die Replay-Tests (Log gegen Zustand über alle
+    // Buchungen) sahen zwischen ihren beiden Lesezugriffen neue Buchungen dieser Liste.
+    testSequencedGroup TestGroups.InMemoryDb
+    <| testList "Bank trennen: die Sync-Sitzung" [
 
         testCase "eine Sitzung beim TAN-Schritt endet sichtbar, confirmTan scheitert ohne Bankzugriff" <| fun () ->
             let probe = Probe(Disconnected)
