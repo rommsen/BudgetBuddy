@@ -309,28 +309,6 @@ let handlerTests =
             Expect.isError result "doppelt"
             Expect.equal (idsOf (readGroups connect) alltag) [ lebensmittel; drogerie; apotheke ] "unverändert"
 
-        testCase "der Kategorie-Spiegel überschreibt Deaktivieren und Reihenfolge nicht" <| fun () ->
-            Ledger.Persistence.initializeLedgerSchema ()
-            Budgeting.Persistence.initializeBudgetingSchema ()
-            let connect = global.Persistence.getConnection
-            let groupId = Guid.NewGuid()
-            let first, second = Guid.NewGuid(), Guid.NewGuid()
-            setCategoryOrderWith connect now { GroupId = groupId; CategoryIds = [ second; first ] } |> run |> ignore
-            setCategoryActiveWith connect quietPort november now { CategoryId = first; Active = true } |> run |> ignore
-            setCategoryActiveWith connect (portWith (Map.ofList [ november, rawMonth november [] ])) november now { CategoryId = second; Active = false }
-            |> run
-            |> ignore
-            let mirrored : YnabCategory list =
-                [ { Id = YnabCategoryId first; Name = "Erste neu"; GroupName = "G"; Available = None; Hidden = false }
-                  { Id = YnabCategoryId second; Name = "Zweite neu"; GroupName = "G"; Available = None; Hidden = false } ]
-            refreshMirrorWith (fun () -> async { return Ok mirrored }) Ledger.Persistence.upsertCategories |> run
-            match Budgeting.Persistence.loadCategoryLayoutWith connect |> run with
-            | Ok layout ->
-                Expect.equal (layout.Orders |> Map.tryFind groupId) (Some [ second; first ]) "Reihenfolge bleibt"
-                Expect.isTrue (layout.Deactivated.Contains second) "deaktiviert bleibt"
-                Expect.isFalse (layout.Deactivated.Contains first) "aktiv bleibt"
-            | Error message -> failtest message
-
         testCase "die Budget-Seite lässt eine deaktivierte Kategorie ohne Geld weg und zeigt eine mit Aktivität markiert" <| fun () ->
             let anchor, connect = CategoryLayoutFixture.isolated ()
             use _ = anchor
@@ -355,6 +333,36 @@ let handlerTests =
                 Expect.equal (all |> List.map (fun c -> c.Id)) [ lebensmittel; drogerie ] "Restaurant fehlt"
                 Expect.isTrue (all |> List.find (fun c -> c.Id = drogerie) |> isDeactivated) "Drogerie markiert"
             | Error e -> failtest $"Monat erwartet: {e}"
+    ]
+
+[<Tests>]
+let mirrorTests =
+    // Geteilt: die In-Memory-DB. Der Kategorie-Spiegel schreibt `ledger_categories` über die gemeinsame Verbindung
+    // (`Ledger.Persistence.upsertCategories`), BBs Zustand liegt deshalb dort mit. Die DB-Listen laufen nacheinander in
+    // dieser Gruppe, parallel zum Rest (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb
+    <| testList "Deaktivieren und Reihenfolge: Kategorie-Spiegel auf der gemeinsamen Datenbank" [
+        testCase "der Kategorie-Spiegel überschreibt Deaktivieren und Reihenfolge nicht" <| fun () ->
+            Ledger.Persistence.initializeLedgerSchema ()
+            Budgeting.Persistence.initializeBudgetingSchema ()
+            let connect = global.Persistence.getConnection
+            let groupId = Guid.NewGuid()
+            let first, second = Guid.NewGuid(), Guid.NewGuid()
+            setCategoryOrderWith connect now { GroupId = groupId; CategoryIds = [ second; first ] } |> run |> ignore
+            setCategoryActiveWith connect quietPort november now { CategoryId = first; Active = true } |> run |> ignore
+            setCategoryActiveWith connect (portWith (Map.ofList [ november, rawMonth november [] ])) november now { CategoryId = second; Active = false }
+            |> run
+            |> ignore
+            let mirrored : YnabCategory list =
+                [ { Id = YnabCategoryId first; Name = "Erste neu"; GroupName = "G"; Available = None; Hidden = false }
+                  { Id = YnabCategoryId second; Name = "Zweite neu"; GroupName = "G"; Available = None; Hidden = false } ]
+            refreshMirrorWith (fun () -> async { return Ok mirrored }) Ledger.Persistence.upsertCategories |> run
+            match Budgeting.Persistence.loadCategoryLayoutWith connect |> run with
+            | Ok layout ->
+                Expect.equal (layout.Orders |> Map.tryFind groupId) (Some [ second; first ]) "Reihenfolge bleibt"
+                Expect.isTrue (layout.Deactivated.Contains second) "deaktiviert bleibt"
+                Expect.isFalse (layout.Deactivated.Contains first) "aktiv bleibt"
+            | Error message -> failtest message
     ]
 
 // ============================================

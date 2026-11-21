@@ -269,6 +269,9 @@ let handlerTests =
             use _ = anchor
             let empty = Probe(Map.ofList [ november, rawMonth november [] ])
             Expect.equal (setGroup connect empty freizeit false) (Ok ()) "erlaubt"
+            match Budgeting.Persistence.loadCategoryLayoutWith connect |> run with
+            | Ok layout -> Expect.equal layout.DeactivatedGroups (Set.ofList [ freizeit ]) "in BBs Zustand deaktiviert"
+            | Error message -> failtest message
 
         testCase "unbekannte Gruppe: abgelehnt ohne Monat, nichts geschrieben" <| fun () ->
             let anchor, connect = CategoryLayoutFixture.isolated ()
@@ -292,6 +295,15 @@ let handlerTests =
                 "Meldung"
             Expect.isTrue (groupIn (readGroups connect) wohnen).Active "nichts geschrieben"
 
+    ]
+
+[<Tests>]
+let mirrorTests =
+    // Geteilt: die In-Memory-DB. Der Kategorie-Spiegel schreibt `ledger_categories` über die gemeinsame Verbindung
+    // (`Ledger.Persistence.upsertCategories`), BBs Zustand liegt deshalb dort mit. Die DB-Listen laufen nacheinander in
+    // dieser Gruppe, parallel zum Rest (`TestGroups.InMemoryDb`).
+    testSequencedGroup TestGroups.InMemoryDb
+    <| testList "Gruppe deaktivieren: Kategorie-Spiegel auf der gemeinsamen Datenbank" [
         testCase "der Kategorie-Spiegel überschreibt eine deaktivierte Gruppe nicht" <| fun () ->
             Ledger.Persistence.initializeLedgerSchema ()
             Budgeting.Persistence.initializeBudgetingSchema ()
@@ -442,6 +454,13 @@ let validationTests =
                 (Ok (Server.Validation.CreateCategoryIn (freizeit, "Gas")))
                 "Freizeit ist aktiv"
 
+        testCase "eine Kategorie, die schon in einer deaktivierten Gruppe steht, lässt sich weiter umbenennen" <| fun () ->
+            let groups = arrangeGroups (layoutOf [] [ wohnen ]) ynabGroups
+            Expect.equal
+                (Server.Validation.validateCategorySave groups { CategoryId = Some miete; Name = "Kaltmiete"; GroupId = wohnen })
+                (Ok (Server.Validation.PatchCategory (miete, Some "Kaltmiete", None)))
+                "nur der Name geht nach YNAB"
+
         testCase "ist BBs Zustand nicht lesbar, wird keine Kategorie gespeichert" <| fun () ->
             let probe = quietProbe ()
             Expect.equal
@@ -484,6 +503,14 @@ let apiTests =
             match Budgeting.Persistence.loadCategoryLayoutWith connect |> run with
             | Ok layout -> Expect.equal layout.DeactivatedGroups (Set.ofList [ wohnen ]) "auf der übergebenen Datenbank"
             | Error message -> failtest message
+            do
+                use conn = connect ()
+                let stamped =
+                    Dapper.SqlMapper.ExecuteScalar<string>(
+                        conn,
+                        "SELECT updated_at FROM budget_category_group_layout WHERE group_id = @g",
+                        {| g = string wohnen |})
+                Expect.equal stamped "2026-11-30T23:30:00.0000000Z" "gestempelt mit der übergebenen Uhr"
             Expect.equal
                 (api.saveCategory { CategoryId = None; Name = "Gas"; GroupId = wohnen } |> run)
                 (Error "Gruppe Wohnen ist in BB deaktiviert.")

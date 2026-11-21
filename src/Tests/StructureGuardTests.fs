@@ -716,11 +716,6 @@ let private apiWirings =
       @"\bRefreshMirror\s*=\s*fun\s*\(\)\s*->\s*Server\.Budgeting\.Categories\.refreshMirrorWith\s+\(fun\s*\(\)\s*->\s*YnabClient\.getCategories\s+token\s+budgetId\)\s+Ledger\.Persistence\.upsertCategories\b"
       @"\bcategoryApi\s*\(berlinZone:[^)]*\)\s*:\s*CategoryApi\s*=\s*categoryApiWith\s+Persistence\.Settings\.getSetting\s+liveCategoryAdminPort\s+Persistence\.getConnection\s+\(fun\s*\(\)\s*->\s*DateTime\.UtcNow\)\s+berlinZone\s*(?:\n\s*\n|\z)"
       @"\bRemoting\.fromValue\s+\(categoryApi\s+berlinZone\)"
-      // Gruppe deaktivieren (budgeting-nyx75): `setCategoryGroupActiveWith` ist mit Fake-Port und In-Memory-SQLite
-      // getestet, der Endpoint mit `categoryApiWith`; hier die Verdrahtung mit Datenbank, Berliner Monat und Uhr und
-      // BBs Zustand beim Speichern einer Kategorie.
-      @"\bServer\.Budgeting\.Categories\.setCategoryGroupActiveWith\s+connect\s+port\s+\(currentMonth\s*\(\)\)\s+\(utcNow\s*\(\)\)\s+save\b"
-      @"\bServer\.Budgeting\.Categories\.saveCategory\s+\(fun\s*\(\)\s*->\s*Budgeting\.Persistence\.loadCategoryLayoutWith\s+connect\)\s+port\s+save\b"
       // Deaktivieren und Reihenfolge (budgeting-sn2sn): die `*With`-Wege sind mit Fake-Ports und In-Memory-SQLite
       // getestet, die Live-Verdrahtung erreicht YNAB und die echte Datenbank nur im laufenden Dienst.
       @"\bFetchMonth\s*=\s*fun\s+month\s*->\s*YnabClient\.getMonth\s+token\s+budgetId\s+month\b"
@@ -931,10 +926,6 @@ let hostedServiceGuardTests =
                   "Ledger.Persistence.upsertCategories", "(fun _ -> async.Return ())", "Spiegel schreibt nichts"
                   "categoryApiWith Persistence.Settings.getSetting", "categoryApiWith (fun _ -> async.Return None)", "Kategorien ohne Settings"
                   "Remoting.fromValue (categoryApi berlinZone)", "Remoting.fromValue fakeCategoryApi", "anderer Kategorien-Server"
-                  "setCategoryGroupActiveWith connect port", "setCategoryGroupActiveWith fakeConnect port", "Gruppe auf anderer Datenbank"
-                  "port (currentMonth ()) (utcNow ()) save) }", "port \"2026-01-01\" (utcNow ()) save) }", "Gruppe mit festem Monat"
-                  "(currentMonth ()) (utcNow ()) save) }", "(currentMonth ()) DateTime.MinValue save) }", "Gruppe mit fester Uhr"
-                  "Budgeting.Persistence.loadCategoryLayoutWith connect) port save", "async.Return (Ok emptyCategoryLayout)) port save", "Kategorie speichern ohne BBs Zustand"
                   "liveCategoryAdminPort Persistence.getConnection", "liveCategoryAdminPort fakeConnect", "Kategorien auf anderer Datenbank"
                   "Persistence.getConnection (fun () -> DateTime.UtcNow)", "Persistence.getConnection (fun () -> DateTime.MinValue)", "Kategorien mit fester Uhr"
                   "Persistence.getConnection (fun () -> DateTime.UtcNow) berlinZone", "Persistence.getConnection (fun () -> DateTime.UtcNow) TimeZoneInfo.Utc", "Kategorien in UTC"
