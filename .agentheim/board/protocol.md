@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-11-21 14:47 -- Capture / Captured: infrastructure-p4wa4 - README-Delta-Gate, Liste „ganz nachlesen“ über die ganze README
+
+**Type:** Capture
+**BC:** infrastructure
+**Filed to:** backlog
+**Summary:** learn: Liste „ganz nachlesen“ im README-Delta-Gate über die ganze README, gegen veraltete Sätze in nicht ersetzten Bullets
+
+---
+
 ## 2026-11-21 14:29 -- Review-Lauf: 08690c84..5f5fb048 [budgeting-ffjk9] [infrastructure-q8f3n]
 
 **Type:** Review / Review-Lauf
