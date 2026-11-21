@@ -1661,14 +1661,10 @@ let private categoryField (dispatch: Msg -> unit) (model: Model) (entry: LedgerE
             ]
     ]
 
-/// Der Grund, aus dem das Feld Split gesperrt ist. Eine in YNAB gelöschte Buchung nennt ihren
-/// eigenen Hinweis, sonst kommt der Grund aus den Sperren, die der Lesepfad liefert.
-let splitLockTextFor (entry: LedgerEntryView) : string option = splitLockReason entry
-
 /// Die Nachricht des festen Knopfs im Feld Split ("Aufteilen" bzw. "Ändern"): öffnet den Editor,
 /// wenn die Sperren der Buchung es erlauben, sonst nichts (ledger-pafkp).
 let splitActionMsg (entry: LedgerEntryView) : Msg option =
-    if (splitLockTextFor entry).IsSome then None else Some (OpenSplitEditor entry.Id)
+    if (splitLockReason entry).IsSome then None else Some (OpenSplitEditor entry.Id)
 
 /// Die Nachricht des Knopfs "Lena fragen" bzw. "Rückfrage zurücknehmen" in der Knopfzeile:
 /// `None`, wenn sie gesperrt ist oder gerade ein Aufruf läuft (ledger-xfjcp, ADR 0056).
@@ -1686,7 +1682,7 @@ let private detailActionRow
     (flagRow: FlagRowState option)
     (entry: LedgerEntryView)
     : ReactElement =
-    let splitLock = splitLockTextFor entry
+    let splitLock = splitLockReason entry
     let lena = lenaActionFor model.LenaFlagColor entry
     // Die Flagge in der Farbe aus den Einstellungen (`Badge.lenaFlagScope` an der Hülle, ADR 0087 Punkt 8).
     let flagIcon = Some (Icons.flag Icons.SM Icons.LenaFlag)
@@ -5302,6 +5298,9 @@ let reviewLeaveOf (model: Model) (action: ReviewKeyAction) : ReviewCard.SwipeLea
         if lena.Target = AssignLena && lena.DisabledReason.IsNone then Some ReviewCard.LeaveQuiet else None
     | _ -> None
 
+/// Der Grund an „Später“ und „Passt, weiter“, solange der Split-Editor offen ist (ledger-cyd1t).
+let reviewSplitOpenTitle = "Erst die Aufteilung speichern oder abbrechen"
+
 /// Führt `action` aus; steht die Bühne (Handy), fliegt die Karte vorher hinaus.
 let private leaveThen (slot: ReviewLeaveSlot) (kind: ReviewCard.SwipeLeave option) (action: unit -> unit) =
     match kind, slot.current with
@@ -5400,6 +5399,8 @@ let private ReviewNormalCard (dispatch: Msg -> unit) (model: Model) (review: Rev
     let lena = lenaActionFor model.LenaFlagColor entry
     // Der offene Split-Editor (am PC im Panel daneben) oder eine laufende Kategorie hält die Karte fest (ledger-cyd1t).
     let held = reviewCardHeld model entry.Id
+    // Am PC steht der Editor im Panel neben der Karte: die gedämpften Knöpfe nennen den Grund per `title`.
+    let heldTitle = if model.SplitEditor.IsSome then Some reviewSplitOpenTitle else None
     // Die Bestätigung am Feld nach Kategorie oder Übertrag auf der Karte (ledger-mf2bg).
     let fieldNote = review.FieldNote |> Option.filter (fun n -> n.EntryId = entry.Id)
     let flashing = fieldNote |> Option.exists (fun n -> n.Flashing)
@@ -5433,8 +5434,8 @@ let private ReviewNormalCard (dispatch: Msg -> unit) (model: Model) (review: Rev
                 ]
             ]
             match splitLink with
-            | SplitLinkFree -> ReviewCard.fieldLink "review-split" "Aufteilen" None openSplit
-            | SplitLinkLocked reason -> ReviewCard.fieldLink "review-split" "Aufteilen" (Some reason) ignore
+            | SplitLinkFree -> ReviewCard.fieldLink "review-split" "Aufteilen" (ReviewCard.LinkFree openSplit)
+            | SplitLinkLocked reason -> ReviewCard.fieldLink "review-split" "Aufteilen" (ReviewCard.LinkLocked reason)
             | SplitLinkHidden -> ()
             match fieldNote with
             | Some note ->
@@ -5527,6 +5528,7 @@ let private ReviewNormalCard (dispatch: Msg -> unit) (model: Model) (review: Rev
                         ClassName = Some "min-h-[52px]"
                         FullWidth = true
                         IsDisabled = held
+                        Title = heldTitle
                         OnClick = fun () -> leaveThen leave (reviewLeaveOf model KeySkip) (fun () -> dispatch ReviewSkip) }
             ]
         ]
@@ -5544,6 +5546,7 @@ let private ReviewNormalCard (dispatch: Msg -> unit) (model: Model) (review: Rev
                     Glow = false
                     ClassName = Some "min-h-[54px]"
                     IsDisabled = not hasTarget || held
+                    Title = heldTitle
                     IsBusy = review.Confirming = Some entry.Id
                     OnClick = fun () -> dispatch ReviewConfirm }
         // Knopf und Zeile ohne Abstand dazwischen: die Zeile trägt ihn selbst (Skizze `.ph-foot`). Am PC steht die Zeile der

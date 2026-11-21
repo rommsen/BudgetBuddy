@@ -3001,24 +3001,24 @@ let private reviewCardSection =
             ]
         ]
         subTitle "ReviewCard.fieldLink (Aufteilen unter dem Feld)"
-        note "Der Textlink „Aufteilen“ unter dem Feld „Kategorie“ der Normalkarte (ledger-cyd1t): linksbündig, 12 px im Akzent ohne Fläche wie „Regel anlegen“, am Handy 48 px Trefferfläche, das Feld behält die volle Breite. Ein Tipp öffnet das Detail mit offenem Split-Editor. Gesperrt gedämpft in text-muted, ohne Wirkung, der Grund darunter 12 px gedämpft und als title. Bei einer aufgeteilten Buchung trägt „Aufgeteilt“ einen Pfeil und tut dasselbe. Nicht auf der Duplikat-Karte."
+        note "Der Textlink „Aufteilen“ unter dem Feld „Kategorie“ der Normalkarte (ledger-cyd1t): linksbündig, 12 px im Akzent ohne Fläche wie „Regel anlegen“, am Handy 48 px Trefferfläche, das Feld behält die volle Breite. Ein Tipp öffnet das Detail mit offenem Split-Editor. Gesperrt gedämpft in text-muted, ohne Wirkung und mit aria-disabled (der Fokus bleibt), der Grund darunter 12 px gedämpft, per aria-describedby am Link und als title. Bei einer aufgeteilten Buchung trägt „Aufgeteilt“ einen Pfeil und tut dasselbe. Nicht auf der Duplikat-Karte."
         Html.div [
             prop.className "max-w-md flex flex-col gap-3"
             prop.children [
                 ReviewCard.card false [] [
                     ReviewCard.amount "-86,40 €"
                     ReviewCard.field "demo-review-split-field" "Kategorie" None "Kategorie wählen" false (Some ignore)
-                    ReviewCard.fieldLink "demo-review-split" "Aufteilen" None ignore
+                    ReviewCard.fieldLink "demo-review-split" "Aufteilen" (ReviewCard.LinkFree ignore)
                 ]
                 ReviewCard.card false [] [
                     ReviewCard.amount "-150,00 €"
                     ReviewCard.field "demo-review-split-locked-field" "Kategorie" (Some "Sparen") "Kategorie wählen" false (Some ignore)
-                    ReviewCard.fieldLink "demo-review-split-locked" "Aufteilen" (Some "Auf einem Tracking-Konto lassen sich Buchungen nicht aufteilen") ignore
+                    ReviewCard.fieldLink "demo-review-split-locked" "Aufteilen" (ReviewCard.LinkLocked "Auf einem Tracking-Konto lassen sich Buchungen nicht aufteilen")
                 ]
                 ReviewCard.card false [] [
                     ReviewCard.amount "-86,40 €"
                     ReviewCard.field "demo-review-split-done" "Kategorie" (Some "Aufgeteilt") "" false (Some ignore)
-                    ReviewCard.fieldLink "demo-review-split-again" "Aufteilen" None ignore
+                    ReviewCard.fieldLink "demo-review-split-again" "Aufteilen" (ReviewCard.LinkFree ignore)
                 ]
             ]
         ]

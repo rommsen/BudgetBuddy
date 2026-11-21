@@ -78,7 +78,7 @@ let tests =
             Expect.equal (heldLockReason entry) (Some possibleDuplicateLockedText) "Grund"
             Expect.equal (categoryLockFor entry) CategoryLockedHeld "Kategorie"
             Expect.equal (categoryLockHint CategoryLockedHeld) (Some possibleDuplicateLockedText) "Kategorie-Hinweis"
-            Expect.equal (splitLockTextFor entry) (Some possibleDuplicateLockedText) "Aufteilen"
+            Expect.equal (splitLockReason entry) (Some possibleDuplicateLockedText) "Aufteilen"
             Expect.equal (splitActionMsg entry) None "Aufteilen tut nichts"
             Expect.equal (lenaActionFor lenaColor entry).DisabledReason (Some possibleDuplicateLockedText) "Lena"
             Expect.equal (memoActionFor entry).DisabledReason (Some possibleDuplicateLockedText) "Memo"

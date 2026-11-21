@@ -345,14 +345,14 @@ let lockTests =
                 Expect.equal (lockReasonFor split) (Some reason) "Ändern gesperrt"
                 Expect.isNone (Components.Ledger.View.splitActionMsg plain) "Aufteilen ohne Wirkung"
                 Expect.isNone (Components.Ledger.View.splitActionMsg split) "Ändern ohne Wirkung"
-                Expect.equal (Components.Ledger.View.splitLockTextFor plain) (Some reason) "Hinweistext im Detail"
+                Expect.equal (splitLockReason plain) (Some reason) "Hinweistext im Detail"
                 Expect.equal (categoryLockHint (categoryLockFor split)) (Some reason) "Pfeil mit Tooltip"
                 Expect.isNone (Components.Ledger.View.categoryArrowMsg (modelWith [ split ]) split) "Pfeil inaktiv"
 
         testCase "in YNAB gelöscht sperrt alles mit eigenem Hinweis" <| fun () ->
             let deleted = { entryOf 1 with DeletedInYnab = true }
             Expect.isNone (Components.Ledger.View.splitActionMsg deleted) "gesperrt"
-            Expect.isSome (Components.Ledger.View.splitLockTextFor deleted) "Hinweis"
+            Expect.isSome (splitLockReason deleted) "Hinweis"
             let deletedSplit = { splitEntry 1 with DeletedInYnab = true }
             Expect.isNone (Components.Ledger.View.splitActionMsg deletedSplit) "aufgeteilt und gelöscht"
 
@@ -362,8 +362,8 @@ let lockTests =
             let split = { splitEntry 1 with SplitLocks = l }
             Expect.isSome (Components.Ledger.View.splitActionMsg plain) "Aufteilen bleibt aktiv"
             Expect.isNone (Components.Ledger.View.splitActionMsg split) "Ändern inaktiv"
-            Expect.equal (Components.Ledger.View.splitLockTextFor split) (Some foreign) "Hinweistext"
-            Expect.isNone (Components.Ledger.View.splitLockTextFor plain) "kein Hinweis beim Aufteilen"
+            Expect.equal (splitLockReason split) (Some foreign) "Hinweistext"
+            Expect.isNone (splitLockReason plain) "kein Hinweis beim Aufteilen"
 
         testCase "der Pfeil an der Kategorie öffnet bei einer Split-Buchung den Editor" <| fun () ->
             let model = modelWith [ splitEntry 1 ]

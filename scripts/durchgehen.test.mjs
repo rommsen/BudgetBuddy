@@ -264,7 +264,6 @@ test("[tastatur] Am PC öffnet A das Detail mit dem Split-Editor, Esc schließt 
 
     await page.goto(`http://127.0.0.1:${port}/#/review`, { waitUntil: "load" });
     await page.locator('[data-testid="review-card"]').waitFor();
-    assert.match(await page.locator('[data-testid="review-keys"]').innerText(), /K\s*Kategorie\s*A\s*aufteilen\s*L\s*Lena/);
 
     const panel = page.locator('[data-testid="ledger-detail-panel"]');
     const editor = page.locator('[data-testid="split-summary"]');

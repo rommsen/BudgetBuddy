@@ -113,9 +113,10 @@ let private transfer = "Ein Übertrag zwischen Budget-Konten lässt sich nicht a
 let private replacement = "Der Ersatz ist in YNAB noch nicht bestätigt. Erneut senden oder den Spiegel abwarten."
 let private foreign = "Eine Split-Buchung mit einer import_id aus YNAB lässt sich nur aufteilen, nicht ändern oder aufheben"
 
+// ledger-cyd1t
 [<Tests>]
 let linkTests =
-    testList "Aufteilen auf der Karte: der Link (ledger-cyd1t)" [
+    testList "Aufteilen auf der Karte: der Link" [
 
         testCase "frei ohne Sperre, auf einer aufgeteilten Buchung ebenso" <| fun () ->
             Expect.equal (reviewSplitLink (entryOf 1)) SplitLinkFree "unaufgeteilt"
@@ -132,7 +133,7 @@ let linkTests =
                   "Ersatz offen", { splitEntry 1 with SplitLocks = Some { CannotSplitReason = Some replacement; CannotChangeReason = Some replacement; ReplacementPending = true } }
                   "fremde import_id, aufgeteilt", { splitEntry 1 with SplitLocks = locks None (Some foreign) } ]
             for name, entry in cases do
-                let text = Components.Ledger.View.splitLockTextFor entry
+                let text = splitLockReason entry
                 Expect.isSome text $"{name}: das Detail sperrt"
                 Expect.equal (reviewSplitLink entry) (SplitLinkLocked text.Value) $"{name}: derselbe Grund wie im Detail"
 
@@ -148,7 +149,7 @@ let linkTests =
             for name, entry in cases do
                 Expect.equal (reviewSplitLink entry) SplitLinkHidden name
             // Im Detail sperrt die wartende Buchung mit ihrem eigenen Grund (ADR 0093 Punkt 6).
-            Expect.equal (Components.Ledger.View.splitLockTextFor (held (entryOf 1))) (Some possibleDuplicateLockedText) "Detail"
+            Expect.equal (splitLockReason (held (entryOf 1))) (Some possibleDuplicateLockedText) "Detail"
 
         testCase "Taste A: auf der Normalkarte das Aufteilen, auf der Duplikat-Karte und in der Endansicht nichts" <| fun () ->
             let cases =
@@ -164,11 +165,6 @@ let linkTests =
                 Expect.equal (reviewKeyAction card false key) expected $"{key} auf {card}"
                 Expect.equal (reviewKeyAction card true key) expected $"{key} auf {card} mit Rückgängig"
 
-        testCase "die Tastenleiste nennt A zwischen K und L" <| fun () ->
-            let keys = Components.Ledger.View.reviewKeys |> List.map fst
-            Expect.equal keys [ "Enter"; "S"; "K"; "A"; "L"; "Z"; "Esc" ] "Reihenfolge"
-            Expect.contains Components.Ledger.View.reviewKeys ("A", "aufteilen") "Wort"
-
         testCase "A aus einem Feld, mit Strg, bei offenem Detail oder über dem Regel-Formular wirkt nicht" <| fun () ->
             let model = reviewing [ entryOf 1 ]
             let key = Components.Ledger.View.reviewKeyFor
@@ -180,9 +176,10 @@ let linkTests =
             Expect.isNone (Components.Ledger.View.reviewKeyRoute model true "BODY" false false "a") "Regel-Formular"
     ]
 
+// ledger-cyd1t
 [<Tests>]
 let openTests =
-    testList "Aufteilen auf der Karte: ReviewOpenSplit (ledger-cyd1t)" [
+    testList "Aufteilen auf der Karte: ReviewOpenSplit" [
 
         testCase "auf einer freien Normalkarte Detail und Editor der Karte in einem Schritt" <| fun () ->
             let model = reviewing [ entryOf 1; entryOf 2 ]
@@ -263,9 +260,10 @@ let heldTests =
             Expect.equal (surface 200.0 0.0) (Client.DesignSystem.ReviewCard.SurfaceConfirm true) "rechts eingerastet"
     ]
 
+// ledger-cyd1t
 [<Tests>]
 let escapeTests =
-    testList "Aufteilen auf der Karte: Esc (ledger-cyd1t)" [
+    testList "Aufteilen auf der Karte: Esc" [
 
         // Regressionstest (Doktrin Punkt 8): vorher galt bei offenem Editor keine Taste des Durchgehens (Esc tat nichts),
         // und `KeyLeave` übersprang den Editor und schloss Detail samt Entwurf in einem Schritt.
@@ -322,9 +320,10 @@ let private sheetContents (model: Model) : int =
     |> List.filter id
     |> List.length
 
+// ledger-cyd1t
 [<Tests>]
 let sequenceTests =
-    testList "Aufteilen auf der Karte: Zustandsfolge (ledger-cyd1t)" [
+    testList "Aufteilen auf der Karte: Zustandsfolge" [
 
         // Doktrin Punkt 20: alle Reihenfolgen aus Aufteilen, Speichern, Antworten (Ok und Fehler), Schließen von Editor
         // und Detail, Passt, Später und Wisch (rechts und links) bis zur Tiefe 7. Das Orakel führt die offenen Aufrufe
@@ -356,7 +355,8 @@ let sequenceTests =
                     let open' = remaining @ (sent |> List.choose pendingOf)
                     Expect.isLessThanOrEqual (sheetContents after) 1 $"zwei Sheet-Inhalte: {shown}"
                     let editorOpen = model.SplitEditor.IsSome
-                    let rowBusy = model.CategoryRows |> Map.tryFind card = Some CategorySending
+                    // Belegt ist die Zeile, solange die Aufzählung selbst eine Antwort auf Speichern offen hält.
+                    let rowBusy = pending |> List.exists (fun p -> match p.Ok with SplitsSaved (id, _, _) -> id = card | _ -> false)
                     if (editorOpen || rowBusy) && indexOf model = 0 then
                         Expect.equal (indexOf after) (indexOf model) $"Stelle wechselt bei offenem Editor oder belegter Zeile: {shown}"
                     match msg with

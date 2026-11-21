@@ -5410,6 +5410,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             && model.CategoryPickerFor.IsNone
             && not (reviewCardEditing model)
             && not (rowBusy CategoryLock model card.Id) ->
+            // `ReviewShowDetails` meldet immer `NoOp` nach außen; nach außen geht nur das External des Editors.
             let shown, showCmd, _ = if review.DetailShown then model, Cmd.none, NoOp else updateCore ReviewShowDetails model
             let opened, openCmd, external = updateCore (OpenSplitEditor card.Id) shown
             if opened.SplitEditor.IsSome then opened, Cmd.batch [ showCmd; openCmd ], external

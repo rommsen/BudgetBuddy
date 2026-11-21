@@ -190,17 +190,25 @@ let fieldNote (text: string) (available: string option) (act: Feedback.Act) : Re
         ]
     ]
 
+/// Wie der Textlink unter dem Feld steht: frei mit seiner Wirkung oder gesperrt mit Grund.
+type FieldLinkState =
+    | LinkFree of onClick: (unit -> unit)
+    | LinkLocked of reason: string
+
 /// Der Textlink unter dem Feld „Kategorie“ der Karte (ledger-cyd1t, Skizze `.s1.as-link .fieldrow .btn`): linksbündig,
-/// 12 px im Akzent ohne Fläche wie die Links unten in der Karte; am Handy 48 px Trefferfläche, die je 12 px (den Abstand
-/// der Karte) über die Zeile hinausreicht, damit die Karte nicht höher wird. Mit `lockReason` gedämpft in `text-muted`,
-/// ohne Wirkung, der Grund als `title` und darunter 12 px gedämpft.
-let fieldLink (testId: string) (label: string) (lockReason: string option) (onClick: unit -> unit) : ReactElement =
-    let tone = if lockReason.IsSome then Colors.textMuted else $"{Colors.accent} hover:underline"
+/// 12 px im Akzent ohne Fläche wie die Links unten in der Karte; am Handy 48 × 48 px Trefferfläche, die je 12 px (den
+/// Abstand der Karte) über die Zeile hinausreicht, damit die Karte nicht höher wird. Gesperrt (`LinkLocked`) gedämpft in
+/// `text-muted` und ohne Wirkung, der Grund als `title` und darunter 12 px gedämpft, per `aria-describedby` am Link. Der
+/// Fokus bleibt, deshalb `aria-disabled` statt `disabled` (wie `Detail.rowAction`).
+let fieldLink (testId: string) (label: string) (state: FieldLinkState) : ReactElement =
+    let locked = match state with LinkLocked _ -> true | LinkFree _ -> false
+    let reasonId = $"{testId}-reason"
+    let tone = if locked then Colors.textMuted else $"{Colors.accent} hover:underline"
     // Die Hülle trägt den Überstand (oben immer, unten nur ohne Grund), damit nichts aus ihr herausragt: eine Zeile der
     // Karte, deren Inhalt überläuft, gälte als gestaucht (`memoClampLines`). Mit Grund rückt der Grund 12 px in die
     // leere Unterkante des Links.
-    let wrapperMargin = if lockReason.IsSome then "-mt-3 md:mt-0" else "-my-3 md:my-0"
-    let buttonMargin = if lockReason.IsSome then "-mb-3 md:mb-0" else ""
+    let wrapperMargin = if locked then "-mt-3 md:mt-0" else "-my-3 md:my-0"
+    let buttonMargin = if locked then "-mb-3 md:mb-0" else ""
     Html.div [
         prop.className $"flex flex-col items-start {wrapperMargin}"
         prop.children [
@@ -208,23 +216,26 @@ let fieldLink (testId: string) (label: string) (lockReason: string option) (onCl
                 prop.type' "button"
                 prop.custom ("data-testid", testId)
                 prop.className (
-                    $"{buttonMargin} inline-flex items-center {TouchTargets.mobileMinHeight} md:min-h-0 px-1 -mx-1 "
-                    + $"{FontSizes.xs} {tone} touch-manipulation"
+                    $"{buttonMargin} inline-flex items-center {TouchTargets.mobileMinHeight} min-w-12 md:min-h-0 md:min-w-0 "
+                    + $"px-1 -mx-1 {FontSizes.xs} {tone} touch-manipulation"
                 )
-                prop.disabled lockReason.IsSome
-                match lockReason with
-                | Some reason -> prop.title reason
-                | None -> prop.onClick (fun _ -> onClick ())
+                match state with
+                | LinkLocked reason ->
+                    prop.custom ("aria-disabled", "true")
+                    prop.ariaDescribedBy reasonId
+                    prop.title reason
+                | LinkFree onClick -> prop.onClick (fun _ -> onClick ())
                 prop.text label
             ]
-            match lockReason with
-            | Some reason ->
+            match state with
+            | LinkLocked reason ->
                 Html.p [
-                    prop.custom ("data-testid", $"{testId}-reason")
+                    prop.id reasonId
+                    prop.custom ("data-testid", reasonId)
                     prop.className $"mt-1 {FontSizes.xs} {Colors.textMuted}"
                     prop.text reason
                 ]
-            | None -> Html.none
+            | LinkFree _ -> Html.none
         ]
     ]
 
