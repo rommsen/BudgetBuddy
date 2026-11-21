@@ -156,13 +156,13 @@ let startPause (intent: PauseIntent) (model: Model) : Model * (string * TargetPa
 
 /// Setzt die Pause der Kategorie im geladenen Monat, wenn er der Monat des Aufrufs ist. YNAB wird nicht
 /// neu gelesen: die Pause ändert dort nichts. Fehlt, Frei und die Filterzahlen folgen daraus. Ein laufendes Nachziehen
-/// kennt die Pause vielleicht nicht (`SyncOvertaken`).
+/// kennt die Pause vielleicht nicht (`LocalSinceSync`).
 let withPause (categoryId: System.Guid) (month: string) (pause: PauseSource option) (model: Model) : Model =
     match model.Month with
     | Success shown when shown.Month = month ->
         let set (c: BudgetCategory) = if c.Id = categoryId then { c with Pause = pause } else c
         let groups = shown.Groups |> List.map (fun g -> { g with Categories = g.Categories |> List.map set })
-        { model with Month = Success { shown with Groups = groups }; SyncOvertaken = true }
+        { model with Month = Success { shown with Groups = groups }; LocalSinceSync = LocalChangeSinceSync }
     | _ -> model
 
 /// Nimmt die Antwort ein. Sie wirkt nur auf ihre Kategorie und ihren Monat. Ein Fehler lässt die Pause,

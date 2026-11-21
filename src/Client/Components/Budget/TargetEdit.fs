@@ -241,13 +241,13 @@ let startTargetRemove (model: Model) : Model * (string * TargetChangeRequest) op
     start formConfirmRemove model
 
 /// Setzt das Target der Kategorie im geladenen Monat, wenn er der Monat des Aufrufs ist. Ein laufendes Nachziehen kennt
-/// es vielleicht nicht (`SyncOvertaken`).
+/// es vielleicht nicht (`LocalSinceSync`).
 let withTarget (categoryId: System.Guid) (month: string) (target: Target option) (model: Model) : Model =
     match model.Month with
     | Success shown when shown.Month = month ->
         let set (c: BudgetCategory) = if c.Id = categoryId then { c with Target = target } else c
         let groups = shown.Groups |> List.map (fun g -> { g with Categories = g.Categories |> List.map set })
-        { model with Month = Success { shown with Groups = groups }; SyncOvertaken = true }
+        { model with Month = Success { shown with Groups = groups }; LocalSinceSync = LocalChangeSinceSync }
     | _ -> model
 
 /// Gilt die Antwort der gezeigten Kategorie im dargestellten Monat?

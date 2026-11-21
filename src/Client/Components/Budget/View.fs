@@ -247,7 +247,7 @@ let private staleHintView (model: Model) (dispatch: Msg -> unit) =
 /// Der Hinweis „YNAB-Stand von <Uhrzeit>“ nach gescheitertem Nachziehen (budgeting-ffjk9, F4), am selben Ort und in
 /// derselben Form wie „nicht neu gelesen“: ein Zustand der Seite mit „Neu laden“, kein Toast.
 let private ynabSyncHintView (model: Model) (dispatch: Msg -> unit) =
-    match ynabSyncHint model with
+    match ynabSyncHint System.DateTime.Today model with
     | Some hint ->
         Feedback.stateHint
             "budget-ynab-copy"

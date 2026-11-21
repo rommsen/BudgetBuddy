@@ -90,7 +90,7 @@ Angenommen von Roman am 2026-11-20 mit allen Empfehlungen: Vortrag und Zu vertei
 7. **Ein Monat ohne Stand** (nie beobachtet, etwa direkt nach dem Deploy): Das Lesen beobachtet ihn einmal wie heute.
    Das ist der einzige Lesefall mit YNAB-Aufruf; danach gilt Punkt 1. (Roman, 2026-11-20.)
 
-8. **Der Hinweis auf den Stand** steht nur, wenn das Nachziehen gescheitert ist: „YNAB-Stand von <Uhrzeit>“.
+8. **Der Hinweis auf den Stand** steht nur, wenn das Nachziehen gescheitert ist: „YNAB-Stand von <Uhrzeit>“. Ergänzt 2026-11-21 (Roman): ist der Stand nicht von heute, steht „gestern“ oder das Datum ohne Jahr vor der Uhrzeit.
    (Roman, 2026-11-20.)
 
 ## Consequences

@@ -28,6 +28,8 @@ let private december = "2026-12-01"
 
 /// Der Zeitpunkt des Stands: 13:05 UTC ist 14:05 in Berlin (die Tests laufen mit `TZ=Europe/Berlin`).
 let private copiedAt = DateTime(2026, 11, 21, 13, 5, 0, DateTimeKind.Utc)
+/// Der Ortstag, an dem die Seite den Hinweis zeigt (der Tag von `copiedAt`).
+let private today = DateTime(2026, 11, 21)
 
 /// Der Monat, wie das sofortige Lesen ihn bringt (Zugewiesen 900), und wie das Nachziehen ihn bringt (950).
 let private readMonth (key: string) : BudgetMonth =
@@ -96,19 +98,36 @@ let private startTests =
 let private hintTests =
     testList "Hinweis „YNAB-Stand von <Uhrzeit>“" [
         testCase "Der Text nennt die Uhrzeit des Stands in Berliner Zeit" <| fun () ->
-            Expect.equal (ynabCopyText copiedAt) "YNAB-Stand von 14:05" "Winterzeit"
-            Expect.equal (ynabCopyText (DateTime(2026, 7, 1, 6, 30, 0, DateTimeKind.Utc))) "YNAB-Stand von 08:30" "Sommerzeit"
+            Expect.equal (ynabCopyText today copiedAt) "YNAB-Stand von 14:05" "Winterzeit"
+            Expect.equal
+                (ynabCopyText (DateTime(2026, 7, 1)) (DateTime(2026, 7, 1, 6, 30, 0, DateTimeKind.Utc)))
+                "YNAB-Stand von 08:30"
+                "Sommerzeit"
+
+        // Review-Lauf 2026-11-21 (Roman): nur die Uhrzeit las sich bei einem Stand vom Vortag als „heute“.
+        testCase "Ein Stand von gestern trägt „gestern“, ein älterer das Datum ohne Jahr" <| fun () ->
+            Expect.equal (ynabCopyText (DateTime(2026, 11, 22)) copiedAt) "YNAB-Stand von gestern 14:05" "gestern"
+            Expect.equal (ynabCopyText (DateTime(2026, 11, 25)) copiedAt) "YNAB-Stand vom 21.11. 14:05" "älter"
+            // 23:30 UTC am 20.11. ist in Berlin schon der 21.11.: der Ortstag zählt, nicht der UTC-Tag.
+            Expect.equal
+                (ynabCopyText today (DateTime(2026, 11, 20, 23, 30, 0, DateTimeKind.Utc)))
+                "YNAB-Stand von 00:30"
+                "Ortstag"
+            Expect.equal
+                (ynabCopyText (DateTime(2027, 1, 4)) (DateTime(2026, 12, 31, 9, 0, 0, DateTimeKind.Utc)))
+                "YNAB-Stand vom 31.12. 10:00"
+                "über den Jahreswechsel"
 
         testCase "Ein Fehlschlag des Nachziehens zeigt den Hinweis mit Grund, ein Erfolg zeigt nichts" <| fun () ->
             let failed = run [ MonthSynced (shown.MonthGeneration, november, Error "YNAB antwortet nicht (503)") ] shown
             Expect.equal
-                (ynabSyncHint failed)
+                (ynabSyncHint today failed)
                 (Some { Text = "YNAB-Stand von 14:05"; Reasons = [ "YNAB antwortet nicht (503)" ]; Running = false })
                 "Hinweis"
             Expect.equal failed.Month shown.Month "der Stand bleibt stehen"
             for result in [ Ok MonthUnchanged; Ok (MonthChanged (syncedMonth november)) ] do
-                Expect.isNone (ynabSyncHint (run [ MonthSynced (shown.MonthGeneration, november, result) ] shown)) $"{result}"
-                Expect.isNone (ynabSyncHint (run [ MonthSynced (shown.MonthGeneration, november, result) ] failed)) $"nach dem Fehlschlag: {result}"
+                Expect.isNone (ynabSyncHint today (run [ MonthSynced (shown.MonthGeneration, november, result) ] shown)) $"{result}"
+                Expect.isNone (ynabSyncHint today (run [ MonthSynced (shown.MonthGeneration, november, result) ] failed)) $"nach dem Fehlschlag: {result}"
 
         // Der Hinweis ersetzt die Meldung: ein Toast daneben wäre doppelt (ADR 0101 Punkt 6, F4).
         testCase "Ein Fehlschlag des Nachziehens meldet sich ohne Toast" <| fun () ->
@@ -120,16 +139,16 @@ let private hintTests =
         testCase "Ohne Zeitpunkt des Stands zeigt auch ein Fehlschlag keinen Hinweis" <| fun () ->
             let framed = run [ FrameLoaded (Ok frame) ] (init ())
             let direct = run [ Loaded (framed.MonthGeneration, Ok { readMonth november with CopiedAt = None }) ] framed
-            Expect.isNone (ynabSyncHint (run [ MonthSynced (direct.MonthGeneration, november, Error "weg") ] direct)) "kein Hinweis"
+            Expect.isNone (ynabSyncHint today (run [ MonthSynced (direct.MonthGeneration, november, Error "weg") ] direct)) "kein Hinweis"
 
         testCase "Neu laden am Hinweis zieht noch einmal nach, ein zweiter Tipp nicht" <| fun () ->
             let failed = run [ MonthSynced (shown.MonthGeneration, november, Error "weg") ] shown
             let retrying, cmd = update RetryYnabSync failed
             Expect.equal (List.length cmd) 1 "ein Aufruf"
-            Expect.isTrue (ynabSyncHint retrying).Value.Running "läuft"
+            Expect.isTrue (ynabSyncHint today retrying).Value.Running "läuft"
             let _, again = update RetryYnabSync retrying
             Expect.isEmpty again "kein zweiter Aufruf"
-            Expect.isNone (ynabSyncHint (run [ MonthSynced (retrying.MonthGeneration, november, Ok MonthUnchanged) ] retrying)) "gelungen"
+            Expect.isNone (ynabSyncHint today (run [ MonthSynced (retrying.MonthGeneration, november, Ok MonthUnchanged) ] retrying)) "gelungen"
 
         // Bug: eine Antwort „geändert“ mit dem richtigen Schlüssel, aber einem anderen Monat im Inhalt ließ „Neu laden“
         // als laufend stehen; der Hinweis drehte dauerhaft.
@@ -138,7 +157,7 @@ let private hintTests =
             let retrying = run [ RetryYnabSync ] failed
             let answered = run [ MonthSynced (retrying.MonthGeneration, november, Ok (MonthChanged (syncedMonth december))) ] retrying
             Expect.equal answered.Month retrying.Month "der Monat bleibt"
-            Expect.isNone (ynabSyncHint answered) "kein Hinweis, der läuft"
+            Expect.isNone (ynabSyncHint today answered) "kein Hinweis, der läuft"
     ]
 
 /// Was die Aufzählung selbst weiß. Der Merker ist eigen, er glaubt nicht dem Code, den der Test prüft.
@@ -224,7 +243,7 @@ let private check (path: string list) (msg: Msg) (before: Model) (after: Model) 
                 // Bug: die Antwort konnte vor dem Speichern von Pause oder Target gebaut sein und nahm sie zurück.
                 Expect.equal after.Month before.Month $"geändert nimmt eine Pause oder ein Target der Seite nicht zurück: {shownPath}"
                 Expect.equal (List.length cmd) 1 $"statt dessen liest die Seite still neu: {shownPath}"
-                Expect.isNone (ynabSyncHint after) $"kein Hinweis nach Erfolg: {shownPath}"
+                Expect.isNone (ynabSyncHint today after) $"kein Hinweis nach Erfolg: {shownPath}"
                 RereadInstead
             | Ok (MonthChanged synced) when synced.Month = month ->
                 // Eine gespeicherte, noch nicht bestätigte Zuweisung gilt, bis sie bestätigt ist (ADR 0078 Punkt 5).
@@ -236,20 +255,20 @@ let private check (path: string list) (msg: Msg) (before: Model) (after: Model) 
                 let expected = queued |> Option.defaultValue 950m
                 Expect.equal (assignedOf after) (Some expected) $"geändert tauscht die Beträge: {shownPath}"
                 Expect.equal (after.Month |> function Success m -> Some m.ToBeBudgeted | _ -> None) (Some { synced.ToBeBudgeted with Amount = synced.ToBeBudgeted.Amount - (expected - 950m) }) $"Zu verteilen getauscht: {shownPath}"
-                Expect.isNone (ynabSyncHint after) $"kein Hinweis nach Erfolg: {shownPath}"
+                Expect.isNone (ynabSyncHint today after) $"kein Hinweis nach Erfolg: {shownPath}"
                 Expect.isEmpty cmd $"kein weiterer Aufruf: {shownPath}"
                 if queued.IsSome then SwappedOverQueue else Swapped
             | Ok (MonthChanged _) ->
                 Expect.equal after.Month before.Month $"ein fremder Monat im Inhalt tauscht nichts: {shownPath}"
-                Expect.isNone (ynabSyncHint after) $"kein Hinweis nach Erfolg: {shownPath}"
+                Expect.isNone (ynabSyncHint today after) $"kein Hinweis nach Erfolg: {shownPath}"
                 NoSwap
             | Ok MonthUnchanged ->
                 Expect.equal after.Month before.Month $"unverändert lässt den Monat: {shownPath}"
-                Expect.isNone (ynabSyncHint after) $"kein Hinweis nach Erfolg: {shownPath}"
+                Expect.isNone (ynabSyncHint today after) $"kein Hinweis nach Erfolg: {shownPath}"
                 NoSwap
             | Error _ ->
                 Expect.equal after.Month before.Month $"ein Fehlschlag lässt den Monat: {shownPath}"
-                Expect.isSome (ynabSyncHint after) $"Hinweis nach Fehlschlag: {shownPath}"
+                Expect.isSome (ynabSyncHint today after) $"Hinweis nach Fehlschlag: {shownPath}"
                 NoSwap
     | _ -> NoSwap
 
