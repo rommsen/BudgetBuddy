@@ -1849,20 +1849,6 @@ let moveWithin (step: OrderStep) (id: Guid) (order: Guid list) : Guid list =
                 elif i = other then id
                 else x)
 
-/// Die Gruppen der Seite Kategorien in BBs Reihenfolge, jede Gruppe und jede Kategorie mit ihrem eigenen Zustand
-/// `Active` (budgeting-nyx75). Die Seite zeigt eine deaktivierte Gruppe als einen Eintrag, ihre Kategorien nicht einzeln.
-let arrangeGroups (layout: CategoryLayout) (groups: ManagedCategoryGroup list) : ManagedCategoryGroup list =
-    groups
-    |> List.map (fun group ->
-        let group = { group with Active = not (layout.DeactivatedGroups.Contains group.Id) }
-        let byId = group.Categories |> List.map (fun c -> c.Id, c) |> Map.ofList
-        let stored = layout.Orders |> Map.tryFind group.Id |> Option.defaultValue []
-        let ordered = orderWithin stored (group.Categories |> List.map (fun c -> c.Id))
-        { group with
-            Categories =
-                ordered
-                |> List.map (fun id -> { byId.[id] with Active = not (layout.Deactivated.Contains id) }) })
-
 /// Alle Kategorie-Ids flach in BBs Reihenfolge. `placements` sind Gruppe und Kategorie in YNABs Folge (aus
 /// `GET /categories`); die Gruppen bleiben in YNABs Folge, innerhalb jeder Gruppe gilt `orderWithin`.
 let flatCategoryOrder (layout: CategoryLayout) (placements: (Guid * Guid) list) : Guid list =

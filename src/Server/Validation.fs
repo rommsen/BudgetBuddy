@@ -782,7 +782,7 @@ let validateCategorySave
 /// Gruppe anlegen oder umbenennen gegen die Liste aus YNAB: Name nicht leer und höchstens 50 Zeichen, keine
 /// zweite Gruppe mit dem Namen, beim Umbenennen eine bekannte Gruppe.
 let validateCategoryGroupSave
-    (groups: Shared.Budgeting.ManagedCategoryGroup list)
+    (groups: Server.YnabClient.YnabCategoryGroup list)
     (save: Shared.Budgeting.CategoryGroupSave)
     : Result<CategoryGroupWrite, string list> =
     let name = save.Name.Trim()

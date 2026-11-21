@@ -145,11 +145,10 @@ let orderTests =
                 { Deactivated = Set.ofList [ drogerie ]
                   DeactivatedGroups = Set.empty
                   Orders = Map.ofList [ alltag, [ drogerie; lebensmittel ] ] }
-            let groups : ManagedCategoryGroup list =
+            let groups : Server.YnabClient.YnabCategoryGroup list =
                 [ { Id = alltag
                     Name = "Alltag"
-                    Active = true
-                    Categories = [ { Id = lebensmittel; Name = "Lebensmittel"; Active = true }; { Id = drogerie; Name = "Drogerie"; Active = true } ] } ]
+                    Categories = [ { Id = lebensmittel; Name = "Lebensmittel" }; { Id = drogerie; Name = "Drogerie" } ] } ]
             Expect.equal
                 (arrangeGroups layout groups)
                 [ { Id = alltag
@@ -163,15 +162,11 @@ let orderTests =
 // Handler mit In-Memory-SQLite
 // ============================================
 
-let private ynabGroups : ManagedCategoryGroup list =
+let private ynabGroups : Server.YnabClient.YnabCategoryGroup list =
     [ { Id = alltag
         Name = "Alltag"
-        Active = true
-        Categories =
-          [ { Id = lebensmittel; Name = "Lebensmittel"; Active = true }
-            { Id = drogerie; Name = "Drogerie"; Active = true }
-            { Id = apotheke; Name = "Apotheke"; Active = true } ] }
-      { Id = freizeit; Name = "Freizeit"; Active = true; Categories = [ { Id = restaurant; Name = "Restaurant"; Active = true } ] } ]
+        Categories = [ { Id = lebensmittel; Name = "Lebensmittel" }; { Id = drogerie; Name = "Drogerie" }; { Id = apotheke; Name = "Apotheke" } ] }
+      { Id = freizeit; Name = "Freizeit"; Categories = [ { Id = restaurant; Name = "Restaurant" } ] } ]
 
 let private rawCategory (id: Guid) (name: string) (group: string) (assigned: decimal) (activity: decimal) (available: decimal) : YnabMonthCategory =
     let groupId = match group with "Alltag" -> Some alltag | "Freizeit" -> Some freizeit | _ -> None

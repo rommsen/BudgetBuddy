@@ -18,6 +18,14 @@ let private lebensmittel = Guid.Parse "22222222-0000-0000-0000-000000000001"
 let private drogerie = Guid.Parse "22222222-0000-0000-0000-000000000002"
 let private kinderkram = Guid.Parse "22222222-0000-0000-0000-000000000003"
 
+/// Die Gruppen, wie YNAB sie liefert (ohne BBs Zustand).
+let private ynabGroupsFixture : Server.YnabClient.YnabCategoryGroup list =
+    [ { Id = alltag
+        Name = "Alltag"
+        Categories = [ { Id = lebensmittel; Name = "Lebensmittel" }; { Id = drogerie; Name = "Drogerie" } ] }
+      { Id = kinder; Name = "Kinder"; Categories = [ { Id = kinderkram; Name = "Kinderkram" } ] } ]
+
+/// Dieselben Gruppen auf der Seite, ohne etwas deaktiviert: alles aktiv.
 let private groupsFixture : ManagedCategoryGroup list =
     [ { Id = alltag
         Name = "Alltag"
@@ -31,12 +39,12 @@ let private run (a: Async<'T>) = Async.RunSynchronously a
 let private noLayout () = async { return Ok emptyCategoryLayout }
 
 /// Ein Fake-Port, der jeden Aufruf mitschreibt. `answer` liefert die Antwort jedes Schreibens.
-type private Probe(answer: unit -> YnabResult<Guid>, ?fetched: YnabResult<ManagedCategoryGroup list>) =
+type private Probe(answer: unit -> YnabResult<Guid>, ?fetched: YnabResult<Server.YnabClient.YnabCategoryGroup list>) =
     let calls = Collections.Generic.List<string>()
     member _.Calls = List.ofSeq calls
     member _.Count(prefix: string) = calls |> Seq.filter (fun c -> c.StartsWith prefix) |> Seq.length
     member _.Port : CategoryPort =
-        { FetchGroups = fun () -> async { calls.Add "fetch"; return defaultArg fetched (Ok groupsFixture) }
+        { FetchGroups = fun () -> async { calls.Add "fetch"; return defaultArg fetched (Ok ynabGroupsFixture) }
           CreateCategory = fun groupId name -> async { calls.Add $"create-category {groupId} {name}"; return answer () }
           UpdateCategory =
             fun categoryId patch -> async { calls.Add $"patch-category {categoryId} {patch.Name} {patch.GroupId}"; return answer () }
@@ -121,8 +129,8 @@ let decoderTests =
                       group (Guid.NewGuid()) "Internal Master Category" "" [ category (Guid.NewGuid()) "Inflow: Ready to Assign" "" ]
                       group (Guid.NewGuid()) "Credit Card Payments" "" [ category (Guid.NewGuid()) "Visa" "" ] ]
                 $"""{{"data":{{"category_groups":[{String.Join(",", groups)}]}}}}"""
-            let expected : ManagedCategoryGroup list =
-                [ { Id = alltag; Name = "Alltag"; Active = true; Categories = [ { Id = lebensmittel; Name = "Lebensmittel"; Active = true } ] } ]
+            let expected : Server.YnabClient.YnabCategoryGroup list =
+                [ { Id = alltag; Name = "Alltag"; Categories = [ { Id = lebensmittel; Name = "Lebensmittel" } ] } ]
             Expect.equal (Server.YnabClient.interpretCategoryGroupsResponse "bud" 200 body) (Ok expected) "nur das Sichtbare"
 
         testCase "Fehler beim Lesen kommen als YNAB-Fehler" <| fun () ->
@@ -168,15 +176,15 @@ let validationTests =
 
         testCase "Gruppen: Duplikat, unbekannte Gruppe und Länge" <| fun () ->
             Expect.equal
-                (validateCategoryGroupSave groupsFixture { GroupId = None; Name = "kinder" })
+                (validateCategoryGroupSave ynabGroupsFixture { GroupId = None; Name = "kinder" })
                 (Error [ "Eine Gruppe kinder gibt es schon." ])
                 "Duplikat"
             Expect.equal
-                (validateCategoryGroupSave groupsFixture { GroupId = Some (Guid.NewGuid()); Name = String('a', 51) })
+                (validateCategoryGroupSave ynabGroupsFixture { GroupId = Some (Guid.NewGuid()); Name = String('a', 51) })
                 (Error [ GroupNameTooLongText; UnknownGroupText ])
                 "alle Gründe"
-            Expect.equal (validateCategoryGroupSave groupsFixture { GroupId = Some kinder; Name = "Kinder" }) (Ok (GroupUnchanged kinder)) "unverändert"
-            Expect.equal (validateCategoryGroupSave groupsFixture { GroupId = None; Name = " Freizeit " }) (Ok (CreateGroup "Freizeit")) "anlegen"
+            Expect.equal (validateCategoryGroupSave ynabGroupsFixture { GroupId = Some kinder; Name = "Kinder" }) (Ok (GroupUnchanged kinder)) "unverändert"
+            Expect.equal (validateCategoryGroupSave ynabGroupsFixture { GroupId = None; Name = " Freizeit " }) (Ok (CreateGroup "Freizeit")) "anlegen"
     ]
 
 [<Tests>]

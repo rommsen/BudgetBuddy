@@ -2620,15 +2620,22 @@ type CategoryPatch = { Name: string option; GroupId: Guid option }
 [<Literal>]
 let CreditCardPaymentsGroupName = "Credit Card Payments"
 
+/// Eine Kategorie der Seite Kategorien, wie YNAB sie liefert: Id und Name, ohne BBs Zustand.
+type YnabListedCategory = { Id: Guid; Name: string }
+
+/// Eine Gruppe der Seite Kategorien, wie YNAB sie liefert: Id, Name und die sichtbaren Kategorien in YNABs Folge,
+/// ohne BBs Zustand (budgeting-nyx75). Erst `arrangeGroups` macht daraus mit BBs Zustand eine `ManagedCategoryGroup`.
+type YnabCategoryGroup = { Id: Guid; Name: string; Categories: YnabListedCategory list }
+
 /// Die Gruppen mit Id aus `GET /budgets/{id}/categories` für die Seite Kategorien. Gelöschte und
 /// ausgeblendete Gruppen und Kategorien fallen weg, ebenso YNABs interne Gruppe und die Gruppe der
 /// Kreditkarten-Zahlungen.
-let interpretCategoryGroupsResponse (budgetId: string) (status: int) (bodyText: string) : YnabResult<Shared.Budgeting.ManagedCategoryGroup list> =
+let interpretCategoryGroupsResponse (budgetId: string) (status: int) (bodyText: string) : YnabResult<YnabCategoryGroup list> =
     let flag (get: Decode.IGetters) name = get.Optional.Field name Decode.bool |> Option.defaultValue false
     let category =
         Decode.object (fun get ->
             let shown = not (flag get "deleted" || flag get "hidden")
-            shown, ({ Id = get.Required.Field "id" Decode.guid; Name = get.Required.Field "name" Decode.string; Active = true } : Shared.Budgeting.ManagedCategory))
+            shown, ({ Id = get.Required.Field "id" Decode.guid; Name = get.Required.Field "name" Decode.string } : YnabListedCategory))
     let group =
         Decode.object (fun get ->
             let name = get.Required.Field "name" Decode.string
@@ -2641,7 +2648,7 @@ let interpretCategoryGroupsResponse (budgetId: string) (status: int) (bodyText: 
                 |> Option.defaultValue []
                 |> List.filter fst
                 |> List.map snd
-            shown, ({ Id = get.Required.Field "id" Decode.guid; Name = name; Active = true; Categories = categories } : Shared.Budgeting.ManagedCategoryGroup))
+            shown, ({ Id = get.Required.Field "id" Decode.guid; Name = name; Categories = categories } : YnabCategoryGroup))
     match status with
     | 200 ->
         match Decode.fromString (Decode.field "data" (Decode.field "category_groups" (Decode.list group))) bodyText with
@@ -2653,7 +2660,7 @@ let interpretCategoryGroupsResponse (budgetId: string) (status: int) (bodyText: 
     | other -> Error (statusFailure "category groups" other bodyText)
 
 /// Naht für Tests wie `getCategoriesWith`.
-let getCategoryGroupsWith (fetch: unit -> Async<int * string>) (budgetId: string) : Async<YnabResult<Shared.Budgeting.ManagedCategoryGroup list>> =
+let getCategoryGroupsWith (fetch: unit -> Async<int * string>) (budgetId: string) : Async<YnabResult<YnabCategoryGroup list>> =
     async {
         try
             let! status, bodyText = fetch ()
@@ -2663,7 +2670,7 @@ let getCategoryGroupsWith (fetch: unit -> Async<int * string>) (budgetId: string
     }
 
 /// Die Gruppen mit ihren Kategorien für die Seite Kategorien (ein Aufruf).
-let getCategoryGroups (token: string) (YnabBudgetId budgetId: YnabBudgetId) : Async<YnabResult<Shared.Budgeting.ManagedCategoryGroup list>> =
+let getCategoryGroups (token: string) (YnabBudgetId budgetId: YnabBudgetId) : Async<YnabResult<YnabCategoryGroup list>> =
     getCategoryGroupsWith (fetchCategoriesText token budgetId) budgetId
 
 /// Gruppe und Kategorie je Kategorie in YNABs Folge aus `GET /budgets/{id}/categories` (budgeting-sn2sn): daran

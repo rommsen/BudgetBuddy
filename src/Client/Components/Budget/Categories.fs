@@ -258,6 +258,29 @@ let inactiveGroupDetail (group: ManagedCategoryGroup) : string =
     | 0 -> "Gruppe · keine Kategorien"
     | count -> $"Gruppe · {categoryCountText count}"
 
+/// Eine Zeile im Abschnitt Deaktiviert: Id des Eintrags, Name, die zweite Zeile, das Label von „Aktivieren“, die
+/// Test-Id der Zeile und die Nachricht von „Aktivieren“.
+type InactiveRow = { Id: Guid; Name: string; Detail: string; Label: string; TestId: string; Reactivate: Msg }
+
+/// Was eine Zeile im Abschnitt Deaktiviert zeigt: eine Gruppe mit "Gruppe · n Kategorien" (`inactiveGroupDetail`), eine
+/// Kategorie mit dem Namen ihrer Gruppe.
+let inactiveRowOf (entry: InactiveEntry) : InactiveRow =
+    match entry with
+    | InactiveGroup group ->
+        { Id = group.Id
+          Name = group.Name
+          Detail = inactiveGroupDetail group
+          Label = $"Gruppe {group.Name} aktivieren"
+          TestId = "categories-inactive-group"
+          Reactivate = ReactivateGroup group.Id }
+    | InactiveCategory (group, category) ->
+        { Id = category.Id
+          Name = category.Name
+          Detail = group.Name
+          Label = $"{category.Name} aktivieren"
+          TestId = "categories-inactive-row"
+          Reactivate = Reactivate category.Id }
+
 /// Am PC verschiebt Alt+↑ und Alt+↓ die Kategorie, deren Zeile den Fokus hat.
 let moveKey (key: string) (altKey: bool) : OrderStep option =
     match key, altKey with
@@ -516,6 +539,15 @@ let private saving (model: Model) : bool =
 let private failedIn (call: SaveCall) (message: string) (model: Model) : Model =
     { model with Form = model.Form |> Option.map (fun f -> { f with Saving = None; Error = Some message; FailedCall = Some call }) }
 
+/// Das Leuchten, wenn das Formular nach dem Umschalten (oder dem Speichern danach) schließt (Regel R3, budgeting-sx9v5,
+/// budgeting-nyx75): aktiv leuchtet `lit` an ihrem Platz (Zeile der Kategorie oder Kopf der Gruppe), deaktiviert der
+/// Eintrag im Bereich Deaktiviert, aufgeklappt und mit dem Satz zu YNAB. Danach holt die Liste still den Stand.
+let private settleActive (lit: Guid -> Mark) (id: Guid) (active: bool) (model: Model) : Model * Cmd<Msg> =
+    let placed = { model with InactiveOpen = model.InactiveOpen || not active }
+    let shown, flashCmd = marked (if active then lit id else Deactivated id) placed
+    let reloaded, cmd = reload shown
+    reloaded, Cmd.batch [ cmd; flashCmd ]
+
 let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     match msg with
     | Entered ->
@@ -621,12 +653,8 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
         | Ok id, Some ({ Editor = EditingCategory editor } as form) when isOwn ->
             // Formular zu, die Zeile leuchtet an ihrem Platz; nach dem Deaktivieren im Bereich Deaktiviert mit dem Satz zu
             // YNAB (Regel R3, budgeting-sx9v5).
-            let placed = withCategory id editor { model with Form = None }
-            let mark, opened =
-                if form.Deactivated then Deactivated id, { placed with InactiveOpen = true } else CategoryLit id, placed
-            let lit, flashCmd = marked mark opened
-            let reloaded, cmd = reload lit
-            reloaded, Cmd.batch [ cmd; flashCmd ], NoOp
+            let next, cmd = settleActive CategoryLit id (not form.Deactivated) (withCategory id editor { model with Form = None })
+            next, cmd, NoOp
         // Ohne eigenes Formular ist man nur nach "Zurück": die Meldung hat keinen Ort (Leiste, am PC der Toast).
         | Ok _, _ ->
             let reloaded, cmd = reload model
@@ -649,11 +677,8 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
             // Der Kopf der Gruppe leuchtet kurz. Nach dem Deaktivieren mit neuem Namen (budgeting-nyx75) steht die Gruppe
             // im Bereich Deaktiviert (aufgeklappt) mit dem Satz zu YNAB.
             let deactivated = model.Form |> Option.exists (fun f -> f.Deactivated)
-            let named = withGroup id name { model with Form = None }
-            let mark, placed = if deactivated then Deactivated id, { named with InactiveOpen = true } else GroupLit id, named
-            let lit, flashCmd = marked mark placed
-            let reloaded, cmd = reload lit
-            reloaded, Cmd.batch [ cmd; flashCmd ], NoOp
+            let next, cmd = settleActive GroupLit id (not deactivated) (withGroup id name { model with Form = None })
+            next, cmd, NoOp
         | Ok id, None ->
             let reloaded, cmd = reload (withGroup id name model)
             reloaded, cmd, ShowToast ("Gruppe gespeichert", ToastSuccess)
@@ -685,12 +710,9 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
                     saveCategoryCmd { CategoryId = settled.CategoryId; Name = settled.Name; GroupId = groupId },
                     NoOp
                 | _, Some id ->
-                    // Deaktiviert: die Zeile steht im Bereich Deaktiviert (aufgeklappt) mit dem Satz zu YNAB; aktiviert:
-                    // wieder in ihrer Gruppe. Beide leuchten kurz.
-                    let closed = { changed with Form = None; InactiveOpen = changed.InactiveOpen || not editor.Active }
-                    let lit, flashCmd = marked (if editor.Active then CategoryLit id else Deactivated id) closed
-                    let reloaded, cmd = reload lit
-                    reloaded, Cmd.batch [ cmd; flashCmd ], NoOp
+                    // Deaktiviert: die Zeile steht im Bereich Deaktiviert; aktiviert: wieder in ihrer Gruppe.
+                    let next, cmd = settleActive CategoryLit id editor.Active { changed with Form = None }
+                    next, cmd, NoOp
                 | _, None ->
                     let reloaded, cmd = reload { changed with Form = None }
                     reloaded, cmd, NoOp
@@ -764,12 +786,9 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
                     let form' = { form with Editor = EditingGroup settled; Deactivated = not editor.Active; Saving = Some SavingGroup }
                     { changed with Form = Some form' }, saveGroupCmd { GroupId = Some id; Name = settled.Name }, NoOp
                 else
-                    // Deaktiviert: der Eintrag steht im Bereich Deaktiviert (aufgeklappt) mit dem Satz zu YNAB; aktiviert:
-                    // die Gruppe wieder an ihrer Stelle, der Kopf leuchtet kurz.
-                    let closed = { changed with Form = None; InactiveOpen = changed.InactiveOpen || not editor.Active }
-                    let lit, flashCmd = marked (if editor.Active then GroupLit id else Deactivated id) closed
-                    let reloaded, cmd = reload lit
-                    reloaded, Cmd.batch [ cmd; flashCmd ], NoOp
+                    // Deaktiviert: der Eintrag steht im Bereich Deaktiviert; aktiviert: die Gruppe wieder an ihrer Stelle.
+                    let next, cmd = settleActive GroupLit id editor.Active { changed with Form = None }
+                    next, cmd, NoOp
             | Ok (), None ->
                 let reloaded, cmd = reload { model with Form = None }
                 reloaded, cmd, NoOp

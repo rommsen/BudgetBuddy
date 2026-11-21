@@ -171,25 +171,19 @@ let private inactiveSection (model: Model) (groups: ManagedCategoryGroup list) (
                     prop.hidden (not isOpen)
                     prop.children [
                         for entry in inactive do
-                          let id, name, detail, label, testId, reactivate =
-                              match entry with
-                              | InactiveGroup group ->
-                                  group.Id, group.Name, inactiveGroupDetail group, $"Gruppe {group.Name} aktivieren",
-                                  "categories-inactive-group", ReactivateGroup group.Id
-                              | InactiveCategory (group, category) ->
-                                  category.Id, category.Name, group.Name, $"{category.Name} aktivieren",
-                                  "categories-inactive-row", Reactivate category.Id
+                          let shown = inactiveRowOf entry
+                          let id = shown.Id
                           let row =
                             Html.div [
                                 prop.key (string id)
-                                prop.custom ("data-testid", testId)
+                                prop.custom ("data-testid", shown.TestId)
                                 prop.className "flex items-center justify-between gap-3 px-4 py-2.5 min-h-[56px] border-b border-border-subtle last:border-b-0"
                                 prop.children [
                                     Html.div [
                                         prop.className "flex flex-col min-w-0"
                                         prop.children [
-                                            Truncate.text $"block {ListRoles.primarySize} {FontWeights.medium} {Colors.textMuted}" name
-                                            Truncate.text $"block {ListRoles.secondary}" detail
+                                            Truncate.text $"block {ListRoles.primarySize} {FontWeights.medium} {Colors.textMuted}" shown.Name
+                                            Truncate.text $"block {ListRoles.secondary}" shown.Detail
                                         ]
                                     ]
                                     Button.view
@@ -197,9 +191,9 @@ let private inactiveSection (model: Model) (groups: ManagedCategoryGroup list) (
                                             Text = "Aktivieren"
                                             Variant = Button.Secondary
                                             Size = Button.Small
-                                            AriaLabel = Some label
+                                            AriaLabel = Some shown.Label
                                             ClassName = Some "shrink-0"
-                                            OnClick = fun () -> dispatch reactivate }
+                                            OnClick = fun () -> dispatch shown.Reactivate }
                                 ]
                             ]
                           // Deaktiviert: die Zeile leuchtet, darunter der Satz zu YNAB; Aktivieren abgelehnt: rot darunter.

@@ -130,18 +130,13 @@ let pageListTests =
 // Handler mit In-Memory-SQLite
 // ============================================
 
-let private ynabGroups : ManagedCategoryGroup list =
+let private ynabGroups : Server.YnabClient.YnabCategoryGroup list =
     [ { Id = wohnen
         Name = "Wohnen"
-        Active = true
-        Categories =
-          [ { Id = miete; Name = "Miete"; Active = true }
-            { Id = strom; Name = "Strom"; Active = true }
-            { Id = internet; Name = "Internet"; Active = true } ] }
+        Categories = [ { Id = miete; Name = "Miete" }; { Id = strom; Name = "Strom" }; { Id = internet; Name = "Internet" } ] }
       { Id = freizeit
         Name = "Freizeit"
-        Active = true
-        Categories = [ { Id = kino; Name = "Kino"; Active = true }; { Id = sportverein; Name = "Sportverein"; Active = true } ] } ]
+        Categories = [ { Id = kino; Name = "Kino" }; { Id = sportverein; Name = "Sportverein" } ] } ]
 
 let private rawCategory (id: Guid) (name: string) (groupId: Guid) (assigned: decimal) (activity: decimal) (available: decimal) : YnabMonthCategory =
     { Id = id; Name = name; GroupName = (if groupId = wohnen then "Wohnen" else "Freizeit"); GroupId = Some groupId

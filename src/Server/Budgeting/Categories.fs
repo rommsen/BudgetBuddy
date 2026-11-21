@@ -14,7 +14,7 @@ open Microsoft.Data.Sqlite
 /// Was die Seite Kategorien von YNAB braucht. Schreibwege liefern die Id des Dings. `RefreshMirror` zieht den
 /// Kategorie-Spiegel nach, bestes Bemühen: er scheitert nie.
 type CategoryPort = {
-    FetchGroups: unit -> Async<YnabResult<ManagedCategoryGroup list>>
+    FetchGroups: unit -> Async<YnabResult<Server.YnabClient.YnabCategoryGroup list>>
     CreateCategory: Guid -> string -> Async<YnabResult<Guid>>
     UpdateCategory: Guid -> Server.YnabClient.CategoryPatch -> Async<YnabResult<Guid>>
     CreateGroup: string -> Async<YnabResult<Guid>>
@@ -39,6 +39,24 @@ let refreshMirrorWith
             printfn "Kategorie-Spiegel nach Kategorien verwalten übersprungen: %s" ex.Message
     }
 
+/// Die Gruppen der Seite Kategorien in BBs Reihenfolge, jede Gruppe und jede Kategorie mit BBs Zustand `Active`
+/// (budgeting-nyx75). Nur hier entsteht aus YNABs Gruppe eine `ManagedCategoryGroup`: wer BBs Zustand vergisst, bekommt
+/// einen Typfehler. Die Seite zeigt eine deaktivierte Gruppe als einen Eintrag, ihre Kategorien nicht einzeln.
+let arrangeGroups (layout: CategoryLayout) (groups: Server.YnabClient.YnabCategoryGroup list) : ManagedCategoryGroup list =
+    groups
+    |> List.map (fun group ->
+        let byId = group.Categories |> List.map (fun c -> c.Id, c) |> Map.ofList
+        let stored = layout.Orders |> Map.tryFind group.Id |> Option.defaultValue []
+        let ordered = orderWithin stored (group.Categories |> List.map (fun c -> c.Id))
+        ({ Id = group.Id
+           Name = group.Name
+           Active = not (layout.DeactivatedGroups.Contains group.Id)
+           Categories =
+             ordered
+             |> List.map (fun id ->
+                 ({ Id = id; Name = byId.[id].Name; Active = not (layout.Deactivated.Contains id) } : ManagedCategory)) }
+        : ManagedCategoryGroup))
+
 /// Die Gruppen der Seite, live aus YNAB, in BBs Reihenfolge und mit BBs Zustand `Active` (budgeting-sn2sn).
 /// Ist BBs Zustand nicht lesbar, kommt ein Fehler: die Seite zeigte sonst deaktivierte Kategorien als aktiv.
 let groupsWith (connect: unit -> SqliteConnection) (port: CategoryPort) : Async<Result<ManagedCategoryGroup list, YnabError>> =
@@ -61,7 +79,7 @@ type private Step =
 let private checkedWrite
     (port: CategoryPort)
     (shape: Result<string, string list>)
-    (check: ManagedCategoryGroup list -> Result<'write, string list>)
+    (check: Server.YnabClient.YnabCategoryGroup list -> Result<'write, string list>)
     (step: 'write -> Step)
     : Async<Result<Guid, YnabError>> =
     async {
@@ -224,7 +242,7 @@ let GroupNotFoundText = "Gruppe nicht gefunden."
 /// Die Kategorien der Gruppe für die Prüfung beim Deaktivieren in BBs Reihenfolge: jede nicht gelöschte Kategorie, die
 /// YNAB im Monat der Gruppe zuordnet, auch einzeln deaktivierte und in YNAB ausgeblendete. Die sichtbaren stehen in
 /// YNABs Folge der Liste, ausgeblendete dahinter; darauf wirkt BBs gemerkte Reihenfolge (`orderWithin`).
-let private groupMembers (layout: CategoryLayout) (group: ManagedCategoryGroup) (month: YnabMonth) : YnabMonthCategory list =
+let private groupMembers (layout: CategoryLayout) (group: Server.YnabClient.YnabCategoryGroup) (month: YnabMonth) : YnabMonthCategory list =
     let members = month.Categories |> List.filter (fun c -> c.GroupId = Some group.Id && not c.Deleted)
     let byId = members |> List.map (fun c -> c.Id, c) |> Map.ofList
     let listed = group.Categories |> List.map (fun c -> c.Id) |> List.filter byId.ContainsKey

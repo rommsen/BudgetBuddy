@@ -702,6 +702,12 @@ let groupDeactivationTests =
             Expect.equal (inactiveGroupDetail gs.[1]) "Gruppe · 2 Kategorien" "mit Kategorien"
             Expect.equal (inactiveGroupDetail gs.[2]) "Gruppe · keine Kategorien" "ohne Kategorien"
             Expect.equal (inactiveGroupDetail { gs.[1] with Categories = [ gs.[1].Categories.Head ] }) "Gruppe · 1 Kategorie" "eine"
+            Expect.equal
+                (entries |> List.map (fun e -> let row = inactiveRowOf e in row.Id, row.Detail, row.Label, row.Reactivate))
+                [ wohnen, "Gruppe · 2 Kategorien", "Gruppe Wohnen aktivieren", ReactivateGroup wohnen
+                  archiv, "Gruppe · keine Kategorien", "Gruppe Archiv 2024 aktivieren", ReactivateGroup archiv
+                  zeitschrift, "Alltag", "Zeitschrift aktivieren", Reactivate zeitschrift ]
+                "eine Gruppe aktiviert die Gruppe, eine Kategorie zeigt ihre Gruppe und aktiviert sich"
 
         testCase "die Gruppenauswahl und die Vorbelegung einer neuen Kategorie lassen eine deaktivierte Gruppe weg" <| fun () ->
             let gs =
