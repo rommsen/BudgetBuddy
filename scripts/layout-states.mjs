@@ -1357,6 +1357,18 @@ export const STATES = [
       await page.locator('[data-testid="target-check-stale"]').waitFor();
       await page.locator('[data-testid="target-check-row-line"]').waitFor();
       await noToast(page, "dem Hinweis");
+      // Der Klick auf „übernehmen“ scrollt zur Zeile; ob die Seite danach oben steht, hing davon ab, ob die Liste während
+      // des gescheiterten Neu-Lesens kurz kürzer gerendert wurde (Wettlauf, Gate-Flake 2026-11-21). Geprüft wird das
+      // Layout des Hinweises oben, deshalb von dort. Erst den Endzustand abwarten: während „liest neu“ (aria-busy)
+      // folgt noch ein Rendern, nach dem die Zeile „Essen“ sich wieder ins Bild rollt. Es scrollt ein Container der
+      // Seite, nicht das Fenster: jeden scrollenden Vorfahren des Hinweises nach oben.
+      await page.locator('[data-testid="target-check-stale"] button:not([aria-busy="true"])').waitFor();
+      await page.locator('[data-testid="target-check-stale"]').evaluate(async (el) => {
+        // Zwei Frames: die Effekte des letzten Renderns (auch das Einrollen der Zeile) sind dann gelaufen.
+        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+        for (let n = el.parentElement; n; n = n.parentElement) if (n.scrollTop > 0) n.scrollTop = 0;
+        window.scrollTo(0, 0);
+      });
     },
     primary: (page) => page.locator('[data-testid="target-check-stale"] button'),
   },
