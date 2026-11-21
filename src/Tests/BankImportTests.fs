@@ -1613,7 +1613,10 @@ let autoFetchWorkerTests =
 
 [<Tests>]
 let autoFetchHistoryTests =
-    testList "Automatisch abrufen: der jüngste Abruf aus der Historie" [
+    // Geteilt: die In-Memory-DB. Der Fall schreibt `sync_sessions` und liest den jüngsten beendeten Abruf; Isolation
+    // nur über Zeiten weit nach jeder echten Sitzung (2099).
+    testSequencedGroup TestGroups.InMemoryDb
+    <| testList "Automatisch abrufen: der jüngste Abruf aus der Historie" [
         // Einziger Testfall, der `sync_sessions` der geteilten In-Memory-DB beschreibt; die Zeiten liegen weit
         // nach jeder echten Sitzung.
         testCase "beendet oder gescheitert zählt, bei der TAN stehen geblieben nicht, die Zeit kommt als UTC" <| fun () ->

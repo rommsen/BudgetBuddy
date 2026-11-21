@@ -31,9 +31,9 @@ let private previousMonthKey (monthKey: string) : string =
     let first = DateTime.ParseExact(monthKey, "yyyy-MM-dd", Globalization.CultureInfo.InvariantCulture)
     monthKeyOf (first.AddMonths -1)
 
-/// YNAB als Fake mit einer Kategorie, deren Zugewiesen `assigned` ist. `SetAssigned` ändert es, jeder Aufruf steht in
-/// der Liste (auch aus mehreren Threads).
-let private ynabWith (a: Guid) (assigned: decimal ref) : CommandHandlers.YnabPort * ResizeArray<string> =
+/// YNAB als Fake mit einer Kategorie, deren Zugewiesen `assigned` und deren Goal `target` ist; `/categories` liefert
+/// dasselbe Goal. `SetAssigned` ändert Zugewiesen, jeder Aufruf steht in der Liste (auch aus mehreren Threads).
+let private ynabWithTarget (a: Guid) (assigned: decimal ref) (target: Target option) : CommandHandlers.YnabPort * ResizeArray<string> =
     let calls = ResizeArray<string>()
     let note (call: string) = lock calls (fun () -> calls.Add call)
     let monthOf key : YnabMonth =
@@ -47,7 +47,7 @@ let private ynabWith (a: Guid) (assigned: decimal ref) : CommandHandlers.YnabPor
                 Assigned = eur assigned.Value
                 Activity = eur 0m
                 Available = eur assigned.Value
-                Target = None
+                Target = target
                 Hidden = false
                 Deleted = false
                 Internal = false } ] }
@@ -60,8 +60,21 @@ let private ynabWith (a: Guid) (assigned: decimal ref) : CommandHandlers.YnabPor
                 return Ok ()
             }
       WriteGoal = fun id _ -> async { note $"WriteGoal {id}"; return Ok () }
-      FetchCategoryGoals = fun () -> async { note "FetchCategoryGoals"; return Ok [] } },
+      FetchCategoryGoals =
+        fun () ->
+            async {
+                note "FetchCategoryGoals"
+                return Ok [ { Id = a; Name = "Lebensmittel"; Target = target } ]
+            } },
     calls
+
+/// `ynabWithTarget` ohne Goal.
+let private ynabWith (a: Guid) (assigned: decimal ref) : CommandHandlers.YnabPort * ResizeArray<string> =
+    ynabWithTarget a assigned None
+
+/// Ein Goal, das die Target-Übernahme übernimmt.
+let private fifty : Target =
+    { Goal = eur 50m; Rhythm = Months 1; Kind = Need; Date = None; NeedsWholeAmount = None; Day = None; CreatedIn = None }
 
 let private fetches (calls: ResizeArray<string>) : string list =
     lock calls (fun () -> calls |> Seq.filter (fun c -> c.StartsWith "FetchMonth") |> List.ofSeq)
@@ -148,18 +161,18 @@ let private handlerTests =
 
             Expect.equal (sync connect port frame (t0.AddSeconds 59.) key) (Ok MonthUnchanged) "59 s: unverändert"
             Expect.isEmpty (List.ofSeq calls) "59 s: null Aufrufe"
-            Expect.isOk (sync connect port frame (t0.AddSeconds 61.) key) "61 s"
+            Expect.equal (sync connect port frame (t0.AddSeconds 61.) key) (Ok MonthUnchanged) "61 s: YNAB unverändert"
             Expect.equal (List.ofSeq calls) [ $"FetchMonth {key}" ] "61 s: ein FetchMonth"
             calls.Clear()
 
             // Der Stand ist jetzt 61 s alt gestempelt (frisch): erst die Markierung macht ihn wieder fällig.
             Budgeting.Persistence.markMonthsAfterStaleOn anchor (previousMonthKey key)
             Expect.equal (snapshotOn anchor key).Validity SnapshotValidity.Outdated "veraltet markiert"
-            Expect.isOk (sync connect port frame (t0.AddSeconds 62.) key) "veraltet, 1 s alt"
+            Expect.equal (sync connect port frame (t0.AddSeconds 62.) key) (Ok MonthUnchanged) "veraltet, 1 s alt, YNAB unverändert"
             Expect.equal (List.ofSeq calls) [ $"FetchMonth {key}" ] "veraltet: ein FetchMonth"
             Expect.equal (snapshotOn anchor key).Validity SnapshotValidity.Current "das Beobachten nimmt die Markierung"
             calls.Clear()
-            Expect.isOk (sync connect port frame (t0.AddSeconds 63.) key) "danach frisch"
+            Expect.equal (sync connect port frame (t0.AddSeconds 63.) key) (Ok MonthUnchanged) "danach frisch"
             Expect.isEmpty (List.ofSeq calls) "danach null Aufrufe"
             Expect.isEmpty (List.ofSeq frameCalls) "der Rahmen war die ganze Zeit frisch"
 
@@ -250,6 +263,73 @@ let private handlerTests =
                 (observedChanges anchor key |> List.map (fun o -> o.CategoryId, o.PreviousAssigned, o.Assigned))
                 [ a, 30_000L, 50_000L ]
                 "AssignmentChangeObservedInYnab im Stream"
+
+        testCase "Gleicher YNAB-Stand, aber eine neue Target-Übernahme ergibt geändert mit BBs Target" <| fun () ->
+            let anchor, connect = BudgetEventsFixture.isolatedDb ()
+            use _ = anchor
+            let a = Guid.NewGuid()
+            let key = freshMonth ()
+            let port, calls = ynabWithTarget a (ref 30m) (Some fifty)
+            let frame, _ = heldFramePort t0
+            // Das Beobachten allein übernimmt keine Targets: vor dem Nachziehen hat BB für `a` keins.
+            observe connect port t0 key
+            calls.Clear()
+            match sync connect port frame (t0.AddSeconds 61.) key with
+            | Ok (MonthChanged month) ->
+                let shown = month.Groups |> List.collect (fun g -> g.Categories) |> List.find (fun c -> c.Id = a)
+                Expect.equal shown.Target (Some fifty) "BBs übernommenes Target"
+            | other -> failtest $"geändert erwartet: {other}"
+            Expect.equal (List.ofSeq calls) [ $"FetchMonth {key}"; "FetchCategoryGoals" ] "Beobachten und Übernahme"
+
+        testCase "Scheitert die Target-Übernahme beim Nachziehen, gilt der Monat bei gleichem Stand als unverändert" <| fun () ->
+            let anchor, connect = BudgetEventsFixture.isolatedDb ()
+            use _ = anchor
+            let a = Guid.NewGuid()
+            let key = freshMonth ()
+            let port, _ = ynabWithTarget a (ref 30m) (Some fifty)
+            let refusing = { port with FetchCategoryGoals = fun () -> async { return Error (YnabError.RateLimitExceeded 60) } }
+            let frame, _ = heldFramePort t0
+            observe connect refusing t0 key
+            Expect.equal (sync connect refusing frame (t0.AddSeconds 61.) key) (Ok MonthUnchanged) "nach bestem Bemühen: ohne Übernahme"
+
+        testCase "Sind BBs Targets nach dem Beobachten nicht lesbar, kommt der Fehler" <| fun () ->
+            let anchor, connect = BudgetEventsFixture.isolatedDb ()
+            use _ = anchor
+            let a = Guid.NewGuid()
+            let key = freshMonth ()
+            let port, _ = ynabWith a (ref 30m)
+            let frame, _ = heldFramePort t0
+            observe connect port t0 key
+            BudgetEventsFixture.appendUnreadable anchor (TargetStream (Guid.NewGuid())) "TargetSet"
+            Expect.equal
+                (sync connect port frame (t0.AddSeconds 61.) key)
+                (Error (YnabError.LocalReadFailed Budgeting.Persistence.TargetRulesUnreadableText))
+                "Targets nicht lesbar"
+
+        testCase "Waren BBs Targets vor dem Abgleich nicht lesbar, gilt der Monat bei gleichem Stand als geändert" <| fun () ->
+            let anchor, connect = BudgetEventsFixture.isolatedDb ()
+            use _ = anchor
+            let a = Guid.NewGuid()
+            let key = freshMonth ()
+            let port, _ = ynabWith a (ref 30m)
+            let frame, _ = heldFramePort t0
+            observe connect port t0 key
+            // Nach dem FetchMonth öffnet zuerst das Festhalten der Beobachtung eine Verbindung, die nächste ist das Lesen
+            // der Targets vor dem Abgleich: genau sie scheitert, alle anderen gehen.
+            let countdown = ref -1
+            let flaky () =
+                let n = Interlocked.Decrement countdown
+                if n = 0 then failwith "Platte weg" else connect ()
+            let arming =
+                { port with
+                    FetchMonth =
+                        fun k ->
+                            countdown.Value <- 2
+                            port.FetchMonth k }
+            match sync flaky arming frame (t0.AddSeconds 61.) key with
+            | Ok (MonthChanged month) -> Expect.equal (assignedIn month a) (eur 30m) "der Monat wie beim Lesen"
+            | other -> failtest $"geändert erwartet: {other}"
+            Expect.isLessThan countdown.Value 0 "die Verbindung für die Targets davor ist gescheitert"
 
         testCase "Scheitert YNAB beim Nachziehen, kommt der Fehler und der Stand bleibt" <| fun () ->
             let anchor, connect = BudgetEventsFixture.isolatedDb ()
