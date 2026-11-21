@@ -355,6 +355,16 @@ let private refreshFrameIfDue (port: BudgetFramePort) (now: DateTime) : Async<un
                 port.HoldCategoryCatalog
     }
 
+/// Hat YNAB beim Monat abgelehnt oder nicht geantwortet? Dann liest das Nachziehen den Rahmen nicht nach: ein YNAB,
+/// das gerade ablehnt (etwa 429), bekäme sonst zwei weitere Aufrufe. Ein Fehler in BBs eigenen Daten zählt nicht.
+let private ynabFailed (observed: Result<CommandHandlers.MonthSyncObservation, YnabError>) : bool =
+    match observed with
+    | Ok _ -> false
+    | Error (YnabError.LocalReadFailed _ | YnabError.LocalWriteFailed _ | YnabError.RefusedByBb _) -> false
+    | Error (YnabError.Unauthorized _ | YnabError.BudgetNotFound _ | YnabError.AccountNotFound _) -> true
+    | Error (YnabError.CategoryNotFound _ | YnabError.RateLimitExceeded _ | YnabError.NetworkError _) -> true
+    | Error (YnabError.InvalidResponse _ | YnabError.MonthNotOpen _) -> true
+
 /// Das Nachziehen eines Monats nach dem sofortigen Lesen (budgeting-ffjk9, ADR 0101 Punkt 6), ohne Timer. Es liest
 /// nicht nur, es schreibt: Ist der Stand fällig (ohne Stand, veraltet oder älter als 60 s), wird der Monat unter
 /// `MonthGuard` beobachtet (`CommandHandlers.observeIfDueWith`), und das hält YNAB-Stand, Übernahme und Echo-Regel
@@ -362,7 +372,8 @@ let private refreshFrameIfDue (port: BudgetFramePort) (now: DateTime) : Async<un
 /// Target-Übernahme nach bestem Bemühen (`targetRulesBestEffort`), sie hängt `TargetTakenOverFromYnab` an. Fenster
 /// und Platzierung liest es nach, wenn sie älter als 5 min sind (bestes Bemühen); der neue Rahmen steht dann in der
 /// Datenbank, die offene Seite sieht ihn erst beim nächsten Öffnen (`BudgetMonthSync` trägt nur den Monat, der Client
-/// lädt `getBudgetFrame` einmal je Seitenaufruf). `MonthChanged` mit dem Monat wie beim Lesen nur, wenn YNABs Monat
+/// lädt `getBudgetFrame` einmal je Seitenaufruf). Nach einem YNAB-Fehler beim Monat liest es den Rahmen nicht nach
+/// (`ynabFailed`). `MonthChanged` mit dem Monat wie beim Lesen nur, wenn YNABs Monat
 /// oder BBs Targets jetzt anders sind, sonst `MonthUnchanged`; waren BBs Targets vor dem Abgleich nicht lesbar, zählt
 /// das als anders. Scheitert das Beobachten oder das Lesen der Targets danach, ist das Ergebnis dieser Fehler; die
 /// Seite behält dann ihren Stand.
@@ -376,7 +387,8 @@ let syncMonthWithLedger
     : Async<YnabResult<BudgetMonthSync>> =
     async {
         let! observed = CommandHandlers.observeIfDueWith connect port now monthKey
-        do! refreshFrameIfDue framePort now
+        if not (ynabFailed observed) then
+            do! refreshFrameIfDue framePort now
         match observed with
         | Error e -> return Error e
         | Ok CommandHandlers.SnapshotFresh -> return Ok MonthUnchanged

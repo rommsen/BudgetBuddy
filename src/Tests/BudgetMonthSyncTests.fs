@@ -263,6 +263,21 @@ let private handlerTests =
             Expect.isError (sync connect failing frame (t0.AddSeconds 61.) key) "Fehler"
             Expect.equal (snapshotOn anchor key).FetchedAt t0 "der alte Stand bleibt"
 
+        // Review-Fund ffjk9: nach einem YNAB-Fehler beim Monat las das Nachziehen trotzdem Fenster und Platzierung nach,
+        // auch bei 429, und kostete so zwei weitere Aufrufe gegen ein YNAB, das gerade ablehnt.
+        testCase "Scheitert YNAB beim Monat, liest das Nachziehen den fälligen Rahmen nicht nach" <| fun () ->
+            let anchor, connect = BudgetEventsFixture.isolatedDb ()
+            use _ = anchor
+            let a = Guid.NewGuid()
+            let key = freshMonth ()
+            let port, _ = ynabWith a (ref 30m)
+            observe connect port t0 key
+            let frame, frameCalls = heldFramePort t0
+            for failure in [ YnabError.RateLimitExceeded 60; YnabError.NetworkError "weg" ] do
+                let failing = { port with FetchMonth = fun _ -> async { return Error failure } }
+                Expect.equal (sync connect failing frame (t0.AddMinutes 6.) key) (Error failure) $"{failure}: der Fehler"
+                Expect.isEmpty (List.ofSeq frameCalls) $"{failure}: kein Aufruf für den Rahmen"
+
         testCase "Ein Zuweisen in M markiert M+1 und M+2 als veraltet, M-1 und M nicht" <| fun () ->
             let anchor, connect = BudgetEventsFixture.isolatedDb ()
             use _ = anchor
