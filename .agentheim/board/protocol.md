@@ -5,6 +5,25 @@ Newest entries on top.
 
 ---
 
+## 2026-11-21 13:43 -- Work session ended
+
+**Type:** Work / Session end
+**Duration:** 1h35m
+**Completed:** 2 (first-try PASS: 2, re-dispatched: 0, skipped: 0)
+**Bounced:** 0
+**Failed:** 0
+**Escalated after verification:** 0
+**Lost-result re-dispatches:** 0
+**Lost-result escalations:** 0
+**Dispatches:** budgeting-ffjk9: 1, infrastructure-q8f3n: 1 (nach Sitzungsabbruch per SendMessage fortgesetzt)
+**Commits:** 4
+**Vision-conformance:** none — batch aligns with vision
+**Batch mix:** 50% product-facing / 50% harness / 0% bookkeeping (2 tasks)
+**Carry-over:** .agentheim/board/budgeting/backlog/budgeting-k7m3q-kann-sammlung-budgeting.md: committed (Kann-Zeilen aus ffjk9), .agentheim/board/infrastructure/backlog/infrastructure-hgbey-kann-sammlung-infrastructure.md: committed (Kann-Zeilen aus q8f3n)
+**Review-Vorschlag:** /review-agents über 08690c84..HEAD mit review-tests, review-backend, review-frontend, review-design (Roman hat Reviews selbständig freigegeben, läuft direkt im Anschluss)
+
+---
+
 ## 2026-11-21 13:42 -- Task verified and completed: infrastructure-q8f3n - "Gate ohne Flakes: Ledger-Replay mit fremden Perf-Buchungen, AC14-Zeittest, Design-System-Export und regeln-panel werden deterministisch"
 
 **Type:** Work / Task completion
