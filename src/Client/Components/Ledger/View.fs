@@ -5291,9 +5291,11 @@ let private reviewFoot (dispatch: Msg -> unit) (review: ReviewSession) (needsTar
 type ReviewLeaveSlot = IRefValue<(ReviewCard.SwipeLeave -> (unit -> unit) -> unit) option>
 
 /// Wie eine Taste die Karte verlässt: S nach links mit eingerasteter Fläche, L nach links ohne Fläche, nur wenn Lena
-/// gefragt wird (nicht beim Zurücknehmen, nicht gesperrt). Enter fliegt über `Confirming`, alles andere bleibt. Rein.
+/// gefragt wird (nicht beim Zurücknehmen, nicht gesperrt). S bleibt, solange die Karte festgehalten ist
+/// (`reviewCardHeld`, ledger-cyd1t). Enter fliegt über `Confirming`, alles andere bleibt. Rein.
 let reviewLeaveOf (model: Model) (action: ReviewKeyAction) : ReviewCard.SwipeLeave option =
     match action, reviewCardOf model with
+    | KeySkip, Some card when reviewCardHeld model card.Id -> None
     | KeySkip, Some _ -> Some ReviewCard.LeaveSkip
     | KeyLena, Some card when reviewCardKindOf card = NormalCard ->
         let lena = lenaActionFor model.LenaFlagColor card
@@ -5396,7 +5398,8 @@ let private ReviewNormalCard (dispatch: Msg -> unit) (model: Model) (review: Rev
     let pickerProps = detailPickerProps dispatch model entry
     let hasTarget = reviewHasTarget entry
     let lena = lenaActionFor model.LenaFlagColor entry
-    let categoryBusy = (model.CategoryRows |> Map.tryFind entry.Id) = Some CategorySending
+    // Der offene Split-Editor (am PC im Panel daneben) oder eine laufende Kategorie hält die Karte fest (ledger-cyd1t).
+    let held = reviewCardHeld model entry.Id
     // Die Bestätigung am Feld nach Kategorie oder Übertrag auf der Karte (ledger-mf2bg).
     let fieldNote = review.FieldNote |> Option.filter (fun n -> n.EntryId = entry.Id)
     let flashing = fieldNote |> Option.exists (fun n -> n.Flashing)
@@ -5488,7 +5491,7 @@ let private ReviewNormalCard (dispatch: Msg -> unit) (model: Model) (review: Rev
                   CardKey = string entry.Id
                   Holding = review.Confirming = Some entry.Id
                   OffsetOf = reviewSwipeOffset hasTarget
-                  SurfaceOf = reviewSwipeSurface hasTarget
+                  SurfaceOf = reviewStageSurface model entry
                   OnRelease = fun dx dy -> dispatch (ReviewSwiped (dx, dy))
                   OnSurface = fun surface -> setNeedsTarget (surface = ReviewCard.SurfaceNoTarget)
                   Leave = leave
@@ -5523,9 +5526,8 @@ let private ReviewNormalCard (dispatch: Msg -> unit) (model: Model) (review: Rev
                         Size = Button.Choice
                         ClassName = Some "min-h-[52px]"
                         FullWidth = true
-                        // Der offene Split-Editor (am PC im Panel daneben) hält die Karte fest (ledger-cyd1t).
-                        IsDisabled = model.SplitEditor.IsSome || categoryBusy
-                        OnClick = fun () -> leaveThen leave (Some ReviewCard.LeaveSkip) (fun () -> dispatch ReviewSkip) }
+                        IsDisabled = held
+                        OnClick = fun () -> leaveThen leave (reviewLeaveOf model KeySkip) (fun () -> dispatch ReviewSkip) }
             ]
         ]
         // Der Grund der Sperre steht als Text da, nicht nur im `title` (ledger-dn4vy, wie im Detail).
@@ -5541,7 +5543,7 @@ let private ReviewNormalCard (dispatch: Msg -> unit) (model: Model) (review: Rev
                     FullWidth = true
                     Glow = false
                     ClassName = Some "min-h-[54px]"
-                    IsDisabled = not hasTarget || categoryBusy || model.SplitEditor.IsSome
+                    IsDisabled = not hasTarget || held
                     IsBusy = review.Confirming = Some entry.Id
                     OnClick = fun () -> dispatch ReviewConfirm }
         // Knopf und Zeile ohne Abstand dazwischen: die Zeile trägt ihn selbst (Skizze `.ph-foot`). Am PC steht die Zeile der

@@ -5153,11 +5153,11 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
 
     | ReviewConfirm ->
         // „Passt, weiter“ teilt die Sperre mit dem Prüfvermerk aus „Details“ (ledger-smv1s) und wartet auf
-        // eine laufende Kategorie-Änderung der Karte. Der offene Split-Editor hält die Karte fest (ledger-cyd1t).
+        // eine laufende Kategorie-Änderung der Karte. Der offene Split-Editor hält die Karte fest (`reviewCardHeld`, ledger-cyd1t).
         match model.Review, reviewCardOf model with
-        | Some review, Some card when review.Confirming.IsNone && model.SplitEditor.IsNone ->
+        | Some review, Some card when review.Confirming.IsNone && not (reviewCardHeld model card.Id) ->
             whenRowIdle ReviewMarkLock card.Id model (fun () ->
-                if reviewCardKindOf card = NormalCard && reviewHasTarget card && not (rowBusy CategoryLock model card.Id) then
+                if reviewCardKindOf card = NormalCard && reviewHasTarget card then
                     editReview (fun r -> { r with Confirming = Some card.Id; Last = None }) model,
                     Cmd.ofMsg (RunReviewConfirm card.Id),
                     NoOp
@@ -5207,8 +5207,8 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
     | ReviewSkip ->
         match reviewCardOf model with
         // Der offene Split-Editor oder ein laufender Aufruf der Gruppe Kategorie hält die Karte fest: ein Kartenwechsel
-        // verwürfe die Aufteilung im Entwurf bzw. ihre Antwort im Detail (ledger-cyd1t).
-        | Some card when model.SplitEditor.IsSome || rowBusy CategoryLock model card.Id -> model, Cmd.none, NoOp
+        // verwürfe die Aufteilung im Entwurf bzw. ihre Antwort im Detail (`reviewCardHeld`, ledger-cyd1t).
+        | Some card when reviewCardHeld model card.Id -> model, Cmd.none, NoOp
         | Some card ->
             let line = reviewLastFor model card.Id LastSkipped LastDone (Some (LastUndo (UndoSkipped card.Id)))
             let model', cmd = advanceReview (setReviewLast (Some line) model)

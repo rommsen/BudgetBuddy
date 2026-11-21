@@ -233,6 +233,36 @@ let openTests =
             Expect.equal (step ReviewOpenSplit confirming) confirming "Model unverändert"
     ]
 
+// Die festgehaltene Karte (ledger-cyd1t): „Später“ und „Passt“ lehnen bei offenem Split-Editor oder laufender Kategorie ab.
+[<Tests>]
+let heldTests =
+    testList "Aufteilen auf der Karte: die festgehaltene Karte" [
+
+        // Regressionstest (Doktrin Punkt 8): `ReviewSkip` lehnte bei offenem Editor oder laufender Kategorie ab, aber S
+        // (`reviewLeaveOf`) und ein Wisch nach links (Fläche eingerastet) ließen die Karte trotzdem hinausfliegen; sie kam
+        // ohne Wirkung zurück. Nach rechts galt dasselbe für „Passt“.
+        testCase "solange die Karte festgehalten ist, fliegt sie weder über S noch über einen Wisch hinaus" <| fun () ->
+            let normal = reviewing [ entryOf 1; entryOf 2 ]
+            let card = (entryOf 1).Id
+            let cases =
+                [ "Kategorie läuft", step (StartSetEntryCategory (card, Some (YnabCategoryId homeId))) normal
+                  "Editor offen", step ReviewOpenSplit normal ]
+            for name, model in cases do
+                Expect.isTrue (reviewCardHeld model card) $"{name}: festgehalten"
+                Expect.equal (Components.Ledger.View.reviewLeaveOf model KeySkip) None $"{name}: S fliegt nicht"
+                let surface = reviewStageSurface model (reviewCardOf model).Value
+                Expect.equal (surface -200.0 0.0) (Client.DesignSystem.ReviewCard.SurfaceSkip false) $"{name}: links rastet nicht ein"
+                Expect.equal (surface 200.0 0.0) (Client.DesignSystem.ReviewCard.SurfaceConfirm false) $"{name}: rechts rastet nicht ein"
+                Expect.equal (indexOf (step ReviewSkip model)) 0 $"{name}: Später lehnt ab"
+                Expect.isNone (step ReviewConfirm model).Review.Value.Confirming $"{name}: Passt lehnt ab"
+            // Intakt: die freie Karte fliegt und rastet ein wie bisher.
+            Expect.isFalse (reviewCardHeld normal card) "frei"
+            Expect.equal (Components.Ledger.View.reviewLeaveOf normal KeySkip) (Some Client.DesignSystem.ReviewCard.LeaveSkip) "S fliegt"
+            let surface = reviewStageSurface normal (reviewCardOf normal).Value
+            Expect.equal (surface -200.0 0.0) (Client.DesignSystem.ReviewCard.SurfaceSkip true) "links eingerastet"
+            Expect.equal (surface 200.0 0.0) (Client.DesignSystem.ReviewCard.SurfaceConfirm true) "rechts eingerastet"
+    ]
+
 [<Tests>]
 let escapeTests =
     testList "Aufteilen auf der Karte: Esc (ledger-cyd1t)" [

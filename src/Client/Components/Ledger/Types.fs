@@ -2269,6 +2269,23 @@ let reviewCardOf (model: Model) : LedgerEntryView option =
 let isReviewCard (model: Model) (entryId: Guid) : bool =
     reviewCardOf model |> Option.exists (fun e -> e.Id = entryId)
 
+/// Hält etwas die Karte dieser Buchung fest, sodass „Später“ und „Passt“ nichts tun? Der offene Split-Editor (am PC im
+/// Panel daneben) oder ein laufender Aufruf der Gruppe Kategorie zur Buchung: ein Kartenwechsel verwürfe die Aufteilung
+/// im Entwurf bzw. ihre Antwort im Detail (ledger-cyd1t). Rein.
+let reviewCardHeld (model: Model) (entryId: Guid) : bool =
+    model.SplitEditor.IsSome || (model.CategoryRows |> Map.tryFind entryId) = Some CategorySending
+
+/// Was die Fläche unter der Karte auf der Bühne zeigt: wie `reviewSwipeSurface`, aber bei festgehaltener Karte
+/// (`reviewCardHeld`) rastet sie nie ein. Sonst flöge die Karte hinaus und käme ohne Wirkung zurück (ledger-cyd1t). Rein.
+let reviewStageSurface (model: Model) (entry: LedgerEntryView) : float -> float -> Client.DesignSystem.ReviewCard.SwipeSurface =
+    let held = reviewCardHeld model entry.Id
+    let hasTarget = reviewHasTarget entry
+    fun dx dy ->
+        match reviewSwipeSurface hasTarget dx dy with
+        | Client.DesignSystem.ReviewCard.SurfaceConfirm _ when held -> Client.DesignSystem.ReviewCard.SurfaceConfirm false
+        | Client.DesignSystem.ReviewCard.SurfaceSkip _ when held -> Client.DesignSystem.ReviewCard.SurfaceSkip false
+        | surface -> surface
+
 /// Wohin die Route `#/ledger/entry/<id>` verlassen wurde (budgeting-m1bce).
 type RouteLeftFor =
     /// Die Liste bleibt sichtbar und mit ihr der Konto-Filter.
