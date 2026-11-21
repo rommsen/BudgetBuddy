@@ -77,6 +77,10 @@ let private domainTests =
             let shown = page.Groups |> List.collect (fun g -> g.Categories)
             Expect.equal (shown |> List.map (fun c -> c.Id, c.Available)) [ a, eur 45m; b, eur 160m ] "YNABs Verfügbar"
             Expect.equal page.ToBeBudgeted (eur 200m) "YNABs Zu verteilen"
+            Expect.equal
+                (shown |> List.map (fun c -> c.Id, (availableBuildup c).CarryOver))
+                [ a, eur 25m; b, eur 60m ]
+                "Vortrag des Stands: 45 − 30 − (−10) und 160 − 100"
 
         testCase "Soll 50 bei Stand-Zugewiesen 30 ergibt Verfügbar +20 und Zu verteilen −20" <| fun () ->
             let fold = agreeing snapshot |> withSoll a 50000L
@@ -380,5 +384,6 @@ let private apiTests =
             Expect.equal calls.Value 1 "ein Aufruf"
     ]
 
+// budgeting-m5pqn
 [<Tests>]
-let tests = testList "YNAB-Stand und Budget aus BB (m5pqn)" [ domainTests; handlerTests; apiTests ]
+let tests = testList "YNAB-Stand und Budget aus BB" [ domainTests; handlerTests; apiTests ]

@@ -862,24 +862,25 @@ let private readTests =
             let month = freshMonth ()
             let result, log = stderrOf (fun () -> readWith connect f month)
             match result with
-            | Ok page -> Expect.equal ((shown page a).Assigned, (shown page a).OpenWriteBack) (eur 100000L, None) "aus dem YNAB-Stand"
+            | Ok page -> Expect.equal ((shown page a).Assigned, (shown page a).OpenWriteBack) (eur 100000L, None) "aus YNAB, ohne Stand"
             | Error e -> failtest $"Monat erwartet: {e}"
             Expect.stringContains log "Platte voll" "Fehler im Log"
 
-        testCase "Lesen, dessen Verbindungs-Port beim Anhängen wirft, liefert den Monat und loggt den Fehler" <| fun () ->
-            let calls = ref 0
-            // Die erste Verbindung liest den YNAB-Stand (es gibt keinen), die zweite hält die Beobachtung fest.
-            let connect () =
-                calls.Value <- calls.Value + 1
-                if calls.Value = 2 then failwith "Verbindung weg" else global.Persistence.getConnection ()
+        testCase "Lesen, dessen YNAB-Stand sich nicht festhalten lässt, liefert den Monat, loggt den Fehler und hängt nichts an" <| fun () ->
+            // Der Fehler sitzt gezielt beim Schreiben des Stands, unabhängig davon, wie viele Verbindungen das Lesen
+            // öffnet. Stand und Beobachtung stehen in einer Transaktion, also bleibt auch `events` leer.
+            let anchor, connect = BudgetEventsFixture.isolatedDb ()
+            use _ = anchor
+            anchor.Execute("CREATE TRIGGER no_snapshot BEFORE INSERT ON ynab_month_snapshot BEGIN SELECT RAISE(ABORT, 'Stand weg'); END")
+            |> ignore
             let f, a, _ = fake ()
             let month = freshMonth ()
             let result, log = stderrOf (fun () -> readWith connect f month)
             match result with
-            | Ok page -> Expect.equal (shown page a).Assigned (eur 100000L) "aus dem YNAB-Stand"
+            | Ok page -> Expect.equal (shown page a).Assigned (eur 100000L) "aus YNAB, ohne Stand"
             | Error e -> failtest $"Monat erwartet: {e}"
-            Expect.stringContains log "Verbindung weg" "Fehler im Log"
-            Expect.isEmpty (recordedEvents month) "nichts angehängt"
+            Expect.stringContains log "Stand weg" "Fehler im Log"
+            Expect.isEmpty (recordedEventsOn connect month) "nichts angehängt"
 
         testCase "Lesen mit scheiterndem FetchMonth scheitert wie bisher" <| fun () ->
             let f, _, _ = fake ()

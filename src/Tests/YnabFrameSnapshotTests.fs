@@ -115,6 +115,26 @@ let private handlerTests =
             Expect.equal (frameOk port).Months [ "2026-11-01" ] "aus YNAB"
             Expect.equal calls.Value 1 "ein Aufruf"
 
+        testCase "Ist die gehaltene Platzierung nicht lesbar, liest der Rahmen sie einmal aus YNAB" <| fun () ->
+            let g, a = Guid.NewGuid(), Guid.NewGuid()
+            let calls = ref 0
+            let port =
+                { BudgetEventsFixture.framePortOf [ "2026-11-01" ] [] with
+                    FetchCategoryPlacements = fun () -> async { calls.Value <- calls.Value + 1; return Ok [ g, a ] }
+                    LoadCategoryCatalog = fun () -> async { return Error Budgeting.Persistence.YnabFrameUnreadableText } }
+            Expect.equal (frameOk port).CategoryOrder [ a ] "Platzierung aus YNAB"
+            Expect.equal calls.Value 1 "ein Aufruf"
+
+        testCase "Lassen sich Fenster und Platzierung nicht festhalten, gilt das aus YNAB Gelesene" <| fun () ->
+            let g, a = Guid.NewGuid(), Guid.NewGuid()
+            let port =
+                { BudgetEventsFixture.framePortOf [ "2026-12-01"; "2026-11-01" ] [ g, a ] with
+                    HoldMonthWindow = fun _ -> async { return Error "Platte voll" }
+                    HoldCategoryCatalog = fun _ -> async { return Error "Platte voll" } }
+            let frame = frameOk port
+            Expect.equal frame.Months [ "2026-11-01"; "2026-12-01" ] "Fenster aus YNAB"
+            Expect.equal frame.CategoryOrder [ a ] "Platzierung aus YNAB"
+
         testCase "Eine neue Kategorie im Katalog steht am Ende ihrer Gruppe" <| fun () ->
             let anchor, connect = BudgetEventsFixture.isolatedDb ()
             use _ = anchor
@@ -148,6 +168,24 @@ let private handlerTests =
             Budgeting.Persistence.recordWriteBackWith connect recorded.Head now Budgeting.Events.WrittenBack |> run
             Expect.equal (frameOk port).Months [ "2026-11-01"; last; "2027-01-01" ] "bestätigt: der Januar ist offen"
             Expect.equal calls.Months 0 "ohne YNAB-Aufruf"
+
+        testCase "Ohne gehaltenes Fenster legt eine bestätigte Zuweisung kein Fenster an, der Rahmen liest es aus YNAB" <| fun () ->
+            let anchor, connect = BudgetEventsFixture.isolatedDb ()
+            use _ = anchor
+            let last = "2026-12-01"
+            let line : Budgeting.Persistence.PlannedLine =
+                { CategoryId = Guid.NewGuid(); CategoryName = "Urlaub"; OldAssigned = 0L; NewAssigned = 50_000L }
+            let recorded =
+                Budgeting.Persistence.recordDecisionWith connect None now last MoneyAssigned [ line ] [] []
+                |> run
+                |> BudgetEventsFixture.recordedOrFail
+
+            Budgeting.Persistence.recordWriteBackWith connect recorded.Head now Budgeting.Events.WrittenBack |> run
+
+            Expect.isNone (Budgeting.Persistence.loadMonthWindowOn anchor) "kein Fenster angelegt"
+            let port, calls = countingPortOn connect [ "2026-11-01"; last ] []
+            Expect.equal (frameOk port).Months [ "2026-11-01"; last ] "Fenster aus YNAB"
+            Expect.equal calls.Months 1 "ein YNAB-Aufruf"
     ]
 
 // ============================================
@@ -180,5 +218,6 @@ let private liveTests =
             | Error e -> failtest e
     ]
 
+// budgeting-yx51n
 [<Tests>]
-let tests = testList "Rahmen der Budget-Seite aus BB (yx51n)" [ domainTests; handlerTests; liveTests ]
+let tests = testList "Rahmen der Budget-Seite aus BB" [ domainTests; handlerTests; liveTests ]
