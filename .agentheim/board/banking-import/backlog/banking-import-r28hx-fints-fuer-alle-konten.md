@@ -9,7 +9,7 @@ completed:
 depends_on: [banking-import-y7m4r]
 blocks: []
 tags: [captured, fints, ing]
-related_adrs: [0093]
+related_adrs: [0093, 0102]
 related_research: [ing-fints-anbindung-2026-11-06]
 prior_art: [banking-import-d0fey, banking-import-pknvp]
 ---
@@ -50,3 +50,15 @@ Verfeinerung 2026-11-20 (Roman):
 - Bibliothek: entscheidet der Architect nach dem Befund des Spikes; ein Python-Sidecar ist erlaubt.
 - Beim Verfeinern zu klären: Abruf je Konto im selben Ablauf wie Comdirect (`fetchAndBook`, automatisch abrufen) oder
   eigener Takt; Anzeige „ING · Import <Stand>“; Meldung, wenn der 90-Tage-Log-in bei der ING fällig ist.
+
+Nach dem Spike (2026-11-21): Befund in der README von `banking-import` („Live-Befund ING per FinTS“), Vorschlag ADR 0102
+(python-fints als Sidecar, CAMT.052, Importschlüssel `ING:` plus Hash aus dem Inhalt). Laut ADR 0102 kennt nur der Sidecar
+die Produktnummer, der Server nie; das ersetzt den Satz oben „kommt aus `.env` in `AppSettings`“.
+Offen für Roman beim Verfeinern:
+- Stichtag je Konto für den ersten Import (sonst landen 90 Tage, die YNAB schon hat, als wartende Duplikate in BB).
+- Umgang mit Doppelten in der Probezeit, solange YNABs ING-Abruf parallel läuft.
+- Überträge zwischen Girokonto und Extra-Konto (erscheinen auf beiden Konten, vergleiche banking-import-pknvp).
+- Abruftakt: wie Comdirect oder eigener.
+- Eine gemeinsame Meldung für falsches Passwort und abgelaufenen 90-Tage-Log-in, bis die Codes beobachtet sind?
+- Zugangsdaten in einer eigenen Karte in den Einstellungen oder nur `.env`.
+- Welche der neun Konten BB abruft (weitere Giro- und Extra-Konten neben Romans eigenen).

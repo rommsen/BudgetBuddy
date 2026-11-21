@@ -101,10 +101,10 @@ Ein Lauf mit genau einer Push-TAN, Protokoll der Beobachtungssonde. Einzelne Mes
 - **Kontenabruf:** `getAccounts` lieferte in allen sechs Runden 404. Die Ursache blieb offen, weil der Code jeden Fehlschlag als 404 meldete. Der Abruf ist seit `banking-import-v8n3k` entfernt, der Verbindungstest liest stattdessen die erste Umsatzseite (ADR 0071, Nachtrag 2026-11-01).
 - **Offen, falsche Konto-Id:** Nicht gemessen, wie Comdirect auf eine fremde Konto-Id antwortet. Bei 401 oder 403 endet auch der Verbindungstest nach dem Refresh in einem Verlust (`banking-import-m4xrt`).
 
-## Live-Befund ING per FinTS (2026-11-20, `banking-import-y7m4r`, vorläufig)
+## Live-Befund ING per FinTS (2026-11-20 und 2026-11-21, `banking-import-y7m4r`)
 
-Drei Läufe mit python-fints 5.0.1 und einer mit libfintx 1.4.0, eigene Produktnummer, Wegwerf-Sonden außerhalb des Repos.
-Nur Struktur und Zählungen. Der Referenzvergleich über mehr als einen Tag steht noch aus.
+Vier Läufe mit python-fints 5.0.1 und einer mit libfintx 1.4.0, eigene Produktnummer, Wegwerf-Sonden außerhalb des Repos.
+Nur Struktur und Zählungen.
 
 - **Produktnummer:** Die ING nimmt sie an (0020 „Angemeldet.“). Laut DK-Schreiben übernimmt jedes Institut neue Nummern
   zu einem eigenen Zeitpunkt; die ING hatte sie zwei Tage nach der Zuteilung schon.
@@ -124,8 +124,10 @@ Nur Struktur und Zählungen. Der Referenzvergleich über mehr als einen Tag steh
   Konto nur vier verschiedene Werte, also eine Art Vorgangscode und kein Schlüssel je Buchung. Kein `EndToEndId`, kein
   `NtryRef`.
 - **Dedup-Schlüssel:** Die ING liefert keine Referenz je Buchung, weder in MT940 noch in CAMT. Bleibt der Inhalt (Konto,
-  Buchungstag, Valuta, Betrag, Richtung, Text aus `:86:`). Inhaltsgleiche Buchungen gab es in keinem Konto. Zwei Abrufe am
-  selben Tag waren gleich, auch in der Reihenfolge. Über mehrere Tage: offen.
+  Buchungstag, Valuta, Betrag, Richtung, Text aus `:86:`). Inhaltsgleiche Buchungen gab es in keinem Konto. Zwei Abrufe im
+  Abstand von 19 Stunden waren gleich: 192 Buchungen in sechs Konten, MT940 und CAMT, Inhalt für Inhalt und in derselben
+  Reihenfolge. Dazwischen kam keine neue Buchung dazu; ob der Text einer frisch gebuchten Buchung später noch wechselt, ist
+  damit nicht beobachtet.
 - **Vormerkungen:** keine (kein MT942-Teil, CAMT nur `BOOK`).
 - **Saldo:** HKSAL liefert ihn für Girokonten und Extra-Konten ohne TAN.
 - **Depot:** HKWPD liefert Bestände ohne TAN (MT535), je Position ISIN, Name, Kurs, Stückzahl, Gesamtwert und Einstandskurs,
