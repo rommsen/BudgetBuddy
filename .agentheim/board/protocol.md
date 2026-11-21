@@ -5,6 +5,24 @@ Newest entries on top.
 
 ---
 
+## 2026-11-21 03:33 -- Work session ended
+
+**Type:** Work / Session end
+**Duration:** 4h05m
+**Completed:** 5 (first-try PASS: 4, re-dispatched: 1, skipped: 0)
+**Bounced:** 0
+**Failed:** 0
+**Escalated after verification:** 0
+**Lost-result re-dispatches:** 0
+**Lost-result escalations:** 0
+**Dispatches:** ledger-sbbh8: 1, ledger-cyd1t: 1, budgeting-m5pqn: 3, budgeting-nyx75: 1, budgeting-yx51n: 1
+**Commits:** 8
+**Vision-conformance:** none — batch aligns with vision
+**Batch mix:** 100% product-facing / 0% harness / 0% bookkeeping (5 tasks)
+**Carry-over:** .agentheim/board/budgeting/backlog/budgeting-k7m3q-kann-sammlung-budgeting.md: committed (Kann-Sammlung aus dem Lauf), .agentheim/board/infrastructure/backlog/infrastructure-hgbey-kann-sammlung-infrastructure.md: committed (Gate-Flakes)
+
+---
+
 ## 2026-11-21 03:27 -- Task verified and completed: budgeting-yx51n - "Budget-Rahmen aus BB: Monatsfenster und Kategorie-Platzierung als YNAB-Stand, der Rahmen der Budget-Seite liest ohne YNAB-Aufruf"
 
 **Type:** Work / Task completion
