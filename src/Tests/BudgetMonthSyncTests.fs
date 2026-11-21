@@ -120,13 +120,14 @@ let private atGate (monthKey: string) : bool =
 let private domainTests =
     testList "Frische des Stands (rein)" [
         testCase "Ohne Stand, veraltet oder älter als 60 s ist das Nachziehen fällig, bis 60 s nicht" <| fun () ->
-            let snapshot at stale : YnabMonthSnapshot option =
-                Some { Raw = { Month = "2026-11-01"; ToBeBudgeted = eur 0m; Categories = [] }; FetchedAt = at; Stale = stale }
+            let snapshot at validity : YnabMonthSnapshot option =
+                Some { Raw = { Month = "2026-11-01"; ToBeBudgeted = eur 0m; Categories = [] }; FetchedAt = at; Validity = validity }
+            let current = SnapshotValidity.Current
             Expect.isTrue (monthSyncDue t0 None) "ohne Stand"
-            Expect.isFalse (monthSyncDue (t0.AddSeconds 59.) (snapshot t0 false)) "59 s"
-            Expect.isFalse (monthSyncDue (t0.AddSeconds 60.) (snapshot t0 false)) "genau 60 s"
-            Expect.isTrue (monthSyncDue (t0.AddSeconds 61.) (snapshot t0 false)) "61 s"
-            Expect.isTrue (monthSyncDue t0 (snapshot t0 true)) "veraltet, 0 s"
+            Expect.isFalse (monthSyncDue (t0.AddSeconds 59.) (snapshot t0 current)) "59 s"
+            Expect.isFalse (monthSyncDue (t0.AddSeconds 60.) (snapshot t0 current)) "genau 60 s"
+            Expect.isTrue (monthSyncDue (t0.AddSeconds 61.) (snapshot t0 current)) "61 s"
+            Expect.isTrue (monthSyncDue t0 (snapshot t0 SnapshotValidity.Outdated)) "veraltet, 0 s"
         testCase "Fenster und Platzierung sind ab 5 min fällig" <| fun () ->
             Expect.isTrue (frameStateDue t0 None) "ohne Stand"
             Expect.isFalse (frameStateDue (t0.AddMinutes 5.) (Some t0)) "genau 5 min"
@@ -153,14 +154,34 @@ let private handlerTests =
 
             // Der Stand ist jetzt 61 s alt gestempelt (frisch): erst die Markierung macht ihn wieder fällig.
             Budgeting.Persistence.markMonthsAfterStaleOn anchor (previousMonthKey key)
-            Expect.isTrue (snapshotOn anchor key).Stale "veraltet markiert"
+            Expect.equal (snapshotOn anchor key).Validity SnapshotValidity.Outdated "veraltet markiert"
             Expect.isOk (sync connect port frame (t0.AddSeconds 62.) key) "veraltet, 1 s alt"
             Expect.equal (List.ofSeq calls) [ $"FetchMonth {key}" ] "veraltet: ein FetchMonth"
-            Expect.isFalse (snapshotOn anchor key).Stale "das Beobachten nimmt die Markierung"
+            Expect.equal (snapshotOn anchor key).Validity SnapshotValidity.Current "das Beobachten nimmt die Markierung"
             calls.Clear()
             Expect.isOk (sync connect port frame (t0.AddSeconds 63.) key) "danach frisch"
             Expect.isEmpty (List.ofSeq calls) "danach null Aufrufe"
             Expect.isEmpty (List.ofSeq frameCalls) "der Rahmen war die ganze Zeit frisch"
+
+        // Review-Fund ffjk9: ein unbekannter Wert in `stale` wurde still als aktuell gelesen.
+        testCase "Eine unbekannte Markierung im Stand wird gemeldet und nicht als aktuell gelesen" <| fun () ->
+            let anchor, connect = BudgetEventsFixture.isolatedDb ()
+            use _ = anchor
+            let a = Guid.NewGuid()
+            let key = freshMonth ()
+            let port, calls = ynabWith a (ref 30m)
+            observe connect port t0 key
+            Dapper.SqlMapper.Execute(anchor, "UPDATE ynab_month_snapshot SET stale = 2 WHERE month = @month", {| month = key |}) |> ignore
+            calls.Clear()
+            let frame, _ = heldFramePort t0
+
+            match Budgeting.Persistence.loadYnabMonthSnapshotOn anchor key with
+            | Error reason -> Expect.stringContains reason "unbekannt: 2" "Grund mit dem Wert"
+            | Ok other -> failtest $"Fehler erwartet: {other}"
+            Expect.equal
+                (sync connect port frame (t0.AddSeconds 10.) key)
+                (Error (YnabError.LocalReadFailed Budgeting.Persistence.YnabMonthSnapshotUnreadableText))
+                "das Nachziehen meldet den Stand als nicht lesbar"
 
         testCase "Ein Monat ohne Stand wird beim Nachziehen beobachtet und kommt als geändert" <| fun () ->
             let anchor, connect = BudgetEventsFixture.isolatedDb ()
@@ -254,10 +275,10 @@ let private handlerTests =
                 observe connect port t0 key
             assign connect port (t0.AddSeconds 5.) m a 40m
 
-            Expect.isFalse (snapshotOn anchor before).Stale "M-1"
-            Expect.isFalse (snapshotOn anchor m).Stale "M"
-            Expect.isTrue (snapshotOn anchor after1).Stale "M+1"
-            Expect.isTrue (snapshotOn anchor after2).Stale "M+2"
+            Expect.equal
+                ([ before; m; after1; after2 ] |> List.map (fun key -> (snapshotOn anchor key).Validity))
+                [ SnapshotValidity.Current; SnapshotValidity.Current; SnapshotValidity.Outdated; SnapshotValidity.Outdated ]
+                "M-1 und M aktuell, M+1 und M+2 veraltet"
 
             // Der veraltete Folgemonat wird beim nächsten Öffnen beobachtet, obwohl sein Stand erst 6 s alt ist.
             calls.Clear()

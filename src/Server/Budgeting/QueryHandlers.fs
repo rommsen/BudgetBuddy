@@ -355,13 +355,17 @@ let private refreshFrameIfDue (port: BudgetFramePort) (now: DateTime) : Async<un
                 port.HoldCategoryCatalog
     }
 
-/// Das Nachziehen eines Monats nach dem sofortigen Lesen (budgeting-ffjk9, ADR 0101 Punkt 6), ohne Timer: Ist der Stand
-/// fällig (ohne Stand, veraltet oder älter als 60 s), wird der Monat unter `MonthGuard` beobachtet
-/// (`CommandHandlers.observeIfDueWith`), mit Übernahme und Echo-Regel wie bei jedem Beobachten: eine Beobachtung
-/// gewinnt, das Soll wird YNABs Wert (ADR 0084 Punkt 3). Danach läuft die Target-Übernahme nach bestem Bemühen
-/// (`targetRulesBestEffort`). Fenster und Platzierung liest es nach, wenn sie älter als 5 min sind (bestes Bemühen).
-/// `MonthChanged` mit dem Monat wie beim Lesen nur, wenn YNABs Monat oder BBs Targets jetzt anders sind, sonst
-/// `MonthUnchanged`. Scheitert das Beobachten, ist das Ergebnis dieser Fehler; die Seite behält dann ihren Stand.
+/// Das Nachziehen eines Monats nach dem sofortigen Lesen (budgeting-ffjk9, ADR 0101 Punkt 6), ohne Timer. Es liest
+/// nicht nur, es schreibt: Ist der Stand fällig (ohne Stand, veraltet oder älter als 60 s), wird der Monat unter
+/// `MonthGuard` beobachtet (`CommandHandlers.observeIfDueWith`), und das hält YNAB-Stand, Übernahme und Echo-Regel
+/// fest wie jedes Beobachten: eine Beobachtung gewinnt, das Soll wird YNABs Wert (ADR 0084 Punkt 3). Danach läuft die
+/// Target-Übernahme nach bestem Bemühen (`targetRulesBestEffort`), sie hängt `TargetTakenOverFromYnab` an. Fenster
+/// und Platzierung liest es nach, wenn sie älter als 5 min sind (bestes Bemühen); der neue Rahmen steht dann in der
+/// Datenbank, die offene Seite sieht ihn erst beim nächsten Öffnen (`BudgetMonthSync` trägt nur den Monat, der Client
+/// lädt `getBudgetFrame` einmal je Seitenaufruf). `MonthChanged` mit dem Monat wie beim Lesen nur, wenn YNABs Monat
+/// oder BBs Targets jetzt anders sind, sonst `MonthUnchanged`; waren BBs Targets vor dem Abgleich nicht lesbar, zählt
+/// das als anders. Scheitert das Beobachten oder das Lesen der Targets danach, ist das Ergebnis dieser Fehler; die
+/// Seite behält dann ihren Stand.
 let syncMonthWithLedger
     (ledger: CommandHandlers.LedgerActivityPort)
     (connect: unit -> Microsoft.Data.Sqlite.SqliteConnection)
@@ -382,7 +386,12 @@ let syncMonthWithLedger
             | Error message -> return Error (YnabError.LocalReadFailed message)
             | Ok targets ->
                 let sameRaw = before |> Option.exists (fun s -> s.Raw = observed.Raw)
-                if sameRaw && targetsBefore = Ok targets then
+                let sameTargets =
+                    match targetsBefore with
+                    | Ok rules -> rules = targets
+                    // Nicht lesbar vor dem Abgleich: die Seite kann nicht wissen, ob sie BBs Targets zeigt.
+                    | Error _ -> false
+                if sameRaw && sameTargets then
                     return Ok MonthUnchanged
                 else
                     let! month = pageMonthOf ledger connect observed.Raw (Some now) (Some observed.Fold.Categories) targets

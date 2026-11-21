@@ -363,7 +363,7 @@ let private recordObservationWith
     : Result<MonthFold, string> =
     onMonthStream connect monthKey (fun conn monthId events ->
         let added, fold = observe monthId events raw
-        recordObservationOn conn now monthKey added { Raw = raw; FetchedAt = now; Stale = false }
+        recordObservationOn conn now monthKey added { Raw = raw; FetchedAt = now; Validity = SnapshotValidity.Current }
         fold)
 
 /// `observeMonth` ohne Sperre, für Abläufe, die sie schon halten: ein `FetchMonth`, dann festhalten.

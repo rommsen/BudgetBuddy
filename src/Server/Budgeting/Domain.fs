@@ -684,15 +684,23 @@ let toBudgetMonth (targets: Map<Guid, Target>) (pausedInBb: Set<Guid>) (month: Y
 // YNAB-Stand und abgeleitete Werte (budgeting-m5pqn, ADR 0101)
 // ============================================
 
+/// Ob der YNAB-Stand eines Monats noch gilt (ADR 0101 Punkt 6, budgeting-ffjk9).
+[<RequireQualifiedAccess>]
+type SnapshotValidity =
+    /// So, wie YNAB den Monat beim letzten Beobachten lieferte. Jedes Beobachten schreibt den Stand so.
+    | Current
+    /// Veralteter YNAB-Stand: ein Budget-Befehl auf einem früheren Monat hat danach in YNAB geschrieben, der
+    /// Vortrag kann sich geändert haben. Das nächste Nachziehen beobachtet den Monat, gleich wie alt der Stand ist.
+    | Outdated
+
 /// Der YNAB-Stand eines Monats (ADR 0101 Punkt 3): eine Kopie von YNABs Rechnung und Stammdaten, keine
 /// Entscheidung. Zustand, kein Ereignis (ADR 0083); das Beobachten überschreibt ihn. `Raw` ist der Monat, wie
-/// YNAB ihn beim Beobachten lieferte, `FetchedAt` der Zeitpunkt dieses Lesens (UTC). `Stale` heißt veraltet: ein
-/// Budget-Befehl auf einem früheren Monat hat danach in YNAB geschrieben, der Vortrag kann sich geändert haben
-/// (ADR 0101 Punkt 6, budgeting-ffjk9). Jedes Beobachten schreibt den Stand frisch, also nicht veraltet.
+/// YNAB ihn beim Beobachten lieferte, `FetchedAt` der Zeitpunkt dieses Lesens (UTC), `Validity`, ob er seitdem
+/// veraltet ist (`SnapshotValidity`).
 type YnabMonthSnapshot = {
     Raw: YnabMonth
     FetchedAt: DateTime
-    Stale: bool
+    Validity: SnapshotValidity
 }
 
 /// Wie alt der Stand eines Monats höchstens sein darf, bevor das Nachziehen ihn beobachtet (ADR 0101 Punkt 6).
@@ -706,7 +714,10 @@ let FrameStateMaxAge : TimeSpan = TimeSpan.FromMinutes 5.
 let monthSyncDue (now: DateTime) (snapshot: YnabMonthSnapshot option) : bool =
     match snapshot with
     | None -> true
-    | Some s -> s.Stale || now - s.FetchedAt > MonthSnapshotMaxAge
+    | Some s ->
+        match s.Validity with
+        | SnapshotValidity.Outdated -> true
+        | SnapshotValidity.Current -> now - s.FetchedAt > MonthSnapshotMaxAge
 
 /// Muss das Nachziehen einen Teil des Rahmens nachlesen? Ohne Stand oder wenn sein `FetchedAt` älter ist als
 /// `FrameStateMaxAge`.

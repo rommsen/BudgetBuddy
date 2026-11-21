@@ -222,13 +222,13 @@ let private handlerTests =
             let port, _ = countingPort raw
 
             CommandHandlers.observeMonthWith connect port now observedMonth |> run |> ignore
-            Expect.equal (snapshotOn anchor observedMonth) (Some { Raw = raw observedMonth; FetchedAt = now; Stale = false }) "nach dem Beobachten"
+            Expect.equal (snapshotOn anchor observedMonth) (Some { Raw = raw observedMonth; FetchedAt = now; Validity = SnapshotValidity.Current }) "nach dem Beobachten"
 
             Expect.isNone (snapshotOn anchor assignedMonth) "vorher kein Stand"
             match CommandHandlers.assignMoneyWith connect port now assignedMonth { CategoryId = a; Assigned = eur 40m; CommandId = None } |> run with
             | Ok (Ok _) -> ()
             | other -> failtest $"Bericht erwartet: {other}"
-            Expect.equal (snapshotOn anchor assignedMonth) (Some { Raw = raw assignedMonth; FetchedAt = now; Stale = false }) "nach dem Zuweisen, gelesen vor dem PATCH"
+            Expect.equal (snapshotOn anchor assignedMonth) (Some { Raw = raw assignedMonth; FetchedAt = now; Validity = SnapshotValidity.Current }) "nach dem Zuweisen, gelesen vor dem PATCH"
 
         testCase "Scheitert das Festhalten des Stands, wird auch keine Beobachtung geschrieben" <| fun () ->
             let anchor, connect = BudgetEventsFixture.isolatedDb ()

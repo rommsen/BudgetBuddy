@@ -462,6 +462,20 @@ let private readWith
             return Error unreadable
     }
 
+/// `SnapshotValidity` in der Spalte `stale`: 0 aktuell, 1 veraltet (`markMonthsAfterStaleOn` setzt 1).
+let private validityCode (validity: SnapshotValidity) : int64 =
+    match validity with
+    | SnapshotValidity.Current -> 0L
+    | SnapshotValidity.Outdated -> 1L
+
+/// Die Spalte `stale` als `SnapshotValidity`. Ein anderer Wert ist ein `Error` mit Grund: ein unbekannter Wert zählt
+/// nicht still als aktuell, sonst fiele ein fälliges Beobachten aus.
+let private validityOf (month: string) (code: int64) : Result<SnapshotValidity, string> =
+    match code with
+    | 0L -> Ok SnapshotValidity.Current
+    | 1L -> Ok SnapshotValidity.Outdated
+    | other -> Error $"Markierung veraltet im YNAB-Stand {month} unbekannt: {other}"
+
 /// Schreibt den Stand eines Monats auf der offenen Transaktion `tx` und ersetzt den bisherigen ganz.
 let internal writeYnabMonthSnapshotOn (conn: SqliteConnection) (tx: SqliteTransaction) (snapshot: YnabMonthSnapshot) : unit =
     let month = snapshot.Raw.Month
@@ -472,7 +486,7 @@ let internal writeYnabMonthSnapshotOn (conn: SqliteConnection) (tx: SqliteTransa
         {| month = month
            tbb = toMilliunits snapshot.Raw.ToBeBudgeted
            at = snapshot.FetchedAt.ToString("o", CultureInfo.InvariantCulture)
-           stale = (if snapshot.Stale then 1L else 0L) |},
+           stale = validityCode snapshot.Validity |},
         tx
     )
     |> ignore
@@ -516,7 +530,8 @@ type private SnapshotCategoryRow = {
     is_internal: int64
 }
 
-/// Der Stand des Monats ("YYYY-MM-01"), ohne Stand `None`. Ein nicht lesbares Goal ist ein `Error` mit Grund.
+/// Der Stand des Monats ("YYYY-MM-01"), ohne Stand `None`. Ein nicht lesbares Goal oder eine unbekannte Markierung
+/// veraltet ist ein `Error` mit Grund.
 let internal loadYnabMonthSnapshotOn (conn: SqliteConnection) (month: string) : Result<YnabMonthSnapshot option, string> =
     match
         conn.Query<SnapshotRow>(
@@ -555,15 +570,17 @@ let internal loadYnabMonthSnapshotOn (conn: SqliteConnection) (month: string) : 
                   Hidden = r.hidden <> 0L
                   Deleted = r.deleted <> 0L
                   Internal = r.is_internal <> 0L })
-        rows
-        |> List.map categoryOf
-        |> collectRows
-        |> Result.map (fun categories ->
-            Some
-                { Raw = { Month = month; ToBeBudgeted = euroOfMilliunits head.to_be_budgeted; Categories = categories }
-                  FetchedAt =
-                    DateTime.Parse(head.fetched_at, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind)
-                  Stale = head.stale <> 0L })
+        match validityOf month head.stale, rows |> List.map categoryOf |> collectRows with
+        | Error message, _
+        | _, Error message -> Error message
+        | Ok validity, Ok categories ->
+            Ok (
+                Some
+                    { Raw = { Month = month; ToBeBudgeted = euroOfMilliunits head.to_be_budgeted; Categories = categories }
+                      FetchedAt =
+                        DateTime.Parse(head.fetched_at, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind)
+                      Validity = validity }
+            )
 
 /// Markiert die Stände aller Monate nach `month` ("YYYY-MM-01") als veraltet (ADR 0101 Punkt 6, budgeting-ffjk9): ihr
 /// Vortrag hängt am Verfügbar von `month`. Ein Monat ohne Stand bleibt ohne; sein erstes Lesen beobachtet ihn ohnehin.
@@ -1466,7 +1483,9 @@ let internal recordWriteBackOn (conn: SqliteConnection) (m: Movement) (at: DateT
         logBestEffortFailure $"Monatsfenster nach der Zuweisung in {m.Month} erweitern" ex.Message
     // Nach dem PATCH, nicht bei der Entscheidung (budgeting-ffjk9): erst jetzt zeigt YNAB den neuen Vortrag. Markiert
     // bei der Entscheidung, könnte ein Nachziehen des späteren Monats vor dem PATCH lesen und die Markierung mit dem
-    // alten Stand löschen.
+    // alten Stand löschen. Markiert wird nach jedem `WriteBackOutcome`, auch nach `WriteBackFailed`, `SupersededInYnab`
+    // und `Withdrawn`. Das ist gewollt breit: ob YNAB doch geschrieben hat, weiß BB nach einem Fehler nicht sicher, und
+    // ein Abruf zu viel kostet weniger als ein Vortrag, der falsch stehen bleibt.
     try
         markMonthsAfterStaleOn conn m.Month
     with ex ->
