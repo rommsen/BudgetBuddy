@@ -431,6 +431,11 @@ let internal loadBudgetEventsOn (conn: SqliteConnection) (scope: EventScope) : R
 let logReadFailure (what: string) (cause: string) : unit =
     eprintfn "%s gescheitert: %s" what cause
 
+/// Ein Best-Effort-Pfad ist gescheitert, der Aufrufer macht ohne ihn weiter (etwa mit dem Gelesenen oder einem
+/// Rückfallwert). Die Ursache steht im Server-Log. Alle solchen Pfade loggen hierüber, damit man sie per grep findet.
+let logBestEffortFailure (what: string) (cause: string) : unit =
+    eprintfn "%s gescheitert, es geht ohne weiter: %s" what cause
+
 /// Liest über `connect`; ein `Error` oder eine Ausnahme wird geloggt und zu `unreadable`.
 let private readWith
     (connect: unit -> SqliteConnection)
@@ -1444,7 +1449,7 @@ let internal recordWriteBackOn (conn: SqliteConnection) (m: Movement) (at: DateT
     try
         openMonthAfterWriteBackOn conn m outcome
     with ex ->
-        logReadFailure $"Monatsfenster nach der Zuweisung in {m.Month} erweitern" ex.Message
+        logBestEffortFailure $"Monatsfenster nach der Zuweisung in {m.Month} erweitern" ex.Message
 
 /// Die Ereignisse des Monats-Streams zu "YYYY-MM-01" in Stream-Reihenfolge, je mit `event_id`, für die
 /// Faltung (budgeting-dgrp7). Ein nicht lesbares Ereignis wird gemeldet.

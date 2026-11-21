@@ -2699,6 +2699,14 @@ let getCategoriesPlacedWith
 let getCategoriesPlaced (token: string) (YnabBudgetId budgetId: YnabBudgetId) : Async<YnabResult<YnabCategory list * (Guid * Guid) list>> =
     getCategoriesPlacedWith (fetchCategoriesText token budgetId) budgetId
 
+/// Nur die Platzierung (Gruppe, Kategorie in YNABs Folge) aus `GET /categories`, für den Rahmen der Budget-Seite
+/// (budgeting-yx51n).
+let getCategoryPlacements (token: string) (budgetId: YnabBudgetId) : Async<YnabResult<(Guid * Guid) list>> =
+    async {
+        let! placed = getCategoriesPlaced token budgetId
+        return placed |> Result.map snd
+    }
+
 /// Der Pfad der Kategorien (`POST`) oder einer Kategorie (`PATCH`), wie der übrige Client unter `/budgets/`.
 let categoriesUrl (budgetId: string) (categoryId: Guid option) : string =
     match categoryId with

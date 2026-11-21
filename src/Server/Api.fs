@@ -1692,7 +1692,7 @@ let private livePort (token: string) (budgetId: YnabBudgetId) : Server.Budgeting
 /// Platzierung nur ohne YNAB-Stand. `internal` für den Test der Verdrahtung (ohne YNAB-Aufruf).
 let internal liveFramePort (token: string) (budgetId: YnabBudgetId) : Server.Budgeting.QueryHandlers.BudgetFramePort =
     { FetchMonths = fun () -> YnabClient.getMonths token budgetId
-      FetchCategoryOrder = fun () -> YnabClient.getCategoriesPlaced token budgetId
+      FetchCategoryPlacements = fun () -> YnabClient.getCategoryPlacements token budgetId
       LoadMonthWindow = Budgeting.Persistence.loadMonthWindowWith Persistence.getConnection
       HoldMonthWindow = Budgeting.Persistence.holdMonthWindowWith Persistence.getConnection
       LoadCategoryCatalog = Budgeting.Persistence.loadCategoryCatalogWith Persistence.getConnection

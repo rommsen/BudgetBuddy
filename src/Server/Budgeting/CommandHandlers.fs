@@ -43,6 +43,26 @@ let liveLedgerActivityPort: LedgerActivityPort =
     { LoadMonthlyActivity = Ledger.QueryHandlers.getMonthlyActivityByCategory
       LoadFirstEntryDate = Ledger.Persistence.loadFirstEntryDate }
 
+/// Wie `loadPeriodActivity`, aber mit dem schon gelesenen Tag der ersten Buchung `first` (`LoadFirstEntryDate`):
+/// eine Abfrage für alle Kategorien, ohne Periodenmonat keine. Ein Lesefehler kommt als Ausnahme.
+let loadPeriodActivityAfter
+    (ledger: LedgerActivityPort)
+    (first: DateTime option)
+    (targets: Map<Guid, Target>)
+    (monthKey: string)
+    : Async<Map<Guid, Map<string, Money>>> =
+    async {
+        match periodMonthsNeeded targets monthKey with
+        | [] -> return Map.empty
+        | months ->
+            let ids = periodCategoriesNeeded targets monthKey
+            let! sums =
+                ledger.LoadMonthlyActivity
+                    ids
+                    (months |> List.map (fun m -> DateTime.ParseExact(m, "yyyy-MM-dd", Globalization.CultureInfo.InvariantCulture)))
+            return periodActivityFromLedger ids months first sums
+    }
+
 /// Die Aktivität der Periodenmonate (`periodMonthsNeeded`) aller Kategorien, die sie brauchen, aus dem
 /// Kassenbuch: eine Abfrage für die erste Buchung, eine für alle Kategorien. Ohne Periodenmonat kein Lesen.
 /// Ein Lesefehler kommt als Ausnahme, der Aufrufer entscheidet, was er bedeutet.
@@ -54,14 +74,9 @@ let loadPeriodActivity
     async {
         match periodMonthsNeeded targets monthKey with
         | [] -> return Map.empty
-        | months ->
-            let ids = periodCategoriesNeeded targets monthKey
+        | _ ->
             let! first = ledger.LoadFirstEntryDate ()
-            let! sums =
-                ledger.LoadMonthlyActivity
-                    ids
-                    (months |> List.map (fun m -> DateTime.ParseExact(m, "yyyy-MM-dd", Globalization.CultureInfo.InvariantCulture)))
-            return periodActivityFromLedger ids months first sums
+            return! loadPeriodActivityAfter ledger first targets monthKey
     }
 
 /// Die Meldung, wenn vor der Vorschau oder Targets anwenden das Kassenbuch nicht lesbar ist (budgeting-hbhzf).

@@ -728,7 +728,7 @@ let private apiWirings =
       // Rahmen der Budget-Seite (budgeting-yx51n): `QueryHandlers.frame` ist mit Fake-Ports getestet, YNAB fragt der
       // Port des Servers nur ohne YNAB-Stand. Die Felder, die die Datenbank lesen, belegt ein Verhaltenstest.
       @"\bFetchMonths\s*=\s*fun\s*\(\)\s*->\s*YnabClient\.getMonths\s+token\s+budgetId\b"
-      @"\bFetchCategoryOrder\s*=\s*fun\s*\(\)\s*->\s*YnabClient\.getCategoriesPlaced\s+token\s+budgetId\b"
+      @"\bFetchCategoryPlacements\s*=\s*fun\s*\(\)\s*->\s*YnabClient\.getCategoryPlacements\s+token\s+budgetId\b"
       // Memo und Payee nach YNAB (Review-Fund zu ledger-fxt09): `ynabPushWith` ist mit Fake-Settings getestet,
       // die Befehle mit Fake-Push; der Push des Servers erreicht YNAB nur im laufenden Dienst.
       @"\bmemoPush\s*\(\)\s*:\s*Async<Ledger\.CommandHandlers\.MemoPush>\s*=\s*ynabPushWith\s+Persistence\.Settings\.getSetting\s+\(fun\s+token\s+budgetId\s*->\s*YnabClient\.updateMemo\s+token\s+budgetId\)\s+refusedPush\s*(?:\n\s*\n|\z)"
@@ -880,7 +880,7 @@ let hostedServiceGuardTests =
                   "withPort (fun port ->\n    Server.Budgeting.Categories.setCategoryGroupActiveWith connect port (currentMonth ()) (utcNow ()) save) }\n"
                   "withPort (fun port ->\n    Server.Budgeting.Categories.saveCategory (fun () -> Budgeting.Persistence.loadCategoryLayoutWith connect) port save)\n"
                   "return!\n    Server.Budgeting.Categories.pickerOptionsWith\n        (fun () -> YnabClient.getCategoriesPlaced token budgetId)\n        (fun () -> YnabClient.getReadyToAssign token budgetId)\n        Budgeting.Persistence.loadCategoryLayout\n"
-                  "{ FetchMonths = fun () -> YnabClient.getMonths token budgetId\n  FetchCategoryOrder = fun () -> YnabClient.getCategoriesPlaced token budgetId\n"
+                  "{ FetchMonths = fun () -> YnabClient.getMonths token budgetId\n  FetchCategoryPlacements = fun () -> YnabClient.getCategoryPlacements token budgetId\n"
                   "let private memoPush () : Async<Ledger.CommandHandlers.MemoPush> =\n    ynabPushWith Persistence.Settings.getSetting (fun token budgetId -> YnabClient.updateMemo token budgetId) refusedPush\n\n"
                   "let private payeePush () : Async<Ledger.CommandHandlers.PayeePush> =\n    ynabPushWith Persistence.Settings.getSetting (fun token budgetId -> YnabClient.updatePayee token budgetId) refusedPush\n\n"
                   "{ Settings = fun () -> ynabAccessWith Persistence.Settings.getSetting\n  FetchMonths = fun token budgetId -> YnabClient.getMonths token budgetId\n  FetchMonth = fun token budgetId monthKey -> YnabClient.getMonth token budgetId monthKey\n  LoadTakenOver = Budgeting.Persistence.loadTakenOverMonths\n  EnsureTakenOver = Server.Budgeting.CommandHandlers.ensureTakenOver }\n" ]
@@ -942,7 +942,7 @@ let hostedServiceGuardTests =
                   "(fun () -> YnabClient.getCategoriesPlaced token budgetId)\n        (fun () -> YnabClient.getReadyToAssign", "(fun () -> async.Return (Ok ([], [])))\n        (fun () -> YnabClient.getReadyToAssign", "Picker ohne YNAB"
                   "(fun () -> YnabClient.getReadyToAssign token budgetId)", "(fun () -> async.Return None)", "Picker ohne Zu verteilen"
                   "        Budgeting.Persistence.loadCategoryLayout\n\n{ FetchMonths", "        (fun () -> async.Return (Ok emptyCategoryLayout))\n\n{ FetchMonths", "Picker ohne BBs Zustand"
-                  "FetchCategoryOrder = fun () -> YnabClient.getCategoriesPlaced token budgetId", "FetchCategoryOrder = fun () -> async.Return (Ok ([], []))", "Rahmen ohne YNAB-Platzierung"
+                  "FetchCategoryPlacements = fun () -> YnabClient.getCategoryPlacements token budgetId", "FetchCategoryPlacements = fun () -> async.Return (Ok [])", "Rahmen ohne YNAB-Platzierung"
                   "{ FetchMonths = fun () -> YnabClient.getMonths token budgetId", "{ FetchMonths = fun () -> async.Return (Ok [])", "Rahmen ohne YNAB-Fenster"
                   "budgetApiWith setting livePort", "budgetApiWith (fun _ -> async.Return None) livePort", "Budget-Seite ohne Settings"
                   "setting livePort liveFramePort", "setting emptyPort liveFramePort", "anderer YNAB-Port"

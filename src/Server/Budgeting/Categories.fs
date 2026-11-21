@@ -274,7 +274,7 @@ let setCategoryGroupActiveWith
                                     Error ex.Message
                             match future with
                             | Error message ->
-                                eprintfn "Künftige Monate für Gruppe deaktivieren lesen gescheitert: %s" message
+                                Budgeting.Persistence.logReadFailure "Künftige Monate für Gruppe deaktivieren lesen" message
                                 return Error (YnabError.LocalReadFailed GroupFutureAssignedUnreadableText)
                             | Ok future ->
                                 let checks =

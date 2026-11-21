@@ -28,7 +28,7 @@ let private countingPortOn
     let calls = { Months = 0; Placements = 0 }
     let port : QueryHandlers.BudgetFramePort =
         { FetchMonths = fun () -> async { calls.Months <- calls.Months + 1; return Ok months }
-          FetchCategoryOrder = fun () -> async { calls.Placements <- calls.Placements + 1; return Ok ([], placements) }
+          FetchCategoryPlacements = fun () -> async { calls.Placements <- calls.Placements + 1; return Ok placements }
           LoadMonthWindow = Budgeting.Persistence.loadMonthWindowWith connect
           HoldMonthWindow = Budgeting.Persistence.holdMonthWindowWith connect
           LoadCategoryCatalog = Budgeting.Persistence.loadCategoryCatalogWith connect
@@ -83,7 +83,7 @@ let private handlerTests =
             let frame = frameOk port
 
             Expect.equal calls.Months 0 "kein FetchMonths"
-            Expect.equal calls.Placements 0 "kein FetchCategoryOrder"
+            Expect.equal calls.Placements 0 "kein FetchCategoryPlacements"
             Expect.equal frame.Months [ "2026-11-01"; "2026-12-01" ] "Fenster aus dem Stand"
             Expect.equal frame.CategoryOrder [ a; b ] "Reihenfolge aus dem Stand"
 

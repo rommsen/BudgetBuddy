@@ -11,21 +11,38 @@ open Server.Budgeting.Domain
 let private logReadFailure (what: string) (ex: exn) : unit =
     Budgeting.Persistence.logReadFailure what ex.Message
 
+/// Der Tag der ersten Buchung im Kassenbuch für das Lesen eines Monats, einmal je Seitenaufruf für Ausgaben der
+/// Periode und Aktivität. Ist das Kassenbuch nicht lesbar, steht der Grund im Server-Log und es kommt `Error`: beide
+/// fallen dann zurück wie bei einem Lesefehler ihrer eigenen Abfrage.
+let private firstEntryForPage (ledger: CommandHandlers.LedgerActivityPort) : Async<Result<DateTime option, unit>> =
+    async {
+        try
+            let! first = ledger.LoadFirstEntryDate ()
+            return Ok first
+        with ex ->
+            Budgeting.Persistence.logBestEffortFailure "Erste Buchung aus dem Kassenbuch lesen" ex.Message
+            return Error ()
+    }
+
 /// Die Ausgaben der Periode für das Lesen eines Monats. Scheitert das Kassenbuch, steht der Grund im Server-Log
 /// und es kommen keine Ausgaben (`Some Map.empty`): Targets mit Periodenmonaten sind dann "nicht gerechnet" und
 /// tragen keinen Fehlbetrag, alle anderen rechnen weiter; das Lesen scheitert nicht (budgeting-hbhzf, Review).
 let private periodActivityForPage
     (ledger: CommandHandlers.LedgerActivityPort)
+    (first: Result<DateTime option, unit>)
     (targets: Map<Guid, Target>)
     (monthKey: string)
     : Async<Map<Guid, Map<string, Money>> option> =
     async {
-        try
-            let! activity = CommandHandlers.loadPeriodActivity ledger targets monthKey
-            return Some activity
-        with ex ->
-            logReadFailure $"Ausgaben der Periode {monthKey} aus dem Kassenbuch lesen" ex
-            return Some Map.empty
+        match first with
+        | Error () -> return Some Map.empty
+        | Ok first ->
+            try
+                let! activity = CommandHandlers.loadPeriodActivityAfter ledger first targets monthKey
+                return Some activity
+            with ex ->
+                Budgeting.Persistence.logBestEffortFailure $"Ausgaben der Periode {monthKey} aus dem Kassenbuch lesen" ex.Message
+                return Some Map.empty
     }
 
 /// Trägt in jede Kategorie ihr Target gegenüber YNAB ein (budgeting-e2z7v, `TargetRules.targetYnabState`): die offene
@@ -55,24 +72,30 @@ let private deactivatedForPage (connect: unit -> Microsoft.Data.Sqlite.SqliteCon
 /// Die Aktivität des Monats für die Seite (ADR 0101 Punkt 2, `monthActivity`): aus dem Kassenbuch ab dessen erster
 /// Buchung, davor aus dem Stand. Ist das Kassenbuch nicht lesbar, gilt die Aktivität des Stands und der Grund steht
 /// im Server-Log; das Lesen scheitert nicht.
-let private monthActivityForPage (ledger: CommandHandlers.LedgerActivityPort) (snapshot: YnabMonth) : Async<Map<Guid, Money>> =
+let private monthActivityForPage
+    (ledger: CommandHandlers.LedgerActivityPort)
+    (first: Result<DateTime option, unit>)
+    (snapshot: YnabMonth)
+    : Async<Map<Guid, Money>> =
     async {
-        try
-            let! first = ledger.LoadFirstEntryDate ()
-            if ledgerCoversMonth first snapshot.Month then
-                let day = DateTime.ParseExact(snapshot.Month, "yyyy-MM-dd", Globalization.CultureInfo.InvariantCulture)
-                let! sums = ledger.LoadMonthlyActivity (snapshot.Categories |> List.map (fun c -> c.Id)) [ day ]
-                let ofMonth =
-                    sums
-                    |> Map.map (fun _ rows -> rows |> List.filter (fun (d, _) -> d = day) |> List.map snd)
-                    |> Map.filter (fun _ rows -> not (List.isEmpty rows))
-                    |> Map.map (fun _ rows -> rows |> List.reduce (fun a b -> { a with Amount = a.Amount + b.Amount }))
-                return monthActivity first ofMonth snapshot
-            else
-                return monthActivity first Map.empty snapshot
-        with ex ->
-            logReadFailure $"Aktivität {snapshot.Month} aus dem Kassenbuch lesen" ex
-            return monthActivity None Map.empty snapshot
+        match first with
+        | Error () -> return monthActivity None Map.empty snapshot
+        | Ok first ->
+            try
+                if ledgerCoversMonth first snapshot.Month then
+                    let day = DateTime.ParseExact(snapshot.Month, "yyyy-MM-dd", Globalization.CultureInfo.InvariantCulture)
+                    let! sums = ledger.LoadMonthlyActivity (snapshot.Categories |> List.map (fun c -> c.Id)) [ day ]
+                    let ofMonth =
+                        sums
+                        |> Map.map (fun _ rows -> rows |> List.filter (fun (d, _) -> d = day) |> List.map snd)
+                        |> Map.filter (fun _ rows -> not (List.isEmpty rows))
+                        |> Map.map (fun _ rows -> rows |> List.reduce (fun a b -> { a with Amount = a.Amount + b.Amount }))
+                    return monthActivity first ofMonth snapshot
+                else
+                    return monthActivity first Map.empty snapshot
+            with ex ->
+                Budgeting.Persistence.logBestEffortFailure $"Aktivität {snapshot.Month} aus dem Kassenbuch lesen" ex.Message
+                return monthActivity None Map.empty snapshot
     }
 
 /// Die Faltung des Monats aus BBs Ereignissen, ohne YNAB. Ist der Stream nicht lesbar, steht der Grund im Log und es
@@ -88,7 +111,7 @@ let private foldForPage (connect: unit -> Microsoft.Data.Sqlite.SqliteConnection
     match loaded with
     | Ok events -> Some (Assignments.foldMonth events).Categories
     | Error reason ->
-        Budgeting.Persistence.logReadFailure $"Monats-Stream {monthKey} lesen" reason
+        Budgeting.Persistence.logBestEffortFailure $"Monats-Stream {monthKey} lesen" reason
         None
 
 /// Baut den Monat der Seite aus dem Stand (ADR 0101 Punkt 4): Soll aus `assignments`, Aktivität aus dem Kassenbuch,
@@ -108,8 +131,9 @@ let private pageMonthOf
         match! Budgeting.Persistence.loadPausedCategoriesWith connect monthKey with
         | Error message -> return Error (YnabError.LocalReadFailed message)
         | Ok paused ->
-            let! periodActivity = periodActivityForPage ledger targets monthKey
-            let! activity = monthActivityForPage ledger raw
+            let! first = firstEntryForPage ledger
+            let! periodActivity = periodActivityForPage ledger first targets monthKey
+            let! activity = monthActivityForPage ledger first raw
             // Nach bestem Bemühen: ist der Stand gegenüber YNAB nicht lesbar, fehlt nur der Hinweis (Grund im Log).
             let! openWrites = Budgeting.Persistence.loadOpenTargetWritesWith connect
             let! deactivated = deactivatedForPage connect raw
@@ -198,12 +222,12 @@ let recentMoveCategories () : Async<Result<Guid list, string>> =
     recentMoveCategoriesWith Budgeting.Persistence.loadRecentMoveCategories
 
 /// Die Lese-Quellen des Rahmens (ADR 0101 Punkt 1 und 3): Fenster und Platzierung als YNAB-Stand, BBs Layout und das
-/// Ausblenden der Leiste aus der Datenbank. YNAB (`FetchMonths`, `FetchCategoryOrder`) nur, solange kein Stand da ist.
+/// Ausblenden der Leiste aus der Datenbank. YNAB (`FetchMonths`, `FetchCategoryPlacements`) nur, solange kein Stand da ist.
 type BudgetFramePort = {
     /// Das Monatsfenster aus `GET /months`.
     FetchMonths: unit -> Async<YnabResult<string list>>
-    /// Kategorien und ihre Platzierung (Gruppe, Kategorie in YNABs Folge) aus `GET /categories`.
-    FetchCategoryOrder: unit -> Async<YnabResult<YnabCategory list * (Guid * Guid) list>>
+    /// Die Platzierung der Kategorien (Gruppe, Kategorie in YNABs Folge) aus `GET /categories`.
+    FetchCategoryPlacements: unit -> Async<YnabResult<(Guid * Guid) list>>
     LoadMonthWindow: unit -> Async<Result<YnabMonthWindow option, string>>
     HoldMonthWindow: YnabMonthWindow -> Async<Result<unit, string>>
     LoadCategoryCatalog: unit -> Async<Result<YnabCategoryCatalog option, string>>
@@ -237,7 +261,7 @@ let private heldOrFetched
                 let state = held fetched
                 match! hold state with
                 | Ok () -> ()
-                | Error message -> eprintfn "%s nicht festgehalten (%s)" what message
+                | Error message -> Budgeting.Persistence.logBestEffortFailure $"{what} festhalten" message
                 return Ok state
     }
 
@@ -257,8 +281,8 @@ let frame (port: BudgetFramePort) (today: DateOnly) (now: DateTime) : Async<Ynab
                 heldOrFetched
                     "Platzierung der Kategorien"
                     port.LoadCategoryCatalog
-                    port.FetchCategoryOrder
-                    (fun (_, placements) -> { Placements = placements; FetchedAt = now })
+                    port.FetchCategoryPlacements
+                    (fun placements -> { Placements = placements; FetchedAt = now })
                     port.HoldCategoryCatalog
             match catalog with
             | Error e -> return Error e
@@ -268,7 +292,7 @@ let frame (port: BudgetFramePort) (today: DateOnly) (now: DateTime) : Async<Ynab
                     match layout with
                     | Ok layout -> layout
                     | Error message ->
-                        eprintfn "Rahmen: BBs Reihenfolge nicht lesbar (%s)" message
+                        Budgeting.Persistence.logBestEffortFailure "Rahmen: BBs Reihenfolge lesen" message
                         emptyCategoryLayout
                 let frame = toBudgetFrame today window.Months (flatCategoryOrder layout catalog.Placements)
                 let! hidden = port.LoadMonthStartHidden frame.CurrentMonth
@@ -276,7 +300,7 @@ let frame (port: BudgetFramePort) (today: DateOnly) (now: DateTime) : Async<Ynab
                     match hidden with
                     | Ok months -> months
                     | Error message ->
-                        eprintfn "Leiste Monatserster: Ausblenden nicht lesbar (%s)" message
+                        Budgeting.Persistence.logBestEffortFailure "Leiste Monatserster: Ausblenden lesen" message
                         []
                 return Ok { frame with MonthStartHidden = hiddenMonths }
     }

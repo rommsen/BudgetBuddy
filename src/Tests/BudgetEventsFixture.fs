@@ -67,12 +67,12 @@ let isolatedDb () : Microsoft.Data.Sqlite.SqliteConnection * (unit -> Microsoft.
 /// jeder neu gebaute Port also YNAB, wie vor dem YNAB-Stand des Rahmens.
 let framePortWith
     (fetchMonths: unit -> Async<Shared.Domain.YnabResult<string list>>)
-    (fetchPlaced: unit -> Async<Shared.Domain.YnabResult<Shared.Domain.YnabCategory list * (System.Guid * System.Guid) list>>)
+    (fetchPlacements: unit -> Async<Shared.Domain.YnabResult<(System.Guid * System.Guid) list>>)
     : Server.Budgeting.QueryHandlers.BudgetFramePort =
     let window = ref None
     let catalog = ref None
     { FetchMonths = fetchMonths
-      FetchCategoryOrder = fetchPlaced
+      FetchCategoryPlacements = fetchPlacements
       LoadMonthWindow = fun () -> async { return Ok window.Value }
       HoldMonthWindow = fun w -> async { window.Value <- Some w; return Ok () }
       LoadCategoryCatalog = fun () -> async { return Ok catalog.Value }
@@ -82,7 +82,7 @@ let framePortWith
 
 /// `framePortWith` mit festen Antworten.
 let framePortOf (months: string list) (placements: (System.Guid * System.Guid) list) : Server.Budgeting.QueryHandlers.BudgetFramePort =
-    framePortWith (fun () -> async { return Ok months }) (fun () -> async { return Ok ([], placements) })
+    framePortWith (fun () -> async { return Ok months }) (fun () -> async { return Ok placements })
 
 /// Hängt ein Ereignis mit Typname `eventType` und leerer Payload `{}` an einen Budget-Stream. Für einen
 /// bekannten Typ ist das ein Ereignis mit kaputter Payload.
