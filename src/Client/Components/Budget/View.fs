@@ -244,6 +244,19 @@ let private staleHintView (model: Model) (dispatch: Msg -> unit) =
             hint.Running
     | None -> Html.none
 
+/// Der Hinweis „YNAB-Stand von <Uhrzeit>“ nach gescheitertem Nachziehen (budgeting-ffjk9, F4), am selben Ort und in
+/// derselben Form wie „nicht neu gelesen“: ein Zustand der Seite mit „Neu laden“, kein Toast.
+let private ynabSyncHintView (model: Model) (dispatch: Msg -> unit) =
+    match ynabSyncHint model with
+    | Some hint ->
+        Feedback.stateHint
+            "budget-ynab-copy"
+            hint.Text
+            hint.Reasons
+            (Some { Label = "Neu laden"; OnClick = fun () -> dispatch RetryYnabSync })
+            hint.Running
+    | None -> Html.none
+
 /// Hinweis „nicht neu gelesen“, Leiste Monatserster und darunter die Suchzeile, 10 px Abstand wie die Skizze. Ohne
 /// geladenen Monat fällt der Block weg (die Leiste steht nur mit geladenem Monat).
 let private belowHead (bar: Components.Budget.MonthStart.MonthStartFieldView list option) (model: Model) (panel: bool) (wide: bool) (dispatch: Msg -> unit) =
@@ -253,6 +266,7 @@ let private belowHead (bar: Components.Budget.MonthStart.MonthStartFieldView lis
             prop.className "flex flex-col gap-2.5"
             prop.children [
                 staleHintView model dispatch
+                ynabSyncHintView model dispatch
                 monthStartBarView bar model panel dispatch
                 searchRow model month wide dispatch
             ]

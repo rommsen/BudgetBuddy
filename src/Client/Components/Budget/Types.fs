@@ -258,6 +258,14 @@ type ReadNotice =
     /// „Neu laden“ läuft; der Grund des letzten Fehlschlags steht weiter da.
     | Rereading of reason: string
 
+/// Das stille Nachziehen mit YNAB nach dem Lesen des Monats (budgeting-ffjk9, ADR 0101 Punkt 6). Nur ein Fehlschlag ist
+/// ein Zustand der Seite: der Hinweis „YNAB-Stand von <Uhrzeit>“ (F4), sonst zeigt die Seite nichts.
+type YnabSyncState =
+    /// Nichts zu zeigen: das Nachziehen läuft, gelang oder lief nicht.
+    | SyncQuiet
+    /// Das Nachziehen des Monats `month` scheiterte (mit Grund) oder „Neu laden“ daran läuft.
+    | SyncFailed of month: string * notice: ReadNotice
+
 /// „Verfügbar“ im Tab Geld leuchtet kurz nach einem Bericht mit geschriebener Zeile (`Feedback.flash`). `Count` zählt
 /// jedes Leuchten: das Ende eines älteren nimmt ein neueres nicht ab, und ein neues baut das Element neu auf.
 type AvailableFlash = { Count: int; On: bool }
@@ -471,6 +479,8 @@ type Model = {
     StaleMonths: ReadNotice option
     /// Das stille Nachladen der Historie scheiterte: Hinweis oben im Tab Historie.
     StaleHistory: ReadNotice option
+    /// Das stille Nachziehen mit YNAB (budgeting-ffjk9): scheiterte es, steht der Hinweis „YNAB-Stand von <Uhrzeit>“.
+    YnabSync: YnabSyncState
 }
 
 type Msg =
@@ -498,6 +508,10 @@ type Msg =
     | HideMonthStart
     /// Antwort auf das Speichern von "Ausblenden".
     | MonthStartHideAnswered of Result<unit, string>
+    /// Antwort des stillen Nachziehens (budgeting-ffjk9), mit der Generation und dem Monat beim Start.
+    | MonthSynced of generation: int * month: string * Result<BudgetMonthSync, string>
+    /// „Neu laden“ am Hinweis „YNAB-Stand von <Uhrzeit>“: das Nachziehen noch einmal.
+    | RetryYnabSync
     /// Feld Überzogene decken: Filter Überzogen, am PC (`panel`) die erste überzogene Zeile mit Tab Geld.
     | CoverOverdrawn of panel: bool
     /// Antwort auf das Laden der Rohdaten für das Feld Targets prüfen, mit der Generation beim Start.
@@ -766,4 +780,5 @@ let init () : Model =
       AvailableFlash = { Count = 0; On = false }
       StaleAmounts = None
       StaleMonths = None
-      StaleHistory = None }
+      StaleHistory = None
+      YnabSync = SyncQuiet }

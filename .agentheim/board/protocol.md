@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-21 13:11 -- Task verified and completed: budgeting-ffjk9 - "Nachziehen beim Öffnen: Budget-Seite und Übersicht zeigen sofort BBs Stand und gleichen danach still mit YNAB ab (syncBudgetMonth, Frische 60 s und 5 min, spätere Monate veraltet)"
+
+**Type:** Work / Task completion
+**Task:** budgeting-ffjk9 - "Nachziehen beim Öffnen: Budget-Seite und Übersicht zeigen sofort BBs Stand und gleichen danach still mit YNAB ab (syncBudgetMonth, Frische 60 s und 5 min, spätere Monate veraltet)"
+**Summary:** Nachziehen beim Öffnen: Budget-Seite und Übersicht zeigen sofort BBs Stand und gleichen danach still mit YNAB ab
+**Duration:** 1h00m
+**Verification:** PASS (iteration 1)
+**Files changed:** 22
+**Tests added:** 22
+**ADRs written:** none
+
+---
+
 ## 2026-11-21 12:09 -- Batch started: [budgeting-ffjk9, infrastructure-q8f3n]
 
 **Type:** Work / Batch start

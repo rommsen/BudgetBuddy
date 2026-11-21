@@ -323,6 +323,69 @@ let startStaleReread (model: Model) : Model * MonthReread option * bool =
         reread, how, model.StaleMonths.IsSome
     | _ -> model, None, false
 
+// ============================================
+// Nachziehen mit YNAB (budgeting-ffjk9, ADR 0101 Punkt 6)
+// ============================================
+
+/// Der Hinweis nach gescheitertem Nachziehen (F4): die Uhrzeit des YNAB-Stands, den die Seite zeigt, in Ortszeit
+/// (im Browser die des Geräts, unter .NET `TZ=Europe/Berlin`). Das Format ist fest numerisch, deshalb reicht die
+/// invariante Kultur (wie `Ledger.View.formatDateTime`).
+let ynabCopyText (copiedAt: System.DateTime) : string =
+    let time = copiedAt.ToLocalTime().ToString("HH:mm", System.Globalization.CultureInfo.InvariantCulture)
+    $"YNAB-Stand von {time}"
+
+/// Das Nachziehen beginnt für den gerade gelesenen Monat: ein alter Hinweis gilt nicht mehr. `Some` mit Generation
+/// und Monat, wenn die Antwort `result` zur laufenden Abfrage (`generation`, gemessen vor dem Einnehmen) gehörte und
+/// den Monat brachte; dann startet der Aufrufer `syncBudgetMonth`.
+let startYnabSync (generation: int) (result: Result<BudgetMonth, string>) (before: Model) (after: Model) : Model * (int * string) option =
+    match result with
+    | Ok month when generation = before.MonthGeneration && generation = after.MonthGeneration ->
+        { after with YnabSync = SyncQuiet }, Some (after.MonthGeneration, month.Month)
+    | _ -> after, None
+
+/// Gilt eine Antwort des Nachziehens noch? Nur für die Abfrage, nach der es startete (keine neuere Abfrage, kein
+/// Wechsel), und nur für den Monat, den die Seite zeigt.
+let private syncCounts (generation: int) (monthKey: string) (model: Model) : bool =
+    generation = model.MonthGeneration
+    && not (monthChanging model)
+    && (match model.Month with
+        | Success shown -> shown.Month = monthKey
+        | _ -> false)
+
+/// Die Antwort des Nachziehens, still: „geändert“ tauscht den Monat wie eine Antwort der laufenden Abfrage (ohne
+/// `Loading`, die Schlange gilt weiter, die Eingabe im Feld Zugewiesen bleibt), „unverändert“ ändert nichts, ein
+/// Fehlschlag setzt den Hinweis „YNAB-Stand von <Uhrzeit>“. Eine verworfene Antwort ändert nichts.
+let applyYnabSynced (generation: int) (monthKey: string) (result: Result<BudgetMonthSync, string>) (model: Model) : Model =
+    if not (syncCounts generation monthKey model) then
+        model
+    else
+        match result with
+        | Ok MonthUnchanged -> { model with YnabSync = SyncQuiet }
+        | Ok (MonthChanged month) when month.Month = monthKey ->
+            applyLoaded model.MonthGeneration (Ok month) { model with YnabSync = SyncQuiet }
+        | Ok (MonthChanged _) -> model
+        | Error reason -> { model with YnabSync = SyncFailed (monthKey, ReadFailed reason) }
+
+/// Der Hinweis „YNAB-Stand von <Uhrzeit>“ unter „Zu verteilen“: nur nach gescheitertem Nachziehen des gezeigten
+/// Monats und nur, wenn der Monat einen Zeitpunkt des Stands trägt (ohne ihn kam der Monat gerade direkt aus YNAB).
+let ynabSyncHint (model: Model) : StaleHint option =
+    match model.YnabSync, model.Month with
+    | SyncFailed (monthKey, notice), Success month when month.Month = monthKey && not (monthChanging model) ->
+        month.CopiedAt
+        |> Option.map (fun at ->
+            { Text = ynabCopyText at
+              Reasons = [ reasonOf notice ]
+              Running = running (Some notice) })
+    | _ -> None
+
+/// „Neu laden“ am Hinweis: das Nachziehen noch einmal (`Some` mit Generation und Monat). Läuft es schon, geschieht
+/// nichts.
+let startYnabSyncRetry (model: Model) : Model * (int * string) option =
+    match model.YnabSync, ynabSyncHint model with
+    | SyncFailed (monthKey, ReadFailed reason), Some _ ->
+        { model with YnabSync = SyncFailed (monthKey, Rereading reason) }, Some (model.MonthGeneration, monthKey)
+    | _ -> model, None
+
 /// Kann der Bericht das Fenster geöffnet haben?
 let frameDueAfterReport (report: ApplyReport) (model: Model) : bool =
     match model.Frame with

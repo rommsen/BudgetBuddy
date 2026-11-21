@@ -412,6 +412,13 @@ let private rows : Row list = [
     // ---------------- BudgetApi ----------------
     { Endpoint = "BudgetApi.getBudgetMonth"; Case = "ungültiger Monat: Fehler"
       Run = fun () -> budget.getBudgetMonth "kein-monat" |> run |> expectError "Monat" }
+    // budgeting-ffjk9: das Nachziehen prüft den Monat an der Grenze und fragt ohne Einrichtung keinen Port.
+    { Endpoint = "BudgetApi.syncBudgetMonth"; Case = "ungültiger Monat und fehlende Einrichtung: Fehler"
+      Run = fun () ->
+        budget.syncBudgetMonth "kein-monat" |> run |> expectError "Monat"
+        match (budgetWithSettings []).syncBudgetMonth "2026-11-01" |> run with
+        | Error message -> Expect.stringContains message "Kein YNAB-Token" "fehlende Einrichtung"
+        | Ok _ -> failtest "Nachziehen ohne Einrichtung hätte scheitern müssen" }
     { Endpoint = "BudgetApi.getBudgetFrame"; Case = "ohne Token Fehler"
       Run = fun () -> budget.getBudgetFrame () |> run |> expectError "Rahmen" }
     { Endpoint = "BudgetApi.previewTargets"; Case = "vergangener Monat: abgelehnt mit Grund, auch ohne Einrichtung"

@@ -212,6 +212,13 @@ type BudgetMonth = {
     CopiedAt: DateTime option
 }
 
+/// Die Antwort des Nachziehens eines Monats (`syncBudgetMonth`, budgeting-ffjk9, ADR 0101 Punkt 6).
+type BudgetMonthSync =
+    /// Der YNAB-Stand war frisch oder YNAB hat nichts geändert: die Seite behält, was sie zeigt.
+    | MonthUnchanged
+    /// Das Nachziehen hat etwas geändert: der Monat, wie `getBudgetMonth` ihn jetzt liefert.
+    | MonthChanged of BudgetMonth
+
 /// Der Rahmen der Budget-Seite (budgeting-g8s3w, ADR 0074): liegt je Seitenaufruf im Client, damit
 /// ein Monatswechsel nur eine Anfrage kostet.
 type BudgetFrame = {

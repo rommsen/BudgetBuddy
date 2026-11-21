@@ -1522,6 +1522,26 @@ let budgetMonthFor
             return! withYnabPort tokenOpt budgetOpt portFor (fun port -> Server.Budgeting.QueryHandlers.budgetMonth port now key)
     }
 
+/// Das Nachziehen der Budget-Seite ohne Settings und Netz (budgeting-ffjk9): Monat prüfen, dann
+/// `QueryHandlers.syncMonth` mit YNAB-Port und Rahmen-Port. Ein abgelehnter Monat fragt YNAB nicht. `now` ist die Uhr
+/// der Frische (UTC) und stempelt das Beobachten.
+let syncBudgetMonthFor
+    (tokenOpt: string option)
+    (budgetOpt: string option)
+    (monthKeyText: string)
+    (portFor: string -> YnabBudgetId -> Server.Budgeting.CommandHandlers.YnabPort)
+    (framePortFor: string -> YnabBudgetId -> Server.Budgeting.QueryHandlers.BudgetFramePort)
+    (now: DateTime)
+    : Async<Result<Shared.Budgeting.BudgetMonthSync, string>> =
+    async {
+        match Validation.validateMonthKey monthKeyText with
+        | Error message -> return Error message
+        | Ok key ->
+            return!
+                withYnabPort tokenOpt budgetOpt (fun token budgetId -> portFor token budgetId, framePortFor token budgetId) (fun (port, framePort) ->
+                    Server.Budgeting.QueryHandlers.syncMonth port framePort now key)
+    }
+
 /// Prüft den Monat von "Targets anwenden" gegen den laufenden Monat.
 let private targetsMonthKey (today: DateOnly) (monthKeyText: string) : Result<string, string> =
     Validation.validateTargetsMonth (Server.Budgeting.Domain.currentMonthKey today) monthKeyText
@@ -1772,6 +1792,11 @@ let budgetApiWith
       getBudgetMonth = fun monthKeyText -> async {
         let! tokenOpt, budgetOpt = ynabSettings ()
         return! budgetMonthFor tokenOpt budgetOpt monthKeyText portFor (utcNow ())
+      }
+
+      syncBudgetMonth = fun monthKeyText -> async {
+        let! tokenOpt, budgetOpt = ynabSettings ()
+        return! syncBudgetMonthFor tokenOpt budgetOpt monthKeyText portFor framePortFor (utcNow ())
       }
 
       previewTargets = fun monthKeyText -> async {

@@ -168,7 +168,10 @@ let tests =
                   "Components/Budget/State.fs",
                   [ "getBudgetFrame"; "getBudgetFrame"; "getBudgetMonth"; "previewTargets"; "getCategoryMonthEntries"; "getCategoryHistory"; "getRecentMoveCategories"; "getBudgetHistory"; "getTargetCheck"
                     // budgeting-m3x7f: das Feld Targets prüfen der Leiste liest dieselben Rohdaten.
-                    "getTargetCheck" ] ]
+                    "getTargetCheck"
+                    // budgeting-ffjk9: das Nachziehen beobachtet auf dem Server, ist aber wiederholbar: ein zweiter
+                    // Versuch findet den Stand frisch oder beobachtet noch einmal, ohne eine Entscheidung.
+                    "syncBudgetMonth" ] ]
             for file, expected in inventory do
                 Expect.equal
                     (List.sort (wrappedCalls (readClient file)))

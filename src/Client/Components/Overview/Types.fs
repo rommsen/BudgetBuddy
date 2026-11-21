@@ -110,6 +110,8 @@ type Msg =
     /// einer anderen Seite und nach einem Import (ledger-s1weh).
     | CountsNeeded
     | MonthLoaded of Result<BudgetMonth, string>
+    /// Antwort des stillen Nachziehens des Monats mit YNAB (budgeting-ffjk9), mit dem Monat beim Start.
+    | MonthSynced of month: string * Result<BudgetMonthSync, string>
     /// Die neuesten Buchungen samt den Zählern „zu prüfen“ und „Lena“ über alle Konten, mit der Nummer der Anfrage.
     | RecentLoaded of request: int * Result<LedgerEntryPage, string>
     /// Die Buchungen nicht in YNAB, mit der Nummer der Anfrage.

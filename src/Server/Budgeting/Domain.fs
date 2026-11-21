@@ -686,11 +686,34 @@ let toBudgetMonth (targets: Map<Guid, Target>) (pausedInBb: Set<Guid>) (month: Y
 
 /// Der YNAB-Stand eines Monats (ADR 0101 Punkt 3): eine Kopie von YNABs Rechnung und Stammdaten, keine
 /// Entscheidung. Zustand, kein Ereignis (ADR 0083); das Beobachten überschreibt ihn. `Raw` ist der Monat, wie
-/// YNAB ihn beim Beobachten lieferte, `FetchedAt` der Zeitpunkt dieses Lesens (UTC).
+/// YNAB ihn beim Beobachten lieferte, `FetchedAt` der Zeitpunkt dieses Lesens (UTC). `Stale` heißt veraltet: ein
+/// Budget-Befehl auf einem früheren Monat hat danach in YNAB geschrieben, der Vortrag kann sich geändert haben
+/// (ADR 0101 Punkt 6, budgeting-ffjk9). Jedes Beobachten schreibt den Stand frisch, also nicht veraltet.
 type YnabMonthSnapshot = {
     Raw: YnabMonth
     FetchedAt: DateTime
+    Stale: bool
 }
+
+/// Wie alt der Stand eines Monats höchstens sein darf, bevor das Nachziehen ihn beobachtet (ADR 0101 Punkt 6).
+let MonthSnapshotMaxAge : TimeSpan = TimeSpan.FromSeconds 60.
+
+/// Wie alt Fenster und Platzierung höchstens sein dürfen, bevor das Nachziehen sie nachliest (ADR 0101 Punkt 6).
+let FrameStateMaxAge : TimeSpan = TimeSpan.FromMinutes 5.
+
+/// Muss das Nachziehen den Monat beobachten? Ohne Stand, bei einem veralteten Stand oder einem, der älter ist als
+/// `MonthSnapshotMaxAge`, gemessen an `now` (UTC). Genau 60 s alt zählt noch als frisch.
+let monthSyncDue (now: DateTime) (snapshot: YnabMonthSnapshot option) : bool =
+    match snapshot with
+    | None -> true
+    | Some s -> s.Stale || now - s.FetchedAt > MonthSnapshotMaxAge
+
+/// Muss das Nachziehen einen Teil des Rahmens nachlesen? Ohne Stand oder wenn sein `FetchedAt` älter ist als
+/// `FrameStateMaxAge`.
+let frameStateDue (now: DateTime) (fetchedAt: DateTime option) : bool =
+    match fetchedAt with
+    | None -> true
+    | Some at -> now - at > FrameStateMaxAge
 
 /// Der Vortrag einer Kategorie aus dem Stand: YNABs Verfügbar minus Zugewiesen minus Aktivität, alle drei aus
 /// demselben Stand (ADR 0101 Punkt 3). Hängt weder am Soll noch am Kassenbuch.

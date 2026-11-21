@@ -506,6 +506,13 @@ type BudgetApi = {
     /// Budget und bei YNAB-Fehlern, auch 429 und "Monat nicht offen" (404).
     getBudgetMonth: string -> Async<Result<Shared.Budgeting.BudgetMonth, string>>
 
+    /// Zieht den Monat ("YYYY-MM-01") mit YNAB nach (budgeting-ffjk9, ADR 0101 Punkt 6), aufgerufen nach dem
+    /// sofortigen Lesen: beobachtet ihn, wenn sein Stand älter als 60 s oder veraltet ist, und liest Fenster und
+    /// Platzierung nach, wenn sie älter als 5 min sind. Liefert den Monat nur, wenn sich etwas geändert hat. Ein
+    /// ungültiger Monat wird an der Grenze abgelehnt; Error mit lesbarer Meldung bei fehlender Einrichtung und bei
+    /// YNAB-Fehlern.
+    syncBudgetMonth: string -> Async<Result<Shared.Budgeting.BudgetMonthSync, string>>
+
     /// Vorschau von "Targets anwenden" für den Monat ("YYYY-MM-01"): liest den Monat live, schreibt
     /// weder nach YNAB noch in die Datenbank. Ein vergangener Monat wird an der Grenze abgelehnt,
     /// ohne YNAB zu fragen.

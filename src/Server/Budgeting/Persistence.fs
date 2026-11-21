@@ -265,7 +265,8 @@ let createYnabMonthSnapshotSchemaOn (conn: SqliteConnection) : unit =
         """CREATE TABLE IF NOT EXISTS ynab_month_snapshot (
                month          TEXT    NOT NULL PRIMARY KEY,
                to_be_budgeted INTEGER NOT NULL,
-               fetched_at     TEXT    NOT NULL
+               fetched_at     TEXT    NOT NULL,
+               stale          INTEGER NOT NULL DEFAULT 0
            );
            CREATE TABLE IF NOT EXISTS ynab_month_snapshot_categories (
                month       TEXT    NOT NULL,
@@ -288,6 +289,11 @@ let createYnabMonthSnapshotSchemaOn (conn: SqliteConnection) : unit =
     // sich ohne Gruppe, bis das nächste Beobachten ihn ersetzt. SQLite kennt kein "ADD COLUMN IF NOT EXISTS".
     try
         conn.Execute("ALTER TABLE ynab_month_snapshot_categories ADD COLUMN group_id TEXT") |> ignore
+    with :? SqliteException as ex when ex.Message.Contains("duplicate column name") ->
+        ()
+    // budgeting-ffjk9: das Merkmal „veraltet“ (ADR 0101 Punkt 6). Ein Stand von vor der Spalte gilt als nicht veraltet.
+    try
+        conn.Execute("ALTER TABLE ynab_month_snapshot ADD COLUMN stale INTEGER NOT NULL DEFAULT 0") |> ignore
     with :? SqliteException as ex when ex.Message.Contains("duplicate column name") ->
         ()
 
@@ -460,11 +466,13 @@ let private readWith
 let internal writeYnabMonthSnapshotOn (conn: SqliteConnection) (tx: SqliteTransaction) (snapshot: YnabMonthSnapshot) : unit =
     let month = snapshot.Raw.Month
     conn.Execute(
-        """INSERT INTO ynab_month_snapshot (month, to_be_budgeted, fetched_at) VALUES (@month, @tbb, @at)
-           ON CONFLICT (month) DO UPDATE SET to_be_budgeted = excluded.to_be_budgeted, fetched_at = excluded.fetched_at""",
+        """INSERT INTO ynab_month_snapshot (month, to_be_budgeted, fetched_at, stale) VALUES (@month, @tbb, @at, @stale)
+           ON CONFLICT (month) DO UPDATE SET
+               to_be_budgeted = excluded.to_be_budgeted, fetched_at = excluded.fetched_at, stale = excluded.stale""",
         {| month = month
            tbb = toMilliunits snapshot.Raw.ToBeBudgeted
-           at = snapshot.FetchedAt.ToString("o", CultureInfo.InvariantCulture) |},
+           at = snapshot.FetchedAt.ToString("o", CultureInfo.InvariantCulture)
+           stale = (if snapshot.Stale then 1L else 0L) |},
         tx
     )
     |> ignore
@@ -491,7 +499,7 @@ let internal writeYnabMonthSnapshotOn (conn: SqliteConnection) (tx: SqliteTransa
         |> ignore
 
 [<CLIMutable>]
-type private SnapshotRow = { to_be_budgeted: int64; fetched_at: string }
+type private SnapshotRow = { to_be_budgeted: int64; fetched_at: string; stale: int64 }
 
 [<CLIMutable>]
 type private SnapshotCategoryRow = {
@@ -512,7 +520,7 @@ type private SnapshotCategoryRow = {
 let internal loadYnabMonthSnapshotOn (conn: SqliteConnection) (month: string) : Result<YnabMonthSnapshot option, string> =
     match
         conn.Query<SnapshotRow>(
-            "SELECT to_be_budgeted, fetched_at FROM ynab_month_snapshot WHERE month = @month",
+            "SELECT to_be_budgeted, fetched_at, stale FROM ynab_month_snapshot WHERE month = @month",
             {| month = month |}
         )
         |> List.ofSeq
@@ -554,7 +562,13 @@ let internal loadYnabMonthSnapshotOn (conn: SqliteConnection) (month: string) : 
             Some
                 { Raw = { Month = month; ToBeBudgeted = euroOfMilliunits head.to_be_budgeted; Categories = categories }
                   FetchedAt =
-                    DateTime.Parse(head.fetched_at, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind) })
+                    DateTime.Parse(head.fetched_at, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind)
+                  Stale = head.stale <> 0L })
+
+/// Markiert die Stände aller Monate nach `month` ("YYYY-MM-01") als veraltet (ADR 0101 Punkt 6, budgeting-ffjk9): ihr
+/// Vortrag hängt am Verfügbar von `month`. Ein Monat ohne Stand bleibt ohne; sein erstes Lesen beobachtet ihn ohnehin.
+let internal markMonthsAfterStaleOn (conn: SqliteConnection) (month: string) : unit =
+    conn.Execute("UPDATE ynab_month_snapshot SET stale = 1 WHERE month > @month", {| month = month |}) |> ignore
 
 /// Die Meldung, wenn der YNAB-Stand eines Monats nicht lesbar ist. Die Ursache bleibt im Server-Log.
 [<Literal>]
@@ -1450,6 +1464,13 @@ let internal recordWriteBackOn (conn: SqliteConnection) (m: Movement) (at: DateT
         openMonthAfterWriteBackOn conn m outcome
     with ex ->
         logBestEffortFailure $"Monatsfenster nach der Zuweisung in {m.Month} erweitern" ex.Message
+    // Nach dem PATCH, nicht bei der Entscheidung (budgeting-ffjk9): erst jetzt zeigt YNAB den neuen Vortrag. Markiert
+    // bei der Entscheidung, könnte ein Nachziehen des späteren Monats vor dem PATCH lesen und die Markierung mit dem
+    // alten Stand löschen.
+    try
+        markMonthsAfterStaleOn conn m.Month
+    with ex ->
+        logBestEffortFailure $"Monate nach {m.Month} als veraltet markieren" ex.Message
 
 /// Die Ereignisse des Monats-Streams zu "YYYY-MM-01" in Stream-Reihenfolge, je mit `event_id`, für die
 /// Faltung (budgeting-dgrp7). Ein nicht lesbares Ereignis wird gemeldet.

@@ -274,4 +274,21 @@ let transitionTests =
             let loaded = Components.Overview.State.applyAnswer (MonthLoaded (Ok november)) Components.Overview.Types.init
             let late = Components.Overview.State.applyAnswer (MonthLoaded (Error "weg")) loaded
             Expect.equal late.Month (Success november) "bleibt"
+
+        // budgeting-ffjk9: nach dem sofortigen Lesen zieht die Übersicht den Monat still mit YNAB nach.
+        testCase "Nach dem gelesenen Monat startet das Nachziehen, ein gescheitertes Lesen startet nichts" <| fun () ->
+            let _, started = Components.Overview.State.update (MonthLoaded (Ok november)) Components.Overview.Types.init
+            Expect.equal (List.length started) 1 "ein Aufruf syncBudgetMonth"
+            let _, none = Components.Overview.State.update (MonthLoaded (Error "weg")) Components.Overview.Types.init
+            Expect.isEmpty none "kein Aufruf"
+
+        testCase "Das Nachziehen tauscht den gezeigten Monat still, eine Antwort für einen anderen Monat oder ein Fehlschlag ändert nichts" <| fun () ->
+            let loaded = Components.Overview.State.applyAnswer (MonthLoaded (Ok november)) Components.Overview.Types.init
+            let changed = { november with ToBeBudgeted = eur 80m }
+            let swapped = Components.Overview.State.applyAnswer (MonthSynced ("2026-11-01", Ok (MonthChanged changed))) loaded
+            Expect.equal swapped.Month (Success changed) "getauscht, ohne Laden"
+            let other = { changed with Month = "2026-12-01" }
+            Expect.equal (Components.Overview.State.applyAnswer (MonthSynced ("2026-12-01", Ok (MonthChanged other))) loaded) loaded "anderer Monat"
+            Expect.equal (Components.Overview.State.applyAnswer (MonthSynced ("2026-11-01", Error "weg")) loaded) loaded "Fehlschlag"
+            Expect.equal (Components.Overview.State.applyAnswer (MonthSynced ("2026-11-01", Ok MonthUnchanged)) loaded) loaded "unverändert"
     ]

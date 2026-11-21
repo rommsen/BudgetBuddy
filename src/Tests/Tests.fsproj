@@ -65,6 +65,7 @@
     <Compile Include="BudgetLeadTests.fs" />
     <Compile Include="YnabMonthSnapshotTests.fs" />
     <Compile Include="YnabFrameSnapshotTests.fs" />
+    <Compile Include="BudgetMonthSyncTests.fs" />
     <Compile Include="BudgetTakeoverTests.fs" />
     <Compile Include="TargetChangeTests.fs" />
     <Compile Include="TargetToYnabTests.fs" />
@@ -189,6 +190,7 @@
     <Compile Include="TargetsApplyClientTests.fs" />
     <Compile Include="MonthStartClientTests.fs" />
     <Compile Include="MoveMoneyClientTests.fs" />
+    <Compile Include="BudgetMonthSyncClientTests.fs" />
     <Compile Include="TargetPauseClientTests.fs" />
     <Compile Include="TargetChangeClientTests.fs" />
     <Compile Include="TargetToYnabClientTests.fs" />

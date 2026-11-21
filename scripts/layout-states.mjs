@@ -46,6 +46,8 @@ async function mockApp(page) {
   await page.route("**/api/SyncApi/getCurrentSession", (r) => json(r, null));
   // budgeting-w9yt4: ohne Pins; der Pin-Knopf im Kategorie-Detail steht damit in jedem Zustand des Budgets.
   await page.route("**/api/BudgetApi/getPinnedCategories", (r) => json(r, { Ok: [] }));
+  // budgeting-ffjk9: das stille Nachziehen nach jedem gelesenen Monat (Budget-Seite und Übersicht).
+  await page.route("**/api/BudgetApi/syncBudgetMonth", (r) => json(r, { Ok: "MonthUnchanged" }));
   await page.route("**/api/BudgetApi/getTargetCheck", (r) => json(r, { Ok: { Month: "2026-11-01", Today: "2026-11-06", Categories: [] } }));
   await page.route("**/api/YnabApi/getPayees", (r) => json(r, { Ok: [] }));
   await page.route("**/api/YnabApi/getCategories", (r) =>
@@ -309,6 +311,16 @@ async function mockBudgetRereadFails(page) {
     const [key] = JSON.parse(r.request().postData() ?? "[]");
     return reads === 1 ? json(r, { Ok: budgetMonth(key) }) : json(r, { Error: "YNAB antwortet nicht (503)" });
   });
+}
+
+/// budgeting-ffjk9: der Monat trägt einen YNAB-Stand von 14:05, das Nachziehen scheitert (Hinweis „YNAB-Stand von …“).
+async function mockBudgetSyncFails(page) {
+  await mockBudget(page);
+  await page.route("**/api/BudgetApi/getBudgetMonth", (r) => {
+    const [key] = JSON.parse(r.request().postData() ?? "[]");
+    return json(r, { Ok: { ...budgetMonth(key), CopiedAt: "2026-11-06T13:05:00.0000000Z" } });
+  });
+  await page.route("**/api/BudgetApi/syncBudgetMonth", (r) => json(r, { Error: "YNAB antwortet nicht (503)" }));
 }
 
 /// Abgeben von Essen nach Reise im Tab Geld, bis die Zeile über dem Knopf steht.
@@ -1105,6 +1117,20 @@ export const STATES = [
       if ((await page.locator(".toast-layer > *").count()) > 0) throw new Error("Toast neben dem Hinweis");
     },
     primary: (page) => page.locator('[data-testid="budget-stale"] button'),
+  },
+  // budgeting-ffjk9: der Hinweis „YNAB-Stand von <Uhrzeit>“ unter „Zu verteilen“, wenn das Nachziehen nach dem Lesen
+  // scheitert. Ein Zustand der Seite, kein Toast.
+  {
+    name: "budget-ynab-stand-alt",
+    route: "/budget",
+    widths: [HANDY_WIDTH, PC_WIDTH],
+    mock: mockBudgetSyncFails,
+    open: async (page) => {
+      await openBudget(page);
+      await page.locator('[data-testid="budget-ynab-copy"]').waitFor();
+      if ((await page.locator(".toast-layer > *").count()) > 0) throw new Error("Toast neben dem Hinweis");
+    },
+    primary: (page) => page.locator('[data-testid="budget-ynab-copy"] button'),
   },
   // budgeting-gffps, budgeting-nfrds: der Kategorie-Picker als Sheet am Handy (16 px Suche) und als Popover
   // im Panel (ganz sichtbar, vom Panel nicht abgeschnitten, Fuß nicht verdeckt).

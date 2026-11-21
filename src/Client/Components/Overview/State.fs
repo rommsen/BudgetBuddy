@@ -108,6 +108,13 @@ let applyAnswer (msg: Msg) (model: Model) : Model =
     | PinsLoaded (read, _) when read <> model.PinsRead || model.PinsSaving.IsSome -> model
     | MonthLoaded (Ok month) -> { model with Month = Success month }
     | MonthLoaded (Error message) -> { model with Month = RemoteData.lateFailure message model.Month }
+    // Das Nachziehen (budgeting-ffjk9) tauscht still, nur für den gezeigten Monat. Ein Fehlschlag lässt den Stand
+    // stehen; die Übersicht zeigt dazu keinen Hinweis.
+    | MonthSynced (monthKey, Ok (Shared.Budgeting.MonthChanged month)) ->
+        let shown = match model.Month with Success (m: Shared.Budgeting.BudgetMonth) -> Some m.Month | _ -> None
+        if shown = Some monthKey && month.Month = monthKey then { model with Month = Success month } else model
+    | MonthSynced (_, Ok Shared.Budgeting.MonthUnchanged)
+    | MonthSynced (_, Error _) -> model
     | RecentLoaded (_, Ok page) ->
         { model with
             Recent = Success page.Entries
@@ -301,8 +308,17 @@ let private enterCmd (entered: Model) : Cmd<Msg> =
         pinsCmd entered.PinsRead
     ]
 
+/// Das stille Nachziehen nach dem Lesen des Monats (budgeting-ffjk9), wie auf der Budget-Seite.
+let private syncCmd (monthKey: string) : Cmd<Msg> =
+    Cmd.OfAsync.either
+        (fun key -> Retry.reading Api.budget.syncBudgetMonth key)
+        monthKey
+        (fun result -> MonthSynced (monthKey, result))
+        (fun ex -> MonthSynced (monthKey, Error ex.Message))
+
 let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
     match msg with
+    | MonthLoaded (Ok month) -> applyAnswer msg model, syncCmd month.Month
     | ReloadRequested ->
         let reloading = beginReload model
         reloading, enterCmd reloading

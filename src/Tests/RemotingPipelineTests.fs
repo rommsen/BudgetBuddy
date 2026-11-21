@@ -111,6 +111,14 @@ let pipelineTests =
                         with _ -> false
                     Expect.isTrue parsed $"{name}: Rumpf ist kein JSON: {body}")
 
+        // budgeting-ffjk9: das Nachziehen der Budget-Seite und der Übersicht läuft durch denselben Host. Ein ungültiger
+        // Monat endet an der Grenze, ohne Settings und YNAB, als JSON mit fachlicher Meldung.
+        testCase "syncBudgetMonth antwortet über Api.webApp mit fachlicher Meldung" <| fun () ->
+            withTestHost (fun client ->
+                let status, answer = send client (HttpMethod.Post, "/api/BudgetApi/syncBudgetMonth", Some "[\"kein-monat\"]")
+                Expect.equal status 200 $"Status, Antwort {answer}"
+                Expect.stringContains answer "Error" "fachlicher Fehler im Rumpf")
+
         // budgeting-qm5x9, ADR 0084 Punkt 8: Ein alter Client schickt die Aufträge ohne `CommandId`. Fable.Remoting
         // liest das fehlende Optionsfeld als `None`, der Auftrag erreicht den Handler und endet an der
         // fehlenden Einrichtung, nicht beim Deserialisieren.

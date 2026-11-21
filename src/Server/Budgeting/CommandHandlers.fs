@@ -363,7 +363,7 @@ let private recordObservationWith
     : Result<MonthFold, string> =
     onMonthStream connect monthKey (fun conn monthId events ->
         let added, fold = observe monthId events raw
-        recordObservationOn conn now monthKey added { Raw = raw; FetchedAt = now }
+        recordObservationOn conn now monthKey added { Raw = raw; FetchedAt = now; Stale = false }
         fold)
 
 /// `observeMonth` ohne Sperre, für Abläufe, die sie schon halten: ein `FetchMonth`, dann festhalten.
@@ -394,6 +394,36 @@ let observeMonthWith
     (monthKey: string)
     : Async<Result<ObservedMonth, ObserveFailure>> =
     MonthGuard.exclusive monthKey (observeUnguarded connect port.FetchMonth now monthKey)
+
+/// Was `observeIfDueWith` vorfand.
+type MonthSyncObservation =
+    /// Der Stand war frisch (`Domain.monthSyncDue`), YNAB wurde nicht gefragt.
+    | SnapshotFresh
+    /// Der Monat wurde beobachtet. `Before` ist der Stand davor (`None` ohne Stand), `Observed` das Ergebnis.
+    | MonthObserved of Before: YnabMonthSnapshot option * Observed: ObservedMonth
+
+/// Das Nachziehen eines Monats (budgeting-ffjk9, ADR 0101 Punkt 6): unter `MonthGuard` den Stand lesen und nur, wenn er
+/// fällig ist (ohne Stand, veraltet oder älter als 60 s, gemessen an `now`), beobachten wie `observeMonthWith`. Weil
+/// Lesen, Entscheiden und Beobachten unter derselben Sperre laufen wie jeder Befehl, sieht das Nachziehen nach einem
+/// Befehl dessen Stand und vergleicht nie gegen einen Monat, den ein laufender Befehl gerade schreibt. Ein nicht
+/// lesbarer Stand: `LocalReadFailed`; ein nicht festgehaltenes Beobachten: `LocalReadFailed` mit
+/// `ObservationNotRecordedText`, die Ursache steht im Server-Log.
+let observeIfDueWith
+    (connect: unit -> SqliteConnection)
+    (port: YnabPort)
+    (now: DateTime)
+    (monthKey: string)
+    : Async<Result<MonthSyncObservation, YnabError>> =
+    MonthGuard.exclusive monthKey (async {
+        match! loadYnabMonthSnapshotWith connect monthKey with
+        | Error message -> return Error (YnabError.LocalReadFailed message)
+        | Ok before when not (monthSyncDue now before) -> return Ok SnapshotFresh
+        | Ok before ->
+            match! observeUnguarded connect port.FetchMonth now monthKey with
+            | Error (FetchFailed e) -> return Error e
+            | Error (NotRecorded _) -> return Error (YnabError.LocalReadFailed ObservationNotRecordedText)
+            | Ok observed -> return Ok (MonthObserved (before, observed))
+    })
 
 /// `observeMonthWith` auf der Datenbank der Anwendung.
 let observeMonth (port: YnabPort) (now: DateTime) (monthKey: string) : Async<Result<ObservedMonth, ObserveFailure>> =

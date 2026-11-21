@@ -12,8 +12,8 @@ Catalog of this bounded context's tasks by status.
 <!-- task-counts:start -->
 - **Backlog:** 5
 - **Todo:** 0
-- **Doing:** 1
-- **Done:** 76
+- **Doing:** 0
+- **Done:** 77
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,11 +22,11 @@ Catalog of this bounded context's tasks by status.
 
 ### Doing
 <!-- doing-list:start -->
-- **budgeting-ffjk9** — "Nachziehen beim Öffnen: Budget-Seite und Übersicht zeigen sofort BBs Stand und gleichen danach still mit YNAB ab (syncBudgetMonth, Frische 60 s und 5 min, spätere Monate veraltet)" (feature) — `doing/budgeting-ffjk9-budget-nachziehen-beim-oeffnen.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)
 <!-- done-list:start -->
+- **budgeting-ffjk9** — "Nachziehen beim Öffnen: Budget-Seite und Übersicht zeigen sofort BBs Stand und gleichen danach still mit YNAB ab (syncBudgetMonth, Frische 60 s und 5 min, spätere Monate veraltet)" (feature) — `done/budgeting-ffjk9-budget-nachziehen-beim-oeffnen.md`
 - **budgeting-yx51n** — "Budget-Rahmen aus BB: Monatsfenster und Kategorie-Platzierung als YNAB-Stand, der Rahmen der Budget-Seite liest ohne YNAB-Aufruf" (feature) — `done/budgeting-yx51n-budget-rahmen-aus-bb.md`
 - **budgeting-nyx75** — "Kategorie-Gruppe in BB deaktivieren: die Gruppe verschwindet samt ihren Kategorien aus Budget-Liste und Pickern, in YNAB bleibt sie" (feature) — `done/budgeting-nyx75-gruppe-deaktivieren.md`
 - **budgeting-m5pqn** — "Budget-Monat aus BB: YNAB-Stand je Monat festhalten, getBudgetMonth liest nur die Datenbank, Verfügbar und Zu verteilen leitet BB aus Soll, Kassenbuch und Stand ab" (feature) — `done/budgeting-m5pqn-budget-seite-sofort-aus-bb.md`

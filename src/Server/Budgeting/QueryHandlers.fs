@@ -305,6 +305,94 @@ let frame (port: BudgetFramePort) (today: DateOnly) (now: DateTime) : Async<Ynab
                 return Ok { frame with MonthStartHidden = hiddenMonths }
     }
 
+/// Liest einen Teil des Rahmens nach, wenn sein Stand fehlt, nicht lesbar oder älter als 5 min ist
+/// (`frameStateDue`, ADR 0101 Punkt 6): ein YNAB-Aufruf, dann mit `now` festhalten. Nach bestem Bemühen: scheitert
+/// Lesen oder Festhalten, steht der Grund im Log und der alte Stand bleibt.
+let private refreshIfDue
+    (now: DateTime)
+    (what: string)
+    (load: unit -> Async<Result<'held option, string>>)
+    (fetchedAt: 'held -> DateTime)
+    (fetch: unit -> Async<YnabResult<'fetched>>)
+    (held: 'fetched -> 'held)
+    (hold: 'held -> Async<Result<unit, string>>)
+    : Async<unit> =
+    async {
+        let! loaded = load ()
+        let due =
+            match loaded with
+            | Ok state -> frameStateDue now (state |> Option.map fetchedAt)
+            | Error _ -> true
+        if due then
+            match! fetch () with
+            | Error e -> Budgeting.Persistence.logBestEffortFailure $"{what} nachlesen" (ynabErrorText e)
+            | Ok fetched ->
+                match! hold (held fetched) with
+                | Ok () -> ()
+                | Error message -> Budgeting.Persistence.logBestEffortFailure $"{what} festhalten" message
+    }
+
+/// Fenster und Platzierung nachlesen, je Teil nur, wenn er fällig ist (höchstens zwei YNAB-Aufrufe).
+let private refreshFrameIfDue (port: BudgetFramePort) (now: DateTime) : Async<unit> =
+    async {
+        do!
+            refreshIfDue
+                now
+                "Monatsfenster"
+                port.LoadMonthWindow
+                (fun (w: YnabMonthWindow) -> w.FetchedAt)
+                port.FetchMonths
+                (fun months -> { Months = months; FetchedAt = now })
+                port.HoldMonthWindow
+        do!
+            refreshIfDue
+                now
+                "Platzierung der Kategorien"
+                port.LoadCategoryCatalog
+                (fun (c: YnabCategoryCatalog) -> c.FetchedAt)
+                port.FetchCategoryPlacements
+                (fun placements -> { Placements = placements; FetchedAt = now })
+                port.HoldCategoryCatalog
+    }
+
+/// Das Nachziehen eines Monats nach dem sofortigen Lesen (budgeting-ffjk9, ADR 0101 Punkt 6), ohne Timer: Ist der Stand
+/// fällig (ohne Stand, veraltet oder älter als 60 s), wird der Monat unter `MonthGuard` beobachtet
+/// (`CommandHandlers.observeIfDueWith`), mit Übernahme und Echo-Regel wie bei jedem Beobachten: eine Beobachtung
+/// gewinnt, das Soll wird YNABs Wert (ADR 0084 Punkt 3). Danach läuft die Target-Übernahme nach bestem Bemühen
+/// (`targetRulesBestEffort`). Fenster und Platzierung liest es nach, wenn sie älter als 5 min sind (bestes Bemühen).
+/// `MonthChanged` mit dem Monat wie beim Lesen nur, wenn YNABs Monat oder BBs Targets jetzt anders sind, sonst
+/// `MonthUnchanged`. Scheitert das Beobachten, ist das Ergebnis dieser Fehler; die Seite behält dann ihren Stand.
+let syncMonthWithLedger
+    (ledger: CommandHandlers.LedgerActivityPort)
+    (connect: unit -> Microsoft.Data.Sqlite.SqliteConnection)
+    (port: CommandHandlers.YnabPort)
+    (framePort: BudgetFramePort)
+    (now: DateTime)
+    (monthKey: string)
+    : Async<YnabResult<BudgetMonthSync>> =
+    async {
+        let! observed = CommandHandlers.observeIfDueWith connect port now monthKey
+        do! refreshFrameIfDue framePort now
+        match observed with
+        | Error e -> return Error e
+        | Ok CommandHandlers.SnapshotFresh -> return Ok MonthUnchanged
+        | Ok (CommandHandlers.MonthObserved (before, observed)) ->
+            let! targetsBefore = Budgeting.Persistence.loadTargetRulesWith connect monthKey
+            match! CommandHandlers.targetRulesBestEffort connect port now observed.Raw with
+            | Error message -> return Error (YnabError.LocalReadFailed message)
+            | Ok targets ->
+                let sameRaw = before |> Option.exists (fun s -> s.Raw = observed.Raw)
+                if sameRaw && targetsBefore = Ok targets then
+                    return Ok MonthUnchanged
+                else
+                    let! month = pageMonthOf ledger connect observed.Raw (Some now) (Some observed.Fold.Categories) targets
+                    return month |> Result.map MonthChanged
+    }
+
+/// `syncMonthWithLedger` mit dem Kassenbuch und der Datenbank der Anwendung.
+let syncMonth (port: CommandHandlers.YnabPort) (framePort: BudgetFramePort) (now: DateTime) (monthKey: string) : Async<YnabResult<BudgetMonthSync>> =
+    syncMonthWithLedger CommandHandlers.liveLedgerActivityPort global.Persistence.getConnection port framePort now monthKey
+
 /// Die ausgeblendeten Monate aus der Datenbank der Anwendung. Ein Lesefehler wird zum `Error` mit Text.
 let loadMonthStartHidden (fromMonth: string) : Async<Result<string list, string>> =
     async {

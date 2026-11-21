@@ -54,6 +54,18 @@ let private monthCmd (reread: MonthReread) (model: Model) : Cmd<Msg> =
 
 let private loadCmd (model: Model) : Cmd<Msg> = monthCmd FullReread model
 
+/// Das stille Nachziehen nach dem Lesen (budgeting-ffjk9): kein `Loading`, kein Toast. Die Antwort trägt Generation
+/// und Monat beim Start, `applyYnabSynced` verwirft eine überholte.
+let private syncCmd (start: (int * string) option) : Cmd<Msg> =
+    match start with
+    | Some (generation, monthKey) ->
+        Cmd.OfAsync.either
+            (fun key -> Retry.reading Api.budget.syncBudgetMonth key)
+            monthKey
+            (fun result -> MonthSynced (generation, monthKey, result))
+            (fun ex -> MonthSynced (generation, monthKey, Error ex.Message))
+    | None -> Cmd.none
+
 let private previewCmd (month: string) (generation: int) : Cmd<Msg> =
     Cmd.OfAsync.either
         (fun key -> Retry.reading Api.budget.previewTargets key)
@@ -537,7 +549,12 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
     | Loaded (generation, result) ->
         let loaded, tabCmd = withTabData (applyLoaded generation result model)
         let acted, actionCmd = answerEntryAction (generation = model.MonthGeneration) loaded
-        acted, Cmd.batch [ tabCmd; actionCmd ], NoOp
+        let syncing, start = startYnabSync generation result model acted
+        syncing, Cmd.batch [ tabCmd; actionCmd; syncCmd start ], NoOp
+    | MonthSynced (generation, monthKey, result) -> applyYnabSynced generation monthKey result model, Cmd.none, NoOp
+    | RetryYnabSync ->
+        let retrying, start = startYnabSyncRetry model
+        retrying, syncCmd start, NoOp
     | OpenTargets ->
         match openTargets model, shownMonth model with
         | (model', true), Some month -> model', previewCmd month model'.TargetsPreviewGeneration, NoOp
@@ -708,7 +725,8 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
     | Reloaded (generation, result) ->
         let withRequest, cmd = withTabData (applyReloaded generation result model)
         let acted, actionCmd = answerEntryAction (generation = model.MonthGeneration) withRequest
-        acted, Cmd.batch [ cmd; actionCmd ], NoOp
+        let syncing, start = startYnabSync generation result model acted
+        syncing, Cmd.batch [ cmd; actionCmd; syncCmd start ], NoOp
 
 /// Wie `update` eine Nachricht behandelt.
 [<RequireQualifiedAccess>]
@@ -763,6 +781,8 @@ let private routeOf (msg: Msg) (model: Model) : MsgRoute =
     | CategoryAdminMsg _
     | RereadStale
     | RereadStaleHistory
+    | MonthSynced _
+    | RetryYnabSync
     | AvailableFlashEnded _
     | CheckFlashEnded _
     | TargetFlashEnded _
