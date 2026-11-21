@@ -358,6 +358,20 @@ let private handlerTests =
                 Expect.equal (sync connect failing frame (t0.AddMinutes 6.) key) (Error failure) $"{failure}: der Fehler"
                 Expect.isEmpty (List.ofSeq frameCalls) $"{failure}: kein Aufruf für den Rahmen"
 
+        // Review-Lauf 2026-11-21: „Monat nicht offen“ ist eine Antwort von YNAB (der Monat liegt außerhalb seines
+        // Fensters), kein Ratenlimit und kein Netzfehler. Gerade dann hilft ein frisch gelesenes Fenster.
+        testCase "Meldet YNAB den Monat als nicht offen, liest das Nachziehen den fälligen Rahmen trotzdem nach" <| fun () ->
+            let anchor, connect = BudgetEventsFixture.isolatedDb ()
+            use _ = anchor
+            let a = Guid.NewGuid()
+            let key = freshMonth ()
+            let port, _ = ynabWith a (ref 30m)
+            observe connect port t0 key
+            let frame, frameCalls = heldFramePort t0
+            let failing = { port with FetchMonth = fun _ -> async { return Error (YnabError.MonthNotOpen key) } }
+            Expect.equal (sync connect failing frame (t0.AddMinutes 6.) key) (Error (YnabError.MonthNotOpen key)) "der Fehler"
+            Expect.isNonEmpty (List.ofSeq frameCalls) "der fällige Rahmen wird nachgelesen"
+
         testCase "Ein Zuweisen in M markiert M+1 und M+2 als veraltet, M-1 und M nicht" <| fun () ->
             let anchor, connect = BudgetEventsFixture.isolatedDb ()
             use _ = anchor

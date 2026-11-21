@@ -361,9 +361,11 @@ let private ynabFailed (observed: Result<CommandHandlers.MonthSyncObservation, Y
     match observed with
     | Ok _ -> false
     | Error (YnabError.LocalReadFailed _ | YnabError.LocalWriteFailed _ | YnabError.RefusedByBb _) -> false
+    // „Monat nicht offen“ hat YNAB beantwortet (außerhalb seines Fensters): ein frisches Fenster hilft gerade dann.
+    | Error (YnabError.MonthNotOpen _) -> false
     | Error (YnabError.Unauthorized _ | YnabError.BudgetNotFound _ | YnabError.AccountNotFound _) -> true
     | Error (YnabError.CategoryNotFound _ | YnabError.RateLimitExceeded _ | YnabError.NetworkError _) -> true
-    | Error (YnabError.InvalidResponse _ | YnabError.MonthNotOpen _) -> true
+    | Error (YnabError.InvalidResponse _) -> true
 
 /// Das Nachziehen eines Monats nach dem sofortigen Lesen (budgeting-ffjk9, ADR 0101 Punkt 6), ohne Timer. Es liest
 /// nicht nur, es schreibt: Ist der Stand fällig (ohne Stand, veraltet oder älter als 60 s), wird der Monat unter
