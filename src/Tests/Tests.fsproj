@@ -116,6 +116,7 @@
     <Compile Include="LedgerHeldDuplicateTests.fs" />
     <Compile Include="LedgerReviewQueueTests.fs" />
     <Compile Include="LedgerReviewClientTests.fs" />
+    <Compile Include="LedgerReviewSplitClientTests.fs" />
     <Compile Include="LedgerDuplicateDecisionTests.fs" />
     <Compile Include="LedgerRetryPushTests.fs" />
     <Compile Include="LedgerCashBookingTests.fs" />

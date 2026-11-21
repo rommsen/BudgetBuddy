@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-11-21 01:01 -- Task verified and completed: ledger-cyd1t - "Durchgehen: Textlink „Aufteilen“ unter dem Feld Kategorie öffnet das Detail mit offenem Split-Editor, ohne Umweg über „Details“"
+
+**Type:** Work / Task completion
+**Task:** ledger-cyd1t - "Durchgehen: Textlink „Aufteilen“ unter dem Feld Kategorie öffnet das Detail mit offenem Split-Editor, ohne Umweg über „Details“"
+**Summary:** Durchgehen: Textlink Aufteilen unter dem Feld Kategorie öffnet das Detail mit offenem Split-Editor
+**Duration:** 1h20m
+**Verification:** PASS (iteration 1)
+**Files changed:** 11
+**Tests added:** 18
+**ADRs written:** none
+
+---
+
+## 2026-11-21 00:59 -- Verification failed: budgeting-m5pqn - Budget-Monat aus BB
+
+**Type:** Work / Verification failure
+**Task:** budgeting-m5pqn - Budget-Monat aus BB
+**Iteration:** 1 of 3
+**Reasons:** README-Delta lässt den dgrp7-Satz im Bullet Budget-Seite und den alten Stand im Bullet Aktivität je Monat stehen, Gate rot im Layout-Sweep targets-pruefen-nicht-neu-gelesen @ 412 px (einzeln grün)
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-11-21 00:08 -- Task verified and completed: ledger-sbbh8 - "Durchgehen ordnet neueste zuerst: nach den wartenden Duplikaten kommen die Buchungen nach Datum absteigend, damit nach „Später“ nicht wieder dieselben alten vorne stehen"
 
 **Type:** Work / Task completion

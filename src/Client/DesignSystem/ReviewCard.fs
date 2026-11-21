@@ -113,8 +113,8 @@ type FieldState =
     | FieldFlash
 
 /// Das Feld „Kategorie“ der Karte (Bauart `Input.pickerField`): Beschriftung klein, darunter der Wert.
-/// Fehlt der Wert, steht `placeholder` in Gelb („braucht dich“). Ohne `onClick` (eine aufgeteilte Buchung)
-/// ist es kein Knopf und hat keinen Pfeil.
+/// Fehlt der Wert, steht `placeholder` in Gelb („braucht dich“). Ohne `onClick` (eine aufgeteilte Buchung, deren
+/// Aufteilen gesperrt ist) ist es kein Knopf und hat keinen Pfeil.
 let rec field (testId: string) (label: string) (value: string option) (placeholder: string) (isOpen: bool) (onClick: (unit -> unit) option) : ReactElement =
     fieldIn FieldRest testId label value placeholder isOpen onClick
 
@@ -187,6 +187,44 @@ let fieldNote (text: string) (available: string option) (act: Feedback.Act) : Re
                 prop.onClick (fun _ -> act.OnClick ())
                 prop.text act.Label
             ]
+        ]
+    ]
+
+/// Der Textlink unter dem Feld „Kategorie“ der Karte (ledger-cyd1t, Skizze `.s1.as-link .fieldrow .btn`): linksbündig,
+/// 12 px im Akzent ohne Fläche wie die Links unten in der Karte; am Handy 48 px Trefferfläche, die je 12 px (den Abstand
+/// der Karte) über die Zeile hinausreicht, damit die Karte nicht höher wird. Mit `lockReason` gedämpft in `text-muted`,
+/// ohne Wirkung, der Grund als `title` und darunter 12 px gedämpft.
+let fieldLink (testId: string) (label: string) (lockReason: string option) (onClick: unit -> unit) : ReactElement =
+    let tone = if lockReason.IsSome then Colors.textMuted else $"{Colors.accent} hover:underline"
+    // Die Hülle trägt den Überstand (oben immer, unten nur ohne Grund), damit nichts aus ihr herausragt: eine Zeile der
+    // Karte, deren Inhalt überläuft, gälte als gestaucht (`memoClampLines`). Mit Grund rückt der Grund 12 px in die
+    // leere Unterkante des Links.
+    let wrapperMargin = if lockReason.IsSome then "-mt-3 md:mt-0" else "-my-3 md:my-0"
+    let buttonMargin = if lockReason.IsSome then "-mb-3 md:mb-0" else ""
+    Html.div [
+        prop.className $"flex flex-col items-start {wrapperMargin}"
+        prop.children [
+            Html.button [
+                prop.type' "button"
+                prop.custom ("data-testid", testId)
+                prop.className (
+                    $"{buttonMargin} inline-flex items-center {TouchTargets.mobileMinHeight} md:min-h-0 px-1 -mx-1 "
+                    + $"{FontSizes.xs} {tone} touch-manipulation"
+                )
+                prop.disabled lockReason.IsSome
+                match lockReason with
+                | Some reason -> prop.title reason
+                | None -> prop.onClick (fun _ -> onClick ())
+                prop.text label
+            ]
+            match lockReason with
+            | Some reason ->
+                Html.p [
+                    prop.custom ("data-testid", $"{testId}-reason")
+                    prop.className $"mt-1 {FontSizes.xs} {Colors.textMuted}"
+                    prop.text reason
+                ]
+            | None -> Html.none
         ]
     ]
 

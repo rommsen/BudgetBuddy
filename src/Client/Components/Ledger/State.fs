@@ -5153,9 +5153,9 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
 
     | ReviewConfirm ->
         // „Passt, weiter“ teilt die Sperre mit dem Prüfvermerk aus „Details“ (ledger-smv1s) und wartet auf
-        // eine laufende Kategorie-Änderung der Karte.
+        // eine laufende Kategorie-Änderung der Karte. Der offene Split-Editor hält die Karte fest (ledger-cyd1t).
         match model.Review, reviewCardOf model with
-        | Some review, Some card when review.Confirming.IsNone ->
+        | Some review, Some card when review.Confirming.IsNone && model.SplitEditor.IsNone ->
             whenRowIdle ReviewMarkLock card.Id model (fun () ->
                 if reviewCardKindOf card = NormalCard && reviewHasTarget card && not (rowBusy CategoryLock model card.Id) then
                     editReview (fun r -> { r with Confirming = Some card.Id; Last = None }) model,
@@ -5206,6 +5206,9 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
 
     | ReviewSkip ->
         match reviewCardOf model with
+        // Der offene Split-Editor oder ein laufender Aufruf der Gruppe Kategorie hält die Karte fest: ein Kartenwechsel
+        // verwürfe die Aufteilung im Entwurf bzw. ihre Antwort im Detail (ledger-cyd1t).
+        | Some card when model.SplitEditor.IsSome || rowBusy CategoryLock model card.Id -> model, Cmd.none, NoOp
         | Some card ->
             let line = reviewLastFor model card.Id LastSkipped LastDone (Some (LastUndo (UndoSkipped card.Id)))
             let model', cmd = advanceReview (setReviewLast (Some line) model)
@@ -5395,6 +5398,24 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             NoOp
         | None -> model, Cmd.none, NoOp
 
+    // Aufteilen von der Karte (ledger-cyd1t): dasselbe wie „Details“ und danach der Split-Editor, in einem Schritt. Steht
+    // das Detail schon (am PC das Panel neben der Karte), öffnet nur der Editor darin. Gesperrt (dieselben Gründe wie im
+    // Detail), auf der Duplikat-Karte, bei offener Auswahl oder Eingabe, während ein Aufruf der Gruppe Kategorie oder
+    // „Passt“ der Karte läuft, bleibt alles, wie es ist.
+    | ReviewOpenSplit ->
+        match model.Review, reviewCardOf model with
+        | Some review, Some card when
+            review.Confirming.IsNone
+            && reviewSplitLink card = SplitLinkFree
+            && model.CategoryPickerFor.IsNone
+            && not (reviewCardEditing model)
+            && not (rowBusy CategoryLock model card.Id) ->
+            let shown, showCmd, _ = if review.DetailShown then model, Cmd.none, NoOp else updateCore ReviewShowDetails model
+            let opened, openCmd, external = updateCore (OpenSplitEditor card.Id) shown
+            if opened.SplitEditor.IsSome then opened, Cmd.batch [ showCmd; openCmd ], external
+            else model, Cmd.none, NoOp
+        | _ -> model, Cmd.none, NoOp
+
     | ReviewSwiped (dx, dy) ->
         match reviewCardOf model with
         | Some card when reviewCardKindOf card = NormalCard ->
@@ -5411,6 +5432,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         | KeyConfirm -> updateCore ReviewConfirm model
         | KeySkip -> updateCore ReviewSkip model
         | KeyOpenCategory -> updateCore ReviewOpenCategory model
+        | KeyOpenSplit -> updateCore ReviewOpenSplit model
         | KeyLena -> updateCore ReviewLena model
         // Z nimmt die jüngste Aktion mit Rückgängig zurück: die Kategorie am Feld oder die Zeile (ledger-mf2bg).
         | KeyUndo ->
@@ -5423,6 +5445,12 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
                 { model with CategoryPickerFor = None; CategorySuggestions = [] }, Cmd.none, NoOp
             elif model.PayeeEdit.IsSome then updateCore CancelPayeeEdit model
             elif model.MemoEdit.IsSome then updateCore CancelMemoEdit model
+            // Der Split-Editor im Detail (ledger-cyd1t): erst seine Auswahl, dann der Editor, das Detail bleibt. Während
+            // Speichern läuft, schließt `CloseSplitEditor` nicht, und Esc tut nichts.
+            elif model.SplitEditor.IsSome then
+                match model.SplitEditor with
+                | Some editor when editor.Picker <> SplitEditor.NoSplitPicker -> updateCore CloseSplitPicker model
+                | _ -> updateCore CloseSplitEditor model
             elif model.Review |> Option.exists (fun r -> r.DetailShown) then updateCore CloseDetail model
             else model, Cmd.none, LeaveReview
 

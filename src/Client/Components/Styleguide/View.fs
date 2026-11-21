@@ -3000,6 +3000,28 @@ let private reviewCardSection =
                 ReviewCard.foot ReviewCard.FootEmpty
             ]
         ]
+        subTitle "ReviewCard.fieldLink (Aufteilen unter dem Feld)"
+        note "Der Textlink „Aufteilen“ unter dem Feld „Kategorie“ der Normalkarte (ledger-cyd1t): linksbündig, 12 px im Akzent ohne Fläche wie „Regel anlegen“, am Handy 48 px Trefferfläche, das Feld behält die volle Breite. Ein Tipp öffnet das Detail mit offenem Split-Editor. Gesperrt gedämpft in text-muted, ohne Wirkung, der Grund darunter 12 px gedämpft und als title. Bei einer aufgeteilten Buchung trägt „Aufgeteilt“ einen Pfeil und tut dasselbe. Nicht auf der Duplikat-Karte."
+        Html.div [
+            prop.className "max-w-md flex flex-col gap-3"
+            prop.children [
+                ReviewCard.card false [] [
+                    ReviewCard.amount "-86,40 €"
+                    ReviewCard.field "demo-review-split-field" "Kategorie" None "Kategorie wählen" false (Some ignore)
+                    ReviewCard.fieldLink "demo-review-split" "Aufteilen" None ignore
+                ]
+                ReviewCard.card false [] [
+                    ReviewCard.amount "-150,00 €"
+                    ReviewCard.field "demo-review-split-locked-field" "Kategorie" (Some "Sparen") "Kategorie wählen" false (Some ignore)
+                    ReviewCard.fieldLink "demo-review-split-locked" "Aufteilen" (Some "Auf einem Tracking-Konto lassen sich Buchungen nicht aufteilen") ignore
+                ]
+                ReviewCard.card false [] [
+                    ReviewCard.amount "-86,40 €"
+                    ReviewCard.field "demo-review-split-done" "Kategorie" (Some "Aufgeteilt") "" false (Some ignore)
+                    ReviewCard.fieldLink "demo-review-split-again" "Aufteilen" None ignore
+                ]
+            ]
+        ]
         subTitle "ReviewCard.fieldIn und ReviewCard.fieldNote (Kategorie am Feld bestätigt)"
         note "Nach einer Kategorie oder einem Übertrag auf der Karte (ledger-mf2bg, R3 Punkt 1): das Feld leuchtet kurz (FieldFlash, Rand und Ring im Akzent, 0,7 s, ohne Bewegung steht der Ring), darunter 12 px gedämpft „<Name> · <Betrag> verfügbar“, der Betrag in Mono in text-secondary, rechts „Rückgängig“ im Akzent mit 48 px Trefferfläche. Ohne bekannten Betrag nur der Name, sonst „Kategorie entfernt“ oder „Gegenbuchung angelegt“. Warnung und Fehler stehen in der Zeile unter „Passt, weiter“ (Feedback.line). Kein Toast."
         Html.div [

@@ -97,8 +97,10 @@ let private cardOf (model: Model) : Guid option = reviewCardOf model |> Option.m
 /// Ein offener Aufruf, wie das Orakel ihn kennt: die Buchung und die beiden möglichen Antworten.
 type private Call = { Entry: Guid; Ok: Msg; Error: Msg }
 
-/// Ein Start-Zweig: auf welche Buchung er im gegebenen Modell zielt und die Nachricht.
-type private Start = { Name: string; Target: Model -> Guid option; Msg: Msg }
+/// Ein Start-Zweig: auf welche Buchung er im gegebenen Modell zielt und die Nachricht. `Calls = false` heißt: der Weg
+/// öffnet nur etwas (Aufteilen von der Karte öffnet den Editor) und schickt selbst keinen Aufruf; gesperrt muss er
+/// trotzdem still bleiben.
+type private Start = { Name: string; Target: Model -> Guid option; Msg: Msg; Calls: bool }
 
 type private LockGroup =
     { Name: string
@@ -108,8 +110,9 @@ type private LockGroup =
       /// Ein Aufruf dieser Gruppe unter den ausgegebenen Nachrichten.
       CallOf: Msg -> Call option }
 
-let private on (entryId: Guid) (name: string) (msg: Msg) : Start = { Name = name; Target = (fun _ -> Some entryId); Msg = msg }
-let private onCard (name: string) (msg: Msg) : Start = { Name = name; Target = cardOf; Msg = msg }
+let private on (entryId: Guid) (name: string) (msg: Msg) : Start = { Name = name; Target = (fun _ -> Some entryId); Msg = msg; Calls = true }
+let private onCard (name: string) (msg: Msg) : Start = { Name = name; Target = cardOf; Msg = msg; Calls = true }
+let private openerOnCard (name: string) (msg: Msg) : Start = { onCard name msg with Calls = false }
 
 /// Geht alle Folgen bis `depth` durch und gibt die Namen der Starts zurück, die einen Aufruf auslösten, dazu die
 /// Antwortarten ("Ok", "Error"), die zugestellt wurden.
@@ -214,6 +217,23 @@ let private categoryGroup : LockGroup =
         | RunUndoSplit (id, lines) ->
             Some { Entry = id; Ok = SplitsRestored (id, lines, Ok changedCategory); Error = SplitsRestored (id, lines, Error "weg") }
         | _ -> None }
+
+/// Aufteilen von der Karte (ledger-cyd1t) als weiterer Weg der Gruppe Kategorie: im Durchgehen auf einer aufgeteilten
+/// Buchung, deren Entwurf sich sofort speichern lässt. Solange ein Aufruf der Gruppe für die Karte läuft, öffnet der
+/// Link weder Detail noch Editor.
+let private categoryReviewGroup : LockGroup =
+    let split (n: int) = { entryOf n with CategoryId = None; CategoryName = None; CategoryGroupName = None; Splits = splitLines }
+    let rows = [ split 1; entryOf 2 ]
+    let opened = ledgerWith rows |> step ReviewOpened
+    { Name = "Kategorie und Split im Durchgehen"
+      Base = step (ReviewQueueLoaded (opened.ReviewGeneration, Ok rows)) opened
+      Starts =
+        [ openerOnCard "Aufteilen von der Karte" ReviewOpenSplit
+          on a "Split speichern" StartSaveSplits
+          on a "Kategorie setzen" (StartSetEntryCategory (a, Some (YnabCategoryId homeId)))
+          on a "Split zurück" (StartUndoSplit (a, [ splitLines.Head ]))
+          on b "Zweite Buchung" (StartSetEntryCategory (b, Some (YnabCategoryId homeId))) ]
+      CallOf = categoryGroup.CallOf }
 
 let private reviewMarkOutcome : ReviewMarkOutcome =
     { Previous = { IsApproved = false; ClearedState = ReviewUncleared }; Change = ReviewMarkChanged; WriteBack = ReviewMarkSent }
@@ -321,7 +341,7 @@ let private pushGroup : LockGroup =
 let private walkTest (group: LockGroup) (depth: int) : Test =
     test $"{group.Name}: höchstens ein Aufruf je Buchung, gesperrt heißt still, nach Erfolg und nach Fehler wieder frei" {
         let fired, answered = walk group depth
-        for start in group.Starts do
+        for start in group.Starts |> List.filter (fun s -> s.Calls) do
             Expect.isTrue (fired.Contains start.Name) $"{group.Name}: {start.Name} startete nie, die Aufzählung prüft ihn nicht"
         for kind in [ "Ok"; "Error" ] do
             Expect.isTrue (answered.Contains kind) $"{group.Name}: keine {kind}-Antwort zugestellt, die Aufzählung prüft sie nicht"
@@ -331,6 +351,7 @@ let private walkTest (group: LockGroup) (depth: int) : Test =
 let rowLockWays =
     testList "Zeilen-Sperre je Buchung und Gruppe" [
         testList "Kategorie und Split" [ walkTest categoryGroup 8 ]
+        testList "Kategorie und Split im Durchgehen" [ walkTest categoryReviewGroup 8 ]
         testList "Prüfvermerk" [ walkTest reviewMarkGroup 8 ]
         testList "Lena" [ walkTest lenaGroup 8 ]
         testList "Memo" [ walkTest memoGroup 8 ]

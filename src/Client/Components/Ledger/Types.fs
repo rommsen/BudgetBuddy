@@ -1659,6 +1659,31 @@ type ReviewCardKind =
 let reviewCardKindOf (entry: LedgerEntryView) : ReviewCardKind =
     if entry.PossibleDuplicate.IsSome then DuplicateCard else NormalCard
 
+/// Der Grund, aus dem Aufteilen gesperrt ist, im Detail wie auf der Karte: eine wartende Buchung nennt die Sperre
+/// „doppelt?“, eine in YNAB gelöschte ihren eigenen Hinweis, sonst kommt der Grund aus den Sperren, die der Lesepfad
+/// liefert (`SplitEditor.lockReasonFor`). `None`: Aufteilen wirkt. Rein.
+let splitLockReason (entry: LedgerEntryView) : string option =
+    if (heldLockReason entry).IsSome then heldLockReason entry
+    elif entry.DeletedInYnab then Some "In YNAB gelöscht, die Buchung lässt sich nicht aufteilen"
+    else Components.Ledger.SplitEditor.lockReasonFor entry
+
+/// Der Textlink „Aufteilen“ unter dem Feld „Kategorie“ der Karte (ledger-cyd1t).
+type ReviewSplitLink =
+    /// Auf der Duplikat-Karte gibt es keinen Link.
+    | SplitLinkHidden
+    | SplitLinkFree
+    /// Gedämpft und ohne Wirkung, der Grund steht darunter und als `title`.
+    | SplitLinkLocked of reason: string
+
+/// Wie der Link „Aufteilen“ auf der Karte dieser Buchung steht: versteckt auf der Duplikat-Karte, sonst frei oder
+/// gesperrt mit genau dem Grund aus dem Detail (`splitLockReason`). Rein.
+let reviewSplitLink (entry: LedgerEntryView) : ReviewSplitLink =
+    if reviewCardKindOf entry = DuplicateCard then SplitLinkHidden
+    else
+        match splitLockReason entry with
+        | Some reason -> SplitLinkLocked reason
+        | None -> SplitLinkFree
+
 /// Hat die Buchung ein Ziel, ist „Passt“ frei: eine Kategorie, ein Übertrag oder eine Aufteilung
 /// (Sinn von „Ohne Kategorie“, ADR 0048). Ohne Ziel steht „Erst Kategorie wählen“.
 let reviewHasTarget (entry: LedgerEntryView) : bool =
@@ -1719,14 +1744,16 @@ type ReviewKeyAction =
     | KeyConfirm
     | KeySkip
     | KeyOpenCategory
+    /// A: öffnet das Detail mit offenem Split-Editor, wie der Link „Aufteilen“ (ledger-cyd1t).
+    | KeyOpenSplit
     | KeyLena
     | KeyLeave
     /// Z: nimmt die letzte Aktion der Zeile zurück (ledger-pz5wv).
     | KeyUndo
 
 /// Die Tastenbelegung des Durchgehens: Enter passt (nur mit Ziel, nicht auf der Duplikat-Karte),
-/// S später, K öffnet die Kategorieauswahl und L fragt Lena bzw. nimmt die Rückfrage zurück (beide
-/// nicht auf der Duplikat-Karte), Esc führt zurück, Z nimmt die letzte Aktion zurück, wenn die Zeile ein
+/// S später, K öffnet die Kategorieauswahl, A öffnet das Detail mit dem Split-Editor (ledger-cyd1t) und L fragt Lena
+/// bzw. nimmt die Rückfrage zurück (alle drei nicht auf der Duplikat-Karte), Esc führt zurück, Z nimmt die letzte Aktion zurück, wenn die Zeile ein
 /// Rückgängig anbietet (`undoOffered`). Ohne Karte (Endansicht) nur Esc: dort gibt es kein Rückgängig mehr
 /// (Romans Prüfung am 20.11.). Rein.
 let reviewKeyAction (card: (ReviewCardKind * bool) option) (undoOffered: bool) (key: string) : ReviewKeyAction option =
@@ -1737,6 +1764,7 @@ let reviewKeyAction (card: (ReviewCardKind * bool) option) (undoOffered: bool) (
     | "Enter", Some (NormalCard, true) -> Some KeyConfirm
     | ("s" | "S"), Some _ -> Some KeySkip
     | ("k" | "K"), Some (NormalCard, _) -> Some KeyOpenCategory
+    | ("a" | "A"), Some (NormalCard, _) -> Some KeyOpenSplit
     | ("l" | "L"), Some (NormalCard, _) -> Some KeyLena
     | _ -> None
 
@@ -3342,6 +3370,9 @@ type Msg =
     | DiscardedDuplicateRestored of Guid * Result<unit, string>
     /// „Details“: das Buchungs-Detail über der Karte.
     | ReviewShowDetails
+    /// Link „Aufteilen“ unter dem Feld „Kategorie“, das Feld „Aufgeteilt“ oder Taste A (ledger-cyd1t): das Detail der
+    /// Karte mit offenem Split-Editor, in einem Schritt.
+    | ReviewOpenSplit
     /// Ende eines Wischs auf der Karte, mit dem Weg in Pixeln (waagrecht, senkrecht).
     | ReviewSwiped of dx: float * dy: float
     /// Eine Taste am PC (ohne Fokus in einem Feld).

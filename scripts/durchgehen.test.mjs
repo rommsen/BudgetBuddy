@@ -8,6 +8,7 @@
 //     (ledger-s2cg3);
 //   * die Tasten am PC im echten DOM: K öffnet den Picker, Esc schließt erst ihn, Enter passt, L fragt Lena, S geht
 //     weiter, Esc führt zurück zur Übersicht;
+//   * Taste A öffnet das Detail mit dem Split-Editor, Esc schließt je eine Stufe (ledger-cyd1t);
 //   * Datum und Betrag des Treffers auf der Duplikat-Karte im Fable-Kompilat (die Aussage aus dem in d0fey
 //     entfernten `scripts/import-pruefen-duplikat-details.test.mjs`).
 // Reihenfolge, Sperren, Toasts und die Folge der Karten prüfen die .NET-Tests (`LedgerReviewClientTests.fs`), das
@@ -244,6 +245,48 @@ test("[tastatur] Am PC passen Enter, S, K, L, Z und Esc; Esc schließt erst den 
       ["setReviewMark", "setLenaFlag"],
       "Enter prüft, L fragt Lena, S schickt nichts"
     );
+  } finally {
+    await context.close();
+  }
+});
+
+// ledger-cyd1t: A öffnet das Detail-Panel mit offenem Split-Editor. Esc schließt je eine Stufe: erst den Editor (das
+// Panel bleibt), dann das Panel, dann die Ansicht. Im echten DOM, weil der Editor Felder mit Fokus hat und am
+// Dokument mehrere Tasten-Hörer hängen könnten; die Kette selbst prüft `LedgerReviewSplitClientTests.fs`.
+test("[tastatur] Am PC öffnet A das Detail mit dem Split-Editor, Esc schließt erst den Editor, dann das Detail, dann die Ansicht", async () => {
+  const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  const page = await context.newPage();
+  page.setDefaultTimeout(20000);
+  try {
+    await unmocked(page);
+    await stateNamed("uebersicht").mock(page);
+    await mockReview(page, [REVIEW_QUEUE.open]);
+
+    await page.goto(`http://127.0.0.1:${port}/#/review`, { waitUntil: "load" });
+    await page.locator('[data-testid="review-card"]').waitFor();
+    assert.match(await page.locator('[data-testid="review-keys"]').innerText(), /K\s*Kategorie\s*A\s*aufteilen\s*L\s*Lena/);
+
+    const panel = page.locator('[data-testid="ledger-detail-panel"]');
+    const editor = page.locator('[data-testid="split-summary"]');
+    await page.keyboard.press("a");
+    await editor.waitFor();
+    assert.equal(await panel.count(), 1, "das Detail-Panel steht");
+
+    // Aus einem Feld des Editors: Esc schließt den Editor, nicht das Panel und nicht die Ansicht.
+    await page.locator('[data-testid="split-amount-1"] input').focus();
+    await page.keyboard.press("Escape");
+    await editor.waitFor({ state: "detached" });
+    await page.locator('[data-testid="detail-payee"]').filter({ visible: true }).first().waitFor();
+    assert.equal(await panel.count(), 1, "Esc schloss nur den Editor");
+    assert.match(page.url(), /#\/review$/);
+
+    await page.keyboard.press("Escape");
+    await panel.waitFor({ state: "detached" });
+    await page.locator('[data-testid="review-card"]').waitFor();
+    assert.match(page.url(), /#\/review$/, "Esc schloss nur das Detail");
+
+    await page.keyboard.press("Escape");
+    await page.waitForURL(/#\/$/);
   } finally {
     await context.close();
   }

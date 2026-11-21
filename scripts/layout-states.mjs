@@ -865,6 +865,31 @@ export const REVIEW_QUEUE = (() => {
       ...lebensmittel,
     }),
     memoLong: buildEntryFixture(accountId, 69, { ...base, Payee: LONG_PAYEE, Amount: eur(-123456.78), Memo: LONG_MEMO, ...lebensmittel }),
+    // ledger-cyd1t: „Aufteilen“ gesperrt (Tracking-Konto, Grund unter dem Link) und eine aufgeteilte Buchung („Aufgeteilt“
+    // mit Pfeil).
+    splitLocked: buildEntryFixture(accountId, 70, {
+      ...base,
+      Payee: "Sparplan ETF",
+      Amount: eur(-150),
+      ...lebensmittel,
+      SplitLocks: {
+        CannotSplitReason: "Auf einem Tracking-Konto lassen sich Buchungen nicht aufteilen",
+        CannotChangeReason: "Auf einem Tracking-Konto lassen sich Buchungen nicht aufteilen",
+        ReplacementPending: false,
+      },
+    }),
+    split: buildEntryFixture(accountId, 71, {
+      ...base,
+      Payee: "Frischemarkt Nord",
+      Amount: eur(-86.4),
+      CategoryId: null,
+      CategoryName: null,
+      CategoryGroupName: null,
+      Splits: [
+        { Target: { ToCategory: [{ YnabCategoryId: CATEGORY_IDS.lebensmittel }, "Lebensmittel"] }, Amount: eur(-61.4), Memo: null },
+        { Target: "Uncategorized", Amount: eur(-25), Memo: null },
+      ],
+    }),
   };
 })();
 
@@ -2923,6 +2948,39 @@ export const STATES = [
     },
     primary: reviewPrimary("Passt, weiter"),
     reach: reviewFoot,
+  },
+  // ledger-cyd1t: „Aufteilen“ unter dem Feld „Kategorie“. Gesperrt steht der Grund darunter, eine aufgeteilte Buchung
+  // zeigt „Aufgeteilt“ mit Pfeil; der Link hat am Handy 48 px Trefferfläche, „Passt, weiter“ bleibt ohne Scrollen
+  // erreichbar. Die freie Karte steht in `durchgehen-karte`, das Detail mit offenem Editor in `durchgehen-aufteilen-editor`.
+  {
+    name: "durchgehen-aufteilen-gesperrt",
+    route: "/review",
+    widths: [HANDY_WIDTH, PC_WIDTH],
+    mock: (page) => mockReview(page, [REVIEW_QUEUE.splitLocked]),
+    open: reviewOpen("review-split-reason"),
+    primary: reviewPrimary("Passt, weiter"),
+    reach: reviewFoot,
+  },
+  {
+    name: "durchgehen-aufgeteilt",
+    route: "/review",
+    widths: [HANDY_WIDTH, PC_WIDTH],
+    mock: (page) => mockReview(page, [REVIEW_QUEUE.split]),
+    open: reviewOpen("review-split"),
+    primary: reviewPrimary("Passt, weiter"),
+    reach: reviewFoot,
+  },
+  // Nach dem Tipp auf „Aufteilen“: am Handy das Detail-Sheet mit dem Editor als Inhalt, am PC das Panel daneben.
+  {
+    name: "durchgehen-aufteilen-editor",
+    route: "/review",
+    widths: [HANDY_WIDTH, PC_WIDTH],
+    mock: (page) => mockReview(page, [REVIEW_QUEUE.open]),
+    open: async (page) => {
+      await page.locator('[data-testid="review-split"]').first().click();
+      await page.locator('[data-testid="split-summary"]').filter({ visible: true }).first().waitFor();
+    },
+    primary: (page) => page.getByRole("button", { name: "Speichern", exact: true }).locator("visible=true").first(),
   },
   {
     name: "durchgehen-duplikat",

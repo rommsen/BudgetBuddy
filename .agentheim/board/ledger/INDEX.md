@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 10
 - **Todo:** 0
-- **Doing:** 1
-- **Done:** 164
+- **Doing:** 0
+- **Done:** 165
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,11 +22,11 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **ledger-cyd1t** — "Durchgehen: Textlink „Aufteilen“ unter dem Feld Kategorie öffnet das Detail mit offenem Split-Editor, ohne Umweg über „Details“" (feature) — `doing/ledger-cyd1t-durchgehen-aufteilen-auf-der-karte.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)
 <!-- done-list:start -->
+- **ledger-cyd1t** — "Durchgehen: Textlink „Aufteilen“ unter dem Feld Kategorie öffnet das Detail mit offenem Split-Editor, ohne Umweg über „Details“" (feature) — `done/ledger-cyd1t-durchgehen-aufteilen-auf-der-karte.md`
 - **ledger-sbbh8** — "Durchgehen ordnet neueste zuerst: nach den wartenden Duplikaten kommen die Buchungen nach Datum absteigend, damit nach „Später“ nicht wieder dieselben alten vorne stehen" (feature) — `done/ledger-sbbh8-durchgehen-neueste-zuerst.md`
 - **ledger-enjex** — "Kassenbuch am Handy ohne Toast (R3), Teil 3 Detail II: Memo, Betrag und Payee mit Rückgängig am Feld, Lena-Knopf wechselt ohne Text, Erneut senden ohne Meldung; Schlussprüfung kein Toast im Kassenbuch am Handy" (feature) — `done/ledger-enjex-detail-ohne-toast-memo-betrag-payee-lena.md`
 - **ledger-mf2bg** — "Durchgehen: Kategorie und Übertrag auf der Karte am Feld bestätigt (Feld leuchtet, „<Name> · <Betrag> verfügbar“ mit Rückgängig), ohne Toast" (feature) — `done/ledger-mf2bg-durchgehen-kategorie-am-feld.md`

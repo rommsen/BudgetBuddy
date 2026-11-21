@@ -1663,10 +1663,7 @@ let private categoryField (dispatch: Msg -> unit) (model: Model) (entry: LedgerE
 
 /// Der Grund, aus dem das Feld Split gesperrt ist. Eine in YNAB gelöschte Buchung nennt ihren
 /// eigenen Hinweis, sonst kommt der Grund aus den Sperren, die der Lesepfad liefert.
-let splitLockTextFor (entry: LedgerEntryView) : string option =
-    if (heldLockReason entry).IsSome then heldLockReason entry
-    elif entry.DeletedInYnab then Some "In YNAB gelöscht, die Buchung lässt sich nicht aufteilen"
-    else SplitLogic.lockReasonFor entry
+let splitLockTextFor (entry: LedgerEntryView) : string option = splitLockReason entry
 
 /// Die Nachricht des festen Knopfs im Feld Split ("Aufteilen" bzw. "Ändern"): öffnet den Editor,
 /// wenn die Sperren der Buchung es erlauben, sonst nichts (ledger-pafkp).
@@ -5247,7 +5244,7 @@ let reviewMatchRow
 
 /// Die Tastenleiste am PC (Prototyp `renderDesk`).
 let reviewKeys : (string * string) list =
-    [ "Enter", "passt"; "S", "später"; "K", "Kategorie"; "L", "Lena"; "Z", "rückgängig"; "Esc", "zurück" ]
+    [ "Enter", "passt"; "S", "später"; "K", "Kategorie"; "A", "aufteilen"; "L", "Lena"; "Z", "rückgängig"; "Esc", "zurück" ]
 
 let reviewSwipeHintText = "Wischen: rechts „Passt“, links „Später“"
 /// Während eines Wischs nach rechts ohne Kategorie in der Zeile unter dem Knopf (ledger-s2cg3, statt eines Toasts).
@@ -5311,7 +5308,7 @@ let private leaveThen (slot: ReviewLeaveSlot) (kind: ReviewCard.SwipeLeave optio
 let reviewLenaHintText = "ist gefragt. Die Buchung bleibt offen, bis Lena oder du sie prüft."
 
 /// Liegt etwas über der Karte, das Tasten selbst behandelt (Picker, Payee, Memo, Betrag, Split)? Dann
-/// gelten die Tasten des Durchgehens nicht (§7.8 Punkt 6).
+/// gelten die Tasten des Durchgehens nicht (§7.8 Punkt 6); nur Esc beim Split-Editor (`reviewKeyFor`).
 let reviewOverlayOpen (model: Model) : bool =
     model.CategoryPickerFor.IsSome || model.PayeeEdit.IsSome || model.MemoEdit.IsSome
     || model.AmountEdit.IsSome || model.SplitEditor.IsSome
@@ -5320,7 +5317,10 @@ let reviewOverlayOpen (model: Model) : bool =
 /// oder Alt, bei offener Auswahl über der Karte; Enter auf einem Knopf bleibt dessen eigene Aktivierung. Mit
 /// offenem Detail gilt nur Esc (schließt das Detail). Rein.
 let reviewKeyFor (model: Model) (tagName: string) (isContentEditable: bool) (modifier: bool) (key: string) : ReviewKeyAction option =
-    if reviewOverlayOpen model || modifier || isTypingTarget tagName isContentEditable then None
+    // Der Split-Editor im Detail behandelt Esc nicht selbst: Esc schließt eine Stufe (`KeyLeave`), auch aus einem Feld
+    // des Editors, wie im Kassenbuch (ledger-cyd1t). Seine Auswahl hält Esc selbst an.
+    if key = "Escape" && not modifier && model.SplitEditor.IsSome then Some KeyLeave
+    elif reviewOverlayOpen model || modifier || isTypingTarget tagName isContentEditable then None
     elif key = "Enter" && isActivatable tagName then None
     else
         let card =
@@ -5400,9 +5400,13 @@ let private ReviewNormalCard (dispatch: Msg -> unit) (model: Model) (review: Rev
     // Die Bestätigung am Feld nach Kategorie oder Übertrag auf der Karte (ledger-mf2bg).
     let fieldNote = review.FieldNote |> Option.filter (fun n -> n.EntryId = entry.Id)
     let flashing = fieldNote |> Option.exists (fun n -> n.Flashing)
+    // Der Link „Aufteilen“ unter dem Feld (ledger-cyd1t); ein Tipp auf „Aufgeteilt“ tut dasselbe, wenn er frei ist.
+    let splitLink = reviewSplitLink entry
+    let openSplit () = dispatch ReviewOpenSplit
     let field =
         match reviewCategoryValue model entry with
-        | ReviewSplit -> ReviewCard.field "review-category" "Kategorie" (Some "Aufgeteilt") "" false None
+        | ReviewSplit ->
+            ReviewCard.field "review-category" "Kategorie" (Some "Aufgeteilt") "" false (if splitLink = SplitLinkFree then Some openSplit else None)
         | value ->
             let shown = match value with ReviewCategoryNamed n -> Some n | _ -> None
             let state =
@@ -5425,6 +5429,10 @@ let private ReviewNormalCard (dispatch: Msg -> unit) (model: Model) (review: Rev
                     if desk then CategoryPicker.popoverWithWidth "w-full" pickerOpen pickerProps
                 ]
             ]
+            match splitLink with
+            | SplitLinkFree -> ReviewCard.fieldLink "review-split" "Aufteilen" None openSplit
+            | SplitLinkLocked reason -> ReviewCard.fieldLink "review-split" "Aufteilen" (Some reason) ignore
+            | SplitLinkHidden -> ()
             match fieldNote with
             | Some note ->
                 ReviewCard.fieldNote note.Text note.Available { Label = "Rückgängig"; OnClick = fun () -> dispatch ReviewUndoField }
@@ -5515,6 +5523,8 @@ let private ReviewNormalCard (dispatch: Msg -> unit) (model: Model) (review: Rev
                         Size = Button.Choice
                         ClassName = Some "min-h-[52px]"
                         FullWidth = true
+                        // Der offene Split-Editor (am PC im Panel daneben) hält die Karte fest (ledger-cyd1t).
+                        IsDisabled = model.SplitEditor.IsSome || categoryBusy
                         OnClick = fun () -> leaveThen leave (Some ReviewCard.LeaveSkip) (fun () -> dispatch ReviewSkip) }
             ]
         ]
@@ -5531,7 +5541,7 @@ let private ReviewNormalCard (dispatch: Msg -> unit) (model: Model) (review: Rev
                     FullWidth = true
                     Glow = false
                     ClassName = Some "min-h-[54px]"
-                    IsDisabled = not hasTarget || categoryBusy
+                    IsDisabled = not hasTarget || categoryBusy || model.SplitEditor.IsSome
                     IsBusy = review.Confirming = Some entry.Id
                     OnClick = fun () -> dispatch ReviewConfirm }
         // Knopf und Zeile ohne Abstand dazwischen: die Zeile trägt ihn selbst (Skizze `.ph-foot`). Am PC steht die Zeile der
