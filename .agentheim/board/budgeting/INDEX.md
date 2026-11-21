@@ -10,14 +10,15 @@ Catalog of this bounded context's tasks by status.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 6
-- **Todo:** 0
+- **Backlog:** 5
+- **Todo:** 1
 - **Doing:** 0
 - **Done:** 76
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **budgeting-ffjk9** — "Nachziehen beim Öffnen: Budget-Seite und Übersicht zeigen sofort BBs Stand und gleichen danach still mit YNAB ab (syncBudgetMonth, Frische 60 s und 5 min, spätere Monate veraltet)" (feature) — `todo/budgeting-ffjk9-budget-nachziehen-beim-oeffnen.md`
 <!-- todo-list:end -->
 
 ### Doing
@@ -112,7 +113,6 @@ prior-art matcher additionally checks `done-archive/` when present.
 ### Backlog
 <!-- backlog-list:start -->
 - **budgeting-vksa6** — "Budget-Seite hält den Monat beim Ortswechsel: Rückkehr aus Kassenbuch, Übersicht oder Einstellungen zeigt den geladenen Monat sofort und liest still nach" (feature) — `backlog/budgeting-vksa6-budget-monat-beim-ortswechsel-halten.md`
-- **budgeting-ffjk9** — "Nachziehen beim Öffnen: Budget-Seite und Übersicht zeigen sofort BBs Stand und gleichen danach still mit YNAB ab (syncBudgetMonth, Frische 60 s und 5 min, spätere Monate veraltet)" (feature) — `backlog/budgeting-ffjk9-budget-nachziehen-beim-oeffnen.md`
 - **budgeting-k7m3q** — "Kann-Sammlung budgeting" (chore) — `backlog/budgeting-k7m3q-kann-sammlung-budgeting.md`
 - **budgeting-wnkgj** — "Budget-Seite angleichen (Teil D): Kopf, Gruppensummen, Panel am PC, Kategorie-Detail, Dialog „Targets anwenden“, Leerflächen am PC" (feature) — `backlog/budgeting-wnkgj-budget-angleichen.md`
 - **budgeting-h9c3w** — "Kann-Sammlung budgeting" (chore) — `backlog/budgeting-h9c3w-review-befunde-sammlung.md`

@@ -11,13 +11,14 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 6
-- **Todo:** 0
+- **Todo:** 1
 - **Doing:** 0
 - **Done:** 51
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **infrastructure-q8f3n** — "Gate ohne Flakes: Ledger-Replay mit fremden Perf-Buchungen, AC14-Zeittest, Design-System-Export und regeln-panel werden deterministisch" (bug) — `todo/infrastructure-q8f3n-gate-flakes.md`
 <!-- todo-list:end -->
 
 ### Doing

@@ -5,6 +5,31 @@ Newest entries on top.
 
 ---
 
+## 2026-11-21 12:09 -- Modeling / Captured: infrastructure-q8f3n - Gate ohne Flakes
+
+**Type:** Modeling / Capture
+**BC:** infrastructure
+**Status after:** todo (verfeinert angelegt und promotet)
+**Summary:** Roman (2026-11-21) will die Gate-Flakes als eigenes Ticket statt Kann-Sammlung: Ledger-Replay mit fremden Perf-Buchungen, AC14-Zeittest, Design-System-Export, regeln-panel. budgeting-ffjk9 promotet, Deploy von m5pqn und yx51n nur zusammen damit.
+
+---
+
+## 2026-11-21 12:08 -- Modeling / Promoted: infrastructure-q8f3n - "Gate ohne Flakes: Ledger-Replay mit fremden Perf-Buchungen, AC14-Zeittest, Design-System-Export und regeln-panel werden deterministisch"
+
+**Type:** Modeling / Promote
+**BC:** infrastructure
+**From → To:** backlog → todo
+
+---
+
+## 2026-11-21 12:08 -- Modeling / Promoted: budgeting-ffjk9 - "Nachziehen beim Öffnen: Budget-Seite und Übersicht zeigen sofort BBs Stand und gleichen danach still mit YNAB ab (syncBudgetMonth, Frische 60 s und 5 min, spätere Monate veraltet)"
+
+**Type:** Modeling / Promote
+**BC:** budgeting
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-21 11:18 -- Review-Lauf: 215238f8..7a2bfa6d
 
 **Type:** Review / Review-Lauf

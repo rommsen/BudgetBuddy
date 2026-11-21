@@ -1,7 +1,7 @@
 ---
 id: budgeting-ffjk9
 title: "Nachziehen beim Öffnen: Budget-Seite und Übersicht zeigen sofort BBs Stand und gleichen danach still mit YNAB ab (syncBudgetMonth, Frische 60 s und 5 min, spätere Monate veraltet)"
-status: backlog
+status: todo
 type: feature
 context: budgeting
 created: 2026-11-20
@@ -58,3 +58,12 @@ dem es Änderungen in YNAB sieht (ADR 0101 Punkt 6).
   sonst nichts zeigen. Ort und Form des Hinweises gegen `standards/frontend/styleguide.md` prüfen
   (Hinweis am Ort, kein Toast).
 - Der `TakeoverWorker` bleibt auf die Übernahme beschränkt.
+- Stand nach dem Bau der Vorgänger (2026-11-21): der Monat steht als `YnabMonthSnapshot` (`ynab_month_snapshot`,
+  `FetchedAt`, einziger Schreiber `observeUnguarded` über `recordObservationOn`), der Rahmen als `YnabMonthWindow` und
+  `YnabCategoryCatalog` mit `FetchedAt` (`holdMonthWindowOn`, `holdCategoryCatalogOn`, Port `FetchCategoryPlacements`).
+  „Rahmen älter als 5 min“ heißt: diese beiden `FetchedAt`. Seit budgeting-yx51n öffnet eine bestätigte Zuweisung im letzten
+  Monat den nächsten im gehaltenen Fenster (`monthOpenedBy`). Siehe Outcomes von budgeting-m5pqn und budgeting-yx51n.
+- Kann-Sammlung budgeting, Review-Lauf 2026-11-21: `checkedWrite` (Seite Kategorien) ruft nach dem Schreiben ohnehin
+  `RefreshMirror` (`GET /categories`); daraus ließe sich der Katalog ohne weiteren Aufruf festhalten, sonst erscheint eine
+  neu angelegte oder verschobene Kategorie bis zu 5 min später in der Budget-Liste. Nicht Teil dieser Task, außer Roman
+  nimmt es auf.
