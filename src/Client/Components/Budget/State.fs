@@ -55,7 +55,9 @@ let private monthCmd (reread: MonthReread) (model: Model) : Cmd<Msg> =
 let private loadCmd (model: Model) : Cmd<Msg> = monthCmd FullReread model
 
 /// Das stille Nachziehen nach dem Lesen (budgeting-ffjk9): kein `Loading`, kein Toast. Die Antwort trägt Generation
-/// und Monat beim Start, `applyYnabSynced` verwirft eine überholte.
+/// und Monat beim Start, `applyYnabSynced` verwirft eine überholte. Es startet nach jeder Antwort auf ein Lesen des
+/// Monats, `Loaded` wie `Reloaded`, also auch nach dem stillen Neu-Lesen nach Zuweisen, Verschieben oder einer Pause. Den
+/// Abruf bei YNAB begrenzt der Server auf einmal je 60 s und Monat, sonst antwortet er „unverändert“.
 let private syncCmd (start: (int * string) option) : Cmd<Msg> =
     match start with
     | Some (generation, monthKey) ->
@@ -551,7 +553,10 @@ let private transition (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMs
         let acted, actionCmd = answerEntryAction (generation = model.MonthGeneration) loaded
         let syncing, start = startYnabSync generation result model acted
         syncing, Cmd.batch [ tabCmd; actionCmd; syncCmd start ], NoOp
-    | MonthSynced (generation, monthKey, result) -> applyYnabSynced generation monthKey result model, Cmd.none, NoOp
+    | MonthSynced (generation, monthKey, result) ->
+        match applyYnabSynced generation monthKey result model with
+        | model', Some how -> model', rereadCmd how model', NoOp
+        | model', None -> model', Cmd.none, NoOp
     | RetryYnabSync ->
         let retrying, start = startYnabSyncRetry model
         retrying, syncCmd start, NoOp

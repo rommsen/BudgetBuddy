@@ -1119,7 +1119,7 @@ export const STATES = [
     primary: (page) => page.locator('[data-testid="budget-stale"] button'),
   },
   // budgeting-ffjk9: der Hinweis „YNAB-Stand von <Uhrzeit>“ unter „Zu verteilen“, wenn das Nachziehen nach dem Lesen
-  // scheitert. Ein Zustand der Seite, kein Toast.
+  // scheitert. Ein Zustand der Seite; dass kein Toast kommt, prüft `src/Tests/BudgetMonthSyncClientTests.fs`.
   {
     name: "budget-ynab-stand-alt",
     route: "/budget",
@@ -1128,7 +1128,6 @@ export const STATES = [
     open: async (page) => {
       await openBudget(page);
       await page.locator('[data-testid="budget-ynab-copy"]').waitFor();
-      if ((await page.locator(".toast-layer > *").count()) > 0) throw new Error("Toast neben dem Hinweis");
     },
     primary: (page) => page.locator('[data-testid="budget-ynab-copy"] button'),
   },

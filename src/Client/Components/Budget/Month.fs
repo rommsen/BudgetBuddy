@@ -340,7 +340,7 @@ let ynabCopyText (copiedAt: System.DateTime) : string =
 let startYnabSync (generation: int) (result: Result<BudgetMonth, string>) (before: Model) (after: Model) : Model * (int * string) option =
     match result with
     | Ok month when generation = before.MonthGeneration && generation = after.MonthGeneration ->
-        { after with YnabSync = SyncQuiet }, Some (after.MonthGeneration, month.Month)
+        { after with YnabSync = SyncQuiet; SyncOvertaken = false }, Some (after.MonthGeneration, month.Month)
     | _ -> after, None
 
 /// Gilt eine Antwort des Nachziehens noch? Nur für die Abfrage, nach der es startete (keine neuere Abfrage, kein
@@ -354,17 +354,28 @@ let private syncCounts (generation: int) (monthKey: string) (model: Model) : boo
 
 /// Die Antwort des Nachziehens, still: „geändert“ tauscht den Monat wie eine Antwort der laufenden Abfrage (ohne
 /// `Loading`, die Schlange gilt weiter, die Eingabe im Feld Zugewiesen bleibt), „unverändert“ ändert nichts, ein
-/// Fehlschlag setzt den Hinweis „YNAB-Stand von <Uhrzeit>“. Eine verworfene Antwort ändert nichts.
-let applyYnabSynced (generation: int) (monthKey: string) (result: Result<BudgetMonthSync, string>) (model: Model) : Model =
+/// Fehlschlag setzt den Hinweis „YNAB-Stand von <Uhrzeit>“. Eine verworfene Antwort ändert nichts. Hat die Seite seit dem
+/// Start eine Pause oder ein Target gesetzt (`SyncOvertaken`), kann „geändert“ älter sein und nähme sie zurück: dann
+/// liest die Seite still neu (`Some`), das Lesen kommt nach dem Speichern und bringt beides. Eine Antwort mit einem
+/// anderen Monat im Inhalt tauscht nichts, beendet aber ein laufendes „Neu laden“.
+let applyYnabSynced
+    (generation: int)
+    (monthKey: string)
+    (result: Result<BudgetMonthSync, string>)
+    (model: Model)
+    : Model * MonthReread option =
     if not (syncCounts generation monthKey model) then
-        model
+        model, None
     else
+        let quiet = { model with YnabSync = SyncQuiet }
         match result with
-        | Ok MonthUnchanged -> { model with YnabSync = SyncQuiet }
-        | Ok (MonthChanged month) when month.Month = monthKey ->
-            applyLoaded model.MonthGeneration (Ok month) { model with YnabSync = SyncQuiet }
-        | Ok (MonthChanged _) -> model
-        | Error reason -> { model with YnabSync = SyncFailed (monthKey, ReadFailed reason) }
+        | Ok MonthUnchanged -> quiet, None
+        | Ok (MonthChanged month) when month.Month = monthKey && model.SyncOvertaken ->
+            let rereading, how = rereadMonth { quiet with SyncOvertaken = false }
+            rereading, Some how
+        | Ok (MonthChanged month) when month.Month = monthKey -> applyLoaded model.MonthGeneration (Ok month) quiet, None
+        | Ok (MonthChanged _) -> quiet, None
+        | Error reason -> { model with YnabSync = SyncFailed (monthKey, ReadFailed reason) }, None
 
 /// Der Hinweis „YNAB-Stand von <Uhrzeit>“ unter „Zu verteilen“: nur nach gescheitertem Nachziehen des gezeigten
 /// Monats und nur, wenn der Monat einen Zeitpunkt des Stands trägt (ohne ihn kam der Monat gerade direkt aus YNAB).
@@ -383,7 +394,7 @@ let ynabSyncHint (model: Model) : StaleHint option =
 let startYnabSyncRetry (model: Model) : Model * (int * string) option =
     match model.YnabSync, ynabSyncHint model with
     | SyncFailed (monthKey, ReadFailed reason), Some _ ->
-        { model with YnabSync = SyncFailed (monthKey, Rereading reason) }, Some (model.MonthGeneration, monthKey)
+        { model with YnabSync = SyncFailed (monthKey, Rereading reason); SyncOvertaken = false }, Some (model.MonthGeneration, monthKey)
     | _ -> model, None
 
 /// Kann der Bericht das Fenster geöffnet haben?

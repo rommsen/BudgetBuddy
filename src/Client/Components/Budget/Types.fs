@@ -481,6 +481,10 @@ type Model = {
     StaleHistory: ReadNotice option
     /// Das stille Nachziehen mit YNAB (budgeting-ffjk9): scheiterte es, steht der Hinweis „YNAB-Stand von <Uhrzeit>“.
     YnabSync: YnabSyncState
+    /// Hat die Seite seit dem Start des laufenden Nachziehens selbst eine Pause oder ein Target in den geladenen Monat
+    /// gesetzt, ohne neu zu lesen (`withPause`, `withTarget`)? Dann kann eine Antwort „geändert“ älter sein als diese
+    /// Änderung: statt sie einzunehmen, liest die Seite still neu (`applyYnabSynced`).
+    SyncOvertaken: bool
 }
 
 type Msg =
@@ -781,4 +785,5 @@ let init () : Model =
       StaleAmounts = None
       StaleMonths = None
       StaleHistory = None
-      YnabSync = SyncQuiet }
+      YnabSync = SyncQuiet
+      SyncOvertaken = false }
