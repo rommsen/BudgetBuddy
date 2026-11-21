@@ -447,7 +447,7 @@ let private rows : Row list = [
                 WriteGoal = (fun _ _ -> async { return Ok () })
                 FetchCategoryGoals = fun () -> async { return Ok [] } }
           let frame _ _ : Server.Budgeting.QueryHandlers.BudgetFramePort =
-              { FetchMonths = (fun () -> async { return Ok [] }); FetchCategoryOrder = (fun () -> async { return Ok [] }); LoadMonthStartHidden = (fun _ -> async { return Ok [] }) }
+              BudgetEventsFixture.framePortOf [] []
           let configured =
               Server.Api.budgetApiWith
                   (fun _ -> async { return Some "eingerichtet" })
@@ -473,7 +473,7 @@ let private rows : Row list = [
                 WriteGoal = (fun _ _ -> async { return Ok () })
                 FetchCategoryGoals = fun () -> async { return Ok [] } }
           let frame _ _ : Server.Budgeting.QueryHandlers.BudgetFramePort =
-              { FetchMonths = (fun () -> async { return Ok [] }); FetchCategoryOrder = (fun () -> async { return Ok [] }); LoadMonthStartHidden = (fun _ -> async { return Ok [] }) }
+              BudgetEventsFixture.framePortOf [] []
           // budgeting-c6vn4 (M3): ohne Einrichtung darf kein Port entstehen. Mit demselben leeren Port wie
           // eingerichtet bliebe der Fall auch ohne `withYnabPort` grün ("nicht sichtbar" statt Einrichtung).
           let apiWith (setting: string option) =

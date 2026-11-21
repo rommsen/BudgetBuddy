@@ -197,26 +197,80 @@ let recentMoveCategoriesWith (load: int -> Async<Result<Guid list, string>>) : A
 let recentMoveCategories () : Async<Result<Guid list, string>> =
     recentMoveCategoriesWith Budgeting.Persistence.loadRecentMoveCategories
 
-/// Die Lese-Quellen des Rahmens.
+/// Die Lese-Quellen des Rahmens (ADR 0101 Punkt 1 und 3): Fenster und Platzierung als YNAB-Stand, BBs Layout und das
+/// Ausblenden der Leiste aus der Datenbank. YNAB (`FetchMonths`, `FetchCategoryOrder`) nur, solange kein Stand da ist.
 type BudgetFramePort = {
+    /// Das Monatsfenster aus `GET /months`.
     FetchMonths: unit -> Async<YnabResult<string list>>
-    FetchCategoryOrder: unit -> Async<YnabResult<Guid list>>
+    /// Kategorien und ihre Platzierung (Gruppe, Kategorie in YNABs Folge) aus `GET /categories`.
+    FetchCategoryOrder: unit -> Async<YnabResult<YnabCategory list * (Guid * Guid) list>>
+    LoadMonthWindow: unit -> Async<Result<YnabMonthWindow option, string>>
+    HoldMonthWindow: YnabMonthWindow -> Async<Result<unit, string>>
+    LoadCategoryCatalog: unit -> Async<Result<YnabCategoryCatalog option, string>>
+    HoldCategoryCatalog: YnabCategoryCatalog -> Async<Result<unit, string>>
+    /// BBs Deaktivieren und Reihenfolge (ADR 0088).
+    LoadCategoryLayout: unit -> Async<Result<CategoryLayout, string>>
     /// Die Monate ab dem übergebenen laufenden, in denen die Leiste Monatserster ausgeblendet ist (budgeting-m3x7f).
     /// Liest nur die Datenbank.
     LoadMonthStartHidden: string -> Async<Result<string list, string>>
 }
 
-/// Liest den Rahmen. Scheitert eine YNAB-Quelle, ist das Ergebnis dieser Fehler. Ist das Ausblenden der Leiste nicht
-/// lesbar, gilt sie als nicht ausgeblendet: Sie steht dann einmal zu viel, die Seite bleibt bedienbar.
-let frame (port: BudgetFramePort) (today: DateOnly) : Async<YnabResult<BudgetFrame>> =
+/// Ein Teil des Rahmens aus dem YNAB-Stand (budgeting-yx51n). Ist keiner da oder ist er nicht lesbar, wird einmal aus
+/// YNAB gelesen und mit `now` festgehalten (ADR 0101 Punkt 7). Scheitert das Festhalten, gilt das Gelesene trotzdem
+/// und der Grund steht im Log; das nächste Lesen fragt YNAB dann noch einmal.
+let private heldOrFetched
+    (what: string)
+    (load: unit -> Async<Result<'held option, string>>)
+    (fetch: unit -> Async<YnabResult<'fetched>>)
+    (held: 'fetched -> 'held)
+    (hold: 'held -> Async<Result<unit, string>>)
+    : Async<YnabResult<'held>> =
     async {
-        match! port.FetchMonths () with
-        | Error e -> return Error e
-        | Ok months ->
-            match! port.FetchCategoryOrder () with
+        let! loaded = load ()
+        match loaded with
+        | Ok (Some state) -> return Ok state
+        | Ok None
+        | Error _ ->
+            match! fetch () with
             | Error e -> return Error e
-            | Ok order ->
-                let frame = toBudgetFrame today months order
+            | Ok fetched ->
+                let state = held fetched
+                match! hold state with
+                | Ok () -> ()
+                | Error message -> eprintfn "%s nicht festgehalten (%s)" what message
+                return Ok state
+    }
+
+/// Liest den Rahmen aus BBs Datenbank (ADR 0101 Punkt 1): Fenster und Platzierung aus dem YNAB-Stand, die
+/// Reihenfolge in BBs Layout (ADR 0088 Punkt 3: eine neue Kategorie steht am Ende ihrer Gruppe). Nur ohne Stand wird
+/// YNAB gelesen; scheitert das, ist das Ergebnis dieser Fehler. Ist BBs Layout nicht lesbar, gilt YNABs Folge. Ist das
+/// Ausblenden der Leiste nicht lesbar, gilt sie als nicht ausgeblendet: Sie steht dann einmal zu viel, die Seite bleibt
+/// bedienbar.
+let frame (port: BudgetFramePort) (today: DateOnly) (now: DateTime) : Async<YnabResult<BudgetFrame>> =
+    async {
+        let! window =
+            heldOrFetched "Monatsfenster" port.LoadMonthWindow port.FetchMonths (fun months -> { Months = months; FetchedAt = now }) port.HoldMonthWindow
+        match window with
+        | Error e -> return Error e
+        | Ok window ->
+            let! catalog =
+                heldOrFetched
+                    "Platzierung der Kategorien"
+                    port.LoadCategoryCatalog
+                    port.FetchCategoryOrder
+                    (fun (_, placements) -> { Placements = placements; FetchedAt = now })
+                    port.HoldCategoryCatalog
+            match catalog with
+            | Error e -> return Error e
+            | Ok catalog ->
+                let! layout = port.LoadCategoryLayout ()
+                let layout =
+                    match layout with
+                    | Ok layout -> layout
+                    | Error message ->
+                        eprintfn "Rahmen: BBs Reihenfolge nicht lesbar (%s)" message
+                        emptyCategoryLayout
+                let frame = toBudgetFrame today window.Months (flatCategoryOrder layout catalog.Placements)
                 let! hidden = port.LoadMonthStartHidden frame.CurrentMonth
                 let hiddenMonths =
                     match hidden with

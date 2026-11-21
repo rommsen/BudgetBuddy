@@ -13,4 +13,5 @@ let isolated () : SqliteConnection * (unit -> SqliteConnection) =
     Budgeting.Persistence.createCategoryLayoutSchemaOn anchor
     // Das Beobachten hält den YNAB-Stand in derselben Transaktion fest (budgeting-m5pqn).
     Budgeting.Persistence.createYnabMonthSnapshotSchemaOn anchor
+    Budgeting.Persistence.createYnabFrameSchemaOn anchor
     anchor, (fun () -> new SqliteConnection(connectionString))

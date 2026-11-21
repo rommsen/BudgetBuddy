@@ -412,15 +412,6 @@ let queryTests =
                 (Ok [ "Lebensmittel"; "Drogerie"; "Apotheke"; "Restaurant"; "Hobby" ])
                 "YNABs Folge, nichts weg"
 
-        testCase "der Rahmen der Budget-Seite trägt BBs Reihenfolge" <| fun () ->
-            let anchor, connect = CategoryLayoutFixture.isolated ()
-            use _ = anchor
-            setCategoryOrderWith connect now { GroupId = alltag; CategoryIds = [ drogerie; lebensmittel ] } |> run |> ignore
-            let order =
-                bbCategoryOrderWith (fun () -> async { return Ok placed }) (fun () -> Budgeting.Persistence.loadCategoryLayoutWith connect)
-                |> run
-            Expect.equal order (Ok [ drogerie; lebensmittel; apotheke; restaurant; hobby ]) "Apotheke neu am Ende von Alltag"
-
         testCase "der YNAB-Decoder liefert Gruppe und Kategorie in YNABs Folge, auch ausgeblendete" <| fun () ->
             let body =
                 $"""{{"data":{{"category_groups":[{{"id":"{alltag}","name":"Alltag","categories":[{{"id":"{lebensmittel}"}},{{"id":"{drogerie}","hidden":true}}]}},{{"id":"{freizeit}","name":"Leer"}}]}}}}"""

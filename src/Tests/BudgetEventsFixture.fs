@@ -58,7 +58,31 @@ let isolatedDb () : Microsoft.Data.Sqlite.SqliteConnection * (unit -> Microsoft.
     Budgeting.Persistence.createCategoryLayoutSchemaOn anchor
     // Das Beobachten hält den YNAB-Stand in derselben Transaktion fest (budgeting-m5pqn).
     Budgeting.Persistence.createYnabMonthSnapshotSchemaOn anchor
+    // Eine Rückschreibung kann das gehaltene Fenster erweitern (budgeting-yx51n).
+    Budgeting.Persistence.createYnabFrameSchemaOn anchor
     anchor, (fun () -> new Microsoft.Data.Sqlite.SqliteConnection(connectionString))
+
+/// Ein Rahmen-Port für Tests (budgeting-yx51n): YNAB aus `fetchMonths` und `fetchPlaced`, Fenster und Platzierung in
+/// einem eigenen Speicher, der zu Beginn leer ist, BBs Layout leer, nichts ausgeblendet. Ohne gehaltenen Stand liest
+/// jeder neu gebaute Port also YNAB, wie vor dem YNAB-Stand des Rahmens.
+let framePortWith
+    (fetchMonths: unit -> Async<Shared.Domain.YnabResult<string list>>)
+    (fetchPlaced: unit -> Async<Shared.Domain.YnabResult<Shared.Domain.YnabCategory list * (System.Guid * System.Guid) list>>)
+    : Server.Budgeting.QueryHandlers.BudgetFramePort =
+    let window = ref None
+    let catalog = ref None
+    { FetchMonths = fetchMonths
+      FetchCategoryOrder = fetchPlaced
+      LoadMonthWindow = fun () -> async { return Ok window.Value }
+      HoldMonthWindow = fun w -> async { window.Value <- Some w; return Ok () }
+      LoadCategoryCatalog = fun () -> async { return Ok catalog.Value }
+      HoldCategoryCatalog = fun c -> async { catalog.Value <- Some c; return Ok () }
+      LoadCategoryLayout = fun () -> async { return Ok emptyCategoryLayout }
+      LoadMonthStartHidden = fun _ -> async { return Ok [] } }
+
+/// `framePortWith` mit festen Antworten.
+let framePortOf (months: string list) (placements: (System.Guid * System.Guid) list) : Server.Budgeting.QueryHandlers.BudgetFramePort =
+    framePortWith (fun () -> async { return Ok months }) (fun () -> async { return Ok ([], placements) })
 
 /// Hängt ein Ereignis mit Typname `eventType` und leerer Payload `{}` an einen Budget-Stream. Für einen
 /// bekannten Typ ist das ein Ereignis mit kaputter Payload.

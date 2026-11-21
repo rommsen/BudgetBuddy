@@ -29,6 +29,33 @@ let toBudgetFrame (today: DateOnly) (months: string list) (order: Guid list) : B
       CategoryOrder = order
       MonthStartHidden = [] }
 
+/// Das Monatsfenster als YNAB-Stand (ADR 0101 Punkt 3): die Monate aus `GET /months` in YNABs Folge und der
+/// Zeitpunkt dieses Lesens (UTC). Zustand, kein Ereignis (ADR 0083); das Nachlesen des Rahmens überschreibt ihn.
+type YnabMonthWindow = {
+    Months: string list
+    FetchedAt: DateTime
+}
+
+/// Die Platzierung der Kategorien als YNAB-Stand (ADR 0101 Punkt 3): Gruppe und Kategorie in YNABs Folge aus
+/// `GET /categories`, Grundlage für BBs Reihenfolge (ADR 0088 Punkt 3), und der Zeitpunkt dieses Lesens (UTC).
+type YnabCategoryCatalog = {
+    Placements: (Guid * Guid) list
+    FetchedAt: DateTime
+}
+
+/// Der Monat nach "YYYY-MM-01".
+let nextMonthKey (monthKey: string) : string =
+    let first = DateTime.ParseExact(monthKey, "yyyy-MM-dd", Globalization.CultureInfo.InvariantCulture)
+    monthKeyOf (first.AddMonths 1)
+
+/// Welchen Monat öffnet eine Rückschreibung im gehaltenen Fenster (ADR 0074 Punkt 4, ADR 0101 Punkt 6)? Nur eine
+/// von YNAB bestätigte (`Written`) Zuweisung ungleich 0 (`newAssigned` in Milliunits) im letzten Monat des
+/// Fensters öffnet den nächsten. BB rechnet die Grenze sonst nicht selbst: ein PATCH außerhalb gibt 404.
+let monthOpenedBy (window: string list) (month: string) (newAssigned: int64) (outcome: LineOutcome) : string option =
+    match outcome, window with
+    | Written, _ :: _ when newAssigned <> 0L && month = List.max window -> Some (nextMonthKey month)
+    | _ -> None
+
 /// Soll die Kategorie angezeigt werden? Ausgeblendete, gelöschte und interne Kategorien
 /// (Inflow: Ready to Assign) fallen weg.
 let isVisible (category: YnabMonthCategory) : bool =

@@ -699,9 +699,7 @@ let private nextMonthRetryTests =
                 | _ -> None
         }
     let framePortFor _ _ : Server.Budgeting.QueryHandlers.BudgetFramePort =
-        { FetchMonths = fun () -> async { return Ok [ "2026-11-01"; "2026-12-01" ] }
-          FetchCategoryOrder = fun () -> async { return Ok [] }
-          LoadMonthStartHidden = fun _ -> async { return Ok [] } }
+        BudgetEventsFixture.framePortOf [ "2026-11-01"; "2026-12-01" ] []
     testList "Erneut senden im Folgemonat (budgeting-my8p8)" [
         testCase "GIVEN eine Anwendung im November mit fehlgeschlagener Zeile WHEN im Dezember erneut gesendet THEN geht der PATCH in den November" <| fun () ->
             let f, (_, b, _, _, _) = fake 200000L
@@ -765,9 +763,7 @@ let private wiringTests =
                         f.Port.FetchMonth key }
         let framePortFor token (YnabBudgetId budget) : Server.Budgeting.QueryHandlers.BudgetFramePort =
             seen.Add((token, budget))
-            { FetchMonths = fun () -> async { return Ok [ "2026-12-01"; "2026-11-01" ] }
-              FetchCategoryOrder = fun () -> async { return Ok [] }
-              LoadMonthStartHidden = fun _ -> async { return Ok [] } }
+            BudgetEventsFixture.framePortOf [ "2026-12-01"; "2026-11-01" ] []
         Server.Api.budgetApiWith settings portFor framePortFor (fun () -> lateUtc) berlin, seen, reads
     testList "Verdrahtung der BudgetApi" [
         // Bug B1 am Endpunkt: siehe "Kurz nach Mitternacht" in BudgetingTests.

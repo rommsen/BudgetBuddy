@@ -444,11 +444,10 @@ let private responseTextTests =
 let private frameTests =
     let today = DateOnly(2026, 11, 2)
     let order = [ Guid.NewGuid() ]
+    let placements = order |> List.map (fun id -> Guid.NewGuid(), id)
     let port months categories : QueryHandlers.BudgetFramePort =
-        { FetchMonths = fun () -> async { return months }
-          FetchCategoryOrder = fun () -> async { return categories }
-          LoadMonthStartHidden = fun _ -> async { return Ok [] } }
-    let frameOf p = QueryHandlers.frame p today |> Async.RunSynchronously
+        BudgetEventsFixture.framePortWith (fun () -> async { return months }) (fun () -> async { return categories })
+    let frameOf p = QueryHandlers.frame p today (DateTime(2026, 11, 2, 9, 0, 0, DateTimeKind.Utc)) |> Async.RunSynchronously
     let limited : Shared.Domain.YnabResult<_> = Error (Shared.Domain.YnabError.RateLimitExceeded 60)
     testList "Rahmen der Budget-Seite" [
         test "Monate stehen aufsteigend, mit dem laufenden Monat" {
@@ -458,15 +457,15 @@ let private frameTests =
             Expect.equal frame.CategoryOrder order "Reihenfolge"
         }
         test "Beide Quellen ergeben den Rahmen" {
-            match frameOf (port (Ok [ "2026-11-01" ]) (Ok order)) with
+            match frameOf (port (Ok [ "2026-11-01" ]) (Ok ([], placements))) with
             | Ok frame -> Expect.equal frame.CategoryOrder order "Reihenfolge"
             | Error e -> failtestf "Ok erwartet: %A" e
         }
         test "Scheitert das Monatsfenster mit 429, kommt der Fehler zurück" {
-            Expect.equal (frameOf (port (limited |> Result.map (fun _ -> [])) (Ok order))) (Error (Shared.Domain.YnabError.RateLimitExceeded 60)) "Monate"
+            Expect.equal (frameOf (port (limited |> Result.map (fun _ -> [])) (Ok ([], placements)))) (Error (Shared.Domain.YnabError.RateLimitExceeded 60)) "Monate"
         }
         test "Scheitert die Reihenfolge mit 429, kommt der Fehler zurück" {
-            Expect.equal (frameOf (port (Ok [ "2026-11-01" ]) (limited |> Result.map (fun _ -> [])))) (Error (Shared.Domain.YnabError.RateLimitExceeded 60)) "Reihenfolge"
+            Expect.equal (frameOf (port (Ok [ "2026-11-01" ]) (limited |> Result.map (fun _ -> [], [])))) (Error (Shared.Domain.YnabError.RateLimitExceeded 60)) "Reihenfolge"
         }
     ]
 

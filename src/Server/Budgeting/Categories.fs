@@ -310,19 +310,6 @@ let private layoutBestEffort (loadLayout: unit -> Async<Result<CategoryLayout, s
         | Error _ -> return emptyCategoryLayout
     }
 
-/// Alle Kategorie-Ids flach in BBs Reihenfolge für den Rahmen der Budget-Seite (`BudgetFrame.CategoryOrder`).
-let bbCategoryOrderWith
-    (fetchPlaced: unit -> Async<YnabResult<YnabCategory list * (Guid * Guid) list>>)
-    (loadLayout: unit -> Async<Result<CategoryLayout, string>>)
-    : Async<YnabResult<Guid list>> =
-    async {
-        match! fetchPlaced () with
-        | Error e -> return Error e
-        | Ok (_, placements) ->
-            let! layout = layoutBestEffort loadLayout
-            return Ok (flatCategoryOrder layout placements)
-    }
-
 /// Die Optionen der Kategorie-Picker (Endpunkt `getCategories`): Ready to Assign mit dem echten Monatswert, ohne
 /// YNAB-Interna (`categoriesForPicker`), ohne in BB wirksam deaktivierte Kategorien (auch die Kategorien einer
 /// deaktivierten Gruppe, `effectiveDeactivated`, budgeting-nyx75) und in BBs Reihenfolge.

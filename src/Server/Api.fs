@@ -1687,15 +1687,17 @@ let private livePort (token: string) (budgetId: YnabBudgetId) : Server.Budgeting
       WriteGoal = fun categoryId patch -> YnabClient.patchCategoryGoal token budgetId categoryId patch
       FetchCategoryGoals = fun () -> YnabClient.getCategoryGoals token budgetId }
 
-/// Die Lese-Quellen des Rahmens (budgeting-g8s3w): echter Client für Monatsfenster und Reihenfolge, das Ausblenden der
-/// Leiste Monatserster aus der Datenbank der Anwendung. `internal` für den Test der Verdrahtung (ohne YNAB-Aufruf).
+/// Die Lese-Quellen des Rahmens (budgeting-g8s3w, budgeting-yx51n): Fenster, Platzierung, BBs Layout und das
+/// Ausblenden der Leiste Monatserster aus der Datenbank der Anwendung, der echte Client für Monatsfenster und
+/// Platzierung nur ohne YNAB-Stand. `internal` für den Test der Verdrahtung (ohne YNAB-Aufruf).
 let internal liveFramePort (token: string) (budgetId: YnabBudgetId) : Server.Budgeting.QueryHandlers.BudgetFramePort =
     { FetchMonths = fun () -> YnabClient.getMonths token budgetId
-      FetchCategoryOrder =
-        fun () ->
-            Server.Budgeting.Categories.bbCategoryOrderWith
-                (fun () -> YnabClient.getCategoriesPlaced token budgetId)
-                Budgeting.Persistence.loadCategoryLayout
+      FetchCategoryOrder = fun () -> YnabClient.getCategoriesPlaced token budgetId
+      LoadMonthWindow = Budgeting.Persistence.loadMonthWindowWith Persistence.getConnection
+      HoldMonthWindow = Budgeting.Persistence.holdMonthWindowWith Persistence.getConnection
+      LoadCategoryCatalog = Budgeting.Persistence.loadCategoryCatalogWith Persistence.getConnection
+      HoldCategoryCatalog = Budgeting.Persistence.holdCategoryCatalogWith Persistence.getConnection
+      LoadCategoryLayout = Budgeting.Persistence.loadCategoryLayout
       LoadMonthStartHidden = Server.Budgeting.QueryHandlers.loadMonthStartHidden }
 
 /// "Ausblenden" an der Leiste Monatserster ohne Netz (budgeting-m3x7f): Monat prüfen (laufender oder kommender, gemessen
@@ -1764,7 +1766,7 @@ let budgetApiWith
     { getBudgetFrame = fun () -> async {
         let! tokenOpt, budgetOpt = ynabSettings ()
         return! withYnabPort tokenOpt budgetOpt framePortFor (fun port ->
-            Server.Budgeting.QueryHandlers.frame port (today ()))
+            Server.Budgeting.QueryHandlers.frame port (today ()) (utcNow ()))
       }
 
       getBudgetMonth = fun monthKeyText -> async {

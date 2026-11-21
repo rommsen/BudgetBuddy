@@ -34,10 +34,8 @@ let private hidden (connect: unit -> SqliteConnection) (fromMonth: string) =
 /// Der Rahmen mit einem Fake-YNAB und dem Ausblenden aus der Datenbank.
 let private frameWith (load: string -> Async<Result<string list, string>>) =
     let port : QueryHandlers.BudgetFramePort =
-        { FetchMonths = fun () -> async { return Ok [ november; december ] }
-          FetchCategoryOrder = fun () -> async { return Ok [] }
-          LoadMonthStartHidden = load }
-    match QueryHandlers.frame port (DateOnly(2026, 11, 2)) |> run with
+        { BudgetEventsFixture.framePortOf [ november; december ] [] with LoadMonthStartHidden = load }
+    match QueryHandlers.frame port (DateOnly(2026, 11, 2)) now |> run with
     | Ok frame -> frame
     | Error e -> failtest $"Rahmen erwartet: {e}"
 

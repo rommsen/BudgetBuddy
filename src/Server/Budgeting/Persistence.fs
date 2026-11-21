@@ -291,6 +291,31 @@ let createYnabMonthSnapshotSchemaOn (conn: SqliteConnection) : unit =
     with :? SqliteException as ex when ex.Message.Contains("duplicate column name") ->
         ()
 
+/// Fenster und Platzierung als YNAB-Stand (budgeting-yx51n, ADR 0101 Punkt 3): je eine Kopfzeile mit dem Zeitpunkt
+/// des Lesens (`ynab_month_window`, `ynab_category_catalog`, immer `id = 1`) und die Zeilen dazu (die Monate aus
+/// `GET /months`, Gruppe und Kategorie aus `GET /categories` in YNABs Folge). Zustand, kein Ereignis (ADR 0083):
+/// eine Kopie von YNAB, die das Nachlesen des Rahmens überschreibt. Wiederholbar.
+let createYnabFrameSchemaOn (conn: SqliteConnection) : unit =
+    conn.Execute(
+        """CREATE TABLE IF NOT EXISTS ynab_month_window (
+               id         INTEGER NOT NULL PRIMARY KEY CHECK (id = 1),
+               fetched_at TEXT    NOT NULL
+           );
+           CREATE TABLE IF NOT EXISTS ynab_month_window_months (
+               month TEXT NOT NULL PRIMARY KEY
+           );
+           CREATE TABLE IF NOT EXISTS ynab_category_catalog (
+               id         INTEGER NOT NULL PRIMARY KEY CHECK (id = 1),
+               fetched_at TEXT    NOT NULL
+           );
+           CREATE TABLE IF NOT EXISTS ynab_category_catalog_placements (
+               position    INTEGER NOT NULL PRIMARY KEY,
+               group_id    TEXT    NOT NULL,
+               category_id TEXT    NOT NULL
+           )"""
+    )
+    |> ignore
+
 /// Legt `events` (ADR 0083) an und überführt die früheren Budget-Tabellen nach `events` (budgeting-hyn77). Entfernt
 /// `category_month_activity` (budgeting-k5q2w: die Ausgaben der Periode kommen aus dem Kassenbuch) und
 /// `underfunded_comparisons` (budgeting-hbhzf: BB rechnet den Fehlbetrag selbst, die Parallelrechnung entfällt),
@@ -304,6 +329,7 @@ let initializeBudgetingSchema () =
     createCategoryLayoutSchemaOn conn
     createPinnedCategoriesSchemaOn conn
     createYnabMonthSnapshotSchemaOn conn
+    createYnabFrameSchemaOn conn
     dropMonthActivityOn conn
     dropUnderfundedComparisonsOn conn
     Budgeting.EventMigration.migrateBudgetEventsOn conn |> ignore
@@ -545,6 +571,122 @@ let loadYnabMonthSnapshotWith (connect: unit -> SqliteConnection) (month: string
             logReadFailure $"YNAB-Stand {month} lesen" reason
             return Error YnabMonthSnapshotUnreadableText
     }
+
+// ============================================
+// Fenster und Platzierung als YNAB-Stand (budgeting-yx51n, ADR 0101 Punkt 3)
+// ============================================
+
+let private timestampText (at: DateTime) : string = at.ToString("o", CultureInfo.InvariantCulture)
+
+let private timestampOf (text: string) : DateTime =
+    DateTime.Parse(text, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind)
+
+/// Hält das Fenster fest und ersetzt das bisherige ganz, in einer Transaktion.
+let holdMonthWindowOn (conn: SqliteConnection) (window: YnabMonthWindow) : unit =
+    if conn.State <> Data.ConnectionState.Open then
+        conn.Open()
+    use tx = conn.BeginTransaction()
+    conn.Execute(
+        """INSERT INTO ynab_month_window (id, fetched_at) VALUES (1, @at)
+           ON CONFLICT (id) DO UPDATE SET fetched_at = excluded.fetched_at""",
+        {| at = timestampText window.FetchedAt |},
+        tx
+    )
+    |> ignore
+    conn.Execute("DELETE FROM ynab_month_window_months", transaction = tx) |> ignore
+    for month in List.distinct window.Months do
+        conn.Execute("INSERT INTO ynab_month_window_months (month) VALUES (@month)", {| month = month |}, tx) |> ignore
+    tx.Commit()
+
+/// Das gehaltene Fenster, ohne Stand `None`. Die Monate aufsteigend.
+let loadMonthWindowOn (conn: SqliteConnection) : YnabMonthWindow option =
+    match conn.Query<string>("SELECT fetched_at FROM ynab_month_window WHERE id = 1") |> List.ofSeq with
+    | [] -> None
+    | fetchedAt :: _ ->
+        let months = conn.Query<string>("SELECT month FROM ynab_month_window_months ORDER BY month") |> List.ofSeq
+        Some { Months = months; FetchedAt = timestampOf fetchedAt }
+
+/// Öffnet nach einer Rückschreibung den nächsten Monat im gehaltenen Fenster, wenn `Domain.monthOpenedBy` es sagt
+/// (ADR 0074 Punkt 4, ADR 0101 Punkt 6). Ohne gehaltenes Fenster bleibt alles: das erste Lesen des Rahmens holt es
+/// samt dem neuen Monat aus YNAB. Der Zeitpunkt des Lesens bleibt, das Öffnen ist kein Nachlesen.
+let internal openMonthAfterWriteBackOn (conn: SqliteConnection) (m: Movement) (outcome: WriteBackOutcome) : unit =
+    match loadMonthWindowOn conn with
+    | None -> ()
+    | Some window ->
+        match monthOpenedBy window.Months m.Month m.NewAssigned (lineOutcomeOf outcome) with
+        | None -> ()
+        | Some opened ->
+            conn.Execute("INSERT OR IGNORE INTO ynab_month_window_months (month) VALUES (@month)", {| month = opened |})
+            |> ignore
+
+/// Hält die Platzierung fest und ersetzt die bisherige ganz, in einer Transaktion. Die Folge bleibt die von YNAB.
+let holdCategoryCatalogOn (conn: SqliteConnection) (catalog: YnabCategoryCatalog) : unit =
+    if conn.State <> Data.ConnectionState.Open then
+        conn.Open()
+    use tx = conn.BeginTransaction()
+    conn.Execute(
+        """INSERT INTO ynab_category_catalog (id, fetched_at) VALUES (1, @at)
+           ON CONFLICT (id) DO UPDATE SET fetched_at = excluded.fetched_at""",
+        {| at = timestampText catalog.FetchedAt |},
+        tx
+    )
+    |> ignore
+    conn.Execute("DELETE FROM ynab_category_catalog_placements", transaction = tx) |> ignore
+    catalog.Placements
+    |> List.iteri (fun position (groupId, categoryId) ->
+        conn.Execute(
+            "INSERT INTO ynab_category_catalog_placements (position, group_id, category_id) VALUES (@position, @groupId, @categoryId)",
+            {| position = int64 position; groupId = string groupId; categoryId = string categoryId |},
+            tx
+        )
+        |> ignore)
+    tx.Commit()
+
+[<CLIMutable>]
+type private CatalogPlacementRow = { group_id: string; category_id: string }
+
+/// Die gehaltene Platzierung in YNABs Folge, ohne Stand `None`.
+let loadCategoryCatalogOn (conn: SqliteConnection) : YnabCategoryCatalog option =
+    match conn.Query<string>("SELECT fetched_at FROM ynab_category_catalog WHERE id = 1") |> List.ofSeq with
+    | [] -> None
+    | fetchedAt :: _ ->
+        let placements =
+            conn.Query<CatalogPlacementRow>(
+                "SELECT group_id, category_id FROM ynab_category_catalog_placements ORDER BY position"
+            )
+            |> Seq.map (fun r -> Guid.Parse r.group_id, Guid.Parse r.category_id)
+            |> List.ofSeq
+        Some { Placements = placements; FetchedAt = timestampOf fetchedAt }
+
+/// Die Meldung, wenn Fenster oder Platzierung als YNAB-Stand nicht lesbar oder nicht zu halten sind.
+[<Literal>]
+let YnabFrameUnreadableText = "YNAB-Stand des Rahmens nicht lesbar"
+
+[<Literal>]
+let YnabFrameNotHeldText = "YNAB-Stand des Rahmens nicht festgehalten"
+
+/// Führt `work` über `connect` aus; eine Ausnahme steht im Server-Log und kommt als `Error failure`.
+let private onConnection (connect: unit -> SqliteConnection) (what: string) (failure: string) (work: SqliteConnection -> 'T) : Async<Result<'T, string>> =
+    async {
+        try
+            use conn = connect ()
+            return Ok (work conn)
+        with ex ->
+            logReadFailure what ex.Message
+            return Error failure
+    }
+
+let loadMonthWindowWith (connect: unit -> SqliteConnection) () : Async<Result<YnabMonthWindow option, string>> =
+    onConnection connect "Monatsfenster aus dem YNAB-Stand lesen" YnabFrameUnreadableText loadMonthWindowOn
+
+let holdMonthWindowWith (connect: unit -> SqliteConnection) (window: YnabMonthWindow) : Async<Result<unit, string>> =
+    onConnection connect "Monatsfenster als YNAB-Stand festhalten" YnabFrameNotHeldText (fun conn -> holdMonthWindowOn conn window)
+
+let loadCategoryCatalogWith (connect: unit -> SqliteConnection) () : Async<Result<YnabCategoryCatalog option, string>> =
+    onConnection connect "Platzierung der Kategorien aus dem YNAB-Stand lesen" YnabFrameUnreadableText loadCategoryCatalogOn
+
+let holdCategoryCatalogWith (connect: unit -> SqliteConnection) (catalog: YnabCategoryCatalog) : Async<Result<unit, string>> =
+    onConnection connect "Platzierung der Kategorien als YNAB-Stand festhalten" YnabFrameNotHeldText (fun conn -> holdCategoryCatalogOn conn catalog)
 
 /// Der Monats-Stream zu "YYYY-MM-01", `None` bei einem Monat in anderer Form.
 let private monthStreamOf (monthKey: string) : string option =
@@ -1291,11 +1433,18 @@ let recordDecision
     : Async<Recorded<Movement list>> =
     recordDecisionWith Core.getConnection commandId at monthKey origin lines skippedPaused withdrawn
 
-/// Hängt den Ausgang einer Zeile als Ergebnis-Ereignis an den Monats-Stream ihrer Entscheidung.
+/// Hängt den Ausgang einer Zeile als Ergebnis-Ereignis an den Monats-Stream ihrer Entscheidung. Danach öffnet eine
+/// bestätigte Zuweisung ungleich 0 im letzten Monat den nächsten im gehaltenen Fenster (budgeting-yx51n). Scheitert
+/// das, steht der Grund im Server-Log und die Rückschreibung gilt trotzdem: YNAB hat geschrieben, und das nächste
+/// Nachlesen des Rahmens holt das Fenster neu.
 let internal recordWriteBackOn (conn: SqliteConnection) (m: Movement) (at: DateTime) (outcome: WriteBackOutcome) : unit =
     let _, stream = monthStreamOrFail m.Month
     let reference = { DecisionEventId = m.ApplicationId; CategoryId = m.CategoryId }
     appendOn conn stream [ at, writeBackEvent reference outcome ] |> ignore
+    try
+        openMonthAfterWriteBackOn conn m outcome
+    with ex ->
+        logReadFailure $"Monatsfenster nach der Zuweisung in {m.Month} erweitern" ex.Message
 
 /// Die Ereignisse des Monats-Streams zu "YYYY-MM-01" in Stream-Reihenfolge, je mit `event_id`, für die
 /// Faltung (budgeting-dgrp7). Ein nicht lesbares Ereignis wird gemeldet.

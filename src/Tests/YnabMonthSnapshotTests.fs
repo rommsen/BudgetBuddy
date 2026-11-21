@@ -371,9 +371,7 @@ let private apiTests =
             let throwing, calls = countingThrowingPort ()
             let setting (key: string) = async { return Some $"wert-{key}" }
             let framePortFor _ _ : QueryHandlers.BudgetFramePort =
-                { FetchMonths = fun () -> failwith "kein Rahmen"
-                  FetchCategoryOrder = fun () -> failwith "kein Rahmen"
-                  LoadMonthStartHidden = fun _ -> async { return Ok [] } }
+                BudgetEventsFixture.framePortWith (fun () -> failwith "kein Rahmen") (fun () -> failwith "kein Rahmen")
             let api = Server.Api.budgetApiWith setting (fun _ _ -> throwing) framePortFor (fun () -> now) TimeZoneInfo.Utc
 
             Expect.isOk (api.getBudgetMonth withSnapshot |> run) "aus dem Stand"
