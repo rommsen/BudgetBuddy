@@ -25,11 +25,11 @@ let private clothesId = Guid.Parse "00000000-0000-0000-0000-0000000a3703"
 
 let private category (id: Guid) (name: string) (available: decimal) (underfunded: decimal option) : BudgetCategory =
     { Id = id; Name = name; Assigned = eur 0m; Activity = eur 0m; Available = eur available
-      Underfunded = underfunded |> Option.map eur; Target = None; Pause = None; OpenWriteBack = None; TargetInYnab = None; Deactivated = None }
+      Underfunded = underfunded |> Option.map eur; Target = None; Pause = None; OpenWriteBack = None; TargetInYnab = None; Deactivated = None; ActivityInYnab = None }
 
 /// Lebensmittel und Drogerie sind überzogen, Kleidung nicht. Fehlbeträge 900 und 80.
 let private monthOf (key: string) (toBeBudgeted: decimal) (categories: BudgetCategory list) : BudgetMonth =
-    { Month = key; ToBeBudgeted = eur toBeBudgeted; Groups = [ { Name = "Laufend"; Categories = categories } ] }
+    { Month = key; ToBeBudgeted = eur toBeBudgeted; CopiedAt = None; Groups = [ { Name = "Laufend"; Categories = categories } ] }
 
 let private openMonth (key: string) =
     monthOf key 1650m

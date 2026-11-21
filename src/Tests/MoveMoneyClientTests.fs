@@ -25,7 +25,7 @@ let private category name (assigned: decimal) (available: decimal) : BudgetCateg
       Available = eur available
       Underfunded = None
       Target = None
-      Pause = None; OpenWriteBack = None; TargetInYnab = None; Deactivated = None }
+      Pause = None; OpenWriteBack = None; TargetInYnab = None; Deactivated = None; ActivityInYnab = None }
 
 let private food = category "Lebensmittel" 900m 80m
 let private trip = category "Urlaub" 0m -30.5m
@@ -34,6 +34,7 @@ let private monthKey = "2026-11-01"
 let private monthOf (toBeBudgeted: decimal) (cats: BudgetCategory list) : BudgetMonth =
     { Month = monthKey
       ToBeBudgeted = eur toBeBudgeted
+      CopiedAt = None
       Groups = [ { Name = "Alltag"; Categories = cats } ] }
 let private month = monthOf 100m [ food; trip; clothes ]
 let private frame : BudgetFrame =

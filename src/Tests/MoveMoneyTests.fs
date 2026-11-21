@@ -27,11 +27,12 @@ let private budgetCategory name (assigned: int64) : BudgetCategory =
       Available = eur assigned
       Underfunded = None
       Target = None
-      Pause = None; OpenWriteBack = None; TargetInYnab = None; Deactivated = None }
+      Pause = None; OpenWriteBack = None; TargetInYnab = None; Deactivated = None; ActivityInYnab = None }
 
 let private monthWith (cats: BudgetCategory list) : BudgetMonth =
     { Month = "2026-11-01"
       ToBeBudgeted = eur 100000L
+      CopiedAt = None
       Groups = [ { Name = "Alltag"; Categories = cats } ] }
 
 let private request source target (amount: int64) : MoveRequest =

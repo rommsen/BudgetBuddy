@@ -176,6 +176,10 @@ type BudgetCategory = {
     /// darin Aktivität oder Verfügbares hat. Optional, damit ein älterer Client oder Server ohne das Feld weiter
     /// liest; `None` heißt aktiv.
     Deactivated: bool option
+    /// YNABs Aktivität des Monats aus dem YNAB-Stand (budgeting-m5pqn, ADR 0101). `Activity` ist auf der Budget-Seite
+    /// die des Kassenbuchs; gegen dieses Feld vergleicht der Hinweis „Abweichung Kassenbuch/YNAB“ im Detail. `None`
+    /// ohne Stand und bei einem älteren Server, dann gibt es keinen Hinweis.
+    ActivityInYnab: Money option
 }
 
 /// Ist das Target der Kategorie in diesem Monat pausiert? Die einzige Frage der Fachregeln (Fehlt, Frei,
@@ -199,6 +203,10 @@ type BudgetMonth = {
     Month: string
     ToBeBudgeted: Money
     Groups: BudgetGroup list
+    /// Wann BB den YNAB-Stand des Monats zuletzt aus YNAB kopiert hat (UTC, budgeting-m5pqn, ADR 0101 Punkt 3).
+    /// Vortrag, Zu verteilen und die Kategorienliste stammen aus diesem Stand. Optional, damit ein älterer Client
+    /// oder Server ohne das Feld weiter liest.
+    CopiedAt: DateTime option
 }
 
 /// Der Rahmen der Budget-Seite (budgeting-g8s3w, ADR 0074): liegt je Seitenaufruf im Client, damit

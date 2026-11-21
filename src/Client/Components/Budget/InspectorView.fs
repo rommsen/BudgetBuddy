@@ -70,8 +70,8 @@ let private detailEntryLine (entry: CategoryMonthEntry) (dispatch: Msg -> unit) 
         ]
     ]
 
-let private detailTotal (activity: Money) (entries: CategoryMonthEntry list) =
-    let total = entriesTotal activity entries
+let private detailTotal (category: BudgetCategory) (entries: CategoryMonthEntry list) =
+    let total = entriesTotal category.Activity entries
     Html.div [
         prop.className "flex flex-col gap-2 px-4 py-3"
         prop.children [
@@ -82,7 +82,7 @@ let private detailTotal (activity: Money) (entries: CategoryMonthEntry list) =
                     Html.span [ prop.custom ("data-testid", "detail-total"); prop.children [ Money.listAmount total.Amount total.Currency ] ]
                 ]
             ]
-            match deviationHint total activity with
+            match categoryDeviationHint category entries with
             | Some hint ->
                 Html.p [
                     prop.custom ("data-testid", "detail-deviation")
@@ -112,7 +112,7 @@ let private detailEntries (category: BudgetCategory) (selected: SelectedCategory
                 ]
             else
                 Html.div [ prop.children (entries |> List.map (fun e -> detailEntryLine e dispatch)) ]
-            detailTotal category.Activity entries
+            detailTotal category entries
         ]
 
 /// Eine Zeile im Aufbau von Verfügbar: Name links, Betrag rechts.

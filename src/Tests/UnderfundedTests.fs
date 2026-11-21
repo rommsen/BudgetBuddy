@@ -635,6 +635,22 @@ let private ledgerHandlerTests =
 
             Expect.equal row.Underfunded (Some (eur 0m)) "die späte Ausgabe im Oktober zählt"
 
+        testCase "Eine Buchung im Kassenbuch senkt Verfügbar im Monat, ohne dass YNAB sie kennt" <| fun () ->
+            // budgeting-m5pqn (ADR 0101 Punkt 2): die Aktivität der Seite kommt aus dem Kassenbuch, über den Live-Port
+            // (`liveLedgerActivityPort.LoadMonthlyActivity`). Das Jahr 2040 gehört nur diesem Test.
+            initializeWithLedger ()
+            let id = Guid.NewGuid()
+            let november = "2040-11-01"
+            booked id (utc 2040 1 10) -1m
+            let port, _, _ = countingPort (fun key -> annualMonth id key 5m 0m 30m)
+            let before = QueryHandlers.budgetMonthWith global.Persistence.getConnection port readAt november |> run |> pageRow
+            booked id (utc 2040 11 14) -12m
+
+            let after = QueryHandlers.budgetMonthWith global.Persistence.getConnection port readAt november |> run |> pageRow
+
+            Expect.equal (before.Activity, before.Available) (eur 0m, eur 30m) "vorher wie YNAB"
+            Expect.equal (after.Activity, after.Available) (eur -12m, eur 18m) "die Buchung zählt sofort"
+
         testCase "Ist das Kassenbuch nicht lesbar, fehlt der Fehlbetrag nur bei Targets mit Periode und der Grund steht im Log" <| fun () ->
             initializeWithLedger ()
             let id = Guid.NewGuid()

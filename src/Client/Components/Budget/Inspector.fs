@@ -21,12 +21,19 @@ let selectedCategory (month: BudgetMonth) (selected: SelectedCategory) : (Budget
 let entriesTotal (activity: Money) (entries: CategoryMonthEntry list) : Money =
     { activity with Amount = entries |> List.sumBy (fun e -> e.Amount.Amount) }
 
-/// Der Hinweis unter der Summe, wenn sie von YNABs Aktivität abweicht, ohne Bewertung.
+/// Der Hinweis unter der Summe, wenn sie von YNABs Aktivität (`activity`) abweicht, ohne Bewertung.
 let deviationHint (total: Money) (activity: Money) : string option =
     if total.Amount = activity.Amount then
         None
     else
         Some $"Kassenbuch: {moneyText total}, YNAB: {moneyText activity}"
+
+/// Der Hinweis im Detail der Kategorie: Summe der Buchungen gegen YNABs Aktivität des Monats aus dem YNAB-Stand
+/// (`ActivityInYnab`, budgeting-m5pqn). `Activity` ist auf der Seite die des Kassenbuchs und taugt dafür nicht.
+/// Ohne YNABs Aktivität gibt es keinen Hinweis.
+let categoryDeviationHint (category: BudgetCategory) (entries: CategoryMonthEntry list) : string option =
+    category.ActivityInYnab
+    |> Option.bind (fun inYnab -> deviationHint (entriesTotal category.Activity entries) inYnab)
 
 /// Kategorie wählen. Dieselbe Id ändert nichts, eine andere setzt die Buchungen zurück. Läuft die
 /// Vorschau, geschieht nichts.

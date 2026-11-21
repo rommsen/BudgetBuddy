@@ -90,12 +90,14 @@ const category = (n, name, assigned, activity, available, extra = {}) => ({
   Target: null,
   Pause: null,
   OpenWriteBack: null,
+  ActivityInYnab: null,
   ...extra,
 });
 
 const budgetMonth = (key) => ({
   Month: key,
   ToBeBudgeted: eur(-12345.67),
+  CopiedAt: null,
   Groups: [
     {
       Name: "Alltag",

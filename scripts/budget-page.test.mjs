@@ -28,11 +28,13 @@ const category = (n, name, assigned, activity, available) => ({
   Target: null,
   Pause: null,
   OpenWriteBack: null,
+  ActivityInYnab: null,
 });
 
 const monthFixture = (month, toBeBudgeted) => ({
   Month: month,
   ToBeBudgeted: eur(toBeBudgeted),
+  CopiedAt: null,
   Groups: [
     {
       Name: "Alltag k7wmd",
@@ -53,11 +55,13 @@ const withTarget = (base, target, underfunded, paused = false) => ({
   Underfunded: eur(underfunded),
   Pause: paused ? "PausedInBb" : null,
   OpenWriteBack: null,
+  ActivityInYnab: null,
 });
 const monthly = { Goal: eur(1600), Rhythm: { Months: 1 }, Kind: "Need", Date: null, NeedsWholeAmount: true, Day: null, CreatedIn: null };
 const targetFixture = (month) => ({
   Month: month,
   ToBeBudgeted: eur(10),
+  CopiedAt: null,
   Groups: [
     {
       Name: "Alltag",
@@ -80,6 +84,7 @@ const targetFixture = (month) => ({
 const longFixture = (month) => ({
   Month: month,
   ToBeBudgeted: eur(10),
+  CopiedAt: null,
   Groups: [{ Name: "Alltag", Categories: Array.from({ length: 40 }, (_, i) => category(i + 1, `Kategorie ${i + 1}`, 10, 0, 10)) }],
 });
 
@@ -189,6 +194,7 @@ const previousArrow = (page) => page.locator('[data-testid="budget-month-previou
 const filterFixture = (month) => ({
   Month: month,
   ToBeBudgeted: eur(10),
+  CopiedAt: null,
   Groups: [
     {
       Name: "Alltag",

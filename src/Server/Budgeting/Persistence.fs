@@ -225,6 +225,38 @@ let loadPinnedCategoriesOn (conn: SqliteConnection) : Guid list =
     |> Seq.map Guid.Parse
     |> List.ofSeq
 
+// ============================================
+// YNAB-Stand je Monat (budgeting-m5pqn, ADR 0101 Punkt 3)
+// ============================================
+
+/// Der YNAB-Stand je Monat: Zu verteilen und Zeitpunkt in `ynab_month_snapshot`, je Kategorie Name, Gruppe,
+/// YNABs Zugewiesen, Aktivität und Verfügbar (Milliunits), das Goal (die Regel als JSON wie in den Target-Ereignissen)
+/// und die Merkmale in `ynab_month_snapshot_categories`. Zustand, kein Ereignis (ADR 0083): eine Kopie von YNAB,
+/// die das Beobachten überschreibt. Wiederholbar.
+let createYnabMonthSnapshotSchemaOn (conn: SqliteConnection) : unit =
+    conn.Execute(
+        """CREATE TABLE IF NOT EXISTS ynab_month_snapshot (
+               month          TEXT    NOT NULL PRIMARY KEY,
+               to_be_budgeted INTEGER NOT NULL,
+               fetched_at     TEXT    NOT NULL
+           );
+           CREATE TABLE IF NOT EXISTS ynab_month_snapshot_categories (
+               month       TEXT    NOT NULL,
+               category_id TEXT    NOT NULL,
+               name        TEXT    NOT NULL,
+               group_name  TEXT    NOT NULL,
+               assigned    INTEGER NOT NULL,
+               activity    INTEGER NOT NULL,
+               available   INTEGER NOT NULL,
+               goal        TEXT,
+               hidden      INTEGER NOT NULL,
+               deleted     INTEGER NOT NULL,
+               is_internal INTEGER NOT NULL,
+               PRIMARY KEY (month, category_id)
+           )"""
+    )
+    |> ignore
+
 /// Legt `events` (ADR 0083) an und überführt die früheren Budget-Tabellen nach `events` (budgeting-hyn77). Entfernt
 /// `category_month_activity` (budgeting-k5q2w: die Ausgaben der Periode kommen aus dem Kassenbuch) und
 /// `underfunded_comparisons` (budgeting-hbhzf: BB rechnet den Fehlbetrag selbst, die Parallelrechnung entfällt),
@@ -237,6 +269,7 @@ let initializeBudgetingSchema () =
     createMonthStartHiddenSchemaOn conn
     createCategoryLayoutSchemaOn conn
     createPinnedCategoriesSchemaOn conn
+    createYnabMonthSnapshotSchemaOn conn
     dropMonthActivityOn conn
     dropUnderfundedComparisonsOn conn
     Budgeting.EventMigration.migrateBudgetEventsOn conn |> ignore
@@ -356,6 +389,124 @@ let private readWith
         with ex ->
             logReadFailure what ex.Message
             return Error unreadable
+    }
+
+/// Schreibt den Stand eines Monats auf der offenen Transaktion `tx` und ersetzt den bisherigen ganz.
+let internal writeYnabMonthSnapshotOn (conn: SqliteConnection) (tx: SqliteTransaction) (snapshot: YnabMonthSnapshot) : unit =
+    let month = snapshot.Raw.Month
+    conn.Execute(
+        """INSERT INTO ynab_month_snapshot (month, to_be_budgeted, fetched_at) VALUES (@month, @tbb, @at)
+           ON CONFLICT (month) DO UPDATE SET to_be_budgeted = excluded.to_be_budgeted, fetched_at = excluded.fetched_at""",
+        {| month = month
+           tbb = toMilliunits snapshot.Raw.ToBeBudgeted
+           at = snapshot.FetchedAt.ToString("o", CultureInfo.InvariantCulture) |},
+        tx
+    )
+    |> ignore
+    conn.Execute("DELETE FROM ynab_month_snapshot_categories WHERE month = @month", {| month = month |}, tx) |> ignore
+    for c in snapshot.Raw.Categories do
+        conn.Execute(
+            """INSERT INTO ynab_month_snapshot_categories
+                   (month, category_id, name, group_name, assigned, activity, available, goal, hidden, deleted, is_internal)
+               VALUES (@month, @id, @name, @groupName, @assigned, @activity, @available, @goal, @hidden, @deleted, @isInternal)""",
+            {| month = month
+               id = string c.Id
+               name = c.Name
+               groupName = c.GroupName
+               assigned = toMilliunits c.Assigned
+               activity = toMilliunits c.Activity
+               available = toMilliunits c.Available
+               goal = c.Target |> Option.map (Codec.encodeRule >> Thoth.Json.Net.Encode.toString 0) |> Option.toObj
+               hidden = (if c.Hidden then 1L else 0L)
+               deleted = (if c.Deleted then 1L else 0L)
+               isInternal = (if c.Internal then 1L else 0L) |},
+            tx
+        )
+        |> ignore
+
+[<CLIMutable>]
+type private SnapshotRow = { to_be_budgeted: int64; fetched_at: string }
+
+[<CLIMutable>]
+type private SnapshotCategoryRow = {
+    category_id: string
+    name: string
+    group_name: string
+    assigned: int64
+    activity: int64
+    available: int64
+    goal: string option
+    hidden: int64
+    deleted: int64
+    is_internal: int64
+}
+
+/// Der Stand des Monats ("YYYY-MM-01"), ohne Stand `None`. Ein nicht lesbares Goal ist ein `Error` mit Grund.
+let internal loadYnabMonthSnapshotOn (conn: SqliteConnection) (month: string) : Result<YnabMonthSnapshot option, string> =
+    match
+        conn.Query<SnapshotRow>(
+            "SELECT to_be_budgeted, fetched_at FROM ynab_month_snapshot WHERE month = @month",
+            {| month = month |}
+        )
+        |> List.ofSeq
+    with
+    | [] -> Ok None
+    | head :: _ ->
+        let rows =
+            conn.Query<SnapshotCategoryRow>(
+                """SELECT category_id, name, group_name, assigned, activity, available, goal, hidden, deleted, is_internal
+                   FROM ynab_month_snapshot_categories WHERE month = @month ORDER BY rowid""",
+                {| month = month |}
+            )
+            |> List.ofSeq
+        let categoryOf (r: SnapshotCategoryRow) : Result<YnabMonthCategory, string> =
+            let goal =
+                match r.goal with
+                | None -> Ok None
+                | Some json ->
+                    Thoth.Json.Net.Decode.fromString Codec.decodeRule json
+                    |> Result.map Some
+                    |> Result.mapError (fun e -> $"Goal von {r.category_id} im YNAB-Stand {month} nicht lesbar: {e}")
+            goal
+            |> Result.map (fun target ->
+                { Id = Guid.Parse r.category_id
+                  Name = r.name
+                  GroupName = r.group_name
+                  Assigned = euroOfMilliunits r.assigned
+                  Activity = euroOfMilliunits r.activity
+                  Available = euroOfMilliunits r.available
+                  Target = target
+                  Hidden = r.hidden <> 0L
+                  Deleted = r.deleted <> 0L
+                  Internal = r.is_internal <> 0L })
+        rows
+        |> List.map categoryOf
+        |> collectRows
+        |> Result.map (fun categories ->
+            Some
+                { Raw = { Month = month; ToBeBudgeted = euroOfMilliunits head.to_be_budgeted; Categories = categories }
+                  FetchedAt =
+                    DateTime.Parse(head.fetched_at, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind) })
+
+/// Die Meldung, wenn der YNAB-Stand eines Monats nicht lesbar ist. Die Ursache bleibt im Server-Log.
+[<Literal>]
+let YnabMonthSnapshotUnreadableText = "YNAB-Stand des Monats nicht lesbar"
+
+/// `loadYnabMonthSnapshotOn` über `connect`. Ein Lesefehler steht im Server-Log und kommt als `Error` mit
+/// `YnabMonthSnapshotUnreadableText`.
+let loadYnabMonthSnapshotWith (connect: unit -> SqliteConnection) (month: string) : Async<Result<YnabMonthSnapshot option, string>> =
+    async {
+        let loaded =
+            try
+                use conn = connect ()
+                loadYnabMonthSnapshotOn conn month
+            with ex ->
+                Error ex.Message
+        match loaded with
+        | Ok found -> return Ok found
+        | Error reason ->
+            logReadFailure $"YNAB-Stand {month} lesen" reason
+            return Error YnabMonthSnapshotUnreadableText
     }
 
 /// Der Monats-Stream zu "YYYY-MM-01", `None` bei einem Monat in anderer Form.
@@ -1191,12 +1342,34 @@ let loadTakenOverMonthsWith (connect: unit -> SqliteConnection) : Async<Result<S
 let loadTakenOverMonths () : Async<Result<Set<string>, string>> =
     loadTakenOverMonthsWith Core.getConnection
 
-/// Hängt Übernahme und Beobachtungen ohne Befehls-Id an den Monats-Stream, in einer Transaktion. Eine leere
-/// Liste hängt nichts an.
-let internal appendMonthEventsOn (conn: SqliteConnection) (at: DateTime) (monthKey: string) (events: BudgetEvent list) : unit =
+/// Hält eine Beobachtung fest (budgeting-m5pqn, ADR 0101 Punkt 5): Übernahme und Beobachtungen ohne Befehls-Id am
+/// Monats-Stream und den YNAB-Stand des Monats, in einer Transaktion. Scheitert eins, steht keins. Eine leere
+/// Ereignisliste schreibt nur den Stand.
+let internal recordObservationOn
+    (conn: SqliteConnection)
+    (at: DateTime)
+    (monthKey: string)
+    (events: BudgetEvent list)
+    (snapshot: YnabMonthSnapshot)
+    : unit =
+    if conn.State <> Data.ConnectionState.Open then
+        conn.Open()
+    let _, stream = monthStreamOrFail monthKey
+    let aggregate, id = streamParts stream
+    use tx = conn.BeginTransaction()
     if not (List.isEmpty events) then
-        let _, stream = monthStreamOrFail monthKey
-        appendOn conn stream (events |> List.map (fun e -> at, e)) |> ignore
+        let request : EventStore.AppendRequest =
+            { Context = Context
+              CommandId = None
+              Streams =
+                [ { Aggregate = aggregate
+                    Id = id
+                    Events = events |> List.map (fun e -> toNewEvent at e) } ] }
+        match EventStore.appendOn conn tx request EventStore.noReadModels with
+        | EventStore.Appended _ -> ()
+        | EventStore.CommandAlreadyProcessed _ -> failwith "Ein Anhängen ohne Befehls-Id kann nicht schon festgehalten sein"
+    writeYnabMonthSnapshotOn conn tx snapshot
+    tx.Commit()
 
 /// `recordWriteBackOn` über `connect`.
 let recordWriteBackWith (connect: unit -> SqliteConnection) (m: Movement) (at: DateTime) (outcome: WriteBackOutcome) : Async<unit> =

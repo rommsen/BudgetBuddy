@@ -22,10 +22,10 @@ let private car = Guid.Parse "00000000-0000-0000-0000-0000000c1005"
 
 let private category (id: Guid) (name: string) (activity: decimal) (available: decimal) : BudgetCategory =
     { Id = id; Name = name; Assigned = eur 0m; Activity = eur activity; Available = eur available
-      Underfunded = None; Target = None; Pause = None; OpenWriteBack = None; TargetInYnab = None; Deactivated = None }
+      Underfunded = None; Target = None; Pause = None; OpenWriteBack = None; TargetInYnab = None; Deactivated = None; ActivityInYnab = None }
 
 let private month (groups: (string * BudgetCategory list) list) : BudgetMonth =
-    { Month = "2026-11-01"; ToBeBudgeted = eur 0m; Groups = groups |> List.map (fun (n, cs) -> { Name = n; Categories = cs }) }
+    { Month = "2026-11-01"; ToBeBudgeted = eur 0m; CopiedAt = None; Groups = groups |> List.map (fun (n, cs) -> { Name = n; Categories = cs }) }
 
 let private november =
     month

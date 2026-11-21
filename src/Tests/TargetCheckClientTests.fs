@@ -58,11 +58,12 @@ let private checkData : TargetCheckData =
 
 let private budgetCategory (id: Guid) (name: string) (target: Target option) : BudgetCategory =
     { Id = id; Name = name; Assigned = eur 0m; Activity = eur 0m; Available = eur 0m
-      Underfunded = None; Target = target; Pause = None; OpenWriteBack = None; TargetInYnab = None; Deactivated = None }
+      Underfunded = None; Target = target; Pause = None; OpenWriteBack = None; TargetInYnab = None; Deactivated = None; ActivityInYnab = None }
 
 let private budgetMonth (month: string) : BudgetMonth =
     { Month = month
       ToBeBudgeted = eur 0m
+      CopiedAt = None
       Groups =
         [ { Name = "Haushalt"
             Categories =

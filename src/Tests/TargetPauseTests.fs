@@ -48,7 +48,7 @@ let private budgetCategory (available: decimal) (under: decimal option) (pause: 
       Available = eur available
       Underfunded = under |> Option.map eur
       Target = Some target
-      Pause = pause; OpenWriteBack = None; TargetInYnab = None; Deactivated = None }
+      Pause = pause; OpenWriteBack = None; TargetInYnab = None; Deactivated = None; ActivityInYnab = None }
 
 let private pauseEvent (id: Guid) : HistoryPause =
     { EventId = id
@@ -88,7 +88,7 @@ let private domainTests =
         test "Targets anwenden überspringt eine in BB pausierte Kategorie mit Fehlbetrag" {
             let paused = budgetCategory 0m (Some 50m) (Some PausedInBb)
             let open' = { budgetCategory 0m (Some 20m) None with Id = Guid.NewGuid(); Name = "Essen" }
-            let month = { Month = "2026-11-01"; ToBeBudgeted = eur 500m; Groups = [ { Name = "Alltag"; Categories = [ paused; open' ] } ] }
+            let month = { Month = "2026-11-01"; ToBeBudgeted = eur 500m; CopiedAt = None; Groups = [ { Name = "Alltag"; Categories = [ paused; open' ] } ] }
             match Domain.planTargetApplication month with
             | Ok preview ->
                 Expect.equal (preview.Lines |> List.map (fun l -> l.CategoryId)) [ open'.Id ] "nicht in den Zeilen"
@@ -202,7 +202,10 @@ let private eventRows (id: Guid) : (string * string) list =
                 Some (Budgeting.Events.monthKeyOfId p.Month, Budgeting.EventMigration.pauseKindText Domain.PauseKind.PauseLifted)
             | _ -> None)
 
+/// Nachziehen und Lesen (ADR 0101 Punkt 6): die Monate sind fest und mit anderen Tests geteilt, der YNAB-Stand eines
+/// Monats kann also von einem anderen Fake stammen. Erst beobachten, dann lesen (budgeting-m5pqn).
 let private monthOk (f: FakeYnab) (month: string) : BudgetMonth =
+    CommandHandlers.observeMonth f.Port now month |> run |> ignore
     match QueryHandlers.budgetMonth f.Port now month |> run with
     | Ok m -> m
     | Error e -> failtest $"Monat erwartet: {e}"

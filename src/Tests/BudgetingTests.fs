@@ -301,10 +301,13 @@ let private apiPathTests =
               SetAssigned = fun _ _ _ -> async { return Ok () }
               WriteGoal = (fun _ _ -> async { return Ok () })
               FetchCategoryGoals = fun () -> async { return Ok [] } }
+        // Das Lesen sucht zuerst den YNAB-Stand (budgeting-m5pqn), die Tabelle muss stehen wie nach dem Start.
+        Budgeting.Persistence.initializeBudgetingSchema ()
         Server.Api.budgetMonthFor token budget key portFor (DateTime(2026, 10, 1, 8, 0, 0, DateTimeKind.Utc)) |> Async.RunSynchronously
     testList "Weg der Budget-Seite (k7wmd)" [
         test "429 kommt als lesbare Meldung an" {
-            match call (Some "t") (Some "b") "2026-10-01" (fetchWith (Error (Shared.Domain.YnabError.RateLimitExceeded 60))) with
+            // Ein Monat ohne YNAB-Stand, den kein anderer Test liest: nur dann fragt das Lesen YNAB (budgeting-m5pqn).
+            match call (Some "t") (Some "b") "1987-04-01" (fetchWith (Error (Shared.Domain.YnabError.RateLimitExceeded 60))) with
             | Error msg -> Expect.equal msg "Rate-Limit (HTTP 429), erneut in 60 Sekunden" "deutsch"
             | Ok _ -> failtest "Fehler erwartet"
         }
@@ -326,12 +329,13 @@ let private apiPathTests =
             | Ok _ -> failtest "Fehler erwartet"
         }
         test "Ein freier Monat wird genau so gelesen" {
+            // Ein Monat, den kein anderer Test liest: ohne YNAB-Stand beobachtet das Lesen ihn (budgeting-m5pqn).
             let mutable seen = ""
             let fetch = fun _ _ key -> async { seen <- key; return Ok decoded }
-            match call (Some "t") (Some "b") "2019-03-01" fetch with
+            match call (Some "t") (Some "b") "1987-03-01" fetch with
             | Ok m -> Expect.equal m.Groups.Length 2 "gruppiert"
             | Error e -> failtest e
-            Expect.equal seen "2019-03-01" "genau dieser Monat"
+            Expect.equal seen "1987-03-01" "genau dieser Monat"
         }
     ]
 
@@ -470,7 +474,7 @@ let private euro amount : Shared.Domain.Money = { Amount = amount; Currency = "E
 
 let private budgetCategory (id: Guid) (name: string) : BudgetCategory =
     { Id = id; Name = name; Assigned = euro 0m; Activity = euro 0m; Available = euro 0m
-      Underfunded = None; Target = None; Pause = None; OpenWriteBack = None; TargetInYnab = None; Deactivated = None }
+      Underfunded = None; Target = None; Pause = None; OpenWriteBack = None; TargetInYnab = None; Deactivated = None; ActivityInYnab = None }
 
 let private orderTests =
     let ids = List.init 5 (fun _ -> Guid.NewGuid())
@@ -513,7 +517,7 @@ let private missingTests =
             Available = euro available
             Underfunded = under |> Option.map euro
             Target = under |> Option.map (fun _ -> target)
-            Pause = (if snoozed then Some PausedInBb else None); OpenWriteBack = None; TargetInYnab = None; Deactivated = None }
+            Pause = (if snoozed then Some PausedInBb else None); OpenWriteBack = None; TargetInYnab = None; Deactivated = None; ActivityInYnab = None }
     let missing c = missingAmount c |> Option.map (fun m -> m.Amount)
     testList "Fehlt" [
         test "Negatives Verfügbar ohne Target fehlt" {

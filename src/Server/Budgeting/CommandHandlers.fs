@@ -337,8 +337,9 @@ let private onMonthStream
         Error ex.Message
 
 /// Hält auf dem gerade gelesenen Monat fest, was `Assignments.observe` ergibt: Übernahme, falls noch keine im
-/// Stream liegt, und die Echo-Regel, in einem Append ohne Befehls-Id. `now` ist der Zeitpunkt (UTC), die
-/// Übernahme wird nicht zurückdatiert.
+/// Stream liegt, und die Echo-Regel, in einem Append ohne Befehls-Id, dazu in derselben Transaktion den YNAB-Stand
+/// des Monats (budgeting-m5pqn, ADR 0101 Punkt 5). `now` ist der Zeitpunkt (UTC) der Ereignisse und des Stands,
+/// die Übernahme wird nicht zurückdatiert.
 let private recordObservationWith
     (connect: unit -> SqliteConnection)
     (now: DateTime)
@@ -347,7 +348,7 @@ let private recordObservationWith
     : Result<MonthFold, string> =
     onMonthStream connect monthKey (fun conn monthId events ->
         let added, fold = observe monthId events raw
-        appendMonthEventsOn conn now monthKey added
+        recordObservationOn conn now monthKey added { Raw = raw; FetchedAt = now }
         fold)
 
 /// `observeMonth` ohne Sperre, für Abläufe, die sie schon halten: ein `FetchMonth`, dann festhalten.

@@ -23,11 +23,12 @@ const guid = (n) => `00000000-0000-0000-0000-${String(n).padStart(12, "0")}`;
 const monthFixture = (key) => ({
   Month: key,
   ToBeBudgeted: eur(500),
+  CopiedAt: null,
   Groups: [
     {
       Name: "Alltag h7q4v",
       Categories: [
-        { Id: guid(1), Name: "Miete h7q4v", Assigned: eur(800), Activity: eur(0), Available: eur(800), Underfunded: null, Target: null, Pause: null, OpenWriteBack: null },
+        { Id: guid(1), Name: "Miete h7q4v", Assigned: eur(800), Activity: eur(0), Available: eur(800), Underfunded: null, Target: null, Pause: null, OpenWriteBack: null, ActivityInYnab: null },
       ],
     },
   ],

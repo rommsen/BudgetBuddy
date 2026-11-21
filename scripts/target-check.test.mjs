@@ -72,6 +72,7 @@ const checkData = {
 const monthFixture = (key) => ({
   Month: key,
   ToBeBudgeted: eur(500),
+  CopiedAt: null,
   Groups: [
     {
       Name: "Haushalt q4v8n",
@@ -85,6 +86,7 @@ const monthFixture = (key) => ({
         Target: c.Target,
         Pause: null,
         OpenWriteBack: null,
+        ActivityInYnab: null,
       })),
     },
   ],

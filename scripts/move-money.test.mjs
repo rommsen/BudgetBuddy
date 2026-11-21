@@ -29,11 +29,13 @@ const category = (n, name, available) => ({
   Target: null,
   Pause: null,
   OpenWriteBack: null,
+  ActivityInYnab: null,
 });
 
 const monthFixture = (food, trip, month = "2026-11-01") => ({
   Month: month,
   ToBeBudgeted: eur(35.45),
+  CopiedAt: null,
   Groups: [
     {
       Name: "Alltag afd8h",

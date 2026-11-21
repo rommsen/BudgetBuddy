@@ -33,11 +33,13 @@ const category = (n, name, assigned, available) => ({
   Target: null,
   Pause: null,
   OpenWriteBack: null,
+  ActivityInYnab: null,
 });
 
 const monthFixture = (key) => ({
   Month: key,
   ToBeBudgeted: eur(500),
+  CopiedAt: null,
   Groups: [
     {
       Name: "Alltag c5w2n",

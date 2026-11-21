@@ -36,7 +36,7 @@ let private previewOf (after: decimal) (lines: TargetLine list) : TargetPreview 
       ToBeBudgetedAfter = eur after
       CommandId = None }
 
-let private month : BudgetMonth = { Month = "2026-11-01"; ToBeBudgeted = eur 100m; Groups = [] }
+let private month : BudgetMonth = { Month = "2026-11-01"; ToBeBudgeted = eur 100m; CopiedAt = None; Groups = [] }
 let private frame : BudgetFrame =
     { CurrentMonth = "2026-11-01"; Months = [ "2026-10-01"; "2026-11-01" ]; CategoryOrder = []; MonthStartHidden = [] }
 let private loaded = { init () with Frame = Success frame; Month = Success month }
@@ -209,7 +209,7 @@ let private retryTests =
             let kino = Guid.Parse "00000000-0000-0000-0000-0000000a7002"
             let category id : BudgetCategory =
                 { Id = id; Name = "K"; Assigned = eur 0m; Activity = eur 0m; Available = eur 0m
-                  Underfunded = None; Target = None; Pause = None; OpenWriteBack = None; TargetInYnab = None; Deactivated = None }
+                  Underfunded = None; Target = None; Pause = None; OpenWriteBack = None; TargetInYnab = None; Deactivated = None; ActivityInYnab = None }
             let withCategories = { month with Groups = [ { Name = "Alltag"; Categories = [ category essen; category kino ] } ] }
             let report =
                 { reportOf [] None with

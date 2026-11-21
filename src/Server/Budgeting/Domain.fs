@@ -571,12 +571,13 @@ let private toBudgetCategory
     : BudgetCategory =
     let target = targets |> Map.tryFind c.Id
     let state = assignments |> Option.map (fun m -> m |> Map.tryFind c.Id |> Option.defaultValue unassigned)
-    // Zugewiesen ist BBs Soll; Aktivität und Verfügbar bleiben YNABs Werte (entschieden von Roman).
+    // Zugewiesen ist BBs Soll. Aktivität und Verfügbar kommen aus `c`: beim Lesen der Seite BBs abgeleitete Werte
+    // (`bbMonthOf`, ADR 0101 Punkt 4), in den Befehlen YNABs.
     let assigned =
         match state with
         | Some s -> euroOfMilliunits s.Assigned
         | None -> c.Assigned
-    // Der Übertrag kommt live aus YNABs Stand, unabhängig vom Soll (ADR 0084 Punkt 7).
+    // Der Übertrag (Vortrag) aus `c`, unabhängig vom Soll (ADR 0084 Punkt 7). Aus `bbMonthOf` ist er der des Stands.
     let carryover = { c.Available with Amount = c.Available.Amount - c.Assigned.Amount - c.Activity.Amount }
     // BBs Fehlbetrag gegen das Soll (budgeting-hbhzf). Nicht gerechnet heißt kein Fehlbetrag, wie ohne Target.
     let underfundedOf (rule: Target) =
@@ -600,7 +601,9 @@ let private toBudgetCategory
       OpenWriteBack = state |> Option.bind (fun s -> s.Open)
       // Das Target gegenüber YNAB setzt `withTargetInYnab` (budgeting-e2z7v).
       TargetInYnab = None
-      Deactivated = None }
+      Deactivated = None
+      // YNABs Aktivität aus dem Stand setzt nur das Lesen der Seite (`withActivityInYnab`, budgeting-m5pqn).
+      ActivityInYnab = None }
 
 /// Gruppiert die sichtbaren Kategorien nach Kategoriegruppe. Die Folge ist die der Monatsantwort
 /// und damit ungeordnet (ADR 0074 Punkt 6): `toBudgetMonth` dient den Server-Abläufen, die Seite
@@ -642,12 +645,99 @@ let toBudgetMonthWith
 
     { Month = month.Month
       ToBeBudgeted = month.ToBeBudgeted
-      Groups = groups }
+      Groups = groups
+      CopiedAt = None }
 
 /// Der Monat mit YNABs Zugewiesen, ohne BBs Faltung und ohne Ausgaben der Periode (Targets prüfen, das den
 /// Fehlbetrag nicht nutzt). Ein Target, das Periodenmonate braucht, bleibt hier ohne Fehlbetrag.
 let toBudgetMonth (targets: Map<Guid, Target>) (pausedInBb: Set<Guid>) (month: YnabMonth) : BudgetMonth =
     toBudgetMonthWith None (Some Map.empty) targets pausedInBb month
+
+// ============================================
+// YNAB-Stand und abgeleitete Werte (budgeting-m5pqn, ADR 0101)
+// ============================================
+
+/// Der YNAB-Stand eines Monats (ADR 0101 Punkt 3): eine Kopie von YNABs Rechnung und Stammdaten, keine
+/// Entscheidung. Zustand, kein Ereignis (ADR 0083); das Beobachten überschreibt ihn. `Raw` ist der Monat, wie
+/// YNAB ihn beim Beobachten lieferte, `FetchedAt` der Zeitpunkt dieses Lesens (UTC).
+type YnabMonthSnapshot = {
+    Raw: YnabMonth
+    FetchedAt: DateTime
+}
+
+/// Der Vortrag einer Kategorie aus dem Stand: YNABs Verfügbar minus Zugewiesen minus Aktivität, alle drei aus
+/// demselben Stand (ADR 0101 Punkt 3). Hängt weder am Soll noch am Kassenbuch.
+let carryoverOf (c: YnabMonthCategory) : Money =
+    { c.Available with Amount = c.Available.Amount - c.Assigned.Amount - c.Activity.Amount }
+
+/// Führt das Kassenbuch die Aktivität des Monats ("YYYY-MM-01")? Ab dem Monat seiner ersten Buchung
+/// (`firstEntry`) ja, davor und ohne Buchung nein (ADR 0101 Punkt 2), wie `periodActivityFromLedger`.
+let ledgerCoversMonth (firstEntry: DateTime option) (monthKey: string) : bool =
+    match firstEntry with
+    | None -> false
+    | Some first -> firstOfMonth monthKey >= DateTime(first.Year, first.Month, 1)
+
+/// Die Aktivität je Kategorie des Stands im Monat (ADR 0101 Punkt 2): führt das Kassenbuch den Monat, seine
+/// Summe (`ledgerSums`, eine Kategorie ohne Buchung hat 0), sonst die Aktivität aus dem Stand. Rein.
+let monthActivity (firstEntry: DateTime option) (ledgerSums: Map<Guid, Money>) (snapshot: YnabMonth) : Map<Guid, Money> =
+    let fromLedger = ledgerCoversMonth firstEntry snapshot.Month
+    snapshot.Categories
+    |> List.map (fun c ->
+        c.Id,
+        if fromLedger then
+            ledgerSums |> Map.tryFind c.Id |> Option.defaultValue { Amount = 0m; Currency = c.Activity.Currency }
+        else
+            c.Activity)
+    |> Map.ofList
+
+/// Verfügbar = Vortrag + Soll + Aktivität (ADR 0101 Punkt 4).
+let derivedAvailable (carryover: Money) (assigned: Money) (activity: Money) : Money =
+    { carryover with Amount = carryover.Amount + assigned.Amount + activity.Amount }
+
+/// Zu verteilen = Zu verteilen des Stands minus die Summe von (Soll minus YNABs Zugewiesen im Stand) über alle
+/// Kategorien des Monats (ADR 0101 Punkt 4), auch über ausgeblendete und solche, die nur in der Faltung stehen.
+/// Eine Verschiebung zwischen zwei Kategorien ändert die Summe nicht. Gerechnet in Milliunits.
+let derivedToBeBudgeted (assignments: Map<Guid, AssignmentState>) (snapshot: YnabMonth) : Money =
+    let inSnapshot = snapshot.Categories |> List.map (fun c -> c.Id, toMilliunits c.Assigned) |> Map.ofList
+    let ids = Set.union (inSnapshot |> Map.keys |> Set.ofSeq) (assignments |> Map.keys |> Set.ofSeq)
+    let soll id =
+        match assignments |> Map.tryFind id with
+        | Some s -> s.Assigned
+        | None -> unassigned.Assigned
+    let difference =
+        ids |> Seq.sumBy (fun id -> soll id - (inSnapshot |> Map.tryFind id |> Option.defaultValue 0L))
+    { snapshot.ToBeBudgeted with Amount = decimal (toMilliunits snapshot.ToBeBudgeted - difference) / 1000m }
+
+/// Der Monat aus BBs Sicht, gebaut aus dem Stand (ADR 0101 Punkt 4): je Kategorie Zugewiesen gleich dem Soll aus
+/// `assignments`, Aktivität aus `activity` (`monthActivity`) und Verfügbar abgeleitet (`derivedAvailable`), dazu
+/// Zu verteilen abgeleitet (`derivedToBeBudgeted`). Name, Gruppe, Goal und Merkmale bleiben die des Stands. Ohne
+/// Faltung (`None`) gilt YNABs Zugewiesen und Zu verteilen. Das Ergebnis geht an `toBudgetMonthWith`, das daraus
+/// den Vortrag wieder gleich dem des Stands rechnet. Rein.
+let bbMonthOf (assignments: Map<Guid, AssignmentState> option) (activity: Map<Guid, Money>) (snapshot: YnabMonth) : YnabMonth =
+    let withBb (c: YnabMonthCategory) =
+        let assigned =
+            match assignments with
+            | Some m -> euroOfMilliunits (m |> Map.tryFind c.Id |> Option.defaultValue unassigned).Assigned
+            | None -> c.Assigned
+        let spent = activity |> Map.tryFind c.Id |> Option.defaultValue c.Activity
+        { c with
+            Assigned = assigned
+            Activity = spent
+            Available = derivedAvailable (carryoverOf c) assigned spent }
+    { snapshot with
+        ToBeBudgeted =
+            (match assignments with
+             | Some m -> derivedToBeBudgeted m snapshot
+             | None -> snapshot.ToBeBudgeted)
+        Categories = snapshot.Categories |> List.map withBb }
+
+/// Trägt je Kategorie YNABs Aktivität des Monats aus `snapshot` (dem YNAB-Stand) als `ActivityInYnab` ein
+/// (budgeting-m5pqn, ADR 0101). Auf der Budget-Seite ist `Activity` die des Kassenbuchs; der Hinweis „Abweichung
+/// Kassenbuch/YNAB“ im Detail vergleicht gegen dieses Feld. Eine Kategorie, die im Stand fehlt, bekommt `None`. Rein.
+let withActivityInYnab (snapshot: YnabMonth) (month: BudgetMonth) : BudgetMonth =
+    let inYnab = snapshot.Categories |> List.map (fun c -> c.Id, c.Activity) |> Map.ofList
+    let withActivity (c: BudgetCategory) = { c with ActivityInYnab = inYnab |> Map.tryFind c.Id }
+    { month with Groups = month.Groups |> List.map (fun g -> { g with Categories = g.Categories |> List.map withActivity }) }
 
 // ============================================
 // Übernahme im Hintergrund (budgeting-dkjc5, ADR 0084 Punkt 5)

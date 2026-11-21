@@ -194,10 +194,20 @@ let private unclosedLinesOn connect (monthKey: string) : Map<Guid, (Guid * int64
 let private readWith (connect: unit -> Microsoft.Data.Sqlite.SqliteConnection) (f: FakeYnab) (monthKey: string) =
     QueryHandlers.budgetMonthWith connect f.Port now monthKey |> run
 
-let private read (f: FakeYnab) (monthKey: string) : BudgetMonth =
+/// Nur Lesen: ohne YNAB-Stand beobachtet es einmal, mit Stand ruft es YNAB nicht (ADR 0101 Punkt 1 und 7).
+let private readOnly (f: FakeYnab) (monthKey: string) : BudgetMonth =
     match readWith f.Connect f monthKey with
     | Ok month -> month
     | Error e -> failtest $"Monat erwartet: {e}"
+
+/// Nachziehen und Lesen: erst unter der Sperre beobachten (Übernahme, Echo-Regel, YNAB-Stand), dann lesen. So läuft
+/// das Öffnen der Seite mit Nachziehen (ADR 0101 Punkt 6, budgeting-ffjk9); seit budgeting-m5pqn beobachtet das
+/// Lesen allein einen Monat mit Stand nicht mehr, der Abgleich der Aufzählung gehört deshalb hierher.
+let private read (f: FakeYnab) (monthKey: string) : BudgetMonth =
+    match observeMonthWith f.Connect f.Port now monthKey |> run with
+    | Error (FetchFailed e) -> failtest $"Beobachtung erwartet: {e}"
+    | _ -> ()
+    readOnly f monthKey
 
 let private shown (month: BudgetMonth) (id: Guid) : BudgetCategory =
     month.Groups |> List.collect (fun g -> g.Categories) |> List.find (fun c -> c.Id = id)
@@ -857,9 +867,10 @@ let private readTests =
 
         testCase "Lesen, dessen Verbindungs-Port beim Anhängen wirft, liefert den Monat und loggt den Fehler" <| fun () ->
             let calls = ref 0
+            // Die erste Verbindung liest den YNAB-Stand (es gibt keinen), die zweite hält die Beobachtung fest.
             let connect () =
                 calls.Value <- calls.Value + 1
-                if calls.Value = 1 then failwith "Verbindung weg" else global.Persistence.getConnection ()
+                if calls.Value = 2 then failwith "Verbindung weg" else global.Persistence.getConnection ()
             let f, a, _ = fake ()
             let month = freshMonth ()
             let result, log = stderrOf (fun () -> readWith connect f month)
@@ -874,13 +885,14 @@ let private readTests =
             f.FailRead <- true
             Expect.equal (readWith global.Persistence.getConnection f (freshMonth ())) (Error (YnabError.NetworkError "YNAB weg")) "Fehler"
 
-        testCase "Lesen braucht genau einen FetchMonth" <| fun () ->
+        testCase "Lesen braucht höchstens einen FetchMonth: beim ersten Mal ohne YNAB-Stand, danach keinen" <| fun () ->
+            // budgeting-m5pqn (ADR 0101 Punkt 7): vorher fragte jedes Lesen YNAB.
             let f, _, _ = fake ()
             let month = freshMonth ()
-            read f month |> ignore
+            readOnly f month |> ignore
             Expect.equal f.Reads 1 "erstes Lesen mit Übernahme"
-            read f month |> ignore
-            Expect.equal f.Reads 2 "zweites Lesen"
+            readOnly f month |> ignore
+            Expect.equal f.Reads 1 "zweites Lesen aus dem Stand"
 
         testCase "Lesen bei offener Rückschreibung zeigt das Soll mit Markierung, ohne sie fehlt die Markierung" <| fun () ->
             let f, a, b = fake ()
@@ -889,7 +901,8 @@ let private readTests =
             let report = assignOk f month a 120000L
             let page = read f month
             Expect.equal ((shown page a).Assigned, (shown page a).OpenWriteBack) (eur 120000L, Some (Guid.Parse report.ApplicationId)) "Soll mit Markierung"
-            Expect.equal ((shown page a).Available, page.ToBeBudgeted) (eur 100000L, eur 100000L) "Verfügbar und Zu verteilen bleiben YNABs"
+            // budgeting-m5pqn (ADR 0101 Punkt 4): Verfügbar und Zu verteilen leitet BB aus dem Soll ab, vorher YNABs.
+            Expect.equal ((shown page a).Available, page.ToBeBudgeted) (eur 120000L, eur 80000L) "Vortrag 0 plus Soll 120, Zu verteilen 100 − 20"
             Expect.equal ((shown page b).Assigned, (shown page b).OpenWriteBack) (eur 20000L, None) "ohne offene Rückschreibung keine Markierung"
 
         testCase "Denselben Wert bei offener Rückschreibung noch einmal zuweisen erzeugt nichts" <| fun () ->

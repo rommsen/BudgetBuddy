@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-11-21 01:59 -- Task verified and completed: budgeting-m5pqn - "Budget-Monat aus BB: YNAB-Stand je Monat festhalten, getBudgetMonth liest nur die Datenbank, Verfügbar und Zu verteilen leitet BB aus Soll, Kassenbuch und Stand ab"
+
+**Type:** Work / Task completion
+**Task:** budgeting-m5pqn - "Budget-Monat aus BB: YNAB-Stand je Monat festhalten, getBudgetMonth liest nur die Datenbank, Verfügbar und Zu verteilen leitet BB aus Soll, Kassenbuch und Stand ab"
+**Summary:** Budget-Monat aus BB: YNAB-Stand je Monat, getBudgetMonth liest nur die Datenbank
+**Duration:** 2h05m
+**Verification:** PASS (iteration 3)
+**Files changed:** 41
+**Tests added:** 22
+**ADRs written:** none
+
+---
+
+## 2026-11-21 01:39 -- Verification failed: budgeting-m5pqn - Budget-Monat aus BB
+
+**Type:** Work / Verification failure
+**Task:** budgeting-m5pqn - Budget-Monat aus BB
+**Iteration:** 2 of 3
+**Reasons:** Hinweis Abweichung Kassenbuch/YNAB im Kategorie-Detail vergleicht nach dem Umbau Kassenbuch mit Kassenbuch, README-Bullet dazu nicht nachgezogen, offene Frage zu ADR 0101 nicht gestrichen
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker (Conductor: Option 1, Vergleich mit der Aktivität aus dem YNAB-Stand)
+
+---
+
 ## 2026-11-21 01:01 -- Task verified and completed: ledger-cyd1t - "Durchgehen: Textlink „Aufteilen“ unter dem Feld Kategorie öffnet das Detail mit offenem Split-Editor, ohne Umweg über „Details“"
 
 **Type:** Work / Task completion

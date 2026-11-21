@@ -51,17 +51,94 @@ let private deactivatedForPage (connect: unit -> Microsoft.Data.Sqlite.SqliteCon
         | Error _ -> return Set.empty
     }
 
-/// Liest einen Monat für die Budget-Seite (budgeting-dgrp7, ADR 0084 Punkt 3, Nachtrag): `observeMonth` liest
-/// YNAB unter der Monatssperre (ein Aufruf), hält Übernahme und Beobachtungen fest, und die Antwort entsteht aus
-/// dessen YNAB-Stand und der Faltung. Zugewiesen ist BBs Soll, eine offene Rückschreibung trägt ihre Markierung;
-/// Aktivität, Verfügbar und Zu verteilen bleiben YNABs. Scheitert `FetchMonth`, scheitert das Lesen. Scheitert
-/// nur das Festhalten, steht der Grund im Server-Log und der Monat kommt aus dem YNAB-Stand. Die Targets sind BBs
-/// Regeln im Monat; wartet eine Kategorie noch auf die Target-Übernahme, läuft sie vorher (budgeting-eh8xe).
+/// Die Aktivität des Monats für die Seite (ADR 0101 Punkt 2, `monthActivity`): aus dem Kassenbuch ab dessen erster
+/// Buchung, davor aus dem Stand. Ist das Kassenbuch nicht lesbar, gilt die Aktivität des Stands und der Grund steht
+/// im Server-Log; das Lesen scheitert nicht.
+let private monthActivityForPage (ledger: CommandHandlers.LedgerActivityPort) (snapshot: YnabMonth) : Async<Map<Guid, Money>> =
+    async {
+        try
+            let! first = ledger.LoadFirstEntryDate ()
+            if ledgerCoversMonth first snapshot.Month then
+                let day = DateTime.ParseExact(snapshot.Month, "yyyy-MM-dd", Globalization.CultureInfo.InvariantCulture)
+                let! sums = ledger.LoadMonthlyActivity (snapshot.Categories |> List.map (fun c -> c.Id)) [ day ]
+                let ofMonth =
+                    sums
+                    |> Map.map (fun _ rows -> rows |> List.filter (fun (d, _) -> d = day) |> List.map snd)
+                    |> Map.filter (fun _ rows -> not (List.isEmpty rows))
+                    |> Map.map (fun _ rows -> rows |> List.reduce (fun a b -> { a with Amount = a.Amount + b.Amount }))
+                return monthActivity first ofMonth snapshot
+            else
+                return monthActivity first Map.empty snapshot
+        with ex ->
+            logReadFailure $"Aktivität {snapshot.Month} aus dem Kassenbuch lesen" ex
+            return monthActivity None Map.empty snapshot
+    }
+
+/// Die Faltung des Monats aus BBs Ereignissen, ohne YNAB. Ist der Stream nicht lesbar, steht der Grund im Log und es
+/// kommt `None`: die Seite zeigt dann YNABs Zugewiesen aus dem Stand ohne Markierung, wie früher bei einer
+/// Beobachtung, die sich nicht festhalten ließ.
+let private foldForPage (connect: unit -> Microsoft.Data.Sqlite.SqliteConnection) (monthKey: string) : Map<Guid, AssignmentState> option =
+    let loaded =
+        try
+            use conn = connect ()
+            Budgeting.Persistence.loadMonthEventsOn conn monthKey
+        with ex ->
+            Error ex.Message
+    match loaded with
+    | Ok events -> Some (Assignments.foldMonth events).Categories
+    | Error reason ->
+        Budgeting.Persistence.logReadFailure $"Monats-Stream {monthKey} lesen" reason
+        None
+
+/// Baut den Monat der Seite aus dem Stand (ADR 0101 Punkt 4): Soll aus `assignments`, Aktivität aus dem Kassenbuch,
+/// Verfügbar und Zu verteilen abgeleitet (`bbMonthOf`), dazu Pausen, Targets, Fehlbetrag, Deaktivieren und das
+/// Target gegenüber YNAB (Goal aus dem Stand). `copiedAt` ist der Zeitpunkt des gespeicherten Stands, `None`, wenn
+/// keiner gespeichert ist. Liest nur die Datenbank.
+let private pageMonthOf
+    (ledger: CommandHandlers.LedgerActivityPort)
+    (connect: unit -> Microsoft.Data.Sqlite.SqliteConnection)
+    (raw: YnabMonth)
+    (copiedAt: DateTime option)
+    (assignments: Map<Guid, AssignmentState> option)
+    (targets: Map<Guid, Target>)
+    : Async<YnabResult<BudgetMonth>> =
+    async {
+        let monthKey = raw.Month
+        match! Budgeting.Persistence.loadPausedCategoriesWith connect monthKey with
+        | Error message -> return Error (YnabError.LocalReadFailed message)
+        | Ok paused ->
+            let! periodActivity = periodActivityForPage ledger targets monthKey
+            let! activity = monthActivityForPage ledger raw
+            // Nach bestem Bemühen: ist der Stand gegenüber YNAB nicht lesbar, fehlt nur der Hinweis (Grund im Log).
+            let! openWrites = Budgeting.Persistence.loadOpenTargetWritesWith connect
+            let! deactivated = deactivatedForPage connect
+            // Erst deaktivieren (budgeting-sn2sn), dann den Stand gegenüber YNAB eintragen: beide ändern nur ihr
+            // eigenes Feld, die Folge ändert nichts am Ergebnis; so bekommt eine weggelassene Kategorie keinen Stand.
+            let month =
+                bbMonthOf assignments activity raw
+                |> toBudgetMonthWith assignments periodActivity targets paused
+                |> applyDeactivation deactivated
+                // YNABs Aktivität aus dem Stand für den Hinweis „Abweichung Kassenbuch/YNAB“ im Detail.
+                |> withActivityInYnab raw
+            let withState = withTargetInYnab (openWrites |> Result.defaultValue Map.empty) raw month
+            return Ok { withState with CopiedAt = copiedAt }
+    }
+
+/// Liest einen Monat für die Budget-Seite (budgeting-m5pqn, ADR 0101): nur aus BBs Datenbank, ohne YNAB-Aufruf und
+/// ohne Sperre. Zugewiesen ist BBs Soll aus der Faltung, eine offene Rückschreibung trägt ihre Markierung. Die
+/// Aktivität kommt aus dem Kassenbuch (vor dessen erster Buchung aus dem YNAB-Stand), Verfügbar und Zu verteilen
+/// leitet BB aus Soll, Aktivität und Stand ab (`bbMonthOf`). Kategorienliste, Vortrag und Goal stammen aus dem
+/// YNAB-Stand, den nur das Beobachten schreibt (`CommandHandlers.observeMonthWith`).
+/// Ein Monat ohne Stand wird einmal beobachtet wie früher bei jedem Lesen (ADR 0101 Punkt 7): ein `FetchMonth`
+/// unter der Monatssperre, dazu die Target-Übernahme, falls eine Kategorie auf sie wartet (budgeting-eh8xe).
+/// Scheitert dort `FetchMonth`, scheitert das Lesen; scheitert nur das Festhalten, steht der Grund im Server-Log
+/// und der Monat kommt aus dem gerade gelesenen YNAB-Monat mit YNABs Zugewiesen, ohne `CopiedAt`.
 /// Der Fehlbetrag ist BBs (budgeting-hbhzf), die Ausgaben der Periode dafür kommen aus dem Kassenbuch (`ledger`,
-/// budgeting-k5q2w), nie aus YNAB. Ist es nicht lesbar, kommt der Monat ohne Fehlbetrag und der Grund steht im Log.
+/// budgeting-k5q2w). Ist es nicht lesbar, kommt der Monat ohne Fehlbetrag und der Grund steht im Log.
 /// In BB deaktivierte Kategorien fehlen, außer sie haben im Monat Aktivität oder Verfügbares (`applyDeactivation`,
 /// budgeting-sn2sn).
-/// `connect` ist die Datenbank für Stream, Pausen und Anhängen, `now` der Zeitpunkt der Ereignisse (UTC).
+/// `connect` ist die Datenbank, `port` wird nur für einen Monat ohne Stand gebraucht, `now` stempelt dessen
+/// Beobachtung (UTC).
 let budgetMonthWithLedger
     (ledger: CommandHandlers.LedgerActivityPort)
     (connect: unit -> Microsoft.Data.Sqlite.SqliteConnection)
@@ -70,29 +147,26 @@ let budgetMonthWithLedger
     (monthKey: string)
     : Async<YnabResult<BudgetMonth>> =
     async {
-        let! observed = CommandHandlers.observeMonthWith connect port now monthKey
-        let found =
-            match observed with
-            | Error (CommandHandlers.FetchFailed e) -> Error e
-            | Error (CommandHandlers.NotRecorded (raw, _)) -> Ok (raw, None)
-            | Ok o -> Ok (o.Raw, Some o.Fold.Categories)
-        match found with
-        | Error e -> return Error e
-        | Ok (raw, assignments) ->
-            match! Budgeting.Persistence.loadPausedCategoriesWith connect monthKey with
+        match! Budgeting.Persistence.loadYnabMonthSnapshotWith connect monthKey with
+        | Error message -> return Error (YnabError.LocalReadFailed message)
+        | Ok (Some snapshot) ->
+            match! Budgeting.Persistence.loadTargetRulesWith connect monthKey with
             | Error message -> return Error (YnabError.LocalReadFailed message)
-            | Ok paused ->
+            | Ok targets ->
+                return! pageMonthOf ledger connect snapshot.Raw (Some snapshot.FetchedAt) (foldForPage connect monthKey) targets
+        | Ok None ->
+            let! observed = CommandHandlers.observeMonthWith connect port now monthKey
+            let found =
+                match observed with
+                | Error (CommandHandlers.FetchFailed e) -> Error e
+                | Error (CommandHandlers.NotRecorded (raw, _)) -> Ok (raw, None, None)
+                | Ok o -> Ok (o.Raw, Some o.Fold.Categories, Some now)
+            match found with
+            | Error e -> return Error e
+            | Ok (raw, assignments, copiedAt) ->
                 match! CommandHandlers.targetRulesBestEffort connect port now raw with
                 | Error message -> return Error (YnabError.LocalReadFailed message)
-                | Ok targets ->
-                    let! activity = periodActivityForPage ledger targets monthKey
-                    // Nach bestem Bemühen: ist der Stand gegenüber YNAB nicht lesbar, fehlt nur der Hinweis (Grund im Log).
-                    let! openWrites = Budgeting.Persistence.loadOpenTargetWritesWith connect
-                    let! deactivated = deactivatedForPage connect
-                    // Erst deaktivieren (budgeting-sn2sn), dann den Stand gegenüber YNAB eintragen: beide ändern nur ihr
-                    // eigenes Feld, die Folge ändert nichts am Ergebnis; so bekommt eine weggelassene Kategorie keinen Stand.
-                    let month = toBudgetMonthWith assignments activity targets paused raw |> applyDeactivation deactivated
-                    return Ok (withTargetInYnab (openWrites |> Result.defaultValue Map.empty) raw month)
+                | Ok targets -> return! pageMonthOf ledger connect raw copiedAt assignments targets
     }
 
 /// `budgetMonthWithLedger` mit dem Kassenbuch der Anwendung (`CommandHandlers.liveLedgerActivityPort`).

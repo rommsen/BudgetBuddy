@@ -36,12 +36,13 @@ const jumpedEntry = buildEntryFixture(SECOND_ACCOUNT, 77, { Payee: "Sprung m1bce
 const month = {
   Month: "2026-11-01",
   ToBeBudgeted: eur(35.45),
+  CopiedAt: null,
   Groups: [
     {
       Name: "Alltag m1bce",
       Categories: [
-        { Id: CATEGORY, Name: "Lebensmittel m1bce", Assigned: eur(100), Activity: eur(-50), Available: eur(50), Underfunded: null, Target: null, Pause: null, OpenWriteBack: null },
-        { Id: guid(2), Name: "Urlaub m1bce", Assigned: eur(10), Activity: eur(0), Available: eur(10), Underfunded: null, Target: null, Pause: null, OpenWriteBack: null },
+        { Id: CATEGORY, Name: "Lebensmittel m1bce", Assigned: eur(100), Activity: eur(-40), Available: eur(60), Underfunded: null, Target: null, Pause: null, OpenWriteBack: null, ActivityInYnab: eur(-50) },
+        { Id: guid(2), Name: "Urlaub m1bce", Assigned: eur(10), Activity: eur(0), Available: eur(10), Underfunded: null, Target: null, Pause: null, OpenWriteBack: null, ActivityInYnab: null },
       ],
     },
   ],

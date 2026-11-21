@@ -33,7 +33,7 @@ let private trip : BudgetCategory =
       Available = eur 0m
       Underfunded = Some (eur 50m)
       Target = Some target
-      Pause = None; OpenWriteBack = None; TargetInYnab = None; Deactivated = None }
+      Pause = None; OpenWriteBack = None; TargetInYnab = None; Deactivated = None; ActivityInYnab = None }
 
 let private holiday : BudgetCategory =
     { trip with Id = other; Name = "Urlaub"; Underfunded = None; Target = None; Available = eur 10m }
@@ -41,6 +41,7 @@ let private holiday : BudgetCategory =
 let private monthWith (month: string) (pause: PauseSource option) : BudgetMonth =
     { Month = month
       ToBeBudgeted = eur 500m
+      CopiedAt = None
       Groups = [ { Name = "Alltag"; Categories = [ { trip with Pause = pause }; holiday ] } ] }
 
 let private frame : BudgetFrame =

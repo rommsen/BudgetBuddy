@@ -27,11 +27,12 @@ let private budgetCategory (id: Guid) (name: string) : BudgetCategory =
       Available = eur 70m
       Underfunded = None
       Target = None
-      Pause = None; OpenWriteBack = None; TargetInYnab = None; Deactivated = None }
+      Pause = None; OpenWriteBack = None; TargetInYnab = None; Deactivated = None; ActivityInYnab = None }
 
 let private october : BudgetMonth =
     { Month = "2026-10-01"
       ToBeBudgeted = eur 0m
+      CopiedAt = None
       Groups = [ { Name = "Alltag"; Categories = [ budgetCategory categoryA "Lebensmittel"; budgetCategory categoryB "Urlaub" ] } ] }
 
 let private frame : BudgetFrame =

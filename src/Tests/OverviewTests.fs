@@ -15,10 +15,10 @@ let private eur (amount: decimal) : Money = { Amount = amount; Currency = "EUR" 
 
 let private category (assigned: decimal) (activity: decimal) (available: decimal) : BudgetCategory =
     { Id = Guid.NewGuid(); Name = "K"; Assigned = eur assigned; Activity = eur activity; Available = eur available
-      Underfunded = None; Target = None; Pause = None; OpenWriteBack = None; TargetInYnab = None; Deactivated = None }
+      Underfunded = None; Target = None; Pause = None; OpenWriteBack = None; TargetInYnab = None; Deactivated = None; ActivityInYnab = None }
 
 let private monthOf (key: string) (categories: BudgetCategory list) : BudgetMonth =
-    { Month = key; ToBeBudgeted = eur 120m; Groups = [ { Name = "Alltag"; Categories = categories } ] }
+    { Month = key; ToBeBudgeted = eur 120m; CopiedAt = None; Groups = [ { Name = "Alltag"; Categories = categories } ] }
 
 let private november = monthOf "2026-11-01" [ category 1400m -747.90m 652.10m; category 80m -80.10m -0.10m; category 60m 12m 72m ]
 

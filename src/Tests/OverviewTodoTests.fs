@@ -20,10 +20,10 @@ let private entryId = Guid.Parse "00000000-0000-0000-0000-0000000b2001"
 
 let private category (id: Guid) (name: string) (available: decimal) (underfunded: decimal option) : BudgetCategory =
     { Id = id; Name = name; Assigned = eur 0m; Activity = eur 0m; Available = eur available
-      Underfunded = underfunded |> Option.map eur; Target = None; Pause = None; OpenWriteBack = None; TargetInYnab = None; Deactivated = None }
+      Underfunded = underfunded |> Option.map eur; Target = None; Pause = None; OpenWriteBack = None; TargetInYnab = None; Deactivated = None; ActivityInYnab = None }
 
 let private monthOf (toBeBudgeted: decimal) (categories: BudgetCategory list) : BudgetMonth =
-    { Month = "2026-11-01"; ToBeBudgeted = eur toBeBudgeted; Groups = [ { Name = "Laufend"; Categories = categories } ] }
+    { Month = "2026-11-01"; ToBeBudgeted = eur toBeBudgeted; CopiedAt = None; Groups = [ { Name = "Laufend"; Categories = categories } ] }
 
 /// Ein Monat ohne Aufgabe: nichts im Minus, kein Fehlbetrag, nichts zu verteilen.
 let private quietMonth = monthOf 0m [ category clothesId "Kleidung" 143m None ]

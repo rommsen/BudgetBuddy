@@ -19,6 +19,7 @@ let private categoryA = Guid.Parse "00000000-0000-0000-0000-0000000e7a01"
 let private october : BudgetMonth =
     { Month = "2026-09-01"
       ToBeBudgeted = eur 0m
+      CopiedAt = None
       Groups =
         [ { Name = "Alltag"
             Categories =
@@ -29,7 +30,7 @@ let private october : BudgetMonth =
                   Available = eur 70m
                   Underfunded = None
                   Target = None
-                  Pause = None; OpenWriteBack = None; TargetInYnab = None; Deactivated = None } ] } ] }
+                  Pause = None; OpenWriteBack = None; TargetInYnab = None; Deactivated = None; ActivityInYnab = None } ] } ] }
 
 let private frame : BudgetFrame =
     { CurrentMonth = "2026-10-01"

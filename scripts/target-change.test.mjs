@@ -34,6 +34,7 @@ const target = (goal) => ({
 const monthFixture = (key, goal) => ({
   Month: key,
   ToBeBudgeted: eur(500),
+  CopiedAt: null,
   Groups: [
     {
       Name: "Rücklagen k8wq3",
@@ -48,6 +49,7 @@ const monthFixture = (key, goal) => ({
           Target: goal === null ? null : target(goal),
           Pause: null,
           OpenWriteBack: null,
+          ActivityInYnab: null,
         },
       ],
     },

@@ -20,6 +20,7 @@ let private eur (amount: decimal) : Money = { Amount = amount; Currency = "EUR" 
 let private monthK7wmd : BudgetMonth =
     { Month = "2026-10-01"
       ToBeBudgeted = eur -12.34m
+      CopiedAt = None
       Groups = [] }
 
 let private frameK7wmd : BudgetFrame =
@@ -39,7 +40,7 @@ let private guardCategory : BudgetCategory =
       Available = eur 1m
       Underfunded = None
       Target = None
-      Pause = None; OpenWriteBack = None; TargetInYnab = None; Deactivated = None }
+      Pause = None; OpenWriteBack = None; TargetInYnab = None; Deactivated = None; ActivityInYnab = None }
 
 let private detailMonthForGuard : BudgetMonth =
     { monthK7wmd with Groups = [ { Name = "Alltag"; Categories = [ guardCategory ] } ] }
@@ -276,7 +277,7 @@ let private labelTests =
         test "Kategorien werden über alle Gruppen gezählt" {
             let cat n : BudgetCategory =
                 { Id = System.Guid.NewGuid(); Name = n; Assigned = eur 0m; Activity = eur 0m
-                  Available = eur 0m; Underfunded = None; Target = None; Pause = None; OpenWriteBack = None; TargetInYnab = None; Deactivated = None }
+                  Available = eur 0m; Underfunded = None; Target = None; Pause = None; OpenWriteBack = None; TargetInYnab = None; Deactivated = None; ActivityInYnab = None }
             let month =
                 { monthK7wmd with
                     Groups = [ { Name = "A"; Categories = [ cat "a"; cat "b" ] }; { Name = "B"; Categories = [ cat "c" ] } ] }
@@ -325,7 +326,7 @@ let private cat (n: int) (name: string) : BudgetCategory =
       Available = rxxb4Money
       Underfunded = None
       Target = None
-      Pause = None; OpenWriteBack = None; TargetInYnab = None; Deactivated = None }
+      Pause = None; OpenWriteBack = None; TargetInYnab = None; Deactivated = None; ActivityInYnab = None }
 
 let private groupsRxxb4 : BudgetGroup list =
     [ { Name = "Alltag"; Categories = [ cat 1 "Lebensmittel"; cat 2 "Kino" ] }
@@ -409,11 +410,12 @@ let private detailCategoryFixture : BudgetCategory =
       Available = eur 70m
       Underfunded = None
       Target = None
-      Pause = None; OpenWriteBack = None; TargetInYnab = None; Deactivated = None }
+      Pause = None; OpenWriteBack = None; TargetInYnab = None; Deactivated = None; ActivityInYnab = None }
 
 let private detailMonth : BudgetMonth =
     { Month = "2026-10-01"
       ToBeBudgeted = eur 0m
+      CopiedAt = None
       Groups = [ { Name = "Alltag"; Categories = [ detailCategoryFixture ] } ] }
 
 let private withMonth = { init () with Month = Success detailMonth }
@@ -785,6 +787,25 @@ let private totalTests =
                 (Some $"Kassenbuch: {text -30m}, YNAB: {text -35.5m}")
                 "beide Beträge"
         }
+        // Regression (budgeting-m5pqn, Iteration 3): `Activity` ist auf der Seite die des Kassenbuchs. Der Hinweis
+        // verglich gegen sie, also Kassenbuch mit Kassenbuch, und verschwand. Er vergleicht gegen YNABs Aktivität
+        // aus dem Stand.
+        test "Weicht die Summe der Buchungen von YNABs Aktivität aus dem Stand ab, nennt der Hinweis beide" {
+            let text (amount: decimal) = Client.DesignSystem.Money.formatAmountText false true amount "EUR"
+            let category = { guardCategory with Activity = eur -40m; ActivityInYnab = Some (eur -50m) }
+            Expect.equal
+                (categoryDeviationHint category [ line -30m; line -10m ])
+                (Some $"Kassenbuch: {text -40m}, YNAB: {text -50m}")
+                "Kassenbuch gegen YNAB"
+        }
+        test "Stimmt die Summe mit YNABs Aktivität aus dem Stand überein, gibt es keinen Hinweis" {
+            let category = { guardCategory with Activity = eur -12m; ActivityInYnab = Some (eur -40m) }
+            Expect.isNone (categoryDeviationHint category [ line -30m; line -10m ]) "gleich YNAB"
+        }
+        test "Ohne YNABs Aktivität gibt es keinen Hinweis" {
+            let category = { guardCategory with Activity = eur -50m; ActivityInYnab = None }
+            Expect.isNone (categoryDeviationHint category [ line -30m; line -10m ]) "ohne Stand"
+        }
     ]
 
 let private returnTests =
@@ -944,7 +965,7 @@ let private targetCategory (target: Target) (under: decimal option) (snoozed: bo
     { detailCategoryFixture with
         Target = Some target
         Underfunded = under |> Option.map eur
-        Pause = (if snoozed then Some PausedInBb else None); OpenWriteBack = None; TargetInYnab = None; Deactivated = None }
+        Pause = (if snoozed then Some PausedInBb else None); OpenWriteBack = None; TargetInYnab = None; Deactivated = None; ActivityInYnab = None }
 
 let private targetTextTests =
     testList "Rhythmus-Text (kjsht)" [

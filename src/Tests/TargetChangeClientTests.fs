@@ -41,7 +41,7 @@ let private trip (goal: decimal) : BudgetCategory =
       Available = eur 0m
       Underfunded = Some (eur 50m)
       Target = Some (targetOf goal)
-      Pause = None; OpenWriteBack = None; TargetInYnab = None; Deactivated = None }
+      Pause = None; OpenWriteBack = None; TargetInYnab = None; Deactivated = None; ActivityInYnab = None }
 
 let private holiday : BudgetCategory =
     { trip 20m with Id = holidayId; Name = "Urlaub"; Underfunded = Some (eur 0m) }
@@ -49,6 +49,7 @@ let private holiday : BudgetCategory =
 let private monthWith (month: string) (goal: decimal) : BudgetMonth =
     { Month = month
       ToBeBudgeted = eur 500m
+      CopiedAt = None
       Groups = [ { Name = "Alltag"; Categories = [ trip goal; holiday ] } ] }
 
 let private frame : BudgetFrame =
@@ -335,6 +336,7 @@ type private Walk = {
 let private monthOfGoals (month: string) (goals: Map<Guid, decimal>) : BudgetMonth =
     { Month = month
       ToBeBudgeted = eur 500m
+      CopiedAt = None
       Groups = [ { Name = "Alltag"; Categories = [ trip goals[tripId]; { holiday with Target = Some (targetOf goals[holidayId]) } ] } ] }
 
 let private events (walk: Walk) : (string * Walk) list =
