@@ -11,18 +11,18 @@ Catalog of this bounded context's tasks by status.
 
 <!-- task-counts:start -->
 - **Backlog:** 5
-- **Todo:** 1
-- **Doing:** 0
+- **Todo:** 0
+- **Doing:** 1
 - **Done:** 76
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **budgeting-ffjk9** — "Nachziehen beim Öffnen: Budget-Seite und Übersicht zeigen sofort BBs Stand und gleichen danach still mit YNAB ab (syncBudgetMonth, Frische 60 s und 5 min, spätere Monate veraltet)" (feature) — `todo/budgeting-ffjk9-budget-nachziehen-beim-oeffnen.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **budgeting-ffjk9** — "Nachziehen beim Öffnen: Budget-Seite und Übersicht zeigen sofort BBs Stand und gleichen danach still mit YNAB ab (syncBudgetMonth, Frische 60 s und 5 min, spätere Monate veraltet)" (feature) — `doing/budgeting-ffjk9-budget-nachziehen-beim-oeffnen.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)

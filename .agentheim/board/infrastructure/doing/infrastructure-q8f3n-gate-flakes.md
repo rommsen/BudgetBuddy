@@ -1,7 +1,7 @@
 ---
 id: infrastructure-q8f3n
 title: "Gate ohne Flakes: Ledger-Replay mit fremden Perf-Buchungen, AC14-Zeittest, Design-System-Export und regeln-panel werden deterministisch"
-status: todo
+status: doing
 type: bug
 context: infrastructure
 created: 2026-11-21

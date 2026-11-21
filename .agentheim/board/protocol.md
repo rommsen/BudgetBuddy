@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-21 12:09 -- Batch started: [budgeting-ffjk9, infrastructure-q8f3n]
+
+**Type:** Work / Batch start
+**Tasks:** budgeting-ffjk9 - "Nachziehen beim Öffnen: Budget-Seite und Übersicht zeigen sofort BBs Stand und gleichen danach still mit YNAB ab (syncBudgetMonth, Frische 60 s und 5 min, spätere Monate veraltet)", infrastructure-q8f3n - "Gate ohne Flakes: Ledger-Replay mit fremden Perf-Buchungen, AC14-Zeittest, Design-System-Export und regeln-panel werden deterministisch"
+**Parallel:** scoped — builder named budgeting-ffjk9 und infrastructure-q8f3n (2 workers); banking-import-y7m4r (Spike) nicht dispatcht
+
+---
+
 ## 2026-11-21 12:09 -- Modeling / Captured: infrastructure-q8f3n - Gate ohne Flakes
 
 **Type:** Modeling / Capture

@@ -11,18 +11,18 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 6
-- **Todo:** 1
-- **Doing:** 0
+- **Todo:** 0
+- **Doing:** 1
 - **Done:** 51
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **infrastructure-q8f3n** — "Gate ohne Flakes: Ledger-Replay mit fremden Perf-Buchungen, AC14-Zeittest, Design-System-Export und regeln-panel werden deterministisch" (bug) — `todo/infrastructure-q8f3n-gate-flakes.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **infrastructure-q8f3n** — "Gate ohne Flakes: Ledger-Replay mit fremden Perf-Buchungen, AC14-Zeittest, Design-System-Export und regeln-panel werden deterministisch" (bug) — `doing/infrastructure-q8f3n-gate-flakes.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)

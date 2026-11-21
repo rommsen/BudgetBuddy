@@ -1,7 +1,7 @@
 ---
 id: budgeting-ffjk9
 title: "Nachziehen beim Öffnen: Budget-Seite und Übersicht zeigen sofort BBs Stand und gleichen danach still mit YNAB ab (syncBudgetMonth, Frische 60 s und 5 min, spätere Monate veraltet)"
-status: todo
+status: doing
 type: feature
 context: budgeting
 created: 2026-11-20
