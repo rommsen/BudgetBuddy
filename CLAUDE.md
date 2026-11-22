@@ -86,6 +86,13 @@ JUnit-Bericht, kein `dotnet test`), npm run build, beide Wächter (`guard:classe
 `VERIFY: PASS`. Übersprungene Pflichttests zählen als rot. Schlägt ein Schritt fehl: Ursache
 beheben, nicht umgehen.
 
+Ausnahme für eine Wiederholung nach Verifier-FAIL: ändert sie gegenüber der vorigen Iteration nur den
+RESULT-Block (README_DELTA, OUTCOME, ADRS, BACKLOG_ITEMS), gilt das `VERIFY: PASS` der vorigen Iteration
+weiter. Beleg: `git diff --quiet <wip-Commit der vorigen Iteration> HEAD` im Worktree endet mit Exit 0 (den
+Commit nennt der Conductor), die vorige Iteration hatte auf diesem Stand `VERIFY: PASS`, und
+`npm run check:readme-delta` endet mit Exit 0. Ist irgendein Pfad geändert, auch nur ein Kommentar, eine
+Fixture oder ein Test, läuft das volle Gate. Auf `main` läuft vor dem Integrieren nichts anderes als bisher.
+
 ## Ablauf
 
 - Fortschritt und nächster Schritt: `.agentheim/knowledge/fahrplan.md`, Abschnitt „Stand“ (ADR 0086).
